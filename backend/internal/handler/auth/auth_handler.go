@@ -1,0 +1,81 @@
+package auth
+
+import (
+	"github.com/gin-gonic/gin"
+	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
+	"github.com/monitoring-system/backend/internal/middleware"
+	"github.com/monitoring-system/backend/pkg/response"
+	"github.com/monitoring-system/backend/pkg/validator"
+)
+
+// AuthHandler handles authentication endpoints: login, logout, me.
+type AuthHandler struct {
+	authUC authdomain.AuthUseCase
+}
+
+func NewAuthHandler(authUC authdomain.AuthUseCase) *AuthHandler {
+	return &AuthHandler{authUC: authUC}
+}
+
+// Login godoc
+// @Summary      User Login
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body body authdomain.LoginRequest true "Login credentials"
+// @Success      200 {object} response.APIResponse{data=authdomain.LoginResponse}
+// @Router       /auth/login [post]
+func (h *AuthHandler) Login(c *gin.Context) {
+	var req authdomain.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body", err.Error())
+		return
+	}
+	if errs := validator.Validate(&req); errs != nil {
+		response.BadRequest(c, "validation failed", errs)
+		return
+	}
+
+	ip := c.ClientIP()
+	device := c.GetHeader("User-Agent")
+
+	result, err := h.authUC.Login(&req, ip, device)
+	if err != nil {
+		response.Unauthorized(c, err.Error())
+		return
+	}
+	response.OK(c, "login successful", result)
+}
+
+// Logout godoc
+// @Summary      Logout
+// @Tags         Auth
+// @Security     BearerAuth
+// @Success      200 {object} response.APIResponse
+// @Router       /auth/logout [post]
+func (h *AuthHandler) Logout(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	loginLogID := c.Query("login_log_id")
+
+	if err := h.authUC.Logout(userID, loginLogID); err != nil {
+		response.InternalServerError(c, "logout failed", err.Error())
+		return
+	}
+	response.OK(c, "logout successful", nil)
+}
+
+// Me godoc
+// @Summary      Get current authenticated user
+// @Tags         Auth
+// @Security     BearerAuth
+// @Success      200 {object} response.APIResponse{data=authdomain.UserInfo}
+// @Router       /auth/me [get]
+func (h *AuthHandler) Me(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	info, err := h.authUC.Me(userID)
+	if err != nil {
+		response.NotFound(c, "user not found")
+		return
+	}
+	response.OK(c, "success", info)
+}

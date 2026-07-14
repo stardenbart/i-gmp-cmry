@@ -1,0 +1,72 @@
+package jwt
+
+import (
+	"errors"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+// Claims is the custom JWT claims struct.
+type Claims struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	RoleID   string `json:"role_id"`
+	jwt.RegisteredClaims
+}
+
+// Manager handles JWT generation and parsing.
+type Manager struct {
+	secret        []byte
+	expiredHours  int
+}
+
+// New creates a new JWT Manager.
+func New(secret string, expiredHours int) *Manager {
+	return &Manager{
+		secret:       []byte(secret),
+		expiredHours: expiredHours,
+	}
+}
+
+// Generate creates a signed JWT token for the given user.
+func (m *Manager) Generate(userID, username, roleID string) (string, time.Time, error) {
+	expiredAt := time.Now().Add(time.Duration(m.expiredHours) * time.Hour)
+
+	claims := &Claims{
+		UserID:   userID,
+		Username: username,
+		RoleID:   roleID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiredAt),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString(m.secret)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return signed, expiredAt, nil
+}
+
+// Parse validates a token string and returns its claims.
+func (m *Manager) Parse(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return m.secret, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+	return claims, nil
+}

@@ -1,0 +1,36 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Go build cache
+*.test
+*.out
+vendor/
+
+# Environment
+.env
+*.local.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads / logs
+uploads/
+logs/
+
+# Swagger generated
+docs/swagger/docs.go
+docs/swagger/swagger.json
+docs/swagger/swagger.yaml
+
+# OS
+.DS_Store
+Thumbs.db
