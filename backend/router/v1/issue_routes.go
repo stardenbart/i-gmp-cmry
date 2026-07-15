@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler/issuehandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/issuerepo"
@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterIssueRoutes(rg *gin.RouterGroup, db *gorm.DB, minioStorage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger) {
 	issueRepo := issuerepo.NewIssueRepository(db)
 	photoRepo := issuerepo.NewIssuePhotoRepository(db)
 	userRepo := authrepo.NewUserRepository(db)
@@ -32,15 +32,15 @@ func RegisterIssueRoutes(rg *gin.RouterGroup, db *gorm.DB, minioStorage *storage
 	issues := rg.Group("/issues", authMW)
 	{
 		// Issue CRUD
-		issues.GET("", issueH.GetAll)
-		issues.POST("", issueH.Create)
-		issues.GET("/:id", issueH.GetByID)
-		issues.PUT("/:id", issueH.Update)
-		issues.DELETE("/:id", issueH.Delete)
+		issues.Get("", issueH.GetAll)
+		issues.Post("", issueH.Create)
+		issues.Get("/:id", issueH.GetByID)
+		issues.Put("/:id", issueH.Update)
+		issues.Delete("/:id", issueH.Delete)
 
 		// Issue Photos (initial + follow-up)
-		issues.GET("/:id/photos", photoH.GetByIssueID)
-		issues.POST("/:id/photos/upload", photoH.Upload)
-		issues.DELETE("/photos/:photo_id", photoH.Delete)
+		issues.Get("/:id/photos", photoH.GetByIssueID)
+		issues.Post("/:id/photos/upload", photoH.Upload)
+		issues.Delete("/photos/:photo_id", photoH.Delete)
 	}
 }

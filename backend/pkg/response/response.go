@@ -3,7 +3,7 @@ package response
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 )
 
 // APIResponse is the standard JSON response envelope for all API endpoints.
@@ -26,8 +26,8 @@ type PaginatedResponse struct {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-func OK(c *gin.Context, message string, data interface{}) {
-	c.JSON(http.StatusOK, APIResponse{
+func OK(c *fiber.Ctx, message string, data interface{}) error {
+	return c.Status(http.StatusOK).JSON(APIResponse{
 		Success:    true,
 		StatusCode: http.StatusOK,
 		Message:    message,
@@ -35,8 +35,8 @@ func OK(c *gin.Context, message string, data interface{}) {
 	})
 }
 
-func Created(c *gin.Context, message string, data interface{}) {
-	c.JSON(http.StatusCreated, APIResponse{
+func Created(c *fiber.Ctx, message string, data interface{}) error {
+	return c.Status(http.StatusCreated).JSON(APIResponse{
 		Success:    true,
 		StatusCode: http.StatusCreated,
 		Message:    message,
@@ -44,8 +44,8 @@ func Created(c *gin.Context, message string, data interface{}) {
 	})
 }
 
-func BadRequest(c *gin.Context, message string, err interface{}) {
-	c.JSON(http.StatusBadRequest, APIResponse{
+func BadRequest(c *fiber.Ctx, message string, err interface{}) error {
+	return c.Status(http.StatusBadRequest).JSON(APIResponse{
 		Success:    false,
 		StatusCode: http.StatusBadRequest,
 		Message:    message,
@@ -53,32 +53,32 @@ func BadRequest(c *gin.Context, message string, err interface{}) {
 	})
 }
 
-func Unauthorized(c *gin.Context, message string) {
-	c.JSON(http.StatusUnauthorized, APIResponse{
+func Unauthorized(c *fiber.Ctx, message string) error {
+	return c.Status(http.StatusUnauthorized).JSON(APIResponse{
 		Success:    false,
 		StatusCode: http.StatusUnauthorized,
 		Message:    message,
 	})
 }
 
-func Forbidden(c *gin.Context, message string) {
-	c.JSON(http.StatusForbidden, APIResponse{
+func Forbidden(c *fiber.Ctx, message string) error {
+	return c.Status(http.StatusForbidden).JSON(APIResponse{
 		Success:    false,
 		StatusCode: http.StatusForbidden,
 		Message:    message,
 	})
 }
 
-func NotFound(c *gin.Context, message string) {
-	c.JSON(http.StatusNotFound, APIResponse{
+func NotFound(c *fiber.Ctx, message string) error {
+	return c.Status(http.StatusNotFound).JSON(APIResponse{
 		Success:    false,
 		StatusCode: http.StatusNotFound,
 		Message:    message,
 	})
 }
 
-func InternalServerError(c *gin.Context, message string, err interface{}) {
-	c.JSON(http.StatusInternalServerError, APIResponse{
+func InternalServerError(c *fiber.Ctx, message string, err interface{}) error {
+	return c.Status(http.StatusInternalServerError).JSON(APIResponse{
 		Success:    false,
 		StatusCode: http.StatusInternalServerError,
 		Message:    message,
@@ -86,12 +86,12 @@ func InternalServerError(c *gin.Context, message string, err interface{}) {
 	})
 }
 
-func Paginated(c *gin.Context, message string, items interface{}, total int64, page, limit int) {
+func Paginated(c *fiber.Ctx, message string, items interface{}, total int64, page, limit int) error {
 	totalPages := total / int64(limit)
 	if total%int64(limit) != 0 {
 		totalPages++
 	}
-	c.JSON(http.StatusOK, APIResponse{
+	return c.Status(http.StatusOK).JSON(APIResponse{
 		Success:    true,
 		StatusCode: http.StatusOK,
 		Message:    message,

@@ -1,7 +1,7 @@
 package searchhandler
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/pkg/opensearch"
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
@@ -16,45 +16,42 @@ func NewSearchHandler(osClient *opensearch.Client) *SearchHandler {
 }
 
 // SearchInspections provides full-text search across audit inspections
-func (h *SearchHandler) SearchInspections(c *gin.Context) {
+func (h *SearchHandler) SearchInspections(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	q := c.Query("q")
 	query := buildQuery(q, p.Offset, p.Limit, "inspection_id", "status", "area_id")
 	
-	results, total, err := h.osClient.Search(c.Request.Context(), "audit-inspections", query)
+	results, total, err := h.osClient.Search(c.UserContext(), "audit-inspections", query)
 	if err != nil {
-		response.InternalServerError(c, "search failed", err.Error())
-		return
+		return response.InternalServerError(c, "search failed", err.Error())
 	}
-	response.Paginated(c, "success", results, total, p.Page, p.Limit)
+	return response.Paginated(c, "success", results, total, p.Page, p.Limit)
 }
 
 // SearchIssues provides full-text search across audit issues
-func (h *SearchHandler) SearchIssues(c *gin.Context) {
+func (h *SearchHandler) SearchIssues(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	q := c.Query("q")
 	query := buildQuery(q, p.Offset, p.Limit, "issue_id", "status", "issue_pic_user_id")
 	
-	results, total, err := h.osClient.Search(c.Request.Context(), "audit-issues", query)
+	results, total, err := h.osClient.Search(c.UserContext(), "audit-issues", query)
 	if err != nil {
-		response.InternalServerError(c, "search failed", err.Error())
-		return
+		return response.InternalServerError(c, "search failed", err.Error())
 	}
-	response.Paginated(c, "success", results, total, p.Page, p.Limit)
+	return response.Paginated(c, "success", results, total, p.Page, p.Limit)
 }
 
 // SearchActivityLogs provides full-text search across activity logs
-func (h *SearchHandler) SearchActivityLogs(c *gin.Context) {
+func (h *SearchHandler) SearchActivityLogs(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	q := c.Query("q")
 	query := buildQuery(q, p.Offset, p.Limit, "action", "entity", "details", "actor_id")
 	
-	results, total, err := h.osClient.Search(c.Request.Context(), "audit-activity-logs", query)
+	results, total, err := h.osClient.Search(c.UserContext(), "audit-activity-logs", query)
 	if err != nil {
-		response.InternalServerError(c, "search failed", err.Error())
-		return
+		return response.InternalServerError(c, "search failed", err.Error())
 	}
-	response.Paginated(c, "success", results, total, p.Page, p.Limit)
+	return response.Paginated(c, "success", results, total, p.Page, p.Limit)
 }
 
 // buildQuery creates a simple multi_match query against the specified fields

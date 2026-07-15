@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/response"
@@ -25,26 +25,23 @@ func NewAuthHandler(authUC authdomain.AuthUseCase) *AuthHandler {
 // @Param        body body authdomain.LoginRequest true "Login credentials"
 // @Success      200 {object} response.APIResponse{data=authdomain.LoginResponse}
 // @Router       /auth/login [post]
-func (h *AuthHandler) Login(c *gin.Context) {
+func (h *AuthHandler) Login(c *fiber.Ctx) error  {
 	var req authdomain.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request body", err.Error())
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body", err.Error())
 	}
 	if errs := validator.Validate(&req); errs != nil {
-		response.BadRequest(c, "validation failed", errs)
-		return
+		return response.BadRequest(c, "validation failed", errs)
 	}
 
-	ip := c.ClientIP()
-	device := c.GetHeader("User-Agent")
+	ip := c.IP()
+	device := c.Get("User-Agent")
 
 	result, err := h.authUC.Login(&req, ip, device)
 	if err != nil {
-		response.Unauthorized(c, err.Error())
-		return
+		return response.Unauthorized(c, err.Error())
 	}
-	response.OK(c, "login successful", result)
+	return response.OK(c, "login successful", result)
 }
 
 // Logout godoc
@@ -53,15 +50,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Security     BearerAuth
 // @Success      200 {object} response.APIResponse
 // @Router       /auth/logout [post]
-func (h *AuthHandler) Logout(c *gin.Context) {
+func (h *AuthHandler) Logout(c *fiber.Ctx) error  {
 	userID := middleware.GetUserID(c)
 	loginLogID := c.Query("login_log_id")
 
 	if err := h.authUC.Logout(userID, loginLogID); err != nil {
-		response.InternalServerError(c, "logout failed", err.Error())
-		return
+		return response.InternalServerError(c, "logout failed", err.Error())
 	}
-	response.OK(c, "logout successful", nil)
+	return response.OK(c, "logout successful", nil)
 }
 
 // Me godoc
@@ -70,12 +66,11 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // @Security     BearerAuth
 // @Success      200 {object} response.APIResponse{data=authdomain.UserInfo}
 // @Router       /auth/me [get]
-func (h *AuthHandler) Me(c *gin.Context) {
+func (h *AuthHandler) Me(c *fiber.Ctx) error  {
 	userID := middleware.GetUserID(c)
 	info, err := h.authUC.Me(userID)
 	if err != nil {
-		response.NotFound(c, "user not found")
-		return
+		return response.NotFound(c, "user not found")
 	}
-	response.OK(c, "success", info)
+	return response.OK(c, "success", info)
 }

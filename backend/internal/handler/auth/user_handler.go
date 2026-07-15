@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
@@ -17,7 +17,7 @@ func NewUserHandler(userUC authdomain.UserUseCase) *UserHandler {
 	return &UserHandler{userUC: userUC}
 }
 
-func (h *UserHandler) GetAll(c *gin.Context) {
+func (h *UserHandler) GetAll(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	search := c.Query("search")
 	roleID := c.Query("role_id")
@@ -25,115 +25,98 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 
 	users, total, err := h.userUC.GetAll(p.Page, p.Limit, search, roleID, deptID)
 	if err != nil {
-		response.InternalServerError(c, "failed to fetch users", err.Error())
-		return
+		return response.InternalServerError(c, "failed to fetch users", err.Error())
 	}
-	response.Paginated(c, "success", users, total, p.Page, p.Limit)
+	return response.Paginated(c, "success", users, total, p.Page, p.Limit)
 }
 
-func (h *UserHandler) GetByID(c *gin.Context) {
-	id := c.Param("id")
+func (h *UserHandler) GetByID(c *fiber.Ctx) error  {
+	id := c.Params("id")
 	user, err := h.userUC.GetByID(id)
 	if err != nil {
-		response.NotFound(c, "user not found")
-		return
+		return response.NotFound(c, "user not found")
 	}
-	response.OK(c, "success", user)
+	return response.OK(c, "success", user)
 }
 
-func (h *UserHandler) Create(c *gin.Context) {
+func (h *UserHandler) Create(c *fiber.Ctx) error  {
 	var req authdomain.CreateUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request body", err.Error())
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body", err.Error())
 	}
 	if errs := validator.Validate(&req); errs != nil {
-		response.BadRequest(c, "validation failed", errs)
-		return
+		return response.BadRequest(c, "validation failed", errs)
 	}
 	user, err := h.userUC.Create(&req)
 	if err != nil {
-		response.BadRequest(c, err.Error(), nil)
-		return
+		return response.BadRequest(c, err.Error(), nil)
 	}
-	response.Created(c, "user created successfully", user)
+	return response.Created(c, "user created successfully", user)
 }
 
-func (h *UserHandler) Update(c *gin.Context) {
-	id := c.Param("id")
+func (h *UserHandler) Update(c *fiber.Ctx) error  {
+	id := c.Params("id")
 	var req authdomain.UpdateUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request body", err.Error())
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body", err.Error())
 	}
 	if errs := validator.Validate(&req); errs != nil {
-		response.BadRequest(c, "validation failed", errs)
-		return
+		return response.BadRequest(c, "validation failed", errs)
 	}
 	user, err := h.userUC.Update(id, &req)
 	if err != nil {
-		response.BadRequest(c, err.Error(), nil)
-		return
+		return response.BadRequest(c, err.Error(), nil)
 	}
-	response.OK(c, "user updated successfully", user)
+	return response.OK(c, "user updated successfully", user)
 }
 
-func (h *UserHandler) Delete(c *gin.Context) {
-	id := c.Param("id")
+func (h *UserHandler) Delete(c *fiber.Ctx) error  {
+	id := c.Params("id")
 	if err := h.userUC.Delete(id); err != nil {
-		response.BadRequest(c, err.Error(), nil)
-		return
+		return response.BadRequest(c, err.Error(), nil)
 	}
-	response.OK(c, "user deleted successfully", nil)
+	return response.OK(c, "user deleted successfully", nil)
 }
 
-func (h *UserHandler) ChangePassword(c *gin.Context) {
-	id := c.Param("id")
+func (h *UserHandler) ChangePassword(c *fiber.Ctx) error  {
+	id := c.Params("id")
 	var req authdomain.ChangePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request body", err.Error())
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body", err.Error())
 	}
 	if errs := validator.Validate(&req); errs != nil {
-		response.BadRequest(c, "validation failed", errs)
-		return
+		return response.BadRequest(c, "validation failed", errs)
 	}
 	if err := h.userUC.ChangePassword(id, &req); err != nil {
-		response.BadRequest(c, err.Error(), nil)
-		return
+		return response.BadRequest(c, err.Error(), nil)
 	}
-	response.OK(c, "password changed successfully", nil)
+	return response.OK(c, "password changed successfully", nil)
 }
 
-func (h *UserHandler) ResetPassword(c *gin.Context) {
-	id := c.Param("id")
+func (h *UserHandler) ResetPassword(c *fiber.Ctx) error  {
+	id := c.Params("id")
 	var req authdomain.AdminResetPasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request body", err.Error())
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body", err.Error())
 	}
 	if errs := validator.Validate(&req); errs != nil {
-		response.BadRequest(c, "validation failed", errs)
-		return
+		return response.BadRequest(c, "validation failed", errs)
 	}
 	if err := h.userUC.AdminResetPassword(id, &req); err != nil {
-		response.BadRequest(c, err.Error(), nil)
-		return
+		return response.BadRequest(c, err.Error(), nil)
 	}
-	response.OK(c, "password reset successfully", nil)
+	return response.OK(c, "password reset successfully", nil)
 }
 
-func (h *UserHandler) ForgotPassword(c *gin.Context) {
+func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error  {
 	var req authdomain.ForgotPasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request body", err.Error())
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body", err.Error())
 	}
 	if errs := validator.Validate(&req); errs != nil {
-		response.BadRequest(c, "validation failed", errs)
-		return
+		return response.BadRequest(c, "validation failed", errs)
 	}
 	// Always respond OK regardless of email existence (anti-enumeration)
 	_ = h.userUC.ForgotPassword(&req)
-	response.OK(c, "Jika email terdaftar, password sementara telah dikirim ke email Anda", nil)
+	return response.OK(c, "Jika email terdaftar, password sementara telah dikirim ke email Anda", nil)
 }

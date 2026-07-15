@@ -1,7 +1,7 @@
 package masterhandler
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/response"
@@ -15,42 +15,37 @@ func NewSettingHandler(uc master.SettingUseCase) *SettingHandler {
 }
 
 // GetAll returns all system settings (encrypted values are masked as ***)
-func (h *SettingHandler) GetAll(c *gin.Context) {
+func (h *SettingHandler) GetAll(c *fiber.Ctx) error  {
 	items, err := h.uc.GetAll()
 	if err != nil {
-		response.InternalServerError(c, "failed to fetch settings", err.Error())
-		return
+		return response.InternalServerError(c, "failed to fetch settings", err.Error())
 	}
-	response.OK(c, "success", items)
+	return response.OK(c, "success", items)
 }
 
 // GetByKey returns a single setting by its key
-func (h *SettingHandler) GetByKey(c *gin.Context) {
-	item, err := h.uc.GetByKey(c.Param("key"))
+func (h *SettingHandler) GetByKey(c *fiber.Ctx) error  {
+	item, err := h.uc.GetByKey(c.Params("key"))
 	if err != nil {
-		response.NotFound(c, "setting not found")
-		return
+		return response.NotFound(c, "setting not found")
 	}
-	response.OK(c, "success", item)
+	return response.OK(c, "success", item)
 }
 
 // Update allows Admin to update a setting value dynamically
-func (h *SettingHandler) Update(c *gin.Context) {
+func (h *SettingHandler) Update(c *fiber.Ctx) error  {
 	var req master.UpdateSettingRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid body", err.Error())
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
 	}
 	if errs := validator.Validate(&req); errs != nil {
-		response.BadRequest(c, "validation failed", errs)
-		return
+		return response.BadRequest(c, "validation failed", errs)
 	}
 
 	updatedBy := middleware.GetUserID(c)
-	item, err := h.uc.Update(c.Param("key"), &req, updatedBy)
+	item, err := h.uc.Update(c.Params("key"), &req, updatedBy)
 	if err != nil {
-		response.BadRequest(c, err.Error(), nil)
-		return
+		return response.BadRequest(c, err.Error(), nil)
 	}
-	response.OK(c, "setting updated", item)
+	return response.OK(c, "setting updated", item)
 }

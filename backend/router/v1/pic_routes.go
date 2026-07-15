@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler/pichandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/picrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterPICRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterPICRoutes(rg fiber.Router, db *gorm.DB, jwtManager *jwt.Manager, log *logger.Logger) {
 	repo := picrepo.NewPICMappingRepository(db)
 	uc := picusecase.NewPICMappingUseCase(repo)
 	h := pichandler.NewPICMappingHandler(uc)
@@ -19,10 +19,10 @@ func RegisterPICRoutes(rg *gin.RouterGroup, db *gorm.DB, jwtManager *jwt.Manager
 	authMW := middleware.AuthMiddleware(jwtManager)
 	pic := rg.Group("/pic-mappings", authMW)
 	{
-		pic.GET("", h.GetAll)
-		pic.POST("", h.Create)
-		pic.GET("/:id", h.GetByID)
-		pic.PUT("/:id", h.Update)
-		pic.DELETE("/:id", h.Delete)
+		pic.Get("", h.GetAll)
+		pic.Post("", h.Create)
+		pic.Get("/:id", h.GetByID)
+		pic.Put("/:id", h.Update)
+		pic.Delete("/:id", h.Delete)
 	}
 }

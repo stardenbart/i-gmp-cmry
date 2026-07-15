@@ -1,7 +1,7 @@
 package logginghandler
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
@@ -13,17 +13,17 @@ type LoginLogHandler struct{ uc logdomain.LoginLogUseCase }
 
 func NewLoginLogHandler(uc logdomain.LoginLogUseCase) *LoginLogHandler { return &LoginLogHandler{uc: uc} }
 
-func (h *LoginLogHandler) GetAll(c *gin.Context) {
+func (h *LoginLogHandler) GetAll(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"))
-	if err != nil { response.InternalServerError(c, "failed to fetch login logs", err.Error()); return }
-	response.Paginated(c, "success", items, total, p.Page, p.Limit)
+	if err != nil { return response.InternalServerError(c, "failed to fetch login logs", err.Error()) }
+	return response.Paginated(c, "success", items, total, p.Page, p.Limit)
 }
 
-func (h *LoginLogHandler) GetByID(c *gin.Context) {
-	item, err := h.uc.GetByID(c.Param("id"))
-	if err != nil { response.NotFound(c, "log not found"); return }
-	response.OK(c, "success", item)
+func (h *LoginLogHandler) GetByID(c *fiber.Ctx) error  {
+	item, err := h.uc.GetByID(c.Params("id"))
+	if err != nil { return response.NotFound(c, "log not found") }
+	return response.OK(c, "success", item)
 }
 
 // ── ActivityLog Handler ───────────────────────────────────────────────────
@@ -34,15 +34,15 @@ func NewActivityLogHandler(uc logdomain.ActivityLogUseCase) *ActivityLogHandler 
 	return &ActivityLogHandler{uc: uc}
 }
 
-func (h *ActivityLogHandler) GetAll(c *gin.Context) {
+func (h *ActivityLogHandler) GetAll(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"), c.Query("module_id"), c.Query("action"))
-	if err != nil { response.InternalServerError(c, "failed to fetch activity logs", err.Error()); return }
-	response.Paginated(c, "success", items, total, p.Page, p.Limit)
+	if err != nil { return response.InternalServerError(c, "failed to fetch activity logs", err.Error()) }
+	return response.Paginated(c, "success", items, total, p.Page, p.Limit)
 }
 
-func (h *ActivityLogHandler) GetByID(c *gin.Context) {
-	item, err := h.uc.GetByID(c.Param("id"))
-	if err != nil { response.NotFound(c, "log not found"); return }
-	response.OK(c, "success", item)
+func (h *ActivityLogHandler) GetByID(c *fiber.Ctx) error  {
+	item, err := h.uc.GetByID(c.Params("id"))
+	if err != nil { return response.NotFound(c, "log not found") }
+	return response.OK(c, "success", item)
 }

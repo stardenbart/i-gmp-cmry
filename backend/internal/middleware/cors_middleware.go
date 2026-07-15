@@ -4,38 +4,38 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 )
 
 // CORSMiddleware sets CORS headers based on allowed origins from config.
-func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
+func CORSMiddleware(allowedOrigins string) fiber.Handler {
 	origins := strings.Split(allowedOrigins, ",")
 	allowedMap := make(map[string]bool)
 	for _, o := range origins {
 		allowedMap[strings.TrimSpace(o)] = true
 	}
 
-	return func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
+	return func(c *fiber.Ctx) error {
+		origin := c.Get("Origin")
 
 		if allowedMap[origin] || allowedOrigins == "*" {
-			c.Header("Access-Control-Allow-Origin", origin)
+			c.Set("Access-Control-Allow-Origin", origin)
 		}
 
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, Accept")
-		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Max-Age", "86400")
-		c.Header("Vary", "Origin")
+		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, Accept")
+		c.Set("Access-Control-Allow-Credentials", "true")
+		c.Set("Access-Control-Max-Age", "86400")
+		c.Set("Vary", "Origin")
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
+		if c.Method() == "OPTIONS" {
+			return c.SendStatus(204)
 		}
 
 		// Set response time header for debugging
 		start := time.Now()
-		c.Next()
-		c.Header("X-Response-Time", time.Since(start).String())
+		err := c.Next()
+		c.Set("X-Response-Time", time.Since(start).String())
+		return err
 	}
 }

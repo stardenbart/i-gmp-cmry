@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler/logginghandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/loggingrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
@@ -13,7 +13,7 @@ import (
 )
 
 // RegisterLoggingRoutes wires logging dependencies and mounts routes.
-func RegisterLoggingRoutes(rg *gin.RouterGroup, db *gorm.DB, producer kafka.EventProducer, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterLoggingRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, jwtManager *jwt.Manager, log *logger.Logger) {
 	loginLogRepo := loggingrepo.NewLoginLogRepository(db)
 	actLogRepo := loggingrepo.NewActivityLogRepository(db)
 
@@ -26,9 +26,9 @@ func RegisterLoggingRoutes(rg *gin.RouterGroup, db *gorm.DB, producer kafka.Even
 	authMW := middleware.AuthMiddleware(jwtManager)
 	logs := rg.Group("/logs", authMW)
 	{
-		logs.GET("/login", loginLogH.GetAll)
-		logs.GET("/login/:id", loginLogH.GetByID)
-		logs.GET("/activity", actLogH.GetAll)
-		logs.GET("/activity/:id", actLogH.GetByID)
+		logs.Get("/login", loginLogH.GetAll)
+		logs.Get("/login/:id", loginLogH.GetByID)
+		logs.Get("/activity", actLogH.GetAll)
+		logs.Get("/activity/:id", actLogH.GetByID)
 	}
 }

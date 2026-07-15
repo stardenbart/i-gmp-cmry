@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler/auth"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
@@ -14,7 +14,7 @@ import (
 )
 
 // RegisterAuthRoutes wires auth dependencies and mounts routes.
-func RegisterAuthRoutes(rg *gin.RouterGroup, db *gorm.DB, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger) {
 	// ── Wire dependencies ──────────────────────────────────────────────
 	userRepo := authrepo.NewUserRepository(db)
 	loginLogRepo := authrepo.NewLoginLogRepository(db)
@@ -33,26 +33,26 @@ func RegisterAuthRoutes(rg *gin.RouterGroup, db *gorm.DB, mailer mail.Mailer, jw
 	// ── Public routes ──────────────────────────────────────────────────
 	authGroup := rg.Group("/auth")
 	{
-		authGroup.POST("/login", authHandler.Login)
-		authGroup.POST("/forgot-password", userHandler.ForgotPassword)
+		authGroup.Post("/login", authHandler.Login)
+		authGroup.Post("/forgot-password", userHandler.ForgotPassword)
 	}
 
 	// ── Protected routes ───────────────────────────────────────────────
 	protected := rg.Group("/", authMW)
 	{
-		protected.POST("/auth/logout", authHandler.Logout)
-		protected.GET("/auth/me", authHandler.Me)
+		protected.Post("/auth/logout", authHandler.Logout)
+		protected.Get("/auth/me", authHandler.Me)
 
 		// User management — requires permission check
 		users := protected.Group("/users")
 		{
-			users.GET("", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "READ"), userHandler.GetAll)
-			users.POST("", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "CREATE"), userHandler.Create)
-			users.GET("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "READ"), userHandler.GetByID)
-			users.PUT("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "UPDATE"), userHandler.Update)
-			users.DELETE("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "DELETE"), userHandler.Delete)
-			users.PUT("/:id/change-password", authMW, userHandler.ChangePassword)
-			users.PUT("/:id/reset-password", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "UPDATE"), userHandler.ResetPassword)
+			users.Get("", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "READ"), userHandler.GetAll)
+			users.Post("", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "CREATE"), userHandler.Create)
+			users.Get("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "READ"), userHandler.GetByID)
+			users.Put("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "UPDATE"), userHandler.Update)
+			users.Delete("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "DELETE"), userHandler.Delete)
+			users.Put("/:id/change-password", authMW, userHandler.ChangePassword)
+			users.Put("/:id/reset-password", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "UPDATE"), userHandler.ResetPassword)
 		}
 	}
 }

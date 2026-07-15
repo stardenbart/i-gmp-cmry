@@ -3,7 +3,7 @@ package pagination
 import (
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 )
 
 const (
@@ -21,13 +21,13 @@ type Params struct {
 
 // FromQuery extracts pagination params from a Gin context query string.
 // Defaults: page=1, limit=10. Max limit is capped at 100.
-func FromQuery(c *gin.Context) Params {
-	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+func FromQuery(c *fiber.Ctx) Params {
+	page, err := strconv.Atoi(c.Query("page", "1"))
 	if err != nil || page < 1 {
 		page = DefaultPage
 	}
 
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	limit, err := strconv.Atoi(c.Query("limit", "10"))
 	if err != nil || limit < 1 {
 		limit = DefaultLimit
 	}

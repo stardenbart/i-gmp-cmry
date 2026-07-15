@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	// @title           Monitoring Audit API
 	// @version         1.0
@@ -116,21 +114,13 @@ func main() {
 	r := router.Setup(cfg, db, minioStorage, cryptoSvc, mailer, eventProducer, osClient, log)
 
 	// ── HTTP Server ────────────────────────────────────────────────────
-	srv := &http.Server{
-		Addr:         ":" + cfg.AppPort,
-		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
 	// ── Graceful shutdown ──────────────────────────────────────────────
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		log.Info("server starting", logger.String("port", cfg.AppPort))
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := r.Listen(":" + cfg.AppPort); err != nil {
 			log.Fatal("server error", logger.Error(err))
 		}
 	}()
@@ -141,10 +131,7 @@ func main() {
 	// Cancel all Kafka consumers before shutdown
 	bgCancel()
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	if err := r.Shutdown(); err != nil {
 		log.Fatal("server forced to shutdown", logger.Error(err))
 	}
 

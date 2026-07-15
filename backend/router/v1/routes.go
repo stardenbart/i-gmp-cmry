@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/kafka"
@@ -14,7 +14,7 @@ import (
 
 // Register mounts all v1 route groups onto the given RouterGroup.
 // Each route file is responsible for wiring its own repositories, use cases, and handlers.
-func Register(rg *gin.RouterGroup, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, log *logger.Logger) {
+func Register(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, log *logger.Logger) {
 	RegisterAuthRoutes(rg, db, mailer, jwtManager, log)
 	RegisterMasterRoutes(rg, db, minioStorage, cryptoSvc, jwtManager, log)
 	RegisterPICRoutes(rg, db, jwtManager, log)

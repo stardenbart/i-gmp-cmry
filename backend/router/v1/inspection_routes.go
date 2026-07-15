@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler/inspectionhandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/inspectionrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterInspectionRoutes(rg *gin.RouterGroup, db *gorm.DB, producer kafka.EventProducer, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, jwtManager *jwt.Manager, log *logger.Logger) {
 	headerRepo := inspectionrepo.NewInspectionHeaderRepository(db)
 	resultRepo := inspectionrepo.NewInspectionResultRepository(db)
 
@@ -26,16 +26,16 @@ func RegisterInspectionRoutes(rg *gin.RouterGroup, db *gorm.DB, producer kafka.E
 	insp := rg.Group("/inspections", authMW)
 	{
 		// Inspection Header CRUD
-		insp.GET("", headerH.GetAll)
-		insp.POST("", headerH.Create)
-		insp.GET("/:id", headerH.GetByID)
-		insp.PUT("/:id/status", headerH.UpdateStatus)
-		insp.DELETE("/:id", headerH.Delete)
+		insp.Get("", headerH.GetAll)
+		insp.Post("", headerH.Create)
+		insp.Get("/:id", headerH.GetByID)
+		insp.Put("/:id/status", headerH.UpdateStatus)
+		insp.Delete("/:id", headerH.Delete)
 
 		// Inspection Results (nested under header)
-		insp.GET("/:id/results", resultH.GetByInspectionID)
-		insp.POST("/:id/results/bulk", resultH.BulkSave)
-		insp.PUT("/results/:result_id", resultH.Update)
-		insp.DELETE("/results/:result_id", resultH.Delete)
+		insp.Get("/:id/results", resultH.GetByInspectionID)
+		insp.Post("/:id/results/bulk", resultH.BulkSave)
+		insp.Put("/results/:result_id", resultH.Update)
+		insp.Delete("/results/:result_id", resultH.Delete)
 	}
 }

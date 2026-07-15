@@ -3,45 +3,44 @@ package middleware
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"go.uber.org/zap"
 )
 
 // LoggerMiddleware logs every incoming HTTP request using Zap structured logger.
-func LoggerMiddleware(log *logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func LoggerMiddleware(log *logger.Logger) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		start := time.Now()
-		path := c.Request.URL.Path
-		query := c.Request.URL.RawQuery
+		path := c.Path()
+		query := string(c.Request().URI().QueryString())
 
-		c.Next()
+		err := c.Next()
 
 		latency := time.Since(start)
-		status := c.Writer.Status()
+		status := c.Response().StatusCode()
 
 		fields := []zap.Field{
-			logger.String("method", c.Request.Method),
+			logger.String("method", c.Method()),
 			logger.String("path", path),
 			logger.String("query", query),
 			logger.Int("status", status),
-			logger.String("ip", c.ClientIP()),
+			logger.String("ip", c.IP()),
 			logger.String("latency", latency.String()),
-			logger.String("user_agent", c.Request.UserAgent()),
+			logger.String("user_agent", c.Get("User-Agent")),
 		}
 
 		if userID := GetUserID(c); userID != "" {
 			fields = append(fields, logger.String("user_id", userID))
 		}
 
-		if len(c.Errors) > 0 {
-			log.Error("request error", logger.Any("errors", c.Errors.Errors()))
-		} else if status >= 500 {
+		if status >= 500 {
 			log.Error("server error", fields...)
 		} else if status >= 400 {
 			log.Warn("client error", fields...)
 		} else {
 			log.Info("request completed", fields...)
 		}
+		return err
 	}
 }

@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/pkg/response"
 )
@@ -16,28 +16,22 @@ func PermissionMiddleware(
 	rpUseCase auth.RolePermissionUseCase,
 	moduleID string,
 	permissionCode string,
-) gin.HandlerFunc {
-	return func(c *gin.Context) {
+) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		roleID := GetRoleID(c)
 		if roleID == "" {
-			response.Unauthorized(c, "unauthenticated: role not found in context")
-			c.Abort()
-			return
+			return response.Unauthorized(c, "unauthenticated: role not found in context")
 		}
 
 		allowed, err := rpUseCase.CheckPermission(roleID, moduleID, permissionCode)
 		if err != nil {
 			response.InternalServerError(c, "permission check failed", err.Error())
-			c.Abort()
-			return
-		}
+			}
 
 		if !allowed {
-			response.Forbidden(c, "you do not have permission to perform this action")
-			c.Abort()
-			return
+			return response.Forbidden(c, "you do not have permission to perform this action")
 		}
 
-		c.Next()
+		return c.Next()
 	}
 }
