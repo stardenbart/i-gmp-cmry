@@ -19,11 +19,14 @@ func NewAuthHandler(authUC authdomain.AuthUseCase) *AuthHandler {
 
 // Login godoc
 // @Summary      User Login
+// @Description  Authenticate user and return token
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        body body authdomain.LoginRequest true "Login credentials"
-// @Success      200 {object} response.APIResponse{data=authdomain.LoginResponse}
+// @Param        body body interface{} true "Login credentials"
+// @Success      200 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Failure      401 {object} response.APIResponse
 // @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *fiber.Ctx) error  {
 	var req authdomain.LoginRequest
@@ -46,9 +49,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error  {
 
 // Logout godoc
 // @Summary      Logout
+// @Description  Invalidate user session
 // @Tags         Auth
-// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        login_log_id query string false "Login Log ID"
 // @Success      200 {object} response.APIResponse
+// @Failure      500 {object} response.APIResponse
+// @Security     BearerAuth
 // @Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *fiber.Ctx) error  {
 	userID := middleware.GetUserID(c)
@@ -62,9 +70,13 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error  {
 
 // Me godoc
 // @Summary      Get current authenticated user
+// @Description  Get current user profile
 // @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.APIResponse
+// @Failure      404 {object} response.APIResponse
 // @Security     BearerAuth
-// @Success      200 {object} response.APIResponse{data=authdomain.UserInfo}
 // @Router       /auth/me [get]
 func (h *AuthHandler) Me(c *fiber.Ctx) error  {
 	userID := middleware.GetUserID(c)

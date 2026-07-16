@@ -1,0 +1,2767 @@
+basePath: /api/v1
+definitions:
+  github_com_monitoring-system_backend_internal_domain_inspection.BulkSaveResultRequest:
+    properties:
+      inspection_id:
+        type: string
+      results:
+        items:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_inspection.SaveResultRequest'
+        type: array
+    required:
+    - inspection_id
+    - results
+    type: object
+  github_com_monitoring-system_backend_internal_domain_inspection.CreateInspectionRequest:
+    properties:
+      area_id:
+        type: string
+      detail_kawasan_id:
+        type: string
+      kawasan_id:
+        type: string
+    required:
+    - area_id
+    - detail_kawasan_id
+    - kawasan_id
+    type: object
+  github_com_monitoring-system_backend_internal_domain_inspection.InspectionStatus:
+    enum:
+    - Draft
+    - Ongoing
+    - Completed
+    - Approved
+    type: string
+    x-enum-varnames:
+    - InspectionStatusDraft
+    - InspectionStatusOngoing
+    - InspectionStatusCompleted
+    - InspectionStatusApproved
+  github_com_monitoring-system_backend_internal_domain_inspection.SaveResultRequest:
+    properties:
+      checking:
+        enum:
+        - OK
+        - NG
+        - NA
+        type: string
+      keterangan:
+        type: string
+      nilai:
+        minimum: 0
+        type: integer
+      uraian_id:
+        type: string
+    required:
+    - checking
+    - uraian_id
+    type: object
+  github_com_monitoring-system_backend_internal_domain_inspection.UpdateInspectionStatusRequest:
+    properties:
+      status:
+        allOf:
+        - $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_inspection.InspectionStatus'
+        enum:
+        - Draft
+        - Ongoing
+        - Completed
+        - Approved
+    required:
+    - status
+    type: object
+  github_com_monitoring-system_backend_internal_domain_issue.CreateIssueRequest:
+    properties:
+      due_date:
+        type: string
+      issue_pic_user_id:
+        type: string
+      keterangan:
+        type: string
+      result_id:
+        type: string
+    required:
+    - issue_pic_user_id
+    - result_id
+    type: object
+  github_com_monitoring-system_backend_internal_domain_issue.IssueStatus:
+    enum:
+    - Open
+    - InProgress
+    - PendingValidation
+    - Closed
+    - Verified
+    type: string
+    x-enum-varnames:
+    - IssueStatusOpen
+    - IssueStatusInProgress
+    - IssueStatusPendingValidation
+    - IssueStatusClosed
+    - IssueStatusVerified
+  github_com_monitoring-system_backend_internal_domain_issue.UpdateIssueRequest:
+    properties:
+      due_date:
+        type: string
+      issue_pic_user_id:
+        type: string
+      issue_status:
+        allOf:
+        - $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_issue.IssueStatus'
+        enum:
+        - Open
+        - InProgress
+        - PendingValidation
+        - Closed
+        - Verified
+      keterangan:
+        type: string
+    type: object
+  github_com_monitoring-system_backend_internal_domain_master.Area:
+    properties:
+      area_id:
+        type: string
+      area_name:
+        type: string
+      aspeks:
+        items:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Aspek'
+        type: array
+      created_at:
+        type: string
+      kawasans:
+        description: Relations
+        items:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Kawasan'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  github_com_monitoring-system_backend_internal_domain_master.Aspek:
+    properties:
+      area:
+        allOf:
+        - $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Area'
+        description: Relations
+      area_id:
+        type: string
+      aspek_id:
+        type: string
+      aspek_name:
+        type: string
+      created_at:
+        type: string
+      details:
+        items:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Detail'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  github_com_monitoring-system_backend_internal_domain_master.Department:
+    properties:
+      created_at:
+        type: string
+      department_id:
+        type: string
+      department_name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_monitoring-system_backend_internal_domain_master.Detail:
+    properties:
+      aspek:
+        allOf:
+        - $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Aspek'
+        description: Relations
+      aspek_id:
+        type: string
+      created_at:
+        type: string
+      detail_id:
+        type: string
+      detail_name:
+        type: string
+      updated_at:
+        type: string
+      urains:
+        items:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Uraian'
+        type: array
+    type: object
+  github_com_monitoring-system_backend_internal_domain_master.DetailKawasan:
+    properties:
+      created_at:
+        type: string
+      detail_kawasan_id:
+        type: string
+      detail_kawasan_name:
+        type: string
+      kawasan:
+        allOf:
+        - $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Kawasan'
+        description: Relations
+      kawasan_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_monitoring-system_backend_internal_domain_master.Kawasan:
+    properties:
+      area:
+        allOf:
+        - $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Area'
+        description: Relations
+      area_id:
+        type: string
+      created_at:
+        type: string
+      detail_kawasans:
+        items:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.DetailKawasan'
+        type: array
+      kawasan_id:
+        type: string
+      kawasan_name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_monitoring-system_backend_internal_domain_master.Uraian:
+    properties:
+      created_at:
+        type: string
+      detail:
+        allOf:
+        - $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Detail'
+        description: Relations
+      detail_id:
+        type: string
+      standard_score:
+        type: integer
+      updated_at:
+        type: string
+      uraian_id:
+        type: string
+      uraian_text:
+        type: string
+    type: object
+  github_com_monitoring-system_backend_pkg_response.APIResponse:
+    properties:
+      data: {}
+      error: {}
+      message:
+        type: string
+      status_code:
+        type: integer
+      success:
+        type: boolean
+    type: object
+  internal_handler_issuehandler.ExtendDueDateRequest:
+    properties:
+      due_date:
+        type: string
+    required:
+    - due_date
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: dev@company.com
+    name: Internal Dev Team
+  description: API untuk sistem monitoring audit internal perusahaan
+  license:
+    name: MIT
+  termsOfService: http://swagger.io/terms/
+  title: Monitoring Audit API
+  version: "1.0"
+paths:
+  /api/v1/issues:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of issues, optionally filtered by status or
+        pic_user_id
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Filter by PIC User ID
+        in: query
+        name: pic_user_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all issues
+      tags:
+      - issues
+    post:
+      consumes:
+      - application/json
+      description: Create a new issue with the provided details
+      parameters:
+      - description: Create Issue Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_issue.CreateIssueRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new issue
+      tags:
+      - issues
+  /api/v1/issues/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an issue by its ID
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an issue
+      tags:
+      - issues
+    get:
+      consumes:
+      - application/json
+      description: Get a specific issue by its ID
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get issue by ID
+      tags:
+      - issues
+    put:
+      consumes:
+      - application/json
+      description: Update an existing issue by its ID
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Issue Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_issue.UpdateIssueRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update an issue
+      tags:
+      - issues
+  /api/v1/issues/{id}/extend-due-date:
+    patch:
+      consumes:
+      - application/json
+      description: Extend the due date of a specific issue
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Extend Due Date Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler_issuehandler.ExtendDueDateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Extend issue due date
+      tags:
+      - issues
+  /api/v1/issues/{id}/photos:
+    get:
+      consumes:
+      - application/json
+      description: Get all photos associated with a specific issue
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get photos by issue ID
+      tags:
+      - issue-photos
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a photo for a specific issue
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Photo file
+        in: formData
+        name: photo
+        required: true
+        type: file
+      - description: Photo Type
+        in: formData
+        name: photo_type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload an issue photo
+      tags:
+      - issue-photos
+  /api/v1/issues/photos/{photo_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a specific issue photo by its ID
+      parameters:
+      - description: Photo ID
+        in: path
+        name: photo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an issue photo
+      tags:
+      - issue-photos
+  /api/v1/logs/activity:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of activity logs, optionally filtered by user_id,
+        module_id, or action
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by User ID
+        in: query
+        name: user_id
+        type: string
+      - description: Filter by Module ID
+        in: query
+        name: module_id
+        type: string
+      - description: Filter by Action
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all activity logs
+      tags:
+      - activity-logs
+  /api/v1/logs/activity/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a specific activity log by its ID
+      parameters:
+      - description: Log ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get activity log by ID
+      tags:
+      - activity-logs
+  /api/v1/logs/login:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of login logs, optionally filtered by user_id
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by User ID
+        in: query
+        name: user_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all login logs
+      tags:
+      - login-logs
+  /api/v1/logs/login/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a specific login log by its ID
+      parameters:
+      - description: Log ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get login log by ID
+      tags:
+      - login-logs
+  /api/v1/master/area:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a paginated list of areas
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all areas
+      tags:
+      - Area
+    post:
+      consumes:
+      - application/json
+      description: Create a new area
+      parameters:
+      - description: Area Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Area'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create an area
+      tags:
+      - Area
+  /api/v1/master/area/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an area by its ID
+      parameters:
+      - description: Area ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an area
+      tags:
+      - Area
+    get:
+      consumes:
+      - application/json
+      description: Fetch a single area by its ID
+      parameters:
+      - description: Area ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get an area by ID
+      tags:
+      - Area
+    put:
+      consumes:
+      - application/json
+      description: Update an existing area by its ID
+      parameters:
+      - description: Area ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Area Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Area'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update an area
+      tags:
+      - Area
+  /api/v1/master/aspek:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a paginated list of aspeks
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Area ID filter
+        in: query
+        name: area_id
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all aspeks
+      tags:
+      - Aspek
+    post:
+      consumes:
+      - application/json
+      description: Create a new aspek
+      parameters:
+      - description: Aspek Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Aspek'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create an aspek
+      tags:
+      - Aspek
+  /api/v1/master/aspek/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an aspek by its ID
+      parameters:
+      - description: Aspek ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an aspek
+      tags:
+      - Aspek
+    get:
+      consumes:
+      - application/json
+      description: Fetch a single aspek by its ID
+      parameters:
+      - description: Aspek ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get an aspek by ID
+      tags:
+      - Aspek
+    put:
+      consumes:
+      - application/json
+      description: Update an existing aspek by its ID
+      parameters:
+      - description: Aspek ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Aspek Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Aspek'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update an aspek
+      tags:
+      - Aspek
+  /api/v1/master/departments:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a paginated list of departments
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all departments
+      tags:
+      - Department
+    post:
+      consumes:
+      - application/json
+      description: Create a new department
+      parameters:
+      - description: Department Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Department'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a department
+      tags:
+      - Department
+  /api/v1/master/departments/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a department by its ID
+      parameters:
+      - description: Department ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a department
+      tags:
+      - Department
+    get:
+      consumes:
+      - application/json
+      description: Fetch a single department by its ID
+      parameters:
+      - description: Department ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a department by ID
+      tags:
+      - Department
+    put:
+      consumes:
+      - application/json
+      description: Update an existing department by its ID
+      parameters:
+      - description: Department ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Department Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Department'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a department
+      tags:
+      - Department
+  /api/v1/master/detail-kawasan:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a paginated list of detail kawasans
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Kawasan ID filter
+        in: query
+        name: kawasan_id
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all detail kawasans
+      tags:
+      - DetailKawasan
+    post:
+      consumes:
+      - application/json
+      description: Create a new detail kawasan
+      parameters:
+      - description: Detail Kawasan Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.DetailKawasan'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a detail kawasan
+      tags:
+      - DetailKawasan
+  /api/v1/master/detail-kawasan/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a detail kawasan by its ID
+      parameters:
+      - description: Detail Kawasan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a detail kawasan
+      tags:
+      - DetailKawasan
+    get:
+      consumes:
+      - application/json
+      description: Fetch a single detail kawasan by its ID
+      parameters:
+      - description: Detail Kawasan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a detail kawasan by ID
+      tags:
+      - DetailKawasan
+    put:
+      consumes:
+      - application/json
+      description: Update an existing detail kawasan by its ID
+      parameters:
+      - description: Detail Kawasan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Detail Kawasan Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.DetailKawasan'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a detail kawasan
+      tags:
+      - DetailKawasan
+  /api/v1/master/details:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a paginated list of details
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Aspek ID filter
+        in: query
+        name: aspek_id
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all details
+      tags:
+      - Detail
+    post:
+      consumes:
+      - application/json
+      description: Create a new detail
+      parameters:
+      - description: Detail Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Detail'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a detail
+      tags:
+      - Detail
+  /api/v1/master/details/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a detail by its ID
+      parameters:
+      - description: Detail ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a detail
+      tags:
+      - Detail
+    get:
+      consumes:
+      - application/json
+      description: Fetch a single detail by its ID
+      parameters:
+      - description: Detail ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a detail by ID
+      tags:
+      - Detail
+    put:
+      consumes:
+      - application/json
+      description: Update an existing detail by its ID
+      parameters:
+      - description: Detail ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Detail Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Detail'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a detail
+      tags:
+      - Detail
+  /api/v1/master/kawasan:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a paginated list of kawasans
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Area ID filter
+        in: query
+        name: area_id
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all kawasans
+      tags:
+      - Kawasan
+    post:
+      consumes:
+      - application/json
+      description: Create a new kawasan
+      parameters:
+      - description: Kawasan Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Kawasan'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a kawasan
+      tags:
+      - Kawasan
+  /api/v1/master/kawasan/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a kawasan by its ID
+      parameters:
+      - description: Kawasan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a kawasan
+      tags:
+      - Kawasan
+    get:
+      consumes:
+      - application/json
+      description: Fetch a single kawasan by its ID
+      parameters:
+      - description: Kawasan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a kawasan by ID
+      tags:
+      - Kawasan
+    put:
+      consumes:
+      - application/json
+      description: Update an existing kawasan by its ID
+      parameters:
+      - description: Kawasan ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Kawasan Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Kawasan'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a kawasan
+      tags:
+      - Kawasan
+  /api/v1/master/urain:
+    get:
+      consumes:
+      - application/json
+      description: Fetch a paginated list of uraians
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Detail ID filter
+        in: query
+        name: detail_id
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all uraians
+      tags:
+      - Uraian
+    post:
+      consumes:
+      - application/json
+      description: Create a new uraian
+      parameters:
+      - description: Uraian Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Uraian'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a uraian
+      tags:
+      - Uraian
+  /api/v1/master/urain/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a uraian by its ID
+      parameters:
+      - description: Uraian ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a uraian
+      tags:
+      - Uraian
+    get:
+      consumes:
+      - application/json
+      description: Fetch a single uraian by its ID
+      parameters:
+      - description: Uraian ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a uraian by ID
+      tags:
+      - Uraian
+    put:
+      consumes:
+      - application/json
+      description: Update an existing uraian by its ID
+      parameters:
+      - description: Uraian ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Uraian Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_master.Uraian'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a uraian
+      tags:
+      - Uraian
+  /api/v1/uploads/{id}/status:
+    get:
+      consumes:
+      - application/json
+      description: Get the status of a specific upload
+      parameters:
+      - description: Upload ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get upload status
+      tags:
+      - uploads
+  /api/v1/uploads/file:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a file associated with an inspection
+      parameters:
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: File Type
+        in: formData
+        name: file_type
+        required: true
+        type: string
+      - description: Inspection ID
+        in: formData
+        name: inspection_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload a file
+      tags:
+      - uploads
+  /api/v1/uploads/inspection/{inspectionId}:
+    get:
+      consumes:
+      - application/json
+      description: Get all uploads associated with a specific inspection
+      parameters:
+      - description: Inspection ID
+        in: path
+        name: inspectionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get uploads by inspection
+      tags:
+      - uploads
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Request a password reset link or temporary password
+      parameters:
+      - description: Email data
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      summary: Forgot password
+      tags:
+      - Auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      summary: User Login
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Invalidate user session
+      parameters:
+      - description: Login Log ID
+        in: query
+        name: login_log_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Logout
+      tags:
+      - Auth
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Get current user profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current authenticated user
+      tags:
+      - Auth
+  /inspection-results/{result_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a specific inspection result
+      parameters:
+      - description: Result ID
+        in: path
+        name: result_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: result deleted
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: bad request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete inspection result
+      tags:
+      - Inspection Results
+    put:
+      consumes:
+      - application/json
+      description: Update a specific inspection result
+      parameters:
+      - description: Result ID
+        in: path
+        name: result_id
+        required: true
+        type: string
+      - description: Update result request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_inspection.SaveResultRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: result updated
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: bad request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update inspection result
+      tags:
+      - Inspection Results
+  /inspections:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of inspections with optional filters
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Area ID filter
+        in: query
+        name: area_id
+        type: string
+      - description: Status filter
+        in: query
+        name: status
+        type: string
+      - description: Inspector ID filter
+        in: query
+        name: inspector_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: failed to fetch inspections
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all inspections
+      tags:
+      - Inspections
+    post:
+      consumes:
+      - application/json
+      description: Create a new inspection header
+      parameters:
+      - description: Inspection creation request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_inspection.CreateInspectionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: inspection created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: bad request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create inspection
+      tags:
+      - Inspections
+  /inspections/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an inspection by ID
+      parameters:
+      - description: Inspection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: inspection deleted
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: bad request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete inspection
+      tags:
+      - Inspections
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific inspection header by its ID
+      parameters:
+      - description: Inspection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: inspection not found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get inspection by ID
+      tags:
+      - Inspections
+  /inspections/{id}/results:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all results associated with a specific inspection
+      parameters:
+      - description: Inspection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: failed to fetch results
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get inspection results by inspection ID
+      tags:
+      - Inspection Results
+  /inspections/{id}/results/bulk:
+    post:
+      consumes:
+      - application/json
+      description: Save multiple results for a specific inspection in bulk
+      parameters:
+      - description: Inspection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Bulk save request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_inspection.BulkSaveResultRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: results saved
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: bad request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: internal server error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Bulk save inspection results
+      tags:
+      - Inspection Results
+  /inspections/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Update the status of an existing inspection
+      parameters:
+      - description: Inspection ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status update request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monitoring-system_backend_internal_domain_inspection.UpdateInspectionStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status updated
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: bad request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update inspection status
+      tags:
+      - Inspections
+  /inspections/area/{areaId}/status:
+    get:
+      consumes:
+      - application/json
+      description: Calculate and get the inspection status progress for a specific
+        area
+      parameters:
+      - description: Area ID
+        in: path
+        name: areaId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: failed to calculate area status
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get area status
+      tags:
+      - Inspections
+  /issues/{id}/delegates:
+    get:
+      consumes:
+      - application/json
+      description: List all delegates for an issue
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Issue Delegates
+      tags:
+      - Issues
+    post:
+      consumes:
+      - application/json
+      description: Add a user as a delegate to an issue to allow them to follow up
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Delegate Request
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Add Issue Delegate
+      tags:
+      - Issues
+  /issues/{id}/delegates/{user_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Remove a user from issue delegates
+      parameters:
+      - description: Issue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Delegate User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove Issue Delegate
+      tags:
+      - Issues
+  /roles:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of roles
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all roles
+      tags:
+      - Roles
+    post:
+      consumes:
+      - application/json
+      description: Create a new role
+      parameters:
+      - description: Role data
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create role
+      tags:
+      - Roles
+  /roles/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a role by ID
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete role
+      tags:
+      - Roles
+    get:
+      consumes:
+      - application/json
+      description: Get a role by its ID
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get role by ID
+      tags:
+      - Roles
+    put:
+      consumes:
+      - application/json
+      description: Update an existing role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role data
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update role
+      tags:
+      - Roles
+  /roles/{id}/permissions:
+    get:
+      consumes:
+      - application/json
+      description: Get all permissions assigned to a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Role Permissions
+      tags:
+      - Roles
+    put:
+      consumes:
+      - application/json
+      description: Set or update permissions for a role in bulk
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Bulk Set Request
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Bulk Set Role Permissions
+      tags:
+      - Roles
+  /users:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of users
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      - description: Role ID
+        in: query
+        name: role_id
+        type: string
+      - description: Department ID
+        in: query
+        name: department_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all users
+      tags:
+      - Users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user
+      parameters:
+      - description: User data
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create user
+      tags:
+      - Users
+  /users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete user by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - Users
+    get:
+      consumes:
+      - application/json
+      description: Get user details by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user by ID
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Update user details
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User data
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user
+      tags:
+      - Users
+  /users/{id}/password:
+    put:
+      consumes:
+      - application/json
+      description: Change the password for a specific user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Password data
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Change user password
+      tags:
+      - Users
+  /users/{id}/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Admin resets user password
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reset data
+        in: body
+        name: body
+        required: true
+        schema: {}
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_monitoring-system_backend_pkg_response.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Admin reset password
+      tags:
+      - Users
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -18,7 +18,9 @@ func (r *issueRepository) FindAll(page, limit int, status, picUserID string) ([]
 	var total int64
 	q := r.db.Model(&issue.Issue{})
 	if status != "" { q = q.Where("IssueStatus = ?", status) }
-	if picUserID != "" { q = q.Where("IssuePICUserID = ?", picUserID) }
+	if picUserID != "" { 
+		q = q.Where("IssuePICUserID = ? OR IssueID IN (SELECT IssueID FROM Issue_Delegate WHERE DelegateUserID = ?)", picUserID, picUserID) 
+	}
 	q.Count(&total)
 	err := q.Preload("Photos").Order("IssueCreatedAt DESC").Offset((page-1)*limit).Limit(limit).Find(&items).Error
 	return items, total, err

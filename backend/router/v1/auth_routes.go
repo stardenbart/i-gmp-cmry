@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/internal/domain/logging"
 	"github.com/monitoring-system/backend/internal/handler/auth"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
@@ -14,7 +15,7 @@ import (
 )
 
 // RegisterAuthRoutes wires auth dependencies and mounts routes.
-func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logging.ActivityLogUseCase) {
 	// ── Wire dependencies ──────────────────────────────────────────────
 	userRepo := authrepo.NewUserRepository(db)
 	loginLogRepo := authrepo.NewLoginLogRepository(db)
@@ -29,6 +30,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	userHandler := auth.NewUserHandler(userUC)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
+	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
 
 	// ── Public routes ──────────────────────────────────────────────────
 	authGroup := rg.Group("/auth")
@@ -38,7 +40,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	}
 
 	// ── Protected routes ───────────────────────────────────────────────
-	protected := rg.Group("/", authMW)
+	protected := rg.Group("/", authMW, actLogMW)
 	{
 		protected.Post("/auth/logout", authHandler.Logout)
 		protected.Get("/auth/me", authHandler.Me)

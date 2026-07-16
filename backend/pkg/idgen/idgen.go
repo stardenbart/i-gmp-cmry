@@ -49,4 +49,5 @@ const (
 	PrefixIssuePhoto    = "ISPH"
 	PrefixLoginLog      = "LLOG"
 	PrefixActivityLog   = "ALOG"
+	PrefixSession       = "SES"
 )

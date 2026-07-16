@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/pkg/idgen"
 	"github.com/monitoring-system/backend/pkg/kafka"
+	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/storage"
 )
@@ -21,31 +23,65 @@ import (
 // ── Issue UseCase ─────────────────────────────────────────────────────────
 
 type issueUseCase struct {
-	repo        issue.IssueRepository
-	producer    kafka.EventProducer
-	mailer      mail.Mailer
-	userRepo    authdomain.UserRepository // to fetch PIC email
-	settingRepo masterdomain.SettingRepository
+	repo         issue.IssueRepository
+	userRepo     authdomain.UserRepository // to fetch PIC email
+	delegateRepo issue.IssueDelegateRepository
+	producer     kafka.EventProducer
+	mailer       mail.Mailer
+	settingRepo  masterdomain.SettingRepository
+	cryptoSvc    *crypto.Service
 }
 
-func NewIssueUseCase(repo issue.IssueRepository, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository) issue.IssueUseCase {
-	return &issueUseCase{repo: repo, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo}
+func NewIssueUseCase(repo issue.IssueRepository, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service) issue.IssueUseCase {
+	return &issueUseCase{repo: repo, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc}
 }
 
 func (uc *issueUseCase) GetAll(page, limit int, status, picUserID string) ([]issue.Issue, int64, error) {
-	return uc.repo.FindAll(page, limit, status, picUserID)
+	items, total, err := uc.repo.FindAll(page, limit, status, picUserID)
+	if err == nil {
+		for i := range items {
+			items[i].Keterangan = uc.cryptoSvc.DecryptWithFallback(items[i].Keterangan)
+		}
+	}
+	return items, total, err
 }
 
-func (uc *issueUseCase) GetByID(id string) (*issue.Issue, error) { return uc.repo.FindByID(id) }
+func (uc *issueUseCase) GetByID(id string) (*issue.Issue, error) {
+	item, err := uc.repo.FindByID(id)
+	if err == nil && item != nil {
+		item.Keterangan = uc.cryptoSvc.DecryptWithFallback(item.Keterangan)
+	}
+	return item, err
+}
 
 func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*issue.Issue, error) {
+	dueDate := req.DueDate
+	if dueDate == nil {
+		s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyIssueDeadlineDays)
+		days := 14
+		if err == nil && s.SettingValue != "" {
+			if d, errParse := strconv.Atoi(s.SettingValue); errParse == nil {
+				days = d
+			}
+		}
+		dd := time.Now().AddDate(0, 0, days)
+		dueDate = &dd
+	}
+
+	keteranganEnc := req.Keterangan
+	if req.Keterangan != "" {
+		if enc, err := uc.cryptoSvc.Encrypt(req.Keterangan); err == nil {
+			keteranganEnc = enc
+		}
+	}
+
 	i := &issue.Issue{
 		IssueID:        idgen.Generate(idgen.PrefixIssue),
 		ResultID:       req.ResultID,
 		IssuePICUserID: req.IssuePICUserID,
-		DueDate:        req.DueDate,
+		DueDate:        dueDate,
 		IssueStatus:    issue.IssueStatusOpen,
-		Keterangan:     req.Keterangan,
+		Keterangan:     keteranganEnc,
 	}
 	err := uc.repo.Create(i)
 	if err == nil {
@@ -101,10 +137,57 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssueRequest) (*issue.Issue, error) {
 	i, err := uc.repo.FindByID(id)
 	if err != nil { return nil, errors.New("issue not found") }
+
+	// Validation logic for Follow Up
+	if req.IssueStatus == issue.IssueStatusPendingValidation && i.IssueStatus != issue.IssueStatusPendingValidation {
+		// Check if actor is PIC or Delegate
+		if actorID != i.IssuePICUserID {
+			isDel, err := uc.delegateRepo.IsDelegate(i.IssueID, actorID)
+			if err != nil || !isDel {
+				return nil, errors.New("unauthorized: you are not the PIC or delegate for this issue")
+			}
+		}
+
+		if i.DueDate != nil && time.Now().After(*i.DueDate) {
+			return nil, errors.New("issue ini sudah overdue, harap hubungi auditor untuk perpanjangan waktu")
+		}
+	}
+
 	if req.IssuePICUserID != "" { i.IssuePICUserID = req.IssuePICUserID }
 	if req.DueDate != nil { i.DueDate = req.DueDate }
 	if req.IssueStatus != "" { i.IssueStatus = req.IssueStatus }
-	if req.Keterangan != "" { i.Keterangan = req.Keterangan }
+	if req.Keterangan != "" { 
+		if enc, err := uc.cryptoSvc.Encrypt(req.Keterangan); err == nil {
+			i.Keterangan = enc
+		} else {
+			i.Keterangan = req.Keterangan
+		}
+	}
+	err = uc.repo.Update(i)
+	if err == nil {
+		event := events.IssueEvent{
+			BaseEvent: events.BaseEvent{
+				EventID:   uuid.New().String(),
+				EventType: events.EventTypeUpdated,
+				Timestamp: time.Now(),
+				ActorID:   actorID,
+			},
+			IssueID:        i.IssueID,
+			ResultID:       i.ResultID,
+			IssuePICUserID: i.IssuePICUserID,
+			Status:         string(i.IssueStatus),
+			DueDate:        i.DueDate,
+		}
+		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, i.IssueID, event)
+	}
+	return i, err
+}
+
+func (uc *issueUseCase) ExtendDueDate(id string, actorID string, newDueDate time.Time) (*issue.Issue, error) {
+	i, err := uc.repo.FindByID(id)
+	if err != nil { return nil, errors.New("issue not found") }
+	
+	i.DueDate = &newDueDate
 	err = uc.repo.Update(i)
 	if err == nil {
 		event := events.IssueEvent{
@@ -145,16 +228,24 @@ func (uc *issueUseCase) Delete(id string, actorID string) error {
 // ── Issue Photo UseCase ────────────────────────────────────────────────────
 
 type issuePhotoUseCase struct {
-	repo    issue.IssuePhotoRepository
-	storage *storage.MinioStorage
+	repo      issue.IssuePhotoRepository
+	storage   *storage.MinioStorage
+	cryptoSvc *crypto.Service
 }
 
-func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, s *storage.MinioStorage) issue.IssuePhotoUseCase {
-	return &issuePhotoUseCase{repo: repo, storage: s}
+func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service) issue.IssuePhotoUseCase {
+	return &issuePhotoUseCase{repo: repo, storage: s, cryptoSvc: cryptoSvc}
 }
 
 func (uc *issuePhotoUseCase) GetByIssueID(issueID string) ([]issue.IssuePhoto, error) {
-	return uc.repo.FindByIssueID(issueID)
+	photos, err := uc.repo.FindByIssueID(issueID)
+	if err == nil {
+		for i := range photos {
+			photos[i].ImageUrl = uc.cryptoSvc.DecryptWithFallback(photos[i].ImageUrl)
+			photos[i].FileName = uc.cryptoSvc.DecryptWithFallback(photos[i].FileName)
+		}
+	}
+	return photos, err
 }
 
 func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoRequest, fileReader io.Reader, fileSize int64, originalFileName, contentType string) (*issue.IssuePhoto, error) {
@@ -174,13 +265,20 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 	publicURL, err := uc.storage.UploadStream(ctx, objectName, fileReader, fileSize, contentType)
 	if err != nil { return nil, err }
 
+	// Encrypt sensitive info
+	encPublicURL := publicURL
+	if enc, err := uc.cryptoSvc.Encrypt(publicURL); err == nil { encPublicURL = enc }
+	
+	encObjectName := objectName
+	if enc, err := uc.cryptoSvc.Encrypt(objectName); err == nil { encObjectName = enc }
+
 	p := &issue.IssuePhoto{
 		IssuePhotoID:   idgen.Generate(idgen.PrefixIssuePhoto),
 		IssueID:        req.IssueID,
 		PICUserID:      req.PICUserID,
 		PhotoType:      req.PhotoType,
-		ImageUrl:       publicURL,
-		FileName:       objectName, // we store objectName here so we can delete it later
+		ImageUrl:       encPublicURL,
+		FileName:       encObjectName, // we store objectName here so we can delete it later
 		FollowUpDate:   req.FollowUpDate,
 		JumlahFollowUp: req.JumlahFollowUp,
 	}
@@ -190,7 +288,11 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 func (uc *issuePhotoUseCase) Delete(ctx context.Context, id string) error {
 	photo, err := uc.repo.FindByID(id)
 	if err != nil { return errors.New("photo not found") }
-	_ = uc.storage.Delete(ctx, photo.FileName) // best-effort file deletion from MinIO
+
+	// Decrypt the filename before deleting from MinIO
+	plainFileName := uc.cryptoSvc.DecryptWithFallback(photo.FileName)
+	_ = uc.storage.Delete(ctx, plainFileName) // best-effort file deletion from MinIO
+	
 	return uc.repo.Delete(id)
 }
 

@@ -19,6 +19,7 @@ const (
 	EventTypeSubmitted = "SUBMITTED"
 	EventTypeResolved  = "RESOLVED"
 	EventTypeClosed    = "CLOSED"
+	EventTypeConfirmed = "CONFIRMED"
 )
 
 // ── Event Payloads (Domain Events) ────────────────────────────────────────

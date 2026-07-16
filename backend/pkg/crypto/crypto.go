@@ -78,6 +78,19 @@ func (s *Service) Decrypt(cipherBase64 string) (string, error) {
 	return string(plaintext), nil
 }
 
+// DecryptWithFallback attempts to decrypt the ciphertext. If it fails (e.g. not a valid base64 or not encrypted),
+// it returns the original string. This is useful for backward compatibility with plaintext data.
+func (s *Service) DecryptWithFallback(cipherBase64 string) string {
+	if cipherBase64 == "" {
+		return ""
+	}
+	plaintext, err := s.Decrypt(cipherBase64)
+	if err != nil {
+		return cipherBase64 // fallback to plaintext
+	}
+	return plaintext
+}
+
 // GenerateKey generates a new cryptographically secure 32-byte key, base64-encoded.
 // Run once to get the key and store it in SETTING_ENCRYPTION_KEY env variable.
 func GenerateKey() (string, error) {

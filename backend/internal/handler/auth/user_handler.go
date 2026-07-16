@@ -17,6 +17,21 @@ func NewUserHandler(userUC authdomain.UserUseCase) *UserHandler {
 	return &UserHandler{userUC: userUC}
 }
 
+// GetAll godoc
+// @Summary      Get all users
+// @Description  Get paginated list of users
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        page query int false "Page number"
+// @Param        limit query int false "Limit per page"
+// @Param        search query string false "Search term"
+// @Param        role_id query string false "Role ID"
+// @Param        department_id query string false "Department ID"
+// @Success      200 {object} response.APIResponse
+// @Failure      500 {object} response.APIResponse
+// @Security     BearerAuth
+// @Router       /users [get]
 func (h *UserHandler) GetAll(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	search := c.Query("search")
@@ -30,6 +45,17 @@ func (h *UserHandler) GetAll(c *fiber.Ctx) error  {
 	return response.Paginated(c, "success", users, total, p.Page, p.Limit)
 }
 
+// GetByID godoc
+// @Summary      Get user by ID
+// @Description  Get user details by ID
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Success      200 {object} response.APIResponse
+// @Failure      404 {object} response.APIResponse
+// @Security     BearerAuth
+// @Router       /users/{id} [get]
 func (h *UserHandler) GetByID(c *fiber.Ctx) error  {
 	id := c.Params("id")
 	user, err := h.userUC.GetByID(id)
@@ -39,6 +65,17 @@ func (h *UserHandler) GetByID(c *fiber.Ctx) error  {
 	return response.OK(c, "success", user)
 }
 
+// Create godoc
+// @Summary      Create user
+// @Description  Create a new user
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        body body interface{} true "User data"
+// @Success      201 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Security     BearerAuth
+// @Router       /users [post]
 func (h *UserHandler) Create(c *fiber.Ctx) error  {
 	var req authdomain.CreateUserRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -54,6 +91,18 @@ func (h *UserHandler) Create(c *fiber.Ctx) error  {
 	return response.Created(c, "user created successfully", user)
 }
 
+// Update godoc
+// @Summary      Update user
+// @Description  Update user details
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Param        body body interface{} true "User data"
+// @Success      200 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Security     BearerAuth
+// @Router       /users/{id} [put]
 func (h *UserHandler) Update(c *fiber.Ctx) error  {
 	id := c.Params("id")
 	var req authdomain.UpdateUserRequest
@@ -70,6 +119,17 @@ func (h *UserHandler) Update(c *fiber.Ctx) error  {
 	return response.OK(c, "user updated successfully", user)
 }
 
+// Delete godoc
+// @Summary      Delete user
+// @Description  Delete user by ID
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Success      200 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Security     BearerAuth
+// @Router       /users/{id} [delete]
 func (h *UserHandler) Delete(c *fiber.Ctx) error  {
 	id := c.Params("id")
 	if err := h.userUC.Delete(id); err != nil {
@@ -78,6 +138,18 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error  {
 	return response.OK(c, "user deleted successfully", nil)
 }
 
+// ChangePassword godoc
+// @Summary      Change user password
+// @Description  Change the password for a specific user
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Param        body body interface{} true "Password data"
+// @Success      200 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Security     BearerAuth
+// @Router       /users/{id}/password [put]
 func (h *UserHandler) ChangePassword(c *fiber.Ctx) error  {
 	id := c.Params("id")
 	var req authdomain.ChangePasswordRequest
@@ -93,6 +165,18 @@ func (h *UserHandler) ChangePassword(c *fiber.Ctx) error  {
 	return response.OK(c, "password changed successfully", nil)
 }
 
+// ResetPassword godoc
+// @Summary      Admin reset password
+// @Description  Admin resets user password
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Param        body body interface{} true "Reset data"
+// @Success      200 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Security     BearerAuth
+// @Router       /users/{id}/reset-password [post]
 func (h *UserHandler) ResetPassword(c *fiber.Ctx) error  {
 	id := c.Params("id")
 	var req authdomain.AdminResetPasswordRequest
@@ -108,6 +192,16 @@ func (h *UserHandler) ResetPassword(c *fiber.Ctx) error  {
 	return response.OK(c, "password reset successfully", nil)
 }
 
+// ForgotPassword godoc
+// @Summary      Forgot password
+// @Description  Request a password reset link or temporary password
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body body interface{} true "Email data"
+// @Success      200 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Router       /auth/forgot-password [post]
 func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error  {
 	var req authdomain.ForgotPasswordRequest
 	if err := c.BodyParser(&req); err != nil {

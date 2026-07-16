@@ -2,6 +2,8 @@ package v1
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/loggingrepo"
+	"github.com/monitoring-system/backend/internal/usecase/loggingusecase"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/kafka"
@@ -15,11 +17,16 @@ import (
 // Register mounts all v1 route groups onto the given RouterGroup.
 // Each route file is responsible for wiring its own repositories, use cases, and handlers.
 func Register(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, log *logger.Logger) {
-	RegisterAuthRoutes(rg, db, mailer, jwtManager, log)
-	RegisterMasterRoutes(rg, db, minioStorage, cryptoSvc, jwtManager, log)
-	RegisterPICRoutes(rg, db, jwtManager, log)
-	RegisterInspectionRoutes(rg, db, producer, jwtManager, log)
-	RegisterIssueRoutes(rg, db, minioStorage, producer, mailer, jwtManager, log)
+	// Bootstrap shared ActivityLog UseCase — passed to all route groups for activity tracking
+	actLogRepo := loggingrepo.NewActivityLogRepository(db)
+	actLogUC := loggingusecase.NewActivityLogUseCase(actLogRepo, producer)
+
+	RegisterAuthRoutes(rg, db, mailer, jwtManager, log, actLogUC)
+	RegisterMasterRoutes(rg, db, minioStorage, cryptoSvc, jwtManager, log, actLogUC)
+	RegisterPICRoutes(rg, db, jwtManager, log, actLogUC)
+	RegisterInspectionRoutes(rg, db, producer, mailer, jwtManager, log, actLogUC)
+	RegisterIssueRoutes(rg, db, minioStorage, cryptoSvc, producer, mailer, jwtManager, log, actLogUC)
 	RegisterLoggingRoutes(rg, db, producer, jwtManager, log)
 	RegisterSearchRoutes(rg, osClient, jwtManager, log)
+	RegisterUploadRoutes(rg, db, minioStorage, producer, jwtManager, log, actLogUC)
 }

@@ -22,6 +22,7 @@ type DetailKawasanRepository interface {
 	FindAll(page, limit int, kawasanID, search string) ([]DetailKawasan, int64, error)
 	FindByID(id string) (*DetailKawasan, error)
 	FindByKawasanID(kawasanID string) ([]DetailKawasan, error)
+	FindAllByAreaID(areaID string) ([]DetailKawasan, error)
 	Create(dk *DetailKawasan) error
 	Update(dk *DetailKawasan) error
 	Delete(id string) error

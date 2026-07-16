@@ -26,11 +26,14 @@ import (
 
 	"github.com/monitoring-system/backend/config"
 	"github.com/monitoring-system/backend/internal/domain/events"
+	kafkainfra "github.com/monitoring-system/backend/internal/infrastructure/kafka"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/loggingrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/uploadrepo"
+	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
 	"github.com/monitoring-system/backend/internal/worker"
 	"github.com/monitoring-system/backend/pkg/crypto"
-	"github.com/monitoring-system/backend/pkg/kafka"
+	pkgkafka "github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/opensearch"
@@ -61,7 +64,7 @@ func main() {
 
 	// ── Setup Kafka Producer ───────────────────────────────────────────
 	kafkaBrokers := []string{cfg.KafkaBrokers}
-	eventProducer := kafka.NewProducer(kafkaBrokers)
+	eventProducer := pkgkafka.NewProducer(kafkaBrokers)
 	defer eventProducer.Close()
 
 	// ── Setup OpenSearch ───────────────────────────────────────────────
@@ -77,14 +80,14 @@ func main() {
 
 	osIndexer := worker.NewOpenSearchIndexer(osClient, log)
 
-	consumerInspections := kafka.NewConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, events.TopicAuditInspections, log)
-	consumerInspections.Start(bgCtx, osIndexer.HandleInspectionEvent)
+	consumerInspections := pkgkafka.NewConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, events.TopicAuditInspections, log)
+	go consumerInspections.Start(bgCtx, osIndexer.HandleInspectionEvent)
 
-	consumerIssues := kafka.NewConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, events.TopicAuditIssues, log)
-	consumerIssues.Start(bgCtx, osIndexer.HandleIssueEvent)
+	consumerIssues := pkgkafka.NewConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, events.TopicAuditIssues, log)
+	go consumerIssues.Start(bgCtx, osIndexer.HandleIssueEvent)
 
-	consumerActivityLogs := kafka.NewConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, events.TopicActivityLogs, log)
-	consumerActivityLogs.Start(bgCtx, osIndexer.HandleActivityLogEvent)
+	consumerActivityLogs := pkgkafka.NewConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, events.TopicActivityLogs, log)
+	go consumerActivityLogs.Start(bgCtx, osIndexer.HandleActivityLogEvent)
 
 	// ── Setup MinIO ────────────────────────────────────────────────────
 	minioStorage, err := storage.NewMinioStorage(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioBucket, cfg.MinioAllowedIPs, cfg.MinioUseSSL)
@@ -109,6 +112,21 @@ func main() {
 	} else {
 		log.Info("WARNING: SETTING_ENCRYPTION_KEY not set, encrypted settings will not be protected")
 	}
+
+	// ── Setup Image Processing Consumer ────────────────────────────────
+	uploadRepo := uploadrepo.NewUploadRepository(db)
+	imageProc := uploadusecase.NewImageProcessor(eventProducer)
+
+	imageProcessingConsumer := kafkainfra.NewImageProcessingConsumer(
+		kafkaBrokers,
+		cfg.KafkaConsumerGroup,
+		"audit.image-processing",
+		minioStorage,
+		imageProc,
+		uploadRepo,
+		log,
+	)
+	go imageProcessingConsumer.Start(bgCtx)
 
 	// ── Setup router ───────────────────────────────────────────────────
 	r := router.Setup(cfg, db, minioStorage, cryptoSvc, mailer, eventProducer, osClient, log)

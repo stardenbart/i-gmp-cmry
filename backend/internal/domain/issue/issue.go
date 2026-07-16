@@ -9,9 +9,10 @@ type IssueStatus string
 
 const (
 	IssueStatusOpen       IssueStatus = "Open"
-	IssueStatusInProgress IssueStatus = "InProgress"
-	IssueStatusClosed     IssueStatus = "Closed"
-	IssueStatusVerified   IssueStatus = "Verified"
+	IssueStatusInProgress      IssueStatus = "InProgress"
+	IssueStatusPendingValidation IssueStatus = "PendingValidation"
+	IssueStatusClosed          IssueStatus = "Closed"
+	IssueStatusVerified        IssueStatus = "Verified"
 )
 
 // Issue represents the Issue table.
@@ -43,7 +44,7 @@ type CreateIssueRequest struct {
 type UpdateIssueRequest struct {
 	IssuePICUserID string      `json:"issue_pic_user_id"`
 	DueDate        *time.Time  `json:"due_date"`
-	IssueStatus    IssueStatus `json:"issue_status" validate:"omitempty,oneof=Open InProgress Closed Verified"`
+	IssueStatus    IssueStatus `json:"issue_status" validate:"omitempty,oneof=Open InProgress PendingValidation Closed Verified"`
 	Keterangan     string      `json:"keterangan"`
 }
 
@@ -65,5 +66,6 @@ type IssueUseCase interface {
 	GetByID(id string) (*Issue, error)
 	Create(actorID string, req *CreateIssueRequest) (*Issue, error)
 	Update(id string, actorID string, req *UpdateIssueRequest) (*Issue, error)
+	ExtendDueDate(id string, actorID string, newDueDate time.Time) (*Issue, error)
 	Delete(id string, actorID string) error
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/monitoring-system/backend/internal/domain/events"
 	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
+	"github.com/monitoring-system/backend/pkg/idgen"
 	"github.com/monitoring-system/backend/pkg/kafka"
 )
 
@@ -26,7 +27,7 @@ func (uc *loginLogUseCase) GetByID(id string) (*logdomain.LoginLog, error) {
 	return uc.repo.FindByID(id)
 }
 
-// ── ActivityLog UseCase (Queue-Based) ─────────────────────────────────────
+// ── ActivityLog UseCase (Dual-Write: Kafka + DB) ──────────────────────────
 
 type activityLogUseCase struct {
 	repo     logdomain.ActivityLogRepository
@@ -46,6 +47,23 @@ func (uc *activityLogUseCase) GetByID(id string) (*logdomain.ActivityLog, error)
 }
 
 func (uc *activityLogUseCase) Record(ctx context.Context, req *logdomain.CreateActivityLogRequest) error {
+	// 1. Write directly to DB for immediate availability in API queries (GET /logs/activity)
+	logEntry := &logdomain.ActivityLog{
+		ActivityLogID:       idgen.Generate(idgen.PrefixActivityLog),
+		UserID:              req.UserID,
+		ModuleID:            req.ModuleID,
+		PermissionID:        req.PermissionID,
+		ActivityAction:      req.ActivityAction,
+		TableAffected:       req.TableAffected,
+		RecordID:            req.RecordID,
+		OldValue:            req.OldValue,
+		NewValue:            req.NewValue,
+		ActivityDescription: req.ActivityDescription,
+		IPAddress:           req.IPAddress,
+	}
+	_ = uc.repo.Create(logEntry) // best-effort; don't block on error
+
+	// 2. Also publish to Kafka → OpenSearch for full-text search & analytics
 	event := events.ActivityLogEvent{
 		BaseEvent: events.BaseEvent{
 			EventID:   uuid.New().String(),
@@ -58,8 +76,8 @@ func (uc *activityLogUseCase) Record(ctx context.Context, req *logdomain.CreateA
 		EntityID:  req.RecordID,
 		Details:   req.ActivityDescription,
 		IPAddress: req.IPAddress,
-		// Map other fields as needed if we expand the Kafka event
 	}
 
-	return uc.producer.PublishEvent(ctx, events.TopicActivityLogs, req.UserID, event)
+	_ = uc.producer.PublishEvent(ctx, events.TopicActivityLogs, req.UserID, event)
+	return nil
 }

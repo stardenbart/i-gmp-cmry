@@ -1,6 +1,8 @@
 package issuehandler
 
 import (
+	"time"
+	
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/issue"
 	"github.com/monitoring-system/backend/internal/middleware"
@@ -15,6 +17,19 @@ type IssueHandler struct{ uc issue.IssueUseCase }
 
 func NewIssueHandler(uc issue.IssueUseCase) *IssueHandler { return &IssueHandler{uc: uc} }
 
+// @Summary Get all issues
+// @Description Get a paginated list of issues, optionally filtered by status or pic_user_id
+// @Tags issues
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number"
+// @Param limit query int false "Items per page"
+// @Param status query string false "Filter by status"
+// @Param pic_user_id query string false "Filter by PIC User ID"
+// @Success 200 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /api/v1/issues [get]
+// @Security BearerAuth
 func (h *IssueHandler) GetAll(c *fiber.Ctx) error  {
 	p := pagination.FromQuery(c)
 	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("status"), c.Query("pic_user_id"))
@@ -22,12 +37,32 @@ func (h *IssueHandler) GetAll(c *fiber.Ctx) error  {
 	return response.Paginated(c, "success", items, total, p.Page, p.Limit)
 }
 
+// @Summary Get issue by ID
+// @Description Get a specific issue by its ID
+// @Tags issues
+// @Accept json
+// @Produce json
+// @Param id path string true "Issue ID"
+// @Success 200 {object} response.APIResponse
+// @Failure 404 {object} response.APIResponse
+// @Router /api/v1/issues/{id} [get]
+// @Security BearerAuth
 func (h *IssueHandler) GetByID(c *fiber.Ctx) error  {
 	item, err := h.uc.GetByID(c.Params("id"))
 	if err != nil { return response.NotFound(c, "issue not found") }
 	return response.OK(c, "success", item)
 }
 
+// @Summary Create a new issue
+// @Description Create a new issue with the provided details
+// @Tags issues
+// @Accept json
+// @Produce json
+// @Param request body issue.CreateIssueRequest true "Create Issue Request"
+// @Success 201 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Router /api/v1/issues [post]
+// @Security BearerAuth
 func (h *IssueHandler) Create(c *fiber.Ctx) error  {
 	var req issue.CreateIssueRequest
 	if err := c.BodyParser(&req); err != nil { return response.BadRequest(c, "invalid body", err.Error()) }
@@ -38,6 +73,17 @@ func (h *IssueHandler) Create(c *fiber.Ctx) error  {
 	return response.Created(c, "issue created", item)
 }
 
+// @Summary Update an issue
+// @Description Update an existing issue by its ID
+// @Tags issues
+// @Accept json
+// @Produce json
+// @Param id path string true "Issue ID"
+// @Param request body issue.UpdateIssueRequest true "Update Issue Request"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Router /api/v1/issues/{id} [put]
+// @Security BearerAuth
 func (h *IssueHandler) Update(c *fiber.Ctx) error  {
 	var req issue.UpdateIssueRequest
 	if err := c.BodyParser(&req); err != nil { return response.BadRequest(c, "invalid body", err.Error()) }
@@ -47,6 +93,49 @@ func (h *IssueHandler) Update(c *fiber.Ctx) error  {
 	return response.OK(c, "issue updated", item)
 }
 
+type ExtendDueDateRequest struct {
+	DueDate string `json:"due_date" validate:"required"`
+}
+
+// @Summary Extend issue due date
+// @Description Extend the due date of a specific issue
+// @Tags issues
+// @Accept json
+// @Produce json
+// @Param id path string true "Issue ID"
+// @Param request body ExtendDueDateRequest true "Extend Due Date Request"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Router /api/v1/issues/{id}/extend-due-date [patch]
+// @Security BearerAuth
+func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error  {
+	var req ExtendDueDateRequest
+	if err := c.BodyParser(&req); err != nil { return response.BadRequest(c, "invalid body", err.Error()) }
+	if errs := validator.Validate(&req); errs != nil { return response.BadRequest(c, "validation failed", errs) }
+	
+	actorID := middleware.GetUserID(c)
+	
+	// Parse Time manually since it's an extension
+	importTime, err := time.Parse(time.RFC3339, req.DueDate)
+	if err != nil {
+		return response.BadRequest(c, "invalid date format, must be RFC3339", err.Error())
+	}
+
+	item, err := h.uc.ExtendDueDate(c.Params("id"), actorID, importTime)
+	if err != nil { return response.BadRequest(c, err.Error(), nil) }
+	return response.OK(c, "due date extended", item)
+}
+
+// @Summary Delete an issue
+// @Description Delete an issue by its ID
+// @Tags issues
+// @Accept json
+// @Produce json
+// @Param id path string true "Issue ID"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Router /api/v1/issues/{id} [delete]
+// @Security BearerAuth
 func (h *IssueHandler) Delete(c *fiber.Ctx) error  {
 	actorID := middleware.GetUserID(c)
 	if err := h.uc.Delete(c.Params("id"), actorID); err != nil { return response.BadRequest(c, err.Error(), nil) }
@@ -59,6 +148,16 @@ type IssuePhotoHandler struct{ uc issue.IssuePhotoUseCase }
 
 func NewIssuePhotoHandler(uc issue.IssuePhotoUseCase) *IssuePhotoHandler { return &IssuePhotoHandler{uc: uc} }
 
+// @Summary Get photos by issue ID
+// @Description Get all photos associated with a specific issue
+// @Tags issue-photos
+// @Accept json
+// @Produce json
+// @Param id path string true "Issue ID"
+// @Success 200 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /api/v1/issues/{id}/photos [get]
+// @Security BearerAuth
 func (h *IssuePhotoHandler) GetByIssueID(c *fiber.Ctx) error  {
 	photos, err := h.uc.GetByIssueID(c.Params("id"))
 	if err != nil { return response.InternalServerError(c, "failed to fetch photos", err.Error()) }
@@ -66,6 +165,19 @@ func (h *IssuePhotoHandler) GetByIssueID(c *fiber.Ctx) error  {
 }
 
 // Upload handles multipart/form-data file upload for issue photos.
+// @Summary Upload an issue photo
+// @Description Upload a photo for a specific issue
+// @Tags issue-photos
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path string true "Issue ID"
+// @Param photo formData file true "Photo file"
+// @Param photo_type formData string true "Photo Type"
+// @Success 201 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Failure 500 {object} response.APIResponse
+// @Router /api/v1/issues/{id}/photos [post]
+// @Security BearerAuth
 func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error  {
 	header, err := c.FormFile("photo")
 	if err != nil { return response.BadRequest(c, "file is required", err.Error()) }
@@ -93,6 +205,16 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error  {
 	return response.Created(c, "photo uploaded", photo)
 }
 
+// @Summary Delete an issue photo
+// @Description Delete a specific issue photo by its ID
+// @Tags issue-photos
+// @Accept json
+// @Produce json
+// @Param photo_id path string true "Photo ID"
+// @Success 200 {object} response.APIResponse
+// @Failure 400 {object} response.APIResponse
+// @Router /api/v1/issues/photos/{photo_id} [delete]
+// @Security BearerAuth
 func (h *IssuePhotoHandler) Delete(c *fiber.Ctx) error  {
 	if err := h.uc.Delete(c.UserContext(), c.Params("photo_id")); err != nil { return response.BadRequest(c, err.Error(), nil) }
 	return response.OK(c, "photo deleted", nil)

@@ -5,6 +5,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/swagger"
 	"github.com/monitoring-system/backend/config"
+	_ "github.com/monitoring-system/backend/docs"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"

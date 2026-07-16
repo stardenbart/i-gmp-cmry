@@ -2,9 +2,13 @@ package v1
 
 import (
 	"github.com/gofiber/fiber/v2"
+	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
+	"github.com/monitoring-system/backend/internal/handler/auth"
 	"github.com/monitoring-system/backend/internal/handler/masterhandler"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
+	"github.com/monitoring-system/backend/internal/usecase/authusecase"
 	"github.com/monitoring-system/backend/internal/usecase/masterusecase"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"
@@ -14,7 +18,7 @@ import (
 )
 
 // RegisterMasterRoutes wires master data dependencies and mounts routes.
-func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
 	// ── Wire dependencies ──────────────────────────────────────────────
 	deptRepo := masterrepo.NewDepartmentRepository(db)
 	areaRepo := masterrepo.NewAreaRepository(db)
@@ -23,6 +27,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	aspekRepo := masterrepo.NewAspekRepository(db)
 	detailRepo := masterrepo.NewDetailRepository(db)
 	uraianRepo := masterrepo.NewUraianRepository(db)
+	roleRepo := authrepo.NewRoleRepository(db)
 
 	deptUC := masterusecase.NewDepartmentUseCase(deptRepo)
 	areaUC := masterusecase.NewAreaUseCase(areaRepo)
@@ -31,6 +36,10 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	aspekUC := masterusecase.NewAspekUseCase(aspekRepo)
 	detailUC := masterusecase.NewDetailUseCase(detailRepo)
 	uraianUC := masterusecase.NewUraianUseCase(uraianRepo)
+	roleUC := authusecase.NewRoleUseCase(roleRepo)
+
+	rolePermRepo := authrepo.NewRolePermissionRepository(db)
+	rolePermUC := authusecase.NewRolePermissionUseCase(rolePermRepo)
 
 	settingRepo := masterrepo.NewSettingRepository(db)
 	settingUC := masterusecase.NewSettingUseCase(settingRepo, cryptoSvc, minioStorage)
@@ -43,9 +52,12 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	aspekH := masterhandler.NewAspekHandler(aspekUC)
 	detailH := masterhandler.NewDetailHandler(detailUC)
 	uraianH := masterhandler.NewUraianHandler(uraianUC)
+	roleH := auth.NewRoleHandler(roleUC)
+	rolePermH := auth.NewRolePermissionHandler(rolePermUC)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
-	master := rg.Group("/master", authMW)
+	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
+	master := rg.Group("/master", authMW, actLogMW)
 	{
 		// Department
 		dept := master.Group("/departments")
@@ -55,8 +67,19 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		dept.Put("/:id", deptH.Update)
 		dept.Delete("/:id", deptH.Delete)
 
+		// Roles
+		roles := master.Group("/roles")
+		roles.Get("", roleH.GetAll)
+		roles.Post("", roleH.Create)
+		roles.Get("/:id", roleH.GetByID)
+		roles.Put("/:id", roleH.Update)
+		roles.Delete("/:id", roleH.Delete)
+
+		roles.Get("/:id/permissions", rolePermH.GetByRoleID)
+		roles.Put("/:id/permissions", rolePermH.SetPermissions)
+
 		// Area
-		area := master.Group("/areas")
+		area := master.Group("/area")
 		area.Get("", areaH.GetAll)
 		area.Post("", areaH.Create)
 		area.Get("/:id", areaH.GetByID)
@@ -64,7 +87,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		area.Delete("/:id", areaH.Delete)
 
 		// Kawasan (filtered by area)
-		kawasan := master.Group("/kawasans")
+		kawasan := master.Group("/kawasan")
 		kawasan.Get("", kawasanH.GetAll)
 		kawasan.Post("", kawasanH.Create)
 		kawasan.Get("/:id", kawasanH.GetByID)
@@ -72,7 +95,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		kawasan.Delete("/:id", kawasanH.Delete)
 
 		// Detail Kawasan
-		dk := master.Group("/detail-kawasans")
+		dk := master.Group("/detail-kawasan")
 		dk.Get("", dkH.GetAll)
 		dk.Post("", dkH.Create)
 		dk.Get("/:id", dkH.GetByID)
@@ -80,7 +103,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		dk.Delete("/:id", dkH.Delete)
 
 		// Aspek
-		aspek := master.Group("/aspeks")
+		aspek := master.Group("/aspek")
 		aspek.Get("", aspekH.GetAll)
 		aspek.Post("", aspekH.Create)
 		aspek.Get("/:id", aspekH.GetByID)
@@ -96,7 +119,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		detail.Delete("/:id", detailH.Delete)
 
 		// Uraian (checklist items)
-		uraian := master.Group("/urains")
+		uraian := master.Group("/urain")
 		uraian.Get("", uraianH.GetAll)
 		uraian.Post("", uraianH.Create)
 		uraian.Get("/:id", uraianH.GetByID)

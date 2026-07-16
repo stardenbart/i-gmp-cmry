@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
+	"github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/pkg/idgen"
 	"github.com/monitoring-system/backend/pkg/kafka"
 )
@@ -15,12 +16,24 @@ import (
 // ── Inspection Header UseCase ─────────────────────────────────────────────
 
 type inspectionHeaderUseCase struct {
-	repo     inspection.InspectionHeaderRepository
-	producer kafka.EventProducer
+	repo              inspection.InspectionHeaderRepository
+	producer          kafka.EventProducer
+	detailKawasanRepo master.DetailKawasanRepository
+	emailNotifier     *InspectionEmailNotifier
 }
 
-func NewInspectionHeaderUseCase(repo inspection.InspectionHeaderRepository, producer kafka.EventProducer) inspection.InspectionHeaderUseCase {
-	return &inspectionHeaderUseCase{repo: repo, producer: producer}
+func NewInspectionHeaderUseCase(
+	repo inspection.InspectionHeaderRepository,
+	producer kafka.EventProducer,
+	detailKawasanRepo master.DetailKawasanRepository,
+	emailNotifier *InspectionEmailNotifier,
+) inspection.InspectionHeaderUseCase {
+	return &inspectionHeaderUseCase{
+		repo:              repo,
+		producer:          producer,
+		detailKawasanRepo: detailKawasanRepo,
+		emailNotifier:     emailNotifier,
+	}
 }
 
 func (uc *inspectionHeaderUseCase) GetAll(page, limit int, areaID, status, inspectorID string) ([]inspection.InspectionHeader, int64, error) {
@@ -31,16 +44,58 @@ func (uc *inspectionHeaderUseCase) GetByID(id string) (*inspection.InspectionHea
 	return uc.repo.FindByID(id)
 }
 
+func (uc *inspectionHeaderUseCase) GetAreaStatus(areaID string) (inspection.AreaProgress, error) {
+	return CalculateAreaStatus(areaID, uc.detailKawasanRepo, uc.repo)
+}
+
 func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.CreateInspectionRequest) (*inspection.InspectionHeader, error) {
+	now := time.Now()
+	
+	// 0. Cek apakah kawasan sudah pernah diinspeksi (Selesai/Approved) di bulan yang sama
+	completedCount, err := uc.repo.CountCompletedThisMonthByKawasan(req.KawasanID, now.Year(), int(now.Month()))
+	if err == nil && completedCount > 0 {
+		return nil, errors.New("kawasan ini sudah selesai diinspeksi pada bulan ini, anda baru bisa melakukan inspeksi lagi bulan depan")
+	}
+
+	// 1. Cek apakah auditor punya inspeksi aktif di kawasan lain
+	activeByMe, err := uc.repo.FindActiveByInspector(inspectorID)
+	if err == nil && len(activeByMe) > 0 {
+		for _, a := range activeByMe {
+			if a.KawasanID != req.KawasanID {
+				return nil, errors.New("anda memiliki inspeksi aktif di kawasan lain, harap selesaikan terlebih dahulu")
+			}
+		}
+	}
+
+	// 2. Cek apakah ada auditor lain yang sedang inspeksi kawasan ini
+	activeInKawasan, err := uc.repo.FindActiveByKawasan(req.KawasanID)
+	var sessionID string
+	if err == nil && len(activeInKawasan) > 0 {
+		for _, a := range activeInKawasan {
+			if a.InspectorID != inspectorID {
+				return nil, errors.New("kawasan ini sedang diinspeksi oleh auditor lain")
+			}
+			if a.SessionID != nil {
+				sessionID = *a.SessionID
+			}
+		}
+	}
+
+	if sessionID == "" {
+		sessionID = idgen.Generate(idgen.PrefixSession)
+	}
+
 	h := &inspection.InspectionHeader{
-		InspectionID:          "INS - " + idgen.Generate(idgen.PrefixInspection),
+		InspectionID:          	idgen.Generate(idgen.PrefixInspection),
 		AreaID:                 req.AreaID,
 		KawasanID:              req.KawasanID,
 		DetailKawasanID:        req.DetailKawasanID,
 		InspectorID:            inspectorID,
 		InspectionHeaderStatus: inspection.InspectionStatusDraft,
+		SessionID:              &sessionID,
+		LockedAt:               &now,
 	}
-	err := uc.repo.Create(h)
+	err = uc.repo.Create(h)
 	if err == nil {
 		event := events.InspectionEvent{
 			BaseEvent: events.BaseEvent{
@@ -77,6 +132,26 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 			AreaID:       h.AreaID,
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditInspections, h.InspectionID, event)
+
+		// Check area progress if status is Completed
+		if h.InspectionHeaderStatus == inspection.InspectionStatusCompleted {
+			progress, _ := CalculateAreaStatus(h.AreaID, uc.detailKawasanRepo, uc.repo)
+			if progress.Status == inspection.AreaStatusConfirmed {
+				// Send email summary
+				go func(areaID string, p inspection.AreaProgress) {
+					_ = uc.emailNotifier.SendInspectionSummary(areaID, p)
+				}(h.AreaID, progress)
+
+				// Publish CONFIRMED event
+				confirmedEvent := events.BaseEvent{
+					EventID:   uuid.New().String(),
+					EventType: events.EventTypeConfirmed,
+					Timestamp: time.Now(),
+					ActorID:   "SYSTEM",
+				}
+				_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditInspections, h.AreaID, confirmedEvent)
+			}
+		}
 	}
 	return h, err
 }

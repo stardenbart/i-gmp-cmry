@@ -1,0 +1,358 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  AlertCircle,
+  AlertTriangle,
+  Info,
+  X,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api/axios";
+import { useAuthStore } from "@/stores/authStore";
+import { cn } from "@/lib/utils";
+import { useMounted } from "@/lib/useMounted";
+
+// Types
+export interface Notification {
+  id: string;
+  type: "info" | "warning" | "error" | "success";
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  link?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NotificationResponse {
+  items: Notification[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+  };
+}
+
+// API Functions (stub - implement when backend has notification endpoint)
+const notificationApi = {
+  getAll: async (page = 1, limit = 20): Promise<{ data: NotificationResponse }> => {
+    // TODO: Replace with actual endpoint when available
+    // const res = await api.get("/notifications", { params: { page, limit } });
+    // return res.data;
+
+    // Mock data for development
+    return {
+      data: {
+        items: [
+          {
+            id: "1",
+            type: "warning",
+            title: "Issue Overdue",
+            message: "Issue #ISS-001 sudah melampaui due date",
+            is_read: false,
+            created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+            link: "/issues/ISS-001",
+          },
+          {
+            id: "2",
+            type: "info",
+            title: "Inspeksi Baru",
+            message: "Inspeksi baru telah dijadwalkan untuk besok",
+            is_read: false,
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+            link: "/inspections/new",
+          },
+          {
+            id: "3",
+            type: "success",
+            title: "Issue Selesai",
+            message: "Issue #ISS-002 telah ditandai selesai oleh PIC",
+            is_read: true,
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+          },
+        ],
+        pagination: {
+          total: 3,
+          page: 1,
+          limit: 20,
+          total_pages: 1,
+        },
+      },
+    };
+  },
+
+  markAsRead: async (id: string): Promise<void> => {
+    // TODO: Implement when backend has endpoint
+    // await api.put(`/notifications/${id}/read`);
+    console.log("Mark as read:", id);
+  },
+
+  markAllAsRead: async (): Promise<void> => {
+    // TODO: Implement when backend has endpoint
+    // await api.put("/notifications/read-all");
+    console.log("Mark all as read");
+  },
+};
+
+// Helper to get icon based on notification type
+const getNotificationIcon = (type: Notification["type"]) => {
+  switch (type) {
+    case "warning":
+      return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+    case "error":
+      return <AlertCircle className="h-4 w-4 text-red-500" />;
+    case "success":
+      return <Check className="h-4 w-4 text-green-500" />;
+    default:
+      return <Info className="h-4 w-4 text-blue-500" />;
+  }
+};
+
+// Helper to format time ago
+const formatTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return "Baru saja";
+  if (diffMins < 60) return `${diffMins}m lalu`;
+  if (diffHours < 24) return `${diffHours}j lalu`;
+  if (diffDays < 7) return `${diffDays}h lalu`;
+  return date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+};
+
+// Single Notification Item Component
+function NotificationItem({
+  notification,
+  onRead,
+  onClose,
+}: {
+  notification: Notification;
+  onRead: (id: string) => void;
+  onClose: () => void;
+}) {
+  const handleClick = () => {
+    if (!notification.is_read) {
+      onRead(notification.id);
+    }
+    if (notification.link) {
+      window.location.href = notification.link;
+    }
+    onClose();
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      className={cn(
+        "group flex gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors border-b border-border last:border-b-0",
+        !notification.is_read && "bg-primary/5"
+      )}
+    >
+      <div className="flex-shrink-0 mt-0.5">
+        {getNotificationIcon(notification.type)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className={cn(
+            "text-sm truncate",
+            !notification.is_read ? "font-medium" : "text-muted-foreground"
+          )}>
+            {notification.title}
+          </p>
+          {!notification.is_read && (
+            <span className="flex-shrink-0 w-2 h-2 rounded-full bg-primary mt-1.5" />
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+          {notification.message}
+        </p>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-[10px] text-muted-foreground/70">
+            {formatTimeAgo(notification.created_at)}
+          </span>
+          {notification.link && (
+            <ExternalLink className="h-3 w-3 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main Notification Bell Component
+export function NotificationBell() {
+  const user = useAuthStore((state) => state.user);
+  const mounted = useMounted();
+  const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch notifications
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => notificationApi.getAll(),
+    enabled: mounted && !!user,
+    refetchInterval: 60000, // Refetch every minute
+  });
+
+  const notifications = data?.data?.items || [];
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  // Mark as read mutation
+  const markAsReadMutation = useMutation({
+    mutationFn: (id: string) => notificationApi.markAsRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  // Mark all as read mutation
+  const markAllAsReadMutation = useMutation({
+    mutationFn: () => notificationApi.markAllAsRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Close on escape key
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  const handleMarkAsRead = (id: string) => {
+    markAsReadMutation.mutate(id);
+  };
+
+  if (!mounted || !user) {
+    return (
+      <button className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted relative">
+        <Bell className="h-4 w-4" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* Bell Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted transition-colors relative",
+          isOpen && "bg-muted"
+        )}
+        aria-label="Notifications"
+      >
+        <Bell className="h-4 w-4" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-background">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* Dropdown Panel */}
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 origin-top-right rounded-xl bg-card border border-border shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
+          {/* Header */}
+          <div className="flex items-center justify-between p-3 border-b border-border">
+            <h3 className="font-semibold">Notifikasi</h3>
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => markAllAsReadMutation.mutate()}
+                  disabled={markAllAsReadMutation.isPending}
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-md transition-colors disabled:opacity-50"
+                >
+                  {markAllAsReadMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <CheckCheck className="h-3 w-3" />
+                  )}
+                  Tandai semua dibaca
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1 hover:bg-muted rounded-md transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Notification List */}
+          <div className="max-h-96 overflow-y-auto">
+            {isLoading || isFetching ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                <Bell className="h-10 w-10 text-muted-foreground/30 mb-2" />
+                <p className="text-sm text-muted-foreground">Tidak ada notifikasi</p>
+              </div>
+            ) : (
+              notifications.map((notification) => (
+                <NotificationItem
+                  key={notification.id}
+                  notification={notification}
+                  onRead={handleMarkAsRead}
+                  onClose={() => setIsOpen(false)}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          {notifications.length > 0 && (
+            <div className="p-2 border-t border-border">
+              <button className="w-full text-center text-xs text-primary hover:bg-primary/10 py-1.5 rounded-md transition-colors">
+                Lihat semua notifikasi
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default NotificationBell;

@@ -143,6 +143,14 @@ func (r *detailKawasanRepository) FindByKawasanID(kawasanID string) ([]master.De
 	return items, err
 }
 
+func (r *detailKawasanRepository) FindAllByAreaID(areaID string) ([]master.DetailKawasan, error) {
+	var items []master.DetailKawasan
+	err := r.db.Joins("JOIN Kawasan_Master on Kawasan_Master.KawasanID = DetailKawasan_Master.KawasanID").
+		Where("Kawasan_Master.AreaID = ?", areaID).
+		Find(&items).Error
+	return items, err
+}
+
 func (r *detailKawasanRepository) Create(dk *master.DetailKawasan) error   { return r.db.Create(dk).Error }
 func (r *detailKawasanRepository) Update(dk *master.DetailKawasan) error   { return r.db.Save(dk).Error }
 func (r *detailKawasanRepository) Delete(id string) error {

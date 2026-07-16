@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/gofiber/fiber/v2"
+	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
 	"github.com/monitoring-system/backend/internal/handler/pichandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/picrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
@@ -11,13 +12,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterPICRoutes(rg fiber.Router, db *gorm.DB, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterPICRoutes(rg fiber.Router, db *gorm.DB, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
 	repo := picrepo.NewPICMappingRepository(db)
 	uc := picusecase.NewPICMappingUseCase(repo)
 	h := pichandler.NewPICMappingHandler(uc)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
-	pic := rg.Group("/pic-mappings", authMW)
+	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
+
+	pic := rg.Group("/pic-mappings", authMW, actLogMW)
 	{
 		pic.Get("", h.GetAll)
 		pic.Post("", h.Create)

@@ -21,8 +21,11 @@ const (
 	SettingKeyMaxUploadSizeMB         = "MAX_UPLOAD_SIZE_MB"
 	SettingKeyMaxLoginAttempts        = "MAX_LOGIN_ATTEMPTS"
 	SettingKeySessionIdleTimeout      = "SESSION_IDLE_TIMEOUT_MINUTES"
-	SettingKeyEmailTemplateForgotPass = "EMAIL_TEMPLATE_FORGOT_PASSWORD"
-	SettingKeyEmailTemplateIssue      = "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT"
+	SettingKeyEmailTemplateForgotPass       = "EMAIL_TEMPLATE_FORGOT_PASSWORD"
+	SettingKeyEmailTemplateIssue            = "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT"
+	SettingKeyEmailTemplateInspectionConfirmed = "EMAIL_TEMPLATE_INSPECTION_CONFIRMED"
+	SettingKeyIssueDeadlineDays             = "ISSUE_DEADLINE_DAYS"
+	SettingKeyIssueAutoApproveDays          = "ISSUE_AUTO_APPROVE_DAYS"
 )
 
 // ── DTOs ──────────────────────────────────────────────────────────────────

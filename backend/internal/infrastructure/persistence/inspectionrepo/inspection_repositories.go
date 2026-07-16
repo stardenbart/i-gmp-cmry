@@ -31,6 +31,40 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 	return &item, err
 }
 
+func (r *inspectionHeaderRepository) FindActiveByKawasan(kawasanID string) ([]inspection.InspectionHeader, error) {
+	var items []inspection.InspectionHeader
+	err := r.db.Where("KawasanID = ? AND InspectionHeaderStatus IN (?, ?)", 
+		kawasanID, inspection.InspectionStatusDraft, inspection.InspectionStatusOngoing).
+		Find(&items).Error
+	return items, err
+}
+
+func (r *inspectionHeaderRepository) FindActiveByInspector(inspectorID string) ([]inspection.InspectionHeader, error) {
+	var items []inspection.InspectionHeader
+	err := r.db.Where("InspectorID = ? AND InspectionHeaderStatus IN (?, ?)", 
+		inspectorID, inspection.InspectionStatusDraft, inspection.InspectionStatusOngoing).
+		Find(&items).Error
+	return items, err
+}
+
+func (r *inspectionHeaderRepository) CountCompletedThisMonthByKawasan(kawasanID string, year int, month int) (int64, error) {
+	var count int64
+	err := r.db.Model(&inspection.InspectionHeader{}).
+		Where("KawasanID = ? AND InspectionHeaderStatus IN (?, ?)", kawasanID, inspection.InspectionStatusCompleted, inspection.InspectionStatusApproved).
+		Where("EXTRACT(YEAR FROM InspectionHeaderCreatedAt) = ? AND EXTRACT(MONTH FROM InspectionHeaderCreatedAt) = ?", year, month).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *inspectionHeaderRepository) CountCompletedByAreaAndDetailKawasan(areaID, detailKawasanID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&inspection.InspectionHeader{}).
+		Where("AreaID = ? AND DetailKawasanID = ? AND InspectionHeaderStatus = ?", 
+		areaID, detailKawasanID, inspection.InspectionStatusCompleted).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *inspectionHeaderRepository) Create(h *inspection.InspectionHeader) error { return r.db.Create(h).Error }
 func (r *inspectionHeaderRepository) Update(h *inspection.InspectionHeader) error { return r.db.Save(h).Error }
 func (r *inspectionHeaderRepository) Delete(id string) error {
