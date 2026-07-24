@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { authApi } from "@/lib/api/auth.api";
+import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,27 @@ export default function ProfilePage() {
   });
 
   const currentUser = meData?.data || user;
+
+  const { data: roles } = useQuery({
+    queryKey: ["roles"],
+    queryFn: async () => {
+      const res = await api.get("/master/roles", { params: { limit: 100 } });
+      return res.data?.data?.items || [];
+    },
+    enabled: !!token,
+  });
+
+  const { data: departments } = useQuery({
+    queryKey: ["departments"],
+    queryFn: async () => {
+      const res = await api.get("/master/departments", { params: { limit: 100 } });
+      return res.data?.data?.items || [];
+    },
+    enabled: !!token,
+  });
+
+  const roleName = roles?.find((r: any) => r.role_id === currentUser?.role_id)?.role_name || currentUser?.role_id || "–";
+  const deptName = departments?.find((d: any) => d.department_id === currentUser?.department_id)?.department_name || currentUser?.department_id || "–";
 
   // Profile form
   const profileForm = useForm<ProfileFormValues>({
@@ -138,11 +160,11 @@ export default function ProfilePage() {
             <div className="mt-3 flex flex-wrap justify-center sm:justify-start gap-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
                 <Shield className="h-3 w-3" />
-                {currentUser?.role_id || "–"}
+                {roleName}
               </span>
               <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground">
                 <Building2 className="h-3 w-3" />
-                {currentUser?.department_id || "–"}
+                {deptName}
               </span>
             </div>
           </div>
@@ -200,8 +222,8 @@ export default function ProfilePage() {
           <div className="space-y-4">
             <InfoRow icon={User} label="Nama Lengkap" value={currentUser?.full_name} />
             <InfoRow icon={Mail} label="Email" value={currentUser?.email} />
-            <InfoRow icon={Shield} label="Role / Jabatan" value={currentUser?.role_id} />
-            <InfoRow icon={Building2} label="Departemen" value={currentUser?.department_id} />
+            <InfoRow icon={Shield} label="Role / Jabatan" value={roleName} />
+            <InfoRow icon={Building2} label="Departemen" value={deptName} />
           </div>
         )}
       </Card>

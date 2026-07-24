@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import Image from "next/image";
 import { ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
 
 const loginSchema = z.object({
-  email: z.string().email("Format email tidak valid"),
+  username: z.string().min(3, "Username minimal 3 karakter"),
   password: z.string().min(6, "Password minimal 6 karakter"),
 });
 
@@ -39,7 +40,12 @@ export default function LoginPage() {
       const res = await api.post("/auth/login", data);
       
       const token = res.data.data.token;
-      const user = res.data.data.user;
+      const backendUser = res.data.data.user;
+      const user = {
+        ...backendUser,
+        id: backendUser.user_id,
+        name: backendUser.full_name,
+      };
       
       setAuth(token, user);
       
@@ -55,87 +61,104 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-black px-4 sm:px-6 lg:px-8">
-      {/* Abstract Background Elements (Stitch inspired) */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary/20 blur-[120px]" />
-        <div className="absolute bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full bg-purple-500/20 blur-[120px]" />
-      </div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-4 py-12 sm:px-6 lg:px-8">
+      {/* Ambient Background Elements */}
+      <div className="pointer-events-none absolute left-[-10%] top-[-10%] h-[50vw] max-h-150 w-[50vw] max-w-150 rounded-full bg-primary/20 blur-[100px] lg:blur-[140px]" />
+      <div className="pointer-events-none absolute right-[-10%] bottom-[0%] h-[40vw] max-h-125 w-[40vw] max-w-125 rounded-full bg-purple-600/20 blur-[100px] lg:blur-[140px]" />
+      <div className="pointer-events-none absolute left-[20%] top-[40%] h-[30vw] max-h-100 w-[30vw] max-w-100 rounded-full bg-emerald-500/10 blur-[120px]" />
 
-      <div className="w-full max-w-md space-y-8 z-10">
-        <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-card border border-border shadow-2xl">
-            <ShieldCheck className="h-8 w-8 text-primary" />
-          </div>
-          <h2 className="mt-6 text-3xl font-bold tracking-tight text-foreground">
-            Audit Monitoring
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Masuk untuk mengakses dasbor inspeksi
+      <div className="relative z-10 w-full max-w-110">
+        {/* Header Section */}
+        <div className="mb-10 text-center flex flex-col items-center">
+          <img 
+            src="/Logo_Cimory.png" 
+            alt="Cimory Logo" 
+            width={192} 
+            height={67} 
+            className="w-48 h-auto object-contain drop-shadow-md brightness-0 invert" 
+            loading="eager"
+          />
+          <p className="mt-6 text-sm text-zinc-400 sm:text-base">
+            Masuk untuk mengakses dasbor inspeksi Anda
           </p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
-          <div className="space-y-4 rounded-3xl bg-card/50 backdrop-blur-xl border border-border p-8 shadow-2xl">
-            <div>
+        {/* Login Form Card */}
+        <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-2xl sm:p-10">
+          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+            
+            {/* Username Field */}
+            <div className="space-y-2.5">
               <label
-                htmlFor="email"
-                className="block text-xs font-medium text-muted-foreground ml-1 mb-2"
+                htmlFor="username"
+                className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-400"
               >
-                Email address
+                Username
               </label>
               <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="auditor@company.com"
-                {...register("email")}
+                id="username"
+                type="text"
+                autoComplete="username"
+                className="h-12 rounded-2xl border-white/10 bg-black/40 px-4 text-white placeholder:text-zinc-600 focus-visible:border-primary/50 focus-visible:bg-black/60 focus-visible:ring-1 focus-visible:ring-primary/50 transition-all"
+                placeholder="admin"
+                {...register("username")}
               />
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-500 ml-1">
-                  {errors.email.message}
+              {errors.username && (
+                <p className="ml-1 mt-1 text-xs font-medium text-red-400">
+                  {errors.username.message}
                 </p>
               )}
             </div>
 
-            <div>
-              <div className="flex items-center justify-between ml-1 mb-2">
+            {/* Password Field */}
+            <div className="space-y-2.5">
+              <div className="ml-1 flex items-center justify-between">
                 <label
                   htmlFor="password"
-                  className="block text-xs font-medium text-muted-foreground"
+                  className="text-xs font-semibold uppercase tracking-wider text-zinc-400"
                 >
                   Password
                 </label>
-                <div className="text-xs">
-                  <a
-                    href="/forgot-password"
-                    className="font-medium text-primary hover:text-primary/80"
-                  >
-                    Lupa password?
-                  </a>
-                </div>
+                <a
+                  href="/forgot-password"
+                  className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                >
+                  Lupa password?
+                </a>
               </div>
               <Input
                 id="password"
                 type="password"
                 autoComplete="current-password"
+                className="h-12 rounded-2xl border-white/10 bg-black/40 px-4 text-white placeholder:text-zinc-600 focus-visible:border-primary/50 focus-visible:bg-black/60 focus-visible:ring-1 focus-visible:ring-primary/50 transition-all"
                 placeholder="••••••••"
                 {...register("password")}
               />
               {errors.password && (
-                <p className="mt-1 text-xs text-red-500 ml-1">
+                <p className="ml-1 mt-1 text-xs font-medium text-red-400">
                   {errors.password.message}
                 </p>
               )}
             </div>
 
+            {/* Submit Button */}
             <div className="pt-2">
-              <Button type="submit" className="w-full" isLoading={isLoading} size="lg">
-                Sign in
+              <Button
+                type="submit"
+                className="h-12 w-full rounded-2xl bg-gradient-to-r from-primary to-purple-600 text-[15px] font-bold text-white shadow-lg shadow-primary/25 transition-all hover:scale-[1.02] hover:from-primary/90 hover:to-purple-600/90 active:scale-[0.98]"
+                isLoading={isLoading}
+              >
+                Sign In
               </Button>
             </div>
-          </div>
-        </form>
+
+          </form>
+        </div>
+        
+        {/* Footer Text */}
+        <p className="mt-8 text-center text-xs text-zinc-500">
+          Dilindungi oleh sistem enkripsi standar industri.
+        </p>
       </div>
     </div>
   );

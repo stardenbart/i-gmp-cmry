@@ -8,6 +8,9 @@ export interface User {
   name: string;
   email: string;
   role_id: string;
+  role?: {
+    role_name: string;
+  };
   username?: string;
   full_name?: string;
   department_id?: string;

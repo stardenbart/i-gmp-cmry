@@ -11,7 +11,7 @@ type Kawasan struct {
 	KawasanUpdatedAt time.Time `gorm:"column:KawasanUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Area          *Area           `gorm:"foreignKey:AreaID;references:AreaID" json:"area,omitempty"`
+	Area           *Area           `gorm:"foreignKey:AreaID;references:AreaID" json:"area,omitempty"`
 	DetailKawasans []DetailKawasan `gorm:"foreignKey:KawasanID" json:"detail_kawasans,omitempty"`
 }
 

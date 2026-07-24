@@ -10,8 +10,8 @@ import (
 type ActivityLog struct {
 	ActivityLogID       string    `gorm:"column:ActivityLogID;primaryKey" json:"activity_log_id"`
 	UserID              string    `gorm:"column:UserID;not null" json:"user_id"`
-	ModuleID            string    `gorm:"column:ModuleID;not null" json:"module_id"`
-	PermissionID        string    `gorm:"column:PermissionID;not null" json:"permission_id"`
+	ModuleID            *string   `gorm:"column:ModuleID" json:"module_id,omitempty"`
+	PermissionID        *string   `gorm:"column:PermissionID" json:"permission_id,omitempty"`
 	ActivityAction      string    `gorm:"column:ActivityAction;size:50;not null" json:"activity_action"`
 	TableAffected       string    `gorm:"column:TableAffected;size:100" json:"table_affected"`
 	RecordID            string    `gorm:"column:RecordID;size:50" json:"record_id"`

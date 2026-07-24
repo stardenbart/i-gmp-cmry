@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Check,
@@ -17,89 +18,9 @@ import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/lib/useMounted";
+import { toast } from "sonner";
 
-// Types
-export interface Notification {
-  id: string;
-  type: "info" | "warning" | "error" | "success";
-  title: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-  link?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface NotificationResponse {
-  items: Notification[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    total_pages: number;
-  };
-}
-
-// API Functions (stub - implement when backend has notification endpoint)
-const notificationApi = {
-  getAll: async (page = 1, limit = 20): Promise<{ data: NotificationResponse }> => {
-    // TODO: Replace with actual endpoint when available
-    // const res = await api.get("/notifications", { params: { page, limit } });
-    // return res.data;
-
-    // Mock data for development
-    return {
-      data: {
-        items: [
-          {
-            id: "1",
-            type: "warning",
-            title: "Issue Overdue",
-            message: "Issue #ISS-001 sudah melampaui due date",
-            is_read: false,
-            created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-            link: "/issues/ISS-001",
-          },
-          {
-            id: "2",
-            type: "info",
-            title: "Inspeksi Baru",
-            message: "Inspeksi baru telah dijadwalkan untuk besok",
-            is_read: false,
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-            link: "/inspections/new",
-          },
-          {
-            id: "3",
-            type: "success",
-            title: "Issue Selesai",
-            message: "Issue #ISS-002 telah ditandai selesai oleh PIC",
-            is_read: true,
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-          },
-        ],
-        pagination: {
-          total: 3,
-          page: 1,
-          limit: 20,
-          total_pages: 1,
-        },
-      },
-    };
-  },
-
-  markAsRead: async (id: string): Promise<void> => {
-    // TODO: Implement when backend has endpoint
-    // await api.put(`/notifications/${id}/read`);
-    console.log("Mark as read:", id);
-  },
-
-  markAllAsRead: async (): Promise<void> => {
-    // TODO: Implement when backend has endpoint
-    // await api.put("/notifications/read-all");
-    console.log("Mark all as read");
-  },
-};
+import { notificationApi, Notification, NotificationResponse } from "@/lib/api/notification.api";
 
 // Helper to get icon based on notification type
 const getNotificationIcon = (type: Notification["type"]) => {
@@ -134,19 +55,26 @@ const formatTimeAgo = (dateString: string): string => {
 // Single Notification Item Component
 function NotificationItem({
   notification,
+  basePath,
   onRead,
   onClose,
 }: {
   notification: Notification;
+  basePath: string;
   onRead: (id: string) => void;
   onClose: () => void;
 }) {
+  const router = useRouter();
+
   const handleClick = () => {
     if (!notification.is_read) {
       onRead(notification.id);
     }
     if (notification.link) {
-      window.location.href = notification.link;
+      const finalLink = notification.link.startsWith("/") 
+        ? `${basePath}${notification.link}` 
+        : notification.link;
+      router.push(finalLink);
     }
     onClose();
   };
@@ -192,11 +120,14 @@ function NotificationItem({
 
 // Main Notification Bell Component
 export function NotificationBell() {
+  const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const basePath = `/cimory/dashboard/${mounted ? user?.id : 'overview'}`;
 
   // Fetch notifications
   const { data, isLoading, isFetching } = useQuery({
@@ -290,7 +221,13 @@ export function NotificationBell() {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 origin-top-right rounded-xl bg-card border border-border shadow-2xl z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
+        <div className="
+          fixed left-4 right-4 top-[72px] z-50 
+          sm:absolute sm:left-auto sm:right-[-10px] sm:top-full sm:mt-2 sm:w-96 
+          origin-top sm:origin-top-right 
+          rounded-xl bg-card border border-border shadow-2xl 
+          animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200
+        ">
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="font-semibold">Notifikasi</h3>
@@ -334,6 +271,7 @@ export function NotificationBell() {
                 <NotificationItem
                   key={notification.id}
                   notification={notification}
+                  basePath={basePath}
                   onRead={handleMarkAsRead}
                   onClose={() => setIsOpen(false)}
                 />
@@ -344,7 +282,13 @@ export function NotificationBell() {
           {/* Footer */}
           {notifications.length > 0 && (
             <div className="p-2 border-t border-border">
-              <button className="w-full text-center text-xs text-primary hover:bg-primary/10 py-1.5 rounded-md transition-colors">
+              <button 
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push(`${basePath}/notifications`);
+                }}
+                className="w-full text-center text-xs text-primary hover:bg-primary/10 py-1.5 rounded-md transition-colors"
+              >
                 Lihat semua notifikasi
               </button>
             </div>

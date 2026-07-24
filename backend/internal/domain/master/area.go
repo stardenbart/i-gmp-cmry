@@ -10,8 +10,8 @@ type Area struct {
 	AreaUpdatedAt time.Time `gorm:"column:AreaUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Kawasans []Kawasan  `gorm:"foreignKey:AreaID" json:"kawasans,omitempty"`
-	Aspeks   []Aspek    `gorm:"foreignKey:AreaID" json:"aspeks,omitempty"`
+	Kawasans []Kawasan `gorm:"foreignKey:AreaID" json:"kawasans,omitempty"`
+	Aspeks   []Aspek   `gorm:"foreignKey:AreaID" json:"aspeks,omitempty"`
 }
 
 func (Area) TableName() string { return "Area_Master" }

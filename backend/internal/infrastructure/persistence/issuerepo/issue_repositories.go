@@ -13,35 +13,81 @@ func NewIssueRepository(db *gorm.DB) issue.IssueRepository {
 	return &issueRepository{db: db}
 }
 
-func (r *issueRepository) FindAll(page, limit int, status, picUserID string) ([]issue.Issue, int64, error) {
+func (r *issueRepository) FindAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
 	var items []issue.Issue
 	var total int64
-	q := r.db.Model(&issue.Issue{})
-	if status != "" { q = q.Where("IssueStatus = ?", status) }
-	if picUserID != "" { 
-		q = q.Where("IssuePICUserID = ? OR IssueID IN (SELECT IssueID FROM Issue_Delegate WHERE DelegateUserID = ?)", picUserID, picUserID) 
+	q := r.db.Model(&issue.Issue{}).
+		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
+		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
+		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
+		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
+		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue"."IssuePICUserID"`)
+
+	if status != "" {
+		q = q.Where(`"Issue"."IssueStatus" = ?`, status)
+	}
+	if picUserID != "" {
+		q = q.Where(
+			`"Issue"."IssuePICUserID" = ? 
+			OR "Issue"."IssueID" IN (SELECT "IssueID" FROM "Issue_Delegate" WHERE "DelegateUserID" = ?)
+			OR "Issue"."IssueID" IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"
+				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
+				JOIN "PIC_Mapping" pm ON ih."KawasanID" = pm."KawasanID"
+				WHERE pm."UserID" = ?
+			)`,
+			picUserID, picUserID, picUserID,
+		)
+	}
+	if needsWOWR != nil {
+		q = q.Where(`"Issue"."NeedsWOWR" = ?`, *needsWOWR)
 	}
 	q.Count(&total)
-	err := q.Preload("Photos").Order("IssueCreatedAt DESC").Offset((page-1)*limit).Limit(limit).Find(&items).Error
+	err := q.Select(`"Issue".*, 
+			am."AreaName" AS "AreaName", 
+			km."KawasanName" AS "KawasanName", 
+			dkm."DetailKawasanName" AS "DetailKawasanName", 
+			u."FullName" AS "PICName"`).
+		Preload("Photos").
+		Order(`"Issue"."IssueCreatedAt" DESC`).
+		Offset((page - 1) * limit).
+		Limit(limit).
+		Find(&items).Error
 	return items, total, err
 }
 
 func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 	var item issue.Issue
-	err := r.db.Preload("Photos").Where("IssueID = ?", id).First(&item).Error
+	err := r.db.Model(&issue.Issue{}).
+		Select(`"Issue".*, 
+			am."AreaName" AS "AreaName", 
+			km."KawasanName" AS "KawasanName", 
+			dkm."DetailKawasanName" AS "DetailKawasanName", 
+			u."FullName" AS "PICName"`).
+		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
+		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
+		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
+		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
+		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue"."IssuePICUserID"`).
+		Preload("Photos").
+		Where(`"Issue"."IssueID" = ?`, id).
+		First(&item).Error
 	return &item, err
 }
 
 func (r *issueRepository) FindByResultID(resultID string) (*issue.Issue, error) {
 	var item issue.Issue
-	err := r.db.Where("ResultID = ?", resultID).First(&item).Error
+	err := r.db.Where("\"ResultID\" = ?", resultID).First(&item).Error
 	return &item, err
 }
 
-func (r *issueRepository) Create(i *issue.Issue) error   { return r.db.Create(i).Error }
-func (r *issueRepository) Update(i *issue.Issue) error   { return r.db.Save(i).Error }
+func (r *issueRepository) Create(i *issue.Issue) error { return r.db.Create(i).Error }
+func (r *issueRepository) Update(i *issue.Issue) error { return r.db.Save(i).Error }
 func (r *issueRepository) Delete(id string) error {
-	return r.db.Where("IssueID = ?", id).Delete(&issue.Issue{}).Error
+	return r.db.Where("\"IssueID\" = ?", id).Delete(&issue.Issue{}).Error
 }
 
 // ── Issue Photo Repository ─────────────────────────────────────────────────
@@ -54,17 +100,17 @@ func NewIssuePhotoRepository(db *gorm.DB) issue.IssuePhotoRepository {
 
 func (r *issuePhotoRepository) FindByIssueID(issueID string) ([]issue.IssuePhoto, error) {
 	var items []issue.IssuePhoto
-	err := r.db.Where("IssueID = ?", issueID).Order("PhotoCreatedAt ASC").Find(&items).Error
+	err := r.db.Where("\"IssueID\" = ?", issueID).Order(`"PhotoCreatedAt" ASC`).Find(&items).Error
 	return items, err
 }
 
 func (r *issuePhotoRepository) FindByID(id string) (*issue.IssuePhoto, error) {
 	var item issue.IssuePhoto
-	err := r.db.Where("IssuePhotoID = ?", id).First(&item).Error
+	err := r.db.Where("\"IssuePhotoID\" = ?", id).First(&item).Error
 	return &item, err
 }
 
 func (r *issuePhotoRepository) Create(p *issue.IssuePhoto) error { return r.db.Create(p).Error }
 func (r *issuePhotoRepository) Delete(id string) error {
-	return r.db.Where("IssuePhotoID = ?", id).Delete(&issue.IssuePhoto{}).Error
+	return r.db.Where("\"IssuePhotoID\" = ?", id).Delete(&issue.IssuePhoto{}).Error
 }

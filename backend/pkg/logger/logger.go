@@ -52,7 +52,7 @@ func New(level, output, filePath string) *Logger {
 
 // ─── Convenience field constructors ───────────────────────────────────────
 
-func String(key, val string) zap.Field  { return zap.String(key, val) }
-func Int(key string, val int) zap.Field { return zap.Int(key, val) }
-func Error(err error) zap.Field         { return zap.Error(err) }
+func String(key, val string) zap.Field          { return zap.String(key, val) }
+func Int(key string, val int) zap.Field         { return zap.Int(key, val) }
+func Error(err error) zap.Field                 { return zap.Error(err) }
 func Any(key string, val interface{}) zap.Field { return zap.Any(key, val) }

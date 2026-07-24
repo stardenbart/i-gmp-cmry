@@ -37,6 +37,7 @@ import (
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/opensearch"
+	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
 	"github.com/monitoring-system/backend/router"
 )
@@ -128,8 +129,12 @@ func main() {
 	)
 	go imageProcessingConsumer.Start(bgCtx)
 
+	// ── Setup SSE Broker ───────────────────────────────────────────────
+	sseBroker := sse.NewBroker()
+	go sseBroker.Start()
+
 	// ── Setup router ───────────────────────────────────────────────────
-	r := router.Setup(cfg, db, minioStorage, cryptoSvc, mailer, eventProducer, osClient, log)
+	r := router.Setup(cfg, db, minioStorage, cryptoSvc, mailer, eventProducer, osClient, sseBroker, log)
 
 	// ── HTTP Server ────────────────────────────────────────────────────
 	// ── Graceful shutdown ──────────────────────────────────────────────

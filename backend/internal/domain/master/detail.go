@@ -11,7 +11,7 @@ type Detail struct {
 	DetailUpdatedAt time.Time `gorm:"column:DetailUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Aspek   *Aspek   `gorm:"foreignKey:AspekID;references:AspekID" json:"aspek,omitempty"`
+	Aspek  *Aspek   `gorm:"foreignKey:AspekID;references:AspekID" json:"aspek,omitempty"`
 	Urains []Uraian `gorm:"foreignKey:DetailID" json:"urains,omitempty"`
 }
 

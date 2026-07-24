@@ -19,7 +19,7 @@ var defaultRoles = []authdomain.Role{
 func SeedRoles(db *gorm.DB) {
 	for _, role := range defaultRoles {
 		var count int64
-		db.Model(&authdomain.Role{}).Where("RoleID = ?", role.RoleID).Count(&count)
+		db.Model(&authdomain.Role{}).Where(&authdomain.Role{RoleID: role.RoleID}).Count(&count)
 		if count == 0 {
 			if err := db.Create(&role).Error; err != nil {
 				log.Printf("❌ Failed to seed role %s: %v", role.RoleName, err)

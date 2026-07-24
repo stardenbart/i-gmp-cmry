@@ -28,6 +28,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	detailRepo := masterrepo.NewDetailRepository(db)
 	uraianRepo := masterrepo.NewUraianRepository(db)
 	roleRepo := authrepo.NewRoleRepository(db)
+	moduleRepo := authrepo.NewModuleRepository(db)
 
 	deptUC := masterusecase.NewDepartmentUseCase(deptRepo)
 	areaUC := masterusecase.NewAreaUseCase(areaRepo)
@@ -37,6 +38,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	detailUC := masterusecase.NewDetailUseCase(detailRepo)
 	uraianUC := masterusecase.NewUraianUseCase(uraianRepo)
 	roleUC := authusecase.NewRoleUseCase(roleRepo)
+	moduleUC := authusecase.NewModuleUseCase(moduleRepo)
 
 	rolePermRepo := authrepo.NewRolePermissionRepository(db)
 	rolePermUC := authusecase.NewRolePermissionUseCase(rolePermRepo)
@@ -54,6 +56,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	uraianH := masterhandler.NewUraianHandler(uraianUC)
 	roleH := auth.NewRoleHandler(roleUC)
 	rolePermH := auth.NewRolePermissionHandler(rolePermUC)
+	moduleH := auth.NewModuleHandler(moduleUC)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
@@ -77,6 +80,10 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 
 		roles.Get("/:id/permissions", rolePermH.GetByRoleID)
 		roles.Put("/:id/permissions", rolePermH.SetPermissions)
+
+		// Modules (Features & Permissions list)
+		modules := master.Group("/modules")
+		modules.Get("", moduleH.GetAll)
 
 		// Area
 		area := master.Group("/area")
@@ -127,7 +134,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		uraian.Delete("/:id", uraianH.Delete)
 
 		// System Settings (Admin only)
-		settings := rg.Group("/settings", authMW)
+		settings := master.Group("/settings")
 		settings.Get("", settingH.GetAll)
 		settings.Get("/:key", settingH.GetByKey)
 		settings.Put("/:key", settingH.Update)

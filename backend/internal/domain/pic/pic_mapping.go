@@ -5,11 +5,11 @@ import "time"
 // PICMapping represents the PIC_Mapping table.
 // Maps a user as Person-in-Charge for a specific Area/Kawasan.
 type PICMapping struct {
-	PICMapID           string    `gorm:"column:PICMapID;primaryKey" json:"pic_map_id"`
-	AreaID             string    `gorm:"column:AreaID;not null" json:"area_id"`
-	KawasanID          string    `gorm:"column:KawasanID;not null" json:"kawasan_id"`
-	UserID             string    `gorm:"column:UserID;not null" json:"user_id"`
-	KategoriPIC        string    `gorm:"column:KategoriPIC;size:50" json:"kategori_pic"`
+	PICMapID            string    `gorm:"column:PICMapID;primaryKey" json:"pic_map_id"`
+	AreaID              string    `gorm:"column:AreaID;not null" json:"area_id"`
+	KawasanID           string    `gorm:"column:KawasanID;not null" json:"kawasan_id"`
+	UserID              string    `gorm:"column:UserID;not null" json:"user_id"`
+	KategoriPIC         string    `gorm:"column:KategoriPIC;size:50" json:"kategori_pic"`
 	PICMappingCreatedAt time.Time `gorm:"column:PICMappingCreatedAt;autoCreateTime" json:"created_at"`
 	PICMappingUpdatedAt time.Time `gorm:"column:PICMappingUpdatedAt;autoUpdateTime" json:"updated_at"`
 }

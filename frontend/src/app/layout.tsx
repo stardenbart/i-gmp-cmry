@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: "Sistem Monitoring Audit Internal",
   manifest: "/manifest.json",
   icons: {
-    apple: "/icon-192x192.png",
+    apple: "/Logo_Cimory.png",
   },
 };
 
@@ -35,9 +35,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className="dark">
+    <html lang="id" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <Providers>
           {children}

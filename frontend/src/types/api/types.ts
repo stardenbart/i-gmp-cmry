@@ -57,6 +57,10 @@ export interface User {
   user_status: "Active" | "Inactive" | "Suspended";
   created_at?: string;
   updated_at?: string;
+  password?: string;
+  pic_kawasan_ids?: string[];
+  pic_kategori?: string;
+  pic_mappings?: { kawasan_id: string; kategori_pic: string; pic_map_id: string }[];
 }
 
 /** Change password request */
@@ -261,7 +265,7 @@ export interface SubmitInspectionResultRequest {
 
 // ─── Issue Types ────────────────────────────────────────────────────────────
 
-export type IssueStatus = "Open" | "In Progress" | "Closed" | "Verified" | "Overdue";
+export type IssueStatus = "Open" | "InProgress" | "PendingValidation" | "Closed" | "Verified" | "Overdue";
 
 export interface Issue {
   issue_id: string;

@@ -15,6 +15,8 @@ func Run(db *gorm.DB) {
 	SeedPermissions(db)
 	SeedDepartments(db)
 	SeedAdminUser(db)
+	SeedAuditorUser(db)
+	SeedAuditeeUser(db)
 	SeedSettings(db)
 	SeedDummyData(db)
 

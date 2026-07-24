@@ -1,5 +1,12 @@
 # Root .gitignore for MonitoringSystem
 
+# Temporary office files
+~$*
+
+# Python & Report temp files
+search_latency_report.json
+frontend_search_latency_report.json
+
 # IDEs and OS
 .vscode/
 .idea/
@@ -15,10 +22,14 @@ backend/bin/
 backend/dist/
 backend/uploads/
 backend/logs/
+backend/*.log
 backend/vendor/
 backend/docs/swagger/docs.go
 backend/docs/swagger/swagger.json
 backend/docs/swagger/swagger.yaml
+backend/main
+backend/server
+backend/tmp_server
 *.exe
 *.exe~
 *.dll
@@ -39,3 +50,4 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+

@@ -47,12 +47,21 @@ func (uc *activityLogUseCase) GetByID(id string) (*logdomain.ActivityLog, error)
 }
 
 func (uc *activityLogUseCase) Record(ctx context.Context, req *logdomain.CreateActivityLogRequest) error {
+	var modID *string
+	if req.ModuleID != "" {
+		modID = &req.ModuleID
+	}
+	var permID *string
+	if req.PermissionID != "" {
+		permID = &req.PermissionID
+	}
+
 	// 1. Write directly to DB for immediate availability in API queries (GET /logs/activity)
 	logEntry := &logdomain.ActivityLog{
-		ActivityLogID:       idgen.Generate(idgen.PrefixActivityLog),
+		ActivityLogID:       idgen.GenerateRandom(idgen.PrefixActivityLog),
 		UserID:              req.UserID,
-		ModuleID:            req.ModuleID,
-		PermissionID:        req.PermissionID,
+		ModuleID:            modID,
+		PermissionID:        permID,
 		ActivityAction:      req.ActivityAction,
 		TableAffected:       req.TableAffected,
 		RecordID:            req.RecordID,

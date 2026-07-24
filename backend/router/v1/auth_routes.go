@@ -6,6 +6,7 @@ import (
 	"github.com/monitoring-system/backend/internal/handler/auth"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/picrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/authusecase"
 	"github.com/monitoring-system/backend/pkg/jwt"
@@ -20,14 +21,23 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	userRepo := authrepo.NewUserRepository(db)
 	loginLogRepo := authrepo.NewLoginLogRepository(db)
 	rolePermRepo := authrepo.NewRolePermissionRepository(db)
+	userPermRepo := authrepo.NewUserPermissionRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
+	picMappingRepo := picrepo.NewPICMappingRepository(db)
 
 	authUC := authusecase.NewAuthUseCase(userRepo, loginLogRepo, jwtManager)
-	userUC := authusecase.NewUserUseCase(userRepo, mailer, settingRepo)
+	userUC := authusecase.NewUserUseCase(userRepo, mailer, settingRepo, picMappingRepo)
 	rolePermUC := authusecase.NewRolePermissionUseCase(rolePermRepo)
+	userPermUC := authusecase.NewUserPermissionUseCase(userPermRepo)
+
+	// User filter
+	userFilterRepo := authrepo.NewUserFilterRepository(db)
+	userFilterUC := authusecase.NewUserFilterUseCase(userFilterRepo)
 
 	authHandler := auth.NewAuthHandler(authUC)
 	userHandler := auth.NewUserHandler(userUC)
+	userPermHandler := auth.NewUserPermissionHandler(userPermUC)
+	userFilterHandler := auth.NewUserFilterHandler(userFilterUC)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
@@ -48,13 +58,40 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 		// User management — requires permission check
 		users := protected.Group("/users")
 		{
-			users.Get("", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "READ"), userHandler.GetAll)
-			users.Post("", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "CREATE"), userHandler.Create)
-			users.Get("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "READ"), userHandler.GetByID)
-			users.Put("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "UPDATE"), userHandler.Update)
-			users.Delete("/:id", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "DELETE"), userHandler.Delete)
+			users.Get("", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "READ"), userHandler.GetAll)
+			users.Post("", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "CREATE"), userHandler.Create)
+			// Filter route — same permission as list (before /:id)
+			users.Get("/filter", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "READ"), userFilterHandler.GetFiltered)
+			users.Get("/:id", func(c *fiber.Ctx) error {
+				userID := middleware.GetUserID(c)
+				id := c.Params("id")
+				if userID == id {
+					return c.Next()
+				}
+				return middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "READ")(c)
+			}, userHandler.GetByID)
+			users.Put("/:id", func(c *fiber.Ctx) error {
+				userID := middleware.GetUserID(c)
+				id := c.Params("id")
+				if userID == id {
+					return c.Next()
+				}
+				return middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "UPDATE")(c)
+			}, userHandler.Update)
+			users.Delete("/:id", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "DELETE"), userHandler.Delete)
 			users.Put("/:id/change-password", authMW, userHandler.ChangePassword)
-			users.Put("/:id/reset-password", middleware.PermissionMiddleware(rolePermUC, "MOD-USR", "UPDATE"), userHandler.ResetPassword)
+			users.Put("/:id/reset-password", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "UPDATE"), userHandler.ResetPassword)
+
+			// User Permissions Overrides
+			users.Get("/:id/permissions", func(c *fiber.Ctx) error {
+				userID := middleware.GetUserID(c)
+				id := c.Params("id")
+				if userID == id {
+					return c.Next()
+				}
+				return middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "READ")(c)
+			}, userPermHandler.GetByUserID)
+			users.Put("/:id/permissions", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "UPDATE"), userPermHandler.SetPermissions)
 		}
 	}
 }

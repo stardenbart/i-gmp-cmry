@@ -28,7 +28,7 @@ func NewAuthHandler(authUC authdomain.AuthUseCase) *AuthHandler {
 // @Failure      400 {object} response.APIResponse
 // @Failure      401 {object} response.APIResponse
 // @Router       /auth/login [post]
-func (h *AuthHandler) Login(c *fiber.Ctx) error  {
+func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req authdomain.LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body", err.Error())
@@ -58,7 +58,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error  {
 // @Failure      500 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /auth/logout [post]
-func (h *AuthHandler) Logout(c *fiber.Ctx) error  {
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	loginLogID := c.Query("login_log_id")
 
@@ -78,7 +78,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error  {
 // @Failure      404 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /auth/me [get]
-func (h *AuthHandler) Me(c *fiber.Ctx) error  {
+func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	info, err := h.authUC.Me(userID)
 	if err != nil {

@@ -17,20 +17,27 @@ const (
 // AuthMiddleware validates the Bearer JWT token from the Authorization header.
 func AuthMiddleware(jwtManager *jwt.Manager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		tokenStr := ""
 		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return response.Unauthorized(c, "authorization header is required")
-		}
-
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			return response.Unauthorized(c, "invalid authorization header format, expected: Bearer <token>")
-		}
-
-		claims, err := jwtManager.Parse(parts[1])
-		if err != nil {
-			response.Unauthorized(c, "invalid or expired token: "+err.Error())
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+				tokenStr = parts[1]
+			} else {
+				return response.Unauthorized(c, "invalid authorization header format, expected: Bearer <token>")
 			}
+		} else {
+			tokenStr = c.Query("token")
+		}
+
+		if tokenStr == "" {
+			return response.Unauthorized(c, "authorization header or token query parameter is required")
+		}
+
+		claims, err := jwtManager.Parse(tokenStr)
+		if err != nil {
+			return response.Unauthorized(c, "invalid or expired token: "+err.Error())
+		}
 
 		// Store claims in context for downstream handlers
 		c.Locals(ContextKeyUserID, claims.UserID)
@@ -43,13 +50,17 @@ func AuthMiddleware(jwtManager *jwt.Manager) fiber.Handler {
 // GetUserID retrieves the authenticated user's ID from gin context.
 func GetUserID(c *fiber.Ctx) string {
 	val := c.Locals(ContextKeyUserID)
-	if val == nil { return "" }
+	if val == nil {
+		return ""
+	}
 	return val.(string)
 }
 
 // GetRoleID retrieves the authenticated user's role ID from gin context.
 func GetRoleID(c *fiber.Ctx) string {
 	val := c.Locals(ContextKeyRoleID)
-	if val == nil { return "" }
+	if val == nil {
+		return ""
+	}
 	return val.(string)
 }

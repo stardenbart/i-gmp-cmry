@@ -72,15 +72,15 @@ func pathToTable(path string) string {
 			raw := segments[i+1]
 			// Normalize known route prefixes to table names
 			tableMap := map[string]string{
-				"issues":           "Issue",
-				"issues/photos":    "IssuePhoto",
-				"inspections":      "Inspection",
-				"master":           "Master",
-				"users":            "User",
-				"roles":            "Role",
-				"logs":             "Log",
-				"upload":           "Upload",
-				"auth":             "Auth",
+				"issues":        "Issue",
+				"issues/photos": "IssuePhoto",
+				"inspections":   "Inspection",
+				"master":        "Master",
+				"users":         "User",
+				"roles":         "Role",
+				"logs":          "Log",
+				"upload":        "Upload",
+				"auth":          "Auth",
 			}
 			if name, ok := tableMap[raw]; ok {
 				return name
@@ -112,11 +112,48 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 			return err // skip unauthenticated requests
 		}
 
+		// Capture all values from Fiber ctx BEFORE the goroutine.
+		// Fiber recycles ctx after the handler returns, so accessing c inside
+		// a goroutine causes a nil pointer dereference (panic: SIGSEGV).
 		method := c.Method()
 		action := httpMethodToAction(method)
 		table := pathToTable(c.Path())
 		recordID := c.Params("id")
-		desc := fmt.Sprintf("[%s] %s", method, c.Path())
+		if recordID == "" {
+			recordID = c.Query("id")
+		}
+
+		path := c.Path()
+		query := string(c.Request().URI().QueryString())
+		desc := fmt.Sprintf("[%s] %s", method, path)
+		if query != "" {
+			desc += "?" + query
+		}
+
+		ipAddress := c.IP() // must be read here, not inside the goroutine
+
+		// Capture request payload body
+		// For POST/PUT/PATCH/DELETE: use the raw JSON body
+		// For GET: build a descriptive JSON payload from path, query params, and headers
+		var reqBody string
+		bodyBytes := c.Body()
+		if len(bodyBytes) > 0 {
+			if len(bodyBytes) > 10000 {
+				reqBody = string(bodyBytes[:10000]) + "... (truncated)"
+			} else {
+				reqBody = string(bodyBytes)
+			}
+		} else {
+			// For GET (READ) — build a payload from query information
+			reqPayload := fmt.Sprintf(`{
+  "method": "%s",
+  "path": "%s",
+  "query_params": "%s",
+  "user_agent": "%s",
+  "ip": "%s"
+}`, method, path, query, c.Get("User-Agent"), ipAddress)
+			reqBody = reqPayload
+		}
 
 		// Fire-and-forget async logging — must not block the HTTP response
 		go func() {
@@ -125,12 +162,12 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 				ActivityAction:      action,
 				TableAffected:       table,
 				RecordID:            recordID,
+				NewValue:            reqBody,
 				ActivityDescription: desc,
-				IPAddress:           c.IP(),
+				IPAddress:           ipAddress,
 			})
 		}()
 
 		return err
 	}
 }
-

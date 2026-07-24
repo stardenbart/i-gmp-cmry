@@ -94,9 +94,13 @@ func (uc *authUseCase) Me(userID string) (*authdomain.UserInfo, error) {
 }
 
 func (uc *authUseCase) recordLogin(userID, ip, device string, status logdomain.LoginStatus) {
+	var uid *string
+	if userID != "" {
+		uid = &userID
+	}
 	logEntry := &logdomain.LoginLog{
 		LoginLogID:  idgen.Generate(idgen.PrefixLoginLog),
-		UserID:      userID,
+		UserID:      uid,
 		LoginAt:     time.Now(),
 		IPAddress:   ip,
 		DeviceInfo:  device,

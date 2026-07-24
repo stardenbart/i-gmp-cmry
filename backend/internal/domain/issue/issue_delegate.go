@@ -5,10 +5,10 @@ import "time"
 // IssueDelegate represents a user who is delegated to follow up on an issue
 // even if they are not the primary PIC.
 type IssueDelegate struct {
-	IssueID         string    `gorm:"column:IssueID;primaryKey" json:"issue_id"`
-	DelegateUserID  string    `gorm:"column:DelegateUserID;primaryKey" json:"delegate_user_id"`
-	DelegatedAt     time.Time `gorm:"column:DelegatedAt;autoCreateTime" json:"delegated_at"`
-	DelegatedBy     string    `gorm:"column:DelegatedBy;not null" json:"delegated_by"` // User ID of Admin/Auditor who delegated this
+	IssueID        string    `gorm:"column:IssueID;primaryKey" json:"issue_id"`
+	DelegateUserID string    `gorm:"column:DelegateUserID;primaryKey" json:"delegate_user_id"`
+	DelegatedAt    time.Time `gorm:"column:DelegatedAt;autoCreateTime" json:"delegated_at"`
+	DelegatedBy    string    `gorm:"column:DelegatedBy;not null" json:"delegated_by"` // User ID of Admin/Auditor who delegated this
 }
 
 func (IssueDelegate) TableName() string { return "Issue_Delegate" }

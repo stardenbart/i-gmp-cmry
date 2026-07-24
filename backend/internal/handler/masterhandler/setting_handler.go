@@ -15,7 +15,7 @@ func NewSettingHandler(uc master.SettingUseCase) *SettingHandler {
 }
 
 // GetAll returns all system settings (encrypted values are masked as ***)
-func (h *SettingHandler) GetAll(c *fiber.Ctx) error  {
+func (h *SettingHandler) GetAll(c *fiber.Ctx) error {
 	items, err := h.uc.GetAll()
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch settings", err.Error())
@@ -24,7 +24,7 @@ func (h *SettingHandler) GetAll(c *fiber.Ctx) error  {
 }
 
 // GetByKey returns a single setting by its key
-func (h *SettingHandler) GetByKey(c *fiber.Ctx) error  {
+func (h *SettingHandler) GetByKey(c *fiber.Ctx) error {
 	item, err := h.uc.GetByKey(c.Params("key"))
 	if err != nil {
 		return response.NotFound(c, "setting not found")
@@ -33,7 +33,7 @@ func (h *SettingHandler) GetByKey(c *fiber.Ctx) error  {
 }
 
 // Update allows Admin to update a setting value dynamically
-func (h *SettingHandler) Update(c *fiber.Ctx) error  {
+func (h *SettingHandler) Update(c *fiber.Ctx) error {
 	var req master.UpdateSettingRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid body", err.Error())

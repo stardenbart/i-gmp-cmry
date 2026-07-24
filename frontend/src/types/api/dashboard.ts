@@ -29,6 +29,16 @@ export const dashboardApi = {
   },
 
   /**
+   * Get preview export data (table format)
+   */
+  getPreviewExport: async (areaId?: string) => {
+    const res = await api.get("/dashboard/preview-export", {
+      params: { area_id: areaId },
+    });
+    return res.data;
+  },
+
+  /**
    * Get issues summary by status
    */
   getIssuesSummary: async () => {

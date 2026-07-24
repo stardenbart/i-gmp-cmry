@@ -8,7 +8,7 @@ type InspectionResult struct {
 	ResultID                  string    `gorm:"column:ResultID;primaryKey" json:"result_id"`
 	InspectionID              string    `gorm:"column:InspectionID;not null" json:"inspection_id"`
 	UraianID                  string    `gorm:"column:UraianID;not null" json:"uraian_id"`
-	Checking                  string    `gorm:"column:Checking;size:20" json:"checking"`    // OK, NG, NA
+	Checking                  string    `gorm:"column:Checking;size:20" json:"checking"` // OK, NG, NA
 	Nilai                     int       `gorm:"column:Nilai;default:0" json:"nilai"`
 	Keterangan                string    `gorm:"column:Keterangan;size:255" json:"keterangan"`
 	InspectionResultCreatedAt time.Time `gorm:"column:InspectionResultCreatedAt;autoCreateTime" json:"created_at"`

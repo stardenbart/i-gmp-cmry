@@ -24,9 +24,10 @@ RUN apk add --no-cache tzdata
 
 # Copy binary & config file dari builder
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env.example .env
 # Copy direktori migrasi dan foto upload jika dibutuhkan (opsional)
 COPY --from=builder /app/migrations ./migrations
+# Copy templates Excel untuk fitur export laporan
+COPY --from=builder /app/templates ./templates
 RUN mkdir -p uploads logs
 
 EXPOSE 8080

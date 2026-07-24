@@ -25,8 +25,8 @@ func (RolePermission) TableName() string { return "Role_Permission" }
 
 // BulkSetRequest allows admin to set all permissions for a role at once.
 type BulkSetPermissionRequest struct {
-	RoleID      string                      `json:"role_id" validate:"required"`
-	Permissions []PermissionToggle          `json:"permissions" validate:"required,dive"`
+	RoleID      string             `json:"role_id" validate:"required"`
+	Permissions []PermissionToggle `json:"permissions" validate:"required,dive"`
 }
 
 type PermissionToggle struct {

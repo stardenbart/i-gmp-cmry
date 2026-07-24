@@ -23,7 +23,7 @@ func (r *roleRepo) FindAll(page, limit int, search string) ([]auth.Role, int64, 
 
 	if search != "" {
 		search = "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(RoleName) LIKE ? OR LOWER(RoleDescription) LIKE ?", search, search)
+		query = query.Where("LOWER(\"RoleName\") LIKE ? OR LOWER(\"RoleDescription\") LIKE ?", search, search)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -31,7 +31,7 @@ func (r *roleRepo) FindAll(page, limit int, search string) ([]auth.Role, int64, 
 	}
 
 	offset := (page - 1) * limit
-	if err := query.Offset(offset).Limit(limit).Order("RoleCreatedAt DESC").Find(&roles).Error; err != nil {
+	if err := query.Offset(offset).Limit(limit).Order("\"RoleCreatedAt\" DESC").Find(&roles).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -40,7 +40,7 @@ func (r *roleRepo) FindAll(page, limit int, search string) ([]auth.Role, int64, 
 
 func (r *roleRepo) FindByID(id string) (*auth.Role, error) {
 	var role auth.Role
-	if err := r.db.Where("RoleID = ?", id).First(&role).Error; err != nil {
+	if err := r.db.Where("\"RoleID\" = ?", id).First(&role).Error; err != nil {
 		return nil, err
 	}
 	return &role, nil

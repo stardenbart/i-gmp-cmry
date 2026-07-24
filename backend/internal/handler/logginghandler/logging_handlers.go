@@ -11,7 +11,9 @@ import (
 
 type LoginLogHandler struct{ uc logdomain.LoginLogUseCase }
 
-func NewLoginLogHandler(uc logdomain.LoginLogUseCase) *LoginLogHandler { return &LoginLogHandler{uc: uc} }
+func NewLoginLogHandler(uc logdomain.LoginLogUseCase) *LoginLogHandler {
+	return &LoginLogHandler{uc: uc}
+}
 
 // @Summary Get all login logs
 // @Description Get a paginated list of login logs, optionally filtered by user_id
@@ -25,10 +27,12 @@ func NewLoginLogHandler(uc logdomain.LoginLogUseCase) *LoginLogHandler { return 
 // @Failure 500 {object} response.APIResponse
 // @Router /api/v1/logs/login [get]
 // @Security BearerAuth
-func (h *LoginLogHandler) GetAll(c *fiber.Ctx) error  {
+func (h *LoginLogHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
 	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"))
-	if err != nil { return response.InternalServerError(c, "failed to fetch login logs", err.Error()) }
+	if err != nil {
+		return response.InternalServerError(c, "failed to fetch login logs", err.Error())
+	}
 	return response.Paginated(c, "success", items, total, p.Page, p.Limit)
 }
 
@@ -42,9 +46,11 @@ func (h *LoginLogHandler) GetAll(c *fiber.Ctx) error  {
 // @Failure 404 {object} response.APIResponse
 // @Router /api/v1/logs/login/{id} [get]
 // @Security BearerAuth
-func (h *LoginLogHandler) GetByID(c *fiber.Ctx) error  {
+func (h *LoginLogHandler) GetByID(c *fiber.Ctx) error {
 	item, err := h.uc.GetByID(c.Params("id"))
-	if err != nil { return response.NotFound(c, "log not found") }
+	if err != nil {
+		return response.NotFound(c, "log not found")
+	}
 	return response.OK(c, "success", item)
 }
 
@@ -70,10 +76,16 @@ func NewActivityLogHandler(uc logdomain.ActivityLogUseCase) *ActivityLogHandler 
 // @Failure 500 {object} response.APIResponse
 // @Router /api/v1/logs/activity [get]
 // @Security BearerAuth
-func (h *ActivityLogHandler) GetAll(c *fiber.Ctx) error  {
+func (h *ActivityLogHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"), c.Query("module_id"), c.Query("action"))
-	if err != nil { return response.InternalServerError(c, "failed to fetch activity logs", err.Error()) }
+	search := c.Query("search")
+	if search == "" {
+		search = c.Query("action")
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"), c.Query("module_id"), search)
+	if err != nil {
+		return response.InternalServerError(c, "failed to fetch activity logs", err.Error())
+	}
 	return response.Paginated(c, "success", items, total, p.Page, p.Limit)
 }
 
@@ -87,8 +99,10 @@ func (h *ActivityLogHandler) GetAll(c *fiber.Ctx) error  {
 // @Failure 404 {object} response.APIResponse
 // @Router /api/v1/logs/activity/{id} [get]
 // @Security BearerAuth
-func (h *ActivityLogHandler) GetByID(c *fiber.Ctx) error  {
+func (h *ActivityLogHandler) GetByID(c *fiber.Ctx) error {
 	item, err := h.uc.GetByID(c.Params("id"))
-	if err != nil { return response.NotFound(c, "log not found") }
+	if err != nil {
+		return response.NotFound(c, "log not found")
+	}
 	return response.OK(c, "success", item)
 }

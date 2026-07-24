@@ -10,9 +10,9 @@ import (
 )
 
 type settingUseCase struct {
-	repo    master.SettingRepository
-	crypto  *crypto.Service
-	minio   *pkgstorage.MinioStorage
+	repo   master.SettingRepository
+	crypto *crypto.Service
+	minio  *pkgstorage.MinioStorage
 }
 
 func NewSettingUseCase(

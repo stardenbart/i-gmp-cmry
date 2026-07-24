@@ -1,7 +1,8 @@
 import { api } from "./axios";
 
-export type IssueStatus = "Open" | "InProgress" | "Closed" | "Verified";
-export type PhotoType = "Initial" | "FollowUp";
+export type IssueStatus = "Open" | "InProgress" | "PendingValidation" | "Closed" | "Verified" | "Overdue";
+export type WOWRStatus = "None" | "PendingValidation" | "Verified" | "Rejected";
+export type PhotoType = "Initial" | "FollowUp" | "WOWR";
 
 export interface IssuePhoto {
   issue_photo_id: string;
@@ -20,18 +21,26 @@ export interface Issue {
   issue_id: string;
   result_id: string;
   issue_pic_user_id: string;
+  pic_name?: string;
   due_date?: string;
   issue_status: IssueStatus;
   keterangan: string;
+  needs_wo_wr?: boolean;
+  wo_id?: string;
+  wr_id?: string;
+  wowr_status?: WOWRStatus;
   created_at: string;
   updated_at: string;
   photos?: IssuePhoto[];
+  area_name?: string;
+  kawasan_name?: string;
+  detail_kawasan_name?: string;
 }
 
 export const issueApi = {
-  getAll: async (params?: { page?: number; limit?: number; status?: string; pic_user_id?: string }) => {
+  getAll: async (params?: { page?: number; limit?: number; status?: string; pic_user_id?: string; needs_wo_wr?: boolean }) => {
     const res = await api.get("/issues", { params });
-    return res.data;
+    return res.data.data;
   },
 
   getById: async (id: string) => {
@@ -44,7 +53,7 @@ export const issueApi = {
     return res.data;
   },
 
-  update: async (id: string, data: { issue_pic_user_id?: string; due_date?: string; issue_status?: IssueStatus; keterangan?: string }) => {
+  update: async (id: string, data: { issue_pic_user_id?: string; due_date?: string; issue_status?: IssueStatus; wowr_status?: WOWRStatus; keterangan?: string; needs_wo_wr?: boolean; wo_id?: string; wr_id?: string }) => {
     const res = await api.put(`/issues/${id}`, data);
     return res.data;
   },
@@ -61,14 +70,54 @@ export const issueApi = {
   },
 
   uploadPhoto: async (issueId: string, formData: FormData) => {
-    const res = await api.post(`/issues/${issueId}/photos`, formData, {
+    const res = await api.post(`/issues/${issueId}/photos/upload`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return res.data;
   },
 
+  uploadPhotoChunked: async (
+    issueId: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ) => {
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    
+    // Generate a unique file ID for this upload session
+    const fileId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    let lastResponse = null;
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(file.size, start + CHUNK_SIZE);
+      const chunk = file.slice(start, end);
+
+      const formData = new FormData();
+      formData.append("photo", chunk, file.name);
+      formData.append("chunk_index", i.toString());
+      formData.append("total_chunks", totalChunks.toString());
+      formData.append("file_id", fileId);
+      // Optional: Add photo_type if needed for the backend logic (can default to "Issue")
+      formData.append("photo_type", "Issue");
+
+      const res = await api.post(`/issues/${issueId}/photos/upload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      
+      lastResponse = res.data;
+      
+      if (onProgress) {
+        onProgress(Math.round(((i + 1) / totalChunks) * 100));
+      }
+    }
+    
+    return lastResponse;
+  },
+
   deletePhoto: async (issueId: string, photoId: string) => {
-    const res = await api.delete(`/issues/${issueId}/photos/${photoId}`);
+    const res = await api.delete(`/issues/photos/${photoId}`);
     return res.data;
   },
 };

@@ -11,6 +11,10 @@ export interface InspectionHeader {
   status: InspectionStatus;
   created_at: string;
   updated_at: string;
+  area_name?: string;
+  kawasan_name?: string;
+  detail_kawasan_name?: string;
+  score?: number;
 }
 
 export interface InspectionResult {
@@ -25,9 +29,9 @@ export interface InspectionResult {
 }
 
 export const inspectionApi = {
-  getAll: async (params?: { page?: number; limit?: number; status?: string }) => {
+  getAll: async (params?: { page?: number; limit?: number; status?: string; inspector_id?: string }) => {
     const res = await api.get("/inspections", { params });
-    return res.data;
+    return res.data.data;
   },
   
   getById: async (id: string) => {
@@ -40,8 +44,26 @@ export const inspectionApi = {
     return res.data;
   },
 
+  getChecklist: async (id: string) => {
+    const res = await api.get(`/inspections/${id}/checklist`);
+    return res.data;
+  },
+
+  bulkSaveResults: async (inspectionId: string, results: any[]) => {
+    const res = await api.post(`/inspections/${inspectionId}/results/bulk`, {
+      inspection_id: inspectionId,
+      results
+    });
+    return res.data;
+  },
+
   updateStatus: async (id: string, status: InspectionStatus) => {
-    const res = await api.patch(`/inspections/${id}/status`, { status });
+    const res = await api.put(`/inspections/${id}/status`, { status });
+    return res.data;
+  },
+
+  getAnalyticsTrend: async (context_id: string, year?: number) => {
+    const res = await api.get("/analytics/inspections-trend", { params: { context_id, year } });
     return res.data;
   }
 };

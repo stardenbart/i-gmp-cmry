@@ -17,11 +17,11 @@ import (
 // and auto-approves them if they have exceeded the ISSUE_AUTO_APPROVE_DAYS limit.
 func StartAutoApproveWorker(ctx context.Context, uc issue.IssueUseCase, interval time.Duration) {
 	ticker := time.NewTicker(interval)
-	
+
 	// Safe type assertion because we know uc is an *issueUseCase internally.
 	// But to avoid exposing the struct, we can just fetch all pending issues via GetAll
 	// since GetAll takes `status`.
-	
+
 	go func() {
 		for {
 			select {
@@ -36,7 +36,7 @@ func StartAutoApproveWorker(ctx context.Context, uc issue.IssueUseCase, interval
 }
 
 func runAutoApprove(uc issue.IssueUseCase) {
-	// We need access to settingRepo and producer to do it properly. 
+	// We need access to settingRepo and producer to do it properly.
 	// To keep it clean, let's type assert if it's the default implementation.
 	usecaseImpl, ok := uc.(*issueUseCase)
 	if !ok {
@@ -54,7 +54,7 @@ func runAutoApprove(uc issue.IssueUseCase) {
 
 	// 2. Fetch all issues that are PendingValidation
 	// In a real app we might paginate if there are thousands, but let's fetch a large batch for now.
-	issues, _, err := usecaseImpl.repo.FindAll(1, 1000, string(issue.IssueStatusPendingValidation), "")
+	issues, _, err := usecaseImpl.repo.FindAll(1, 1000, string(issue.IssueStatusPendingValidation), "", nil)
 	if err != nil {
 		log.Println("AutoApproveWorker: failed to fetch issues", err)
 		return
@@ -68,11 +68,11 @@ func runAutoApprove(uc issue.IssueUseCase) {
 			// Auto approve!
 			i.IssueStatus = issue.IssueStatusVerified
 			i.Keterangan = "Auto-Approved by System (Timeout)"
-			
+
 			errUpdate := usecaseImpl.repo.Update(&i)
 			if errUpdate == nil {
 				log.Printf("AutoApproveWorker: Issue %s auto-approved", i.IssueID)
-				
+
 				// Publish Event
 				event := events.IssueEvent{
 					BaseEvent: events.BaseEvent{
@@ -95,12 +95,12 @@ func runAutoApprove(uc issue.IssueUseCase) {
 					if errPic != nil || pic == nil {
 						return
 					}
-					
+
 					dueDate := "-"
 					if issueSnapshot.DueDate != nil {
 						dueDate = issueSnapshot.DueDate.Format("02 January 2006")
 					}
-					
+
 					// Re-use assignment template or fallback
 					tmpl := mail.TmplIssueAssignment
 					if s, errSet := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue); errSet == nil && s.SettingValue != "" {

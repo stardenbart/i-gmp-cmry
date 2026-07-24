@@ -14,7 +14,7 @@ const (
 // Records every login/logout event.
 type LoginLog struct {
 	LoginLogID  string      `gorm:"column:LoginLogID;primaryKey" json:"login_log_id"`
-	UserID      string      `gorm:"column:UserID;not null" json:"user_id"`
+	UserID      *string     `gorm:"column:UserID" json:"user_id,omitempty"`
 	LoginAt     time.Time   `gorm:"column:LoginAt;not null" json:"login_at"`
 	LogoutAt    *time.Time  `gorm:"column:LogoutAt" json:"logout_at,omitempty"`
 	IPAddress   string      `gorm:"column:IPAddress;size:50" json:"ip_address"`

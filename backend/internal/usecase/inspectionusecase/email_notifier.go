@@ -44,46 +44,46 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 	}
 	templateStr := setting.SettingValue
 
-	// 2. Find Manager PIC for this Area. 
-	// The repository method FindByAreaAndKawasan handles an empty kawasanID to just get Area PICs.
+	// 2. Find PICs for this Area (Manager, Auditor, or Area PIC)
 	pics, err := n.picRepo.FindByAreaAndKawasan(areaID, "")
 	if err != nil {
 		log.Printf("[EmailNotifier] Error retrieving PICs for Area %s: %v", areaID, err)
 		return err
 	}
 
-	var managerEmails []string
+	var targetEmails []string
+	emailSet := make(map[string]bool)
 	for _, p := range pics {
-		// Only target "Manager" PIC
-		if p.KategoriPIC == "Manager" {
-			user, err := n.authRepo.FindByID(p.UserID)
-			if err == nil && user != nil {
-				managerEmails = append(managerEmails, user.Email)
+		user, err := n.authRepo.FindByID(p.UserID)
+		if err == nil && user != nil && user.Email != "" {
+			if !emailSet[user.Email] {
+				emailSet[user.Email] = true
+				targetEmails = append(targetEmails, user.Email)
 			}
 		}
 	}
 
-	if len(managerEmails) == 0 {
-		log.Printf("[EmailNotifier] No Manager PIC found or missing emails for Area %s", areaID)
+	if len(targetEmails) == 0 {
+		log.Printf("[EmailNotifier] No PIC found or missing emails for Area %s", areaID)
 		return nil
 	}
 
 	// 3. Prepare data for the template
-	// In a real scenario, you could query Area Name and detailed inspection results to inject here.
 	data := map[string]interface{}{
 		"AreaID":                 areaID,
 		"TotalDetailKawasan":     progress.TotalDetailKawasan,
 		"CompletedDetailKawasan": progress.CompletedDetailKawasan,
+		"Status":                 string(progress.Status),
 	}
 
 	// 4. Send Email via Mailer
 	subject := "✅ Inspeksi Area Selesai: " + areaID
-	err = n.mailer.SendTemplate(managerEmails, subject, templateStr, data)
+	err = n.mailer.SendTemplate(targetEmails, subject, templateStr, data)
 	if err != nil {
-		log.Printf("[EmailNotifier] Failed to send email to %v: %v", managerEmails, err)
+		log.Printf("[EmailNotifier] Failed to send email to %v: %v", targetEmails, err)
 		return err
 	}
 
-	log.Printf("[EmailNotifier] Successfully sent Area Confirmed email to %v", managerEmails)
+	log.Printf("[EmailNotifier] Successfully sent Area Confirmed email to %v", targetEmails)
 	return nil
 }

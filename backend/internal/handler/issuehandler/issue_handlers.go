@@ -1,15 +1,28 @@
 package issuehandler
 
 import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
 	"time"
-	
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/issue"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
 	"github.com/monitoring-system/backend/pkg/validator"
+	"strings"
 )
+
+// Helper to check if a role is Auditor/Admin
+func isAuditor(roleID string) bool {
+	r := strings.ToUpper(roleID)
+	return r == "ROLE-001" || r == "ADM" || r == "ADMIN" || r == "1" ||
+		r == "ROLE-002" || r == "AUDITOR" || r == "2"
+}
 
 // ── Issue Handler ─────────────────────────────────────────────────────────
 
@@ -30,10 +43,30 @@ func NewIssueHandler(uc issue.IssueUseCase) *IssueHandler { return &IssueHandler
 // @Failure 500 {object} response.APIResponse
 // @Router /api/v1/issues [get]
 // @Security BearerAuth
-func (h *IssueHandler) GetAll(c *fiber.Ctx) error  {
+func (h *IssueHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("status"), c.Query("pic_user_id"))
-	if err != nil { return response.InternalServerError(c, "failed to fetch issues", err.Error()) }
+	var needsWOWR *bool
+	if needsStr := c.Query("needs_wo_wr"); needsStr != "" {
+		b, err := strconv.ParseBool(needsStr)
+		if err == nil {
+			needsWOWR = &b
+		}
+	}
+
+	picUserID := c.Query("pic_user_id")
+	actorRole := middleware.GetRoleID(c)
+	actorID := middleware.GetUserID(c)
+
+	// SECURITY: If the user is not an auditor (i.e. they are an auditee),
+	// strictly enforce that they can only view issues assigned to them.
+	if !isAuditor(actorRole) {
+		picUserID = actorID
+	}
+
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("status"), picUserID, needsWOWR)
+	if err != nil {
+		return response.InternalServerError(c, "failed to fetch issues", err.Error())
+	}
 	return response.Paginated(c, "success", items, total, p.Page, p.Limit)
 }
 
@@ -47,9 +80,11 @@ func (h *IssueHandler) GetAll(c *fiber.Ctx) error  {
 // @Failure 404 {object} response.APIResponse
 // @Router /api/v1/issues/{id} [get]
 // @Security BearerAuth
-func (h *IssueHandler) GetByID(c *fiber.Ctx) error  {
+func (h *IssueHandler) GetByID(c *fiber.Ctx) error {
 	item, err := h.uc.GetByID(c.Params("id"))
-	if err != nil { return response.NotFound(c, "issue not found") }
+	if err != nil {
+		return response.NotFound(c, "issue not found")
+	}
 	return response.OK(c, "success", item)
 }
 
@@ -63,13 +98,19 @@ func (h *IssueHandler) GetByID(c *fiber.Ctx) error  {
 // @Failure 400 {object} response.APIResponse
 // @Router /api/v1/issues [post]
 // @Security BearerAuth
-func (h *IssueHandler) Create(c *fiber.Ctx) error  {
+func (h *IssueHandler) Create(c *fiber.Ctx) error {
 	var req issue.CreateIssueRequest
-	if err := c.BodyParser(&req); err != nil { return response.BadRequest(c, "invalid body", err.Error()) }
-	if errs := validator.Validate(&req); errs != nil { return response.BadRequest(c, "validation failed", errs) }
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
+	}
+	if errs := validator.Validate(&req); errs != nil {
+		return response.BadRequest(c, "validation failed", errs)
+	}
 	actorID := middleware.GetUserID(c)
 	item, err := h.uc.Create(actorID, &req)
-	if err != nil { return response.BadRequest(c, err.Error(), nil) }
+	if err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
 	return response.Created(c, "issue created", item)
 }
 
@@ -84,12 +125,16 @@ func (h *IssueHandler) Create(c *fiber.Ctx) error  {
 // @Failure 400 {object} response.APIResponse
 // @Router /api/v1/issues/{id} [put]
 // @Security BearerAuth
-func (h *IssueHandler) Update(c *fiber.Ctx) error  {
+func (h *IssueHandler) Update(c *fiber.Ctx) error {
 	var req issue.UpdateIssueRequest
-	if err := c.BodyParser(&req); err != nil { return response.BadRequest(c, "invalid body", err.Error()) }
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
+	}
 	actorID := middleware.GetUserID(c)
 	item, err := h.uc.Update(c.Params("id"), actorID, &req)
-	if err != nil { return response.BadRequest(c, err.Error(), nil) }
+	if err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
 	return response.OK(c, "issue updated", item)
 }
 
@@ -108,13 +153,17 @@ type ExtendDueDateRequest struct {
 // @Failure 400 {object} response.APIResponse
 // @Router /api/v1/issues/{id}/extend-due-date [patch]
 // @Security BearerAuth
-func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error  {
+func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error {
 	var req ExtendDueDateRequest
-	if err := c.BodyParser(&req); err != nil { return response.BadRequest(c, "invalid body", err.Error()) }
-	if errs := validator.Validate(&req); errs != nil { return response.BadRequest(c, "validation failed", errs) }
-	
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
+	}
+	if errs := validator.Validate(&req); errs != nil {
+		return response.BadRequest(c, "validation failed", errs)
+	}
+
 	actorID := middleware.GetUserID(c)
-	
+
 	// Parse Time manually since it's an extension
 	importTime, err := time.Parse(time.RFC3339, req.DueDate)
 	if err != nil {
@@ -122,7 +171,9 @@ func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error  {
 	}
 
 	item, err := h.uc.ExtendDueDate(c.Params("id"), actorID, importTime)
-	if err != nil { return response.BadRequest(c, err.Error(), nil) }
+	if err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
 	return response.OK(c, "due date extended", item)
 }
 
@@ -136,9 +187,11 @@ func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error  {
 // @Failure 400 {object} response.APIResponse
 // @Router /api/v1/issues/{id} [delete]
 // @Security BearerAuth
-func (h *IssueHandler) Delete(c *fiber.Ctx) error  {
+func (h *IssueHandler) Delete(c *fiber.Ctx) error {
 	actorID := middleware.GetUserID(c)
-	if err := h.uc.Delete(c.Params("id"), actorID); err != nil { return response.BadRequest(c, err.Error(), nil) }
+	if err := h.uc.Delete(c.Params("id"), actorID); err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
 	return response.OK(c, "issue deleted", nil)
 }
 
@@ -146,7 +199,9 @@ func (h *IssueHandler) Delete(c *fiber.Ctx) error  {
 
 type IssuePhotoHandler struct{ uc issue.IssuePhotoUseCase }
 
-func NewIssuePhotoHandler(uc issue.IssuePhotoUseCase) *IssuePhotoHandler { return &IssuePhotoHandler{uc: uc} }
+func NewIssuePhotoHandler(uc issue.IssuePhotoUseCase) *IssuePhotoHandler {
+	return &IssuePhotoHandler{uc: uc}
+}
 
 // @Summary Get photos by issue ID
 // @Description Get all photos associated with a specific issue
@@ -158,9 +213,11 @@ func NewIssuePhotoHandler(uc issue.IssuePhotoUseCase) *IssuePhotoHandler { retur
 // @Failure 500 {object} response.APIResponse
 // @Router /api/v1/issues/{id}/photos [get]
 // @Security BearerAuth
-func (h *IssuePhotoHandler) GetByIssueID(c *fiber.Ctx) error  {
+func (h *IssuePhotoHandler) GetByIssueID(c *fiber.Ctx) error {
 	photos, err := h.uc.GetByIssueID(c.Params("id"))
-	if err != nil { return response.InternalServerError(c, "failed to fetch photos", err.Error()) }
+	if err != nil {
+		return response.InternalServerError(c, "failed to fetch photos", err.Error())
+	}
 	return response.OK(c, "success", photos)
 }
 
@@ -178,12 +235,16 @@ func (h *IssuePhotoHandler) GetByIssueID(c *fiber.Ctx) error  {
 // @Failure 500 {object} response.APIResponse
 // @Router /api/v1/issues/{id}/photos [post]
 // @Security BearerAuth
-func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error  {
+func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 	header, err := c.FormFile("photo")
-	if err != nil { return response.BadRequest(c, "file is required", err.Error()) }
-	
+	if err != nil {
+		return response.BadRequest(c, "file is required", err.Error())
+	}
+
 	file, err := header.Open()
-	if err != nil { return response.InternalServerError(c, "failed to open file", err.Error()) }
+	if err != nil {
+		return response.InternalServerError(c, "failed to open file", err.Error())
+	}
 	defer file.Close()
 
 	photoType := issue.PhotoType(c.FormValue("photo_type"))
@@ -200,8 +261,53 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error  {
 		PhotoType: photoType,
 	}
 
+	chunkIndexStr := c.FormValue("chunk_index")
+	totalChunksStr := c.FormValue("total_chunks")
+	fileID := c.FormValue("file_id")
+
+	if chunkIndexStr != "" && totalChunksStr != "" && fileID != "" {
+		chunkIndex, _ := strconv.Atoi(chunkIndexStr)
+		totalChunks, _ := strconv.Atoi(totalChunksStr)
+
+		tempFilePath := filepath.Join(os.TempDir(), fmt.Sprintf("upload_%s_%s", issueID, fileID))
+
+		tempFile, err := os.OpenFile(tempFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return response.InternalServerError(c, "failed to create temp file", err.Error())
+		}
+
+		_, err = io.Copy(tempFile, file)
+		tempFile.Close()
+
+		if err != nil {
+			return response.InternalServerError(c, "failed to write chunk", err.Error())
+		}
+
+		if chunkIndex == totalChunks-1 {
+			// Last chunk, process it
+			fullFile, err := os.Open(tempFilePath)
+			if err != nil {
+				return response.InternalServerError(c, "failed to open full file", err.Error())
+			}
+			defer fullFile.Close()
+			defer os.Remove(tempFilePath)
+
+			fileInfo, _ := fullFile.Stat()
+
+			photo, err := h.uc.Upload(c.UserContext(), req, fullFile, fileInfo.Size(), header.Filename, contentType)
+			if err != nil {
+				return response.InternalServerError(c, "upload failed", err.Error())
+			}
+			return response.Created(c, "photo uploaded", photo)
+		} else {
+			return response.OK(c, "chunk received", nil)
+		}
+	}
+
 	photo, err := h.uc.Upload(c.UserContext(), req, file, header.Size, header.Filename, contentType)
-	if err != nil { return response.InternalServerError(c, "upload failed", err.Error()) }
+	if err != nil {
+		return response.InternalServerError(c, "upload failed", err.Error())
+	}
 	return response.Created(c, "photo uploaded", photo)
 }
 
@@ -215,7 +321,9 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error  {
 // @Failure 400 {object} response.APIResponse
 // @Router /api/v1/issues/photos/{photo_id} [delete]
 // @Security BearerAuth
-func (h *IssuePhotoHandler) Delete(c *fiber.Ctx) error  {
-	if err := h.uc.Delete(c.UserContext(), c.Params("photo_id")); err != nil { return response.BadRequest(c, err.Error(), nil) }
+func (h *IssuePhotoHandler) Delete(c *fiber.Ctx) error {
+	if err := h.uc.Delete(c.UserContext(), c.Params("photo_id")); err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
 	return response.OK(c, "photo deleted", nil)
 }

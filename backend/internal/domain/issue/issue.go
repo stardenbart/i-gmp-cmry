@@ -8,11 +8,21 @@ import (
 type IssueStatus string
 
 const (
-	IssueStatusOpen       IssueStatus = "Open"
-	IssueStatusInProgress      IssueStatus = "InProgress"
+	IssueStatusOpen              IssueStatus = "Open"
+	IssueStatusInProgress        IssueStatus = "InProgress"
 	IssueStatusPendingValidation IssueStatus = "PendingValidation"
-	IssueStatusClosed          IssueStatus = "Closed"
-	IssueStatusVerified        IssueStatus = "Verified"
+	IssueStatusClosed            IssueStatus = "Closed"
+	IssueStatusVerified          IssueStatus = "Verified"
+)
+
+// WOWRStatus defines allowed values for WOWR validation status.
+type WOWRStatus string
+
+const (
+	WOWRStatusNone              WOWRStatus = "None"
+	WOWRStatusPendingValidation WOWRStatus = "PendingValidation"
+	WOWRStatusVerified          WOWRStatus = "Verified"
+	WOWRStatusRejected          WOWRStatus = "Rejected"
 )
 
 // Issue represents the Issue table.
@@ -22,9 +32,20 @@ type Issue struct {
 	IssuePICUserID string      `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`
 	DueDate        *time.Time  `gorm:"column:DueDate" json:"due_date"`
 	IssueStatus    IssueStatus `gorm:"column:IssueStatus;not null;default:Open" json:"issue_status"`
+	Label          string      `gorm:"column:Label;size:100" json:"label"`
+	NeedsWOWR      bool        `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
+	WO_ID          string      `gorm:"column:WO_ID;size:100" json:"wo_id"`
+	WR_ID          string      `gorm:"column:WR_ID;size:100" json:"wr_id"`
+	WOWRStatus     WOWRStatus  `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
 	Keterangan     string      `gorm:"column:Keterangan;size:255" json:"keterangan"`
+	PICName        string      `gorm:"-" json:"pic_name"`
 	IssueCreatedAt time.Time   `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
 	IssueUpdatedAt time.Time   `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
+
+	// Joined Name Fields (not saved to DB)
+	AreaName          string `gorm:"column:AreaName;->" json:"area_name,omitempty"`
+	KawasanName       string `gorm:"column:KawasanName;->" json:"kawasan_name,omitempty"`
+	DetailKawasanName string `gorm:"column:DetailKawasanName;->" json:"detail_kawasan_name,omitempty"`
 
 	// Relations
 	Photos []IssuePhoto `gorm:"foreignKey:IssueID" json:"photos,omitempty"`
@@ -38,6 +59,11 @@ type CreateIssueRequest struct {
 	ResultID       string     `json:"result_id" validate:"required"`
 	IssuePICUserID string     `json:"issue_pic_user_id" validate:"required"`
 	DueDate        *time.Time `json:"due_date"`
+	Label          string     `json:"label"`
+	NeedsWOWR      bool       `json:"needs_wo_wr"`
+	WO_ID          string     `json:"wo_id"`
+	WR_ID          string     `json:"wr_id"`
+	WOWRStatus     WOWRStatus `json:"wowr_status"`
 	Keterangan     string     `json:"keterangan"`
 }
 
@@ -45,13 +71,18 @@ type UpdateIssueRequest struct {
 	IssuePICUserID string      `json:"issue_pic_user_id"`
 	DueDate        *time.Time  `json:"due_date"`
 	IssueStatus    IssueStatus `json:"issue_status" validate:"omitempty,oneof=Open InProgress PendingValidation Closed Verified"`
+	Label          string      `json:"label"`
+	NeedsWOWR      bool        `json:"needs_wo_wr"`
+	WO_ID          string      `json:"wo_id"`
+	WR_ID          string      `json:"wr_id"`
+	WOWRStatus     WOWRStatus  `json:"wowr_status" validate:"omitempty,oneof=None PendingValidation Verified Rejected"`
 	Keterangan     string      `json:"keterangan"`
 }
 
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type IssueRepository interface {
-	FindAll(page, limit int, status, picUserID string) ([]Issue, int64, error)
+	FindAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
 	FindByID(id string) (*Issue, error)
 	FindByResultID(resultID string) (*Issue, error)
 	Create(i *Issue) error
@@ -62,7 +93,7 @@ type IssueRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type IssueUseCase interface {
-	GetAll(page, limit int, status, picUserID string) ([]Issue, int64, error)
+	GetAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
 	GetByID(id string) (*Issue, error)
 	Create(actorID string, req *CreateIssueRequest) (*Issue, error)
 	Update(id string, actorID string, req *UpdateIssueRequest) (*Issue, error)

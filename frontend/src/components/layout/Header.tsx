@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Menu } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { InstallAppButton } from "./InstallAppButton";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export function Header() {
   const pathname = usePathname();
@@ -13,14 +15,14 @@ export function Header() {
   const mounted = useMounted();
 
   const getTitle = () => {
-    if (pathname.includes("/profile")) return "Profil";
+    if (pathname.includes("/profile")) return "Profil Pengguna";
     if (pathname.includes("/inspections")) return "Inspeksi";
-    if (pathname.includes("/issues")) return "Temuan (Issue)";
-    if (pathname.includes("/master")) return "Master Data";
-    if (pathname.includes("/users")) return "Manajemen User";
-    if (pathname.includes("/logs")) return "Audit Trail";
+    if (pathname.includes("/issues")) return "Temuan Inspeksi";
+    if (pathname.includes("/master")) return "Data Induk";
+    if (pathname.includes("/users")) return "Manajemen Pengguna";
+    if (pathname.includes("/logs")) return "Riwayat Aktivitas";
     if (pathname.includes("/settings")) return "Pengaturan";
-    if (pathname.includes("/cimory/dashboard")) return "Dashboard";
+    if (pathname.includes("/cimory/dashboard")) return "Dasbor Utama";
     return "";
   };
 
@@ -34,13 +36,26 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-xl sm:px-6">
       <div className="flex items-center gap-4">
-        <button className="md:hidden flex items-center justify-center rounded-lg p-2 hover:bg-muted">
-          <Menu className="h-5 w-5" />
-        </button>
-        <h1 className="text-lg font-semibold tracking-tight">{getTitle()}</h1>
+        {/* Mobile Logo */}
+        <div className="md:hidden flex items-center gap-3">
+          <img 
+            src="/Logo_Cimory.png" 
+            alt="Cimory Logo" 
+            width={120} 
+            height={40} 
+            className="h-10 w-auto object-contain"
+            loading="eager"
+            decoding="sync"
+          />
+        </div>
+        
+        {/* Desktop Title */}
+        <h1 className="hidden md:block text-lg font-semibold tracking-tight">{getTitle()}</h1>
       </div>
 
       <div className="flex items-center gap-2">
+        <InstallAppButton />
+        <ThemeToggle />
         <NotificationBell />
         <div className="h-6 w-px bg-border mx-1"></div>
         <Link href={`/cimory/dashboard/${mounted ? user?.id : 'overview'}/profile`}>

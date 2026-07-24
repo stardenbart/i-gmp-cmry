@@ -7,6 +7,7 @@ import (
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
+	"github.com/monitoring-system/backend/internal/domain/pic"
 	"github.com/monitoring-system/backend/pkg/idgen"
 	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/password"
@@ -16,11 +17,12 @@ type userUseCase struct {
 	userRepo    authdomain.UserRepository
 	mailer      mail.Mailer
 	settingRepo masterdomain.SettingRepository
+	picRepo     pic.PICMappingRepository
 }
 
 // NewUserUseCase creates a new UserUseCase implementation.
-func NewUserUseCase(userRepo authdomain.UserRepository, mailer mail.Mailer, settingRepo masterdomain.SettingRepository) authdomain.UserUseCase {
-	return &userUseCase{userRepo: userRepo, mailer: mailer, settingRepo: settingRepo}
+func NewUserUseCase(userRepo authdomain.UserRepository, mailer mail.Mailer, settingRepo masterdomain.SettingRepository, picRepo pic.PICMappingRepository) authdomain.UserUseCase {
+	return &userUseCase{userRepo: userRepo, mailer: mailer, settingRepo: settingRepo, picRepo: picRepo}
 }
 
 func (uc *userUseCase) GetAll(page, limit int, search, roleID, deptID string) ([]authdomain.User, int64, error) {
@@ -57,6 +59,13 @@ func (uc *userUseCase) Create(req *authdomain.CreateUserRequest) (*authdomain.Us
 	if err := uc.userRepo.Create(user); err != nil {
 		return nil, err
 	}
+
+	// Create PIC mappings if any kawasan was selected.
+	// KategoriPIC is optional; admin can map a kawasan without a category.
+	if len(req.PICKawasanIDs) > 0 && uc.picRepo != nil {
+		_ = uc.upsertPICMappings(user.UserID, req.PICKawasanIDs, req.PICKategori)
+	}
+
 	return user, nil
 }
 
@@ -83,7 +92,71 @@ func (uc *userUseCase) Update(id string, req *authdomain.UpdateUserRequest) (*au
 	if err := uc.userRepo.Update(user); err != nil {
 		return nil, err
 	}
+
+	// Update PIC mappings.
+	// Two independent signals from the request:
+	//   1. PICKawasanIDs (slice, can be nil if not sent) → source of truth for kawasan scope.
+	//      When the slice is present (even if empty), we wipe the old mappings and
+	//      rebuild from this list. An empty slice means "remove all mappings".
+	//   2. PICKategori (*string, nil if not sent) → only applied in-place when
+	//      PICKawasanIDs is NOT sent, so editing other fields (name/email/status)
+	//      alone never disturbs the kawasan mapping.
+	if uc.picRepo != nil {
+		switch {
+		case req.PICKawasanIDs != nil:
+			kategori := ""
+			if req.PICKategori != nil {
+				kategori = *req.PICKategori
+			}
+			_ = uc.upsertPICMappings(id, req.PICKawasanIDs, kategori)
+		case req.PICKategori != nil:
+			// Only kategori changed; update existing rows in-place.
+			if existing, err := uc.picRepo.FindByUserID(id); err == nil {
+				for i := range existing {
+					m := existing[i]
+					if m.KategoriPIC == *req.PICKategori {
+						continue
+					}
+					m.KategoriPIC = *req.PICKategori
+					_ = uc.picRepo.Update(&m)
+				}
+			}
+		}
+	}
+
 	return user, nil
+}
+
+// upsertPICMappings replaces all PIC_Mapping rows for the given user with
+// one row per kawasanID. Pass an empty slice to remove all mappings.
+// KategoriPIC may be empty when the admin did not choose a category.
+func (uc *userUseCase) upsertPICMappings(userID string, kawasanIDs []string, kategori string) error {
+	if uc.picRepo == nil {
+		return nil
+	}
+
+	// Wipe existing mappings for this user.
+	if existing, err := uc.picRepo.FindByUserID(userID); err == nil {
+		for _, m := range existing {
+			_ = uc.picRepo.Delete(m.PICMapID)
+		}
+	}
+
+	// Recreate from the source-of-truth slice (may be empty → no rows).
+	for _, kawasanID := range kawasanIDs {
+		if kawasanID == "" {
+			continue
+		}
+		picMap := &pic.PICMapping{
+			PICMapID:    idgen.Generate(idgen.PrefixPICMap),
+			AreaID:      "", // Deprecated: kawasan is the join key used by issue scoping.
+			KawasanID:   kawasanID,
+			UserID:      userID,
+			KategoriPIC: kategori,
+		}
+		_ = uc.picRepo.Create(picMap)
+	}
+	return nil
 }
 
 func (uc *userUseCase) Delete(id string) error {

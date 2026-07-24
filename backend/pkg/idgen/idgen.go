@@ -1,6 +1,7 @@
 package idgen
 
 import (
+	"crypto/rand"
 	"fmt"
 	"sync"
 	"time"
@@ -16,16 +17,23 @@ var (
 // Generate creates a formatted ID: PREFIX-YYYYMMDD-SEQ (e.g., DEPT-20240101-001).
 // seq is auto-incremented per prefix per application run.
 func Generate(prefix string) string {
+	return GenerateRandom(prefix)
+}
+
+// GenerateRandom creates a formatted ID with random suffix for high-throughput scenarios
+// where sequential IDs may collide (e.g., activity logs). Format: PREFIX-YYYYMMDD-RANDOM
+func GenerateRandom(prefix string) string {
 	mu.Lock()
 	defer mu.Unlock()
 
-	today := time.Now().Format("20060102")
-	key := prefix + today
+	// Use YYMMDD (6 chars) instead of YYYYMMDD (8 chars) to ensure
+	// the total ID length remains <= 20 characters (e.g., ALOG-260717-e4163cc9)
+	today := time.Now().Format("060102")
+	randomBytes := make([]byte, 4)
+	rand.Read(randomBytes)
+	randomHex := fmt.Sprintf("%x", randomBytes)
 
-	counter[key]++
-	seq := counter[key]
-
-	return fmt.Sprintf("%s-%s-%03d", prefix, today, seq)
+	return fmt.Sprintf("%s-%s-%s", prefix, today, randomHex)
 }
 
 // Predefined prefix constants — aligned with ERD table names.

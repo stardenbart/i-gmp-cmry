@@ -41,7 +41,7 @@ func NewMinioStorage(endpoint, accessKey, secretKey, bucket, allowedIPs string, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create bucket: %w", err)
 		}
-		
+
 		// Parse allowed IPs
 		ipList := []string{}
 		for _, ip := range strings.Split(allowedIPs, ",") {

@@ -12,6 +12,7 @@ type PhotoType string
 const (
 	PhotoTypeInitial  PhotoType = "Initial"
 	PhotoTypeFollowUp PhotoType = "FollowUp"
+	PhotoTypeWOWR     PhotoType = "WOWR"
 )
 
 // IssuePhoto represents the Issue_Photo table.
@@ -35,11 +36,11 @@ func (IssuePhoto) TableName() string { return "Issue_Photo" }
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 
 type UploadPhotoRequest struct {
-	IssueID        string    `json:"issue_id" validate:"required"`
-	PICUserID      string    `json:"pic_user_id" validate:"required"`
-	PhotoType      PhotoType `json:"photo_type" validate:"required,oneof=Initial FollowUp"`
+	IssueID        string     `json:"issue_id" validate:"required"`
+	PICUserID      string     `json:"pic_user_id" validate:"required"`
+	PhotoType      PhotoType  `json:"photo_type" validate:"required,oneof=Initial FollowUp WOWR"`
 	FollowUpDate   *time.Time `json:"follow_up_date"`
-	JumlahFollowUp *int      `json:"jumlah_follow_up"`
+	JumlahFollowUp *int       `json:"jumlah_follow_up"`
 }
 
 // ─── Repository Interface ──────────────────────────────────────────────────

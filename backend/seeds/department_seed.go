@@ -21,12 +21,12 @@ var defaultDepartments = []masterdomain.Department{
 func SeedDepartments(db *gorm.DB) {
 	for _, d := range defaultDepartments {
 		var count int64
-		db.Model(&masterdomain.Department{}).Where("DepartmentID = ?", d.DepartmentID).Count(&count)
+		db.Model(&masterdomain.Department{}).Where(&masterdomain.Department{DepartmentID: d.DepartmentID}).Count(&count)
 		if count == 0 {
 			if err := db.Create(&d).Error; err != nil {
-				log.Printf("❌ Failed to seed department %s: %v", d.DepartmentName, err)
+				log.Printf("Failed to seed department %s: %v", d.DepartmentName, err)
 			} else {
-				log.Printf("   ✔ Department seeded: %s", d.DepartmentName)
+				log.Printf("Department seeded: %s", d.DepartmentName)
 			}
 		}
 	}

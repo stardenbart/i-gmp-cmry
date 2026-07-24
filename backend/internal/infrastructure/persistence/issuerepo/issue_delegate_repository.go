@@ -22,18 +22,18 @@ func (r *issueDelegateRepo) AddDelegate(d *issue.IssueDelegate) error {
 }
 
 func (r *issueDelegateRepo) RemoveDelegate(issueID string, delegateUserID string) error {
-	return r.db.Where("IssueID = ? AND DelegateUserID = ?", issueID, delegateUserID).Delete(&issue.IssueDelegate{}).Error
+	return r.db.Where("\"IssueID\" = ? AND \"DelegateUserID\" = ?", issueID, delegateUserID).Delete(&issue.IssueDelegate{}).Error
 }
 
 func (r *issueDelegateRepo) GetDelegatesByIssue(issueID string) ([]issue.IssueDelegate, error) {
 	var delegates []issue.IssueDelegate
-	err := r.db.Where("IssueID = ?", issueID).Find(&delegates).Error
+	err := r.db.Where("\"IssueID\" = ?", issueID).Find(&delegates).Error
 	return delegates, err
 }
 
 func (r *issueDelegateRepo) IsDelegate(issueID string, userID string) (bool, error) {
 	var count int64
-	err := r.db.Model(&issue.IssueDelegate{}).Where("IssueID = ? AND DelegateUserID = ?", issueID, userID).Count(&count).Error
+	err := r.db.Model(&issue.IssueDelegate{}).Where("\"IssueID\" = ? AND \"DelegateUserID\" = ?", issueID, userID).Count(&count).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil

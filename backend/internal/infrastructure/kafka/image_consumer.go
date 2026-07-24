@@ -13,8 +13,8 @@ import (
 	"github.com/monitoring-system/backend/internal/domain/upload"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/uploadrepo"
 	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
-	"github.com/monitoring-system/backend/pkg/logger"
 	pkgkafka "github.com/monitoring-system/backend/pkg/kafka"
+	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/storage"
 	"github.com/segmentio/kafka-go"
 )

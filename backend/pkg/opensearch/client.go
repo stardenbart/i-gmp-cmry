@@ -83,8 +83,8 @@ func (c *Client) Search(ctx context.Context, index string, query map[string]inte
 	}
 
 	req := opensearchapi.SearchRequest{
-		Index: []string{index},
-		Body:  strings.NewReader(string(queryBody)),
+		Index:   []string{index},
+		Body:    strings.NewReader(string(queryBody)),
 		Timeout: 5 * time.Second,
 	}
 

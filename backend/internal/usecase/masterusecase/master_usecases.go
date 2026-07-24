@@ -15,7 +15,9 @@ func NewDepartmentUseCase(repo master.DepartmentRepository) master.DepartmentUse
 func (uc *departmentUseCase) GetAll(page, limit int, search string) ([]master.Department, int64, error) {
 	return uc.repo.FindAll(page, limit, search)
 }
-func (uc *departmentUseCase) GetByID(id string) (*master.Department, error) { return uc.repo.FindByID(id) }
+func (uc *departmentUseCase) GetByID(id string) (*master.Department, error) {
+	return uc.repo.FindByID(id)
+}
 func (uc *departmentUseCase) Create(d *master.Department) error {
 	d.DepartmentID = idgen.Generate(idgen.PrefixDepartment)
 	return uc.repo.Create(d)
@@ -39,7 +41,7 @@ func (uc *areaUseCase) Create(a *master.Area) error {
 	return uc.repo.Create(a)
 }
 func (uc *areaUseCase) Update(a *master.Area) error { return uc.repo.Update(a) }
-func (uc *areaUseCase) Delete(id string) error       { return uc.repo.Delete(id) }
+func (uc *areaUseCase) Delete(id string) error      { return uc.repo.Delete(id) }
 
 // ── Kawasan ───────────────────────────────────────────────────────────────
 
@@ -51,18 +53,22 @@ func NewKawasanUseCase(repo master.KawasanRepository) master.KawasanUseCase {
 func (uc *kawasanUseCase) GetAll(page, limit int, areaID, search string) ([]master.Kawasan, int64, error) {
 	return uc.repo.FindAll(page, limit, areaID, search)
 }
-func (uc *kawasanUseCase) GetByID(id string) (*master.Kawasan, error)        { return uc.repo.FindByID(id) }
-func (uc *kawasanUseCase) GetByAreaID(areaID string) ([]master.Kawasan, error) { return uc.repo.FindByAreaID(areaID) }
+func (uc *kawasanUseCase) GetByID(id string) (*master.Kawasan, error) { return uc.repo.FindByID(id) }
+func (uc *kawasanUseCase) GetByAreaID(areaID string) ([]master.Kawasan, error) {
+	return uc.repo.FindByAreaID(areaID)
+}
 func (uc *kawasanUseCase) Create(k *master.Kawasan) error {
 	k.KawasanID = idgen.Generate(idgen.PrefixKawasan)
 	return uc.repo.Create(k)
 }
 func (uc *kawasanUseCase) Update(k *master.Kawasan) error { return uc.repo.Update(k) }
-func (uc *kawasanUseCase) Delete(id string) error          { return uc.repo.Delete(id) }
+func (uc *kawasanUseCase) Delete(id string) error         { return uc.repo.Delete(id) }
 
 // ── DetailKawasan ─────────────────────────────────────────────────────────
 
-type detailKawasanUseCase struct{ repo master.DetailKawasanRepository }
+type detailKawasanUseCase struct {
+	repo master.DetailKawasanRepository
+}
 
 func NewDetailKawasanUseCase(repo master.DetailKawasanRepository) master.DetailKawasanUseCase {
 	return &detailKawasanUseCase{repo: repo}
@@ -70,8 +76,12 @@ func NewDetailKawasanUseCase(repo master.DetailKawasanRepository) master.DetailK
 func (uc *detailKawasanUseCase) GetAll(page, limit int, kawasanID, search string) ([]master.DetailKawasan, int64, error) {
 	return uc.repo.FindAll(page, limit, kawasanID, search)
 }
-func (uc *detailKawasanUseCase) GetByID(id string) (*master.DetailKawasan, error) { return uc.repo.FindByID(id) }
-func (uc *detailKawasanUseCase) GetByKawasanID(kawasanID string) ([]master.DetailKawasan, error) { return uc.repo.FindByKawasanID(kawasanID) }
+func (uc *detailKawasanUseCase) GetByID(id string) (*master.DetailKawasan, error) {
+	return uc.repo.FindByID(id)
+}
+func (uc *detailKawasanUseCase) GetByKawasanID(kawasanID string) ([]master.DetailKawasan, error) {
+	return uc.repo.FindByKawasanID(kawasanID)
+}
 func (uc *detailKawasanUseCase) Create(dk *master.DetailKawasan) error {
 	dk.DetailKawasanID = idgen.Generate(idgen.PrefixDetailKawasan)
 	return uc.repo.Create(dk)
@@ -89,14 +99,16 @@ func NewAspekUseCase(repo master.AspekRepository) master.AspekUseCase {
 func (uc *aspekUseCase) GetAll(page, limit int, areaID, search string) ([]master.Aspek, int64, error) {
 	return uc.repo.FindAll(page, limit, areaID, search)
 }
-func (uc *aspekUseCase) GetByID(id string) (*master.Aspek, error)      { return uc.repo.FindByID(id) }
-func (uc *aspekUseCase) GetByAreaID(areaID string) ([]master.Aspek, error) { return uc.repo.FindByAreaID(areaID) }
+func (uc *aspekUseCase) GetByID(id string) (*master.Aspek, error) { return uc.repo.FindByID(id) }
+func (uc *aspekUseCase) GetByAreaID(areaID string) ([]master.Aspek, error) {
+	return uc.repo.FindByAreaID(areaID)
+}
 func (uc *aspekUseCase) Create(a *master.Aspek) error {
 	a.AspekID = idgen.Generate(idgen.PrefixAspek)
 	return uc.repo.Create(a)
 }
 func (uc *aspekUseCase) Update(a *master.Aspek) error { return uc.repo.Update(a) }
-func (uc *aspekUseCase) Delete(id string) error        { return uc.repo.Delete(id) }
+func (uc *aspekUseCase) Delete(id string) error       { return uc.repo.Delete(id) }
 
 // ── Detail ────────────────────────────────────────────────────────────────
 
@@ -108,14 +120,16 @@ func NewDetailUseCase(repo master.DetailRepository) master.DetailUseCase {
 func (uc *detailUseCase) GetAll(page, limit int, aspekID, search string) ([]master.Detail, int64, error) {
 	return uc.repo.FindAll(page, limit, aspekID, search)
 }
-func (uc *detailUseCase) GetByID(id string) (*master.Detail, error)        { return uc.repo.FindByID(id) }
-func (uc *detailUseCase) GetByAspekID(aspekID string) ([]master.Detail, error) { return uc.repo.FindByAspekID(aspekID) }
+func (uc *detailUseCase) GetByID(id string) (*master.Detail, error) { return uc.repo.FindByID(id) }
+func (uc *detailUseCase) GetByAspekID(aspekID string) ([]master.Detail, error) {
+	return uc.repo.FindByAspekID(aspekID)
+}
 func (uc *detailUseCase) Create(d *master.Detail) error {
 	d.DetailID = idgen.Generate(idgen.PrefixDetail)
 	return uc.repo.Create(d)
 }
 func (uc *detailUseCase) Update(d *master.Detail) error { return uc.repo.Update(d) }
-func (uc *detailUseCase) Delete(id string) error         { return uc.repo.Delete(id) }
+func (uc *detailUseCase) Delete(id string) error        { return uc.repo.Delete(id) }
 
 // ── Uraian ────────────────────────────────────────────────────────────────
 
@@ -127,11 +141,13 @@ func NewUraianUseCase(repo master.UraianRepository) master.UraianUseCase {
 func (uc *uraianUseCase) GetAll(page, limit int, detailID, search string) ([]master.Uraian, int64, error) {
 	return uc.repo.FindAll(page, limit, detailID, search)
 }
-func (uc *uraianUseCase) GetByID(id string) (*master.Uraian, error)           { return uc.repo.FindByID(id) }
-func (uc *uraianUseCase) GetByDetailID(detailID string) ([]master.Uraian, error) { return uc.repo.FindByDetailID(detailID) }
+func (uc *uraianUseCase) GetByID(id string) (*master.Uraian, error) { return uc.repo.FindByID(id) }
+func (uc *uraianUseCase) GetByDetailID(detailID string) ([]master.Uraian, error) {
+	return uc.repo.FindByDetailID(detailID)
+}
 func (uc *uraianUseCase) Create(u *master.Uraian) error {
 	u.UraianID = idgen.Generate(idgen.PrefixUraian)
 	return uc.repo.Create(u)
 }
 func (uc *uraianUseCase) Update(u *master.Uraian) error { return uc.repo.Update(u) }
-func (uc *uraianUseCase) Delete(id string) error         { return uc.repo.Delete(id) }
+func (uc *uraianUseCase) Delete(id string) error        { return uc.repo.Delete(id) }

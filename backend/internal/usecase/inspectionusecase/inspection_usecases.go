@@ -48,13 +48,17 @@ func (uc *inspectionHeaderUseCase) GetAreaStatus(areaID string) (inspection.Area
 	return CalculateAreaStatus(areaID, uc.detailKawasanRepo, uc.repo)
 }
 
+func (uc *inspectionHeaderUseCase) GetTrend(contextID string, year int) ([]inspection.TrendData, error) {
+	return uc.repo.GetTrendByContext(contextID, year)
+}
+
 func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.CreateInspectionRequest) (*inspection.InspectionHeader, error) {
 	now := time.Now()
-	
-	// 0. Cek apakah kawasan sudah pernah diinspeksi (Selesai/Approved) di bulan yang sama
-	completedCount, err := uc.repo.CountCompletedThisMonthByKawasan(req.KawasanID, now.Year(), int(now.Month()))
+
+	// 0. Cek apakah detail kawasan sudah pernah diinspeksi (Selesai/Approved) di bulan yang sama
+	completedCount, err := uc.repo.CountCompletedThisMonthByDetailKawasan(req.DetailKawasanID, now.Year(), int(now.Month()))
 	if err == nil && completedCount > 0 {
-		return nil, errors.New("kawasan ini sudah selesai diinspeksi pada bulan ini, anda baru bisa melakukan inspeksi lagi bulan depan")
+		return nil, errors.New("detail kawasan ini sudah selesai diinspeksi pada bulan ini, anda baru bisa melakukan inspeksi lagi bulan depan")
 	}
 
 	// 1. Cek apakah auditor punya inspeksi aktif di kawasan lain
@@ -67,8 +71,8 @@ func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.Cr
 		}
 	}
 
-	// 2. Cek apakah ada auditor lain yang sedang inspeksi kawasan ini
-	activeInKawasan, err := uc.repo.FindActiveByKawasan(req.KawasanID)
+	// 2. Cek apakah ada auditor lain yang sedang inspeksi detail kawasan ini
+	activeInKawasan, err := uc.repo.FindActiveByDetailKawasan(req.DetailKawasanID)
 	var sessionID string
 	if err == nil && len(activeInKawasan) > 0 {
 		for _, a := range activeInKawasan {
@@ -86,7 +90,7 @@ func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.Cr
 	}
 
 	h := &inspection.InspectionHeader{
-		InspectionID:          	idgen.Generate(idgen.PrefixInspection),
+		InspectionID:           idgen.Generate(idgen.PrefixInspection),
 		AreaID:                 req.AreaID,
 		KawasanID:              req.KawasanID,
 		DetailKawasanID:        req.DetailKawasanID,
@@ -116,7 +120,9 @@ func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.Cr
 
 func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *inspection.UpdateInspectionStatusRequest) (*inspection.InspectionHeader, error) {
 	h, err := uc.repo.FindByID(id)
-	if err != nil { return nil, errors.New("inspection not found") }
+	if err != nil {
+		return nil, errors.New("inspection not found")
+	}
 	h.InspectionHeaderStatus = req.Status
 	err = uc.repo.Update(h)
 	if err == nil {
@@ -160,7 +166,9 @@ func (uc *inspectionHeaderUseCase) Delete(id string) error { return uc.repo.Dele
 
 // ── Inspection Result UseCase ─────────────────────────────────────────────
 
-type inspectionResultUseCase struct{ repo inspection.InspectionResultRepository }
+type inspectionResultUseCase struct {
+	repo inspection.InspectionResultRepository
+}
 
 func NewInspectionResultUseCase(repo inspection.InspectionResultRepository) inspection.InspectionResultUseCase {
 	return &inspectionResultUseCase{repo: repo}
@@ -191,7 +199,9 @@ func (uc *inspectionResultUseCase) BulkSave(req *inspection.BulkSaveResultReques
 
 func (uc *inspectionResultUseCase) Update(id string, req *inspection.SaveResultRequest) (*inspection.InspectionResult, error) {
 	r, err := uc.repo.FindByID(id)
-	if err != nil { return nil, errors.New("result not found") }
+	if err != nil {
+		return nil, errors.New("result not found")
+	}
 	r.Checking = req.Checking
 	r.Nilai = req.Nilai
 	r.Keterangan = req.Keterangan

@@ -1,0 +1,28 @@
+{
+  "template_id": "form_inspeksi_gmp",
+  "template_file": "templates/master_gmp.xlsx",
+  "sheet_name": "Rev 00",
+  "header_mappings": {
+    "tanggal": "C5",
+    "area": "C6",
+    "pic": "C7",
+    "kawasan": "C8"
+  },
+  "table_mapping": {
+    "start_row": 10,
+    "column_map": {
+      "no": "A",
+      "aspek": "B",
+      "detail": "C",
+      "uraian_id": "D",
+      "uraian": "E",
+      "nilai": "F",
+      "total_nilai": "G",
+      "total_temuan": "H",
+      "keterangan": "J",
+      "follow_up": "K",
+      "due_date": "L"
+    },
+    "image_column": "I"
+  }
+}

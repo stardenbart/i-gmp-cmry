@@ -16,13 +16,13 @@ func (r *userRepository) FindAll(page, limit int, search, roleID, deptID string)
 	var total int64
 	q := r.db.Model(&authdomain.User{})
 	if search != "" {
-		q = q.Where("Username LIKE ? OR FullName LIKE ? OR Email LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
+		q = q.Where("\"Username\" LIKE ? OR \"FullName\" LIKE ? OR \"Email\" LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 	if roleID != "" {
-		q = q.Where("RoleID = ?", roleID)
+		q = q.Where("\"RoleID\" = ?", roleID)
 	}
 	if deptID != "" {
-		q = q.Where("DepartmentID = ?", deptID)
+		q = q.Where("\"DepartmentID\" = ?", deptID)
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&users).Error
@@ -31,13 +31,13 @@ func (r *userRepository) FindAll(page, limit int, search, roleID, deptID string)
 
 func (r *userRepository) FindByID(id string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Preload("Role").Where("UserID = ?", id).First(&user).Error
+	err := r.db.Preload("Role").Preload("PICMappings").Where("\"UserID\" = ?", id).First(&user).Error
 	return &user, err
 }
 
 func (r *userRepository) FindByUsername(username string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Where("Username = ?", username).First(&user).Error
+	err := r.db.Where("\"Username\" = ?", username).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (r *userRepository) FindByUsername(username string) (*authdomain.User, erro
 
 func (r *userRepository) FindByEmail(email string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Where("Email = ?", email).First(&user).Error
+	err := r.db.Where("\"Email\" = ?", email).First(&user).Error
 	return &user, err
 }
 
@@ -59,5 +59,5 @@ func (r *userRepository) Update(u *authdomain.User) error {
 }
 
 func (r *userRepository) Delete(id string) error {
-	return r.db.Where("UserID = ?", id).Delete(&authdomain.User{}).Error
+	return r.db.Where("\"UserID\" = ?", id).Delete(&authdomain.User{}).Error
 }

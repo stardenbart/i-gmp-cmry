@@ -35,14 +35,14 @@ const (
 // Status constants
 const (
 	StatusProcessing = "processing"
-	StatusCompleted = "completed"
-	StatusFailed    = "failed"
+	StatusCompleted  = "completed"
+	StatusFailed     = "failed"
 )
 
 // Common errors
 var (
 	ErrInvalidExtension  = errors.New("file extension not allowed")
-	ErrInvalidMIMEType  = errors.New("invalid file type")
+	ErrInvalidMIMEType   = errors.New("invalid file type")
 	ErrFileTooLarge      = errors.New("file size exceeds maximum")
 	ErrCorruptedDOCX     = errors.New("corrupted or invalid docx file")
 	ErrInvalidMagicBytes = errors.New("invalid magic bytes")
@@ -67,9 +67,9 @@ type UploadResponse struct {
 
 // ImageProcessingMessage - Kafka message untuk image processing
 type ImageProcessingMessage struct {
-	FileID       string `json:"file_id"`
-	SourceURL    string `json:"source_url"`
-	ObjectName   string `json:"object_name"`
+	FileID     string `json:"file_id"`
+	SourceURL  string `json:"source_url"`
+	ObjectName string `json:"object_name"`
 }
 
 // Upload - Database model

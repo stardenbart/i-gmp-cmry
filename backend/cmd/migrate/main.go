@@ -23,7 +23,7 @@ func main() {
 	err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version VARCHAR(255) PRIMARY KEY,
-			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	`).Error
 	if err != nil {
@@ -62,7 +62,7 @@ func main() {
 		err = db.Transaction(func(tx *gorm.DB) error {
 			for _, stmt := range statements {
 				stmt = strings.TrimSpace(stmt)
-				if stmt == "" || strings.HasPrefix(stmt, "--") {
+				if stmt == "" {
 					continue
 				}
 				if err := tx.Exec(stmt).Error; err != nil {

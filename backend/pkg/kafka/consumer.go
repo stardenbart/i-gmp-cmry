@@ -36,7 +36,7 @@ func NewConsumer(brokers []string, groupID, topic string, log *logger.Logger) *E
 // It runs continuously until the context is canceled.
 func (c *EventConsumer) Start(ctx context.Context, handler MessageHandler) {
 	c.log.Info("Starting Kafka consumer", logger.String("topic", c.reader.Config().Topic))
-	
+
 	go func() {
 		for {
 			select {
@@ -58,7 +58,7 @@ func (c *EventConsumer) Start(ctx context.Context, handler MessageHandler) {
 
 				// Process message
 				if err := handler(ctx, msg); err != nil {
-					c.log.Error("Failed to process message (DLQ should handle this in production)", 
+					c.log.Error("Failed to process message (DLQ should handle this in production)",
 						logger.Error(err),
 						logger.String("topic", msg.Topic),
 						logger.String("key", string(msg.Key)),

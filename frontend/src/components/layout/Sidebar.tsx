@@ -5,37 +5,49 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   ClipboardCheck,
+  ClipboardList,
   AlertTriangle,
   Database,
   Users,
   History,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  FileBox
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
-import { isAdminUser } from "@/lib/useAdminGuard";
-
+import { usePermissions } from "@/lib/usePermissions";
+import { isAdminUser, isAuditorUser } from "@/lib/useAdminGuard";
 
 export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
+  const { hasPermission } = usePermissions();
 
   const basePath = `/cimory/dashboard/${mounted ? user?.id : 'overview'}`;
 
   const MAIN_MENU = [
-    { href: `${basePath}`, label: "Dashboard", icon: Home },
-    { href: `${basePath}/inspections`, label: "Inspeksi", icon: ClipboardCheck },
-    { href: `${basePath}/issues`, label: "Temuan (Issue)", icon: AlertTriangle },
+    { href: `${basePath}`, label: "Dasbor", icon: Home },
+    // Only show Inspeksi if the user has Auditor rights and permission
+    ...(mounted && isAuditorUser(user?.role_id) && hasPermission("PERM-INSP-R")
+      ? [{ href: `${basePath}/inspections`, label: "Inspeksi", icon: ClipboardCheck }]
+      : []),
+    ...(mounted && hasPermission("PERM-ISS-R")
+      ? [{ href: `${basePath}/issues`, label: "Temuan Inspeksi", icon: AlertTriangle }]
+      : []),
+    ...(mounted && (hasPermission("PERM-ISS-U") || hasPermission("PERM-ISS-R"))
+      ? [{ href: `${basePath}/wowr`, label: "Perintah Kerja", icon: FileBox }]
+      : []),
   ];
 
   // Admin menu - only visible for admin users
   const ADMIN_MENU = mounted && isAdminUser(user?.role_id) ? [
-    { href: `${basePath}/master`, label: "Master Data", icon: Database },
-    { href: `${basePath}/users`, label: "Manajemen User", icon: Users },
-    { href: `${basePath}/logs`, label: "Audit Trail", icon: History },
+    { href: `${basePath}/master`, label: "Data Induk", icon: Database },
+    { href: `${basePath}/users`, label: "Manajemen Pengguna", icon: Users },
+    { href: `${basePath}/gmp-data`, label: "Data Inspeksi (GMP)", icon: ClipboardList },
+    { href: `${basePath}/logs`, label: "Riwayat Aktivitas", icon: History },
     { href: `${basePath}/settings`, label: "Pengaturan", icon: Settings },
   ] : [];
 
@@ -68,11 +80,16 @@ export function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-card md:flex">
-      <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <ShieldCheck className="h-5 w-5 text-primary-foreground" />
-        </div>
-        <span className="font-bold tracking-tight">AuditSys</span>
+      <div className="flex items-center gap-3 border-b border-border px-6 py-4 min-h-20">
+        <img 
+          src="/Logo_Cimory.png" 
+          alt="Cimory Logo" 
+          width={160} 
+          height={56} 
+          className="w-40 h-auto object-contain"
+          loading="eager"
+          decoding="sync"
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">
@@ -83,12 +100,14 @@ export function Sidebar() {
           {renderLinks(MAIN_MENU)}
         </nav>
 
-        <nav className="mt-8 space-y-1 px-3">
-          <div className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Administrator
-          </div>
-          {renderLinks(ADMIN_MENU)}
-        </nav>
+        {ADMIN_MENU.length > 0 && (
+          <nav className="mt-8 space-y-1 px-3">
+            <div className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Administrator
+            </div>
+            {renderLinks(ADMIN_MENU)}
+          </nav>
+        )}
       </div>
 
       <div className="border-t border-border p-4">

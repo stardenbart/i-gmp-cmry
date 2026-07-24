@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ClipboardCheck, AlertTriangle, User } from "lucide-react";
+import { Home, ClipboardCheck, AlertTriangle, User, FileBox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
+import { isAuditorUser } from "@/lib/useAdminGuard";
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -16,8 +17,11 @@ export function BottomNav() {
 
   const NAV_ITEMS = [
     { href: `${basePath}`, label: "Home", icon: Home },
-    { href: `${basePath}/inspections`, label: "Inspeksi", icon: ClipboardCheck },
+    ...(mounted && isAuditorUser(user?.role_id)
+      ? [{ href: `${basePath}/inspections`, label: "Inspeksi", icon: ClipboardCheck }]
+      : []),
     { href: `${basePath}/issues`, label: "Temuan", icon: AlertTriangle },
+    { href: `${basePath}/wowr`, label: "WO/WR", icon: FileBox },
     { href: `${basePath}/profile`, label: "Profil", icon: User },
   ];
 

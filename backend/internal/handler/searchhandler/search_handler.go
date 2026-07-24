@@ -16,11 +16,11 @@ func NewSearchHandler(osClient *opensearch.Client) *SearchHandler {
 }
 
 // SearchInspections provides full-text search across audit inspections
-func (h *SearchHandler) SearchInspections(c *fiber.Ctx) error  {
+func (h *SearchHandler) SearchInspections(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
 	q := c.Query("q")
 	query := buildQuery(q, p.Offset, p.Limit, "inspection_id", "status", "area_id")
-	
+
 	results, total, err := h.osClient.Search(c.UserContext(), "audit-inspections", query)
 	if err != nil {
 		return response.InternalServerError(c, "search failed", err.Error())
@@ -29,11 +29,11 @@ func (h *SearchHandler) SearchInspections(c *fiber.Ctx) error  {
 }
 
 // SearchIssues provides full-text search across audit issues
-func (h *SearchHandler) SearchIssues(c *fiber.Ctx) error  {
+func (h *SearchHandler) SearchIssues(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
 	q := c.Query("q")
 	query := buildQuery(q, p.Offset, p.Limit, "issue_id", "status", "issue_pic_user_id")
-	
+
 	results, total, err := h.osClient.Search(c.UserContext(), "audit-issues", query)
 	if err != nil {
 		return response.InternalServerError(c, "search failed", err.Error())
@@ -42,11 +42,11 @@ func (h *SearchHandler) SearchIssues(c *fiber.Ctx) error  {
 }
 
 // SearchActivityLogs provides full-text search across activity logs
-func (h *SearchHandler) SearchActivityLogs(c *fiber.Ctx) error  {
+func (h *SearchHandler) SearchActivityLogs(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
 	q := c.Query("q")
 	query := buildQuery(q, p.Offset, p.Limit, "action", "entity", "details", "actor_id")
-	
+
 	results, total, err := h.osClient.Search(c.UserContext(), "audit-activity-logs", query)
 	if err != nil {
 		return response.InternalServerError(c, "search failed", err.Error())

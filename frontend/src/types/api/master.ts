@@ -106,19 +106,19 @@ export const areaApi = {
     search = "",
     departmentId?: string
   ): Promise<PaginatedResponse<Area>> =>
-    fetchMasterData("/master/areas", page, limit, search, departmentId ? { department_id: departmentId } : undefined),
+    fetchMasterData("/master/area", page, limit, search, departmentId ? { department_id: departmentId } : undefined),
 
   getById: (id: string): Promise<Area> =>
-    fetchById("/master/areas", id),
+    fetchById("/master/area", id),
 
   create: (data: CreateAreaRequest): Promise<Area> =>
-    createItem("/master/areas", data),
+    createItem("/master/area", data),
 
   update: (id: string, data: UpdateAreaRequest): Promise<Area> =>
-    updateItem("/master/areas", id, data),
+    updateItem("/master/area", id, data),
 
   delete: (id: string): Promise<void> =>
-    deleteItem("/master/areas", id),
+    deleteItem("/master/area", id),
 };
 
 /**
@@ -131,19 +131,19 @@ export const kawasanApi = {
     search = "",
     areaId?: string
   ): Promise<PaginatedResponse<Kawasan>> =>
-    fetchMasterData("/master/kawasans", page, limit, search, areaId ? { area_id: areaId } : undefined),
+    fetchMasterData("/master/kawasan", page, limit, search, areaId ? { area_id: areaId } : undefined),
 
   getById: (id: string): Promise<Kawasan> =>
-    fetchById("/master/kawasans", id),
+    fetchById("/master/kawasan", id),
 
   create: (data: CreateKawasanRequest): Promise<Kawasan> =>
-    createItem("/master/kawasans", data),
+    createItem("/master/kawasan", data),
 
   update: (id: string, data: UpdateKawasanRequest): Promise<Kawasan> =>
-    updateItem("/master/kawasans", id, data),
+    updateItem("/master/kawasan", id, data),
 
   delete: (id: string): Promise<void> =>
-    deleteItem("/master/kawasans", id),
+    deleteItem("/master/kawasan", id),
 };
 
 /**
@@ -156,19 +156,19 @@ export const detailKawasanApi = {
     search = "",
     kawasanId?: string
   ): Promise<PaginatedResponse<DetailKawasan>> =>
-    fetchMasterData("/master/detail-kawasans", page, limit, search, kawasanId ? { kawasan_id: kawasanId } : undefined),
+    fetchMasterData("/master/detail-kawasan", page, limit, search, kawasanId ? { kawasan_id: kawasanId } : undefined),
 
   getById: (id: string): Promise<DetailKawasan> =>
-    fetchById("/master/detail-kawasans", id),
+    fetchById("/master/detail-kawasan", id),
 
   create: (data: CreateDetailKawasanRequest): Promise<DetailKawasan> =>
-    createItem("/master/detail-kawasans", data),
+    createItem("/master/detail-kawasan", data),
 
   update: (id: string, data: UpdateDetailKawasanRequest): Promise<DetailKawasan> =>
-    updateItem("/master/detail-kawasans", id, data),
+    updateItem("/master/detail-kawasan", id, data),
 
   delete: (id: string): Promise<void> =>
-    deleteItem("/master/detail-kawasans", id),
+    deleteItem("/master/detail-kawasan", id),
 };
 
 /**
@@ -181,19 +181,19 @@ export const aspekApi = {
     search = "",
     areaId?: string
   ): Promise<PaginatedResponse<Aspek>> =>
-    fetchMasterData("/master/aspeks", page, limit, search, areaId ? { area_id: areaId } : undefined),
+    fetchMasterData("/master/aspek", page, limit, search, areaId ? { area_id: areaId } : undefined),
 
   getById: (id: string): Promise<Aspek> =>
-    fetchById("/master/aspeks", id),
+    fetchById("/master/aspek", id),
 
   create: (data: CreateAspekRequest): Promise<Aspek> =>
-    createItem("/master/aspeks", data),
+    createItem("/master/aspek", data),
 
   update: (id: string, data: UpdateAspekRequest): Promise<Aspek> =>
-    updateItem("/master/aspeks", id, data),
+    updateItem("/master/aspek", id, data),
 
   delete: (id: string): Promise<void> =>
-    deleteItem("/master/aspeks", id),
+    deleteItem("/master/aspek", id),
 };
 
 /**
@@ -231,17 +231,17 @@ export const uraianApi = {
     search = "",
     detailId?: string
   ): Promise<PaginatedResponse<Uraian>> =>
-    fetchMasterData("/master/urains", page, limit, search, detailId ? { detail_id: detailId } : undefined),
+    fetchMasterData("/master/urain", page, limit, search, detailId ? { detail_id: detailId } : undefined),
 
   getById: (id: string): Promise<Uraian> =>
-    fetchById("/master/urains", id),
+    fetchById("/master/urain", id),
 
   create: (data: CreateUraianRequest): Promise<Uraian> =>
-    createItem("/master/urains", data),
+    createItem("/master/urain", data),
 
   update: (id: string, data: UpdateUraianRequest): Promise<Uraian> =>
-    updateItem("/master/urains", id, data),
+    updateItem("/master/urain", id, data),
 
   delete: (id: string): Promise<void> =>
-    deleteItem("/master/urains", id),
+    deleteItem("/master/urain", id),
 };

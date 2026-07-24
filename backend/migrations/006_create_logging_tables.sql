@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS "Login_Log" (
     "LoginLogID"   VARCHAR(20)  NOT NULL,
-    "UserID"       VARCHAR(20)  NOT NULL,
+    "UserID"       VARCHAR(20),
     "LoginAt"      TIMESTAMP    NOT NULL,
     "LogoutAt"     TIMESTAMP,
     "IPAddress"    VARCHAR(50),
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS "Login_Log" (
 CREATE TABLE IF NOT EXISTS "Activity_Log" (
     "ActivityLogID"       VARCHAR(20)  NOT NULL,
     "UserID"              VARCHAR(20)  NOT NULL,
-    "ModuleID"            VARCHAR(20)  NOT NULL,
-    "PermissionID"        VARCHAR(20)  NOT NULL,
+    "ModuleID"            VARCHAR(20),
+    "PermissionID"        VARCHAR(20),
     "ActivityAction"      VARCHAR(50)  NOT NULL,
     "TableAffected"       VARCHAR(100),
     "RecordID"            VARCHAR(50),

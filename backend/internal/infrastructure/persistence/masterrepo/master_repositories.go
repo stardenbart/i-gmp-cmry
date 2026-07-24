@@ -16,7 +16,7 @@ func (r *departmentRepository) FindAll(page, limit int, search string) ([]master
 	var total int64
 	q := r.db.Model(&master.Department{})
 	if search != "" {
-		q = q.Where("DepartmentName LIKE ?", "%"+search+"%")
+		q = q.Where("\"DepartmentName\" LIKE ?", "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -25,14 +25,14 @@ func (r *departmentRepository) FindAll(page, limit int, search string) ([]master
 
 func (r *departmentRepository) FindByID(id string) (*master.Department, error) {
 	var item master.Department
-	err := r.db.Where("DepartmentID = ?", id).First(&item).Error
+	err := r.db.Where("\"DepartmentID\" = ?", id).First(&item).Error
 	return &item, err
 }
 
-func (r *departmentRepository) Create(d *master.Department) error   { return r.db.Create(d).Error }
-func (r *departmentRepository) Update(d *master.Department) error   { return r.db.Save(d).Error }
+func (r *departmentRepository) Create(d *master.Department) error { return r.db.Create(d).Error }
+func (r *departmentRepository) Update(d *master.Department) error { return r.db.Save(d).Error }
 func (r *departmentRepository) Delete(id string) error {
-	return r.db.Where("DepartmentID = ?", id).Delete(&master.Department{}).Error
+	return r.db.Where("\"DepartmentID\" = ?", id).Delete(&master.Department{}).Error
 }
 
 // ── Area ──────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ func (r *areaRepository) FindAll(page, limit int, search string) ([]master.Area,
 	var total int64
 	q := r.db.Model(&master.Area{})
 	if search != "" {
-		q = q.Where("AreaName LIKE ?", "%"+search+"%")
+		q = q.Where("\"AreaName\" LIKE ?", "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -57,14 +57,14 @@ func (r *areaRepository) FindAll(page, limit int, search string) ([]master.Area,
 
 func (r *areaRepository) FindByID(id string) (*master.Area, error) {
 	var item master.Area
-	err := r.db.Where("AreaID = ?", id).First(&item).Error
+	err := r.db.Where("\"AreaID\" = ?", id).First(&item).Error
 	return &item, err
 }
 
-func (r *areaRepository) Create(a *master.Area) error   { return r.db.Create(a).Error }
-func (r *areaRepository) Update(a *master.Area) error   { return r.db.Save(a).Error }
+func (r *areaRepository) Create(a *master.Area) error { return r.db.Create(a).Error }
+func (r *areaRepository) Update(a *master.Area) error { return r.db.Save(a).Error }
 func (r *areaRepository) Delete(id string) error {
-	return r.db.Where("AreaID = ?", id).Delete(&master.Area{}).Error
+	return r.db.Where("\"AreaID\" = ?", id).Delete(&master.Area{}).Error
 }
 
 // ── Kawasan ───────────────────────────────────────────────────────────────
@@ -78,12 +78,12 @@ func NewKawasanRepository(db *gorm.DB) master.KawasanRepository {
 func (r *kawasanRepository) FindAll(page, limit int, areaID, search string) ([]master.Kawasan, int64, error) {
 	var items []master.Kawasan
 	var total int64
-	q := r.db.Model(&master.Kawasan{})
+	q := r.db.Model(&master.Kawasan{}).Preload("Area")
 	if areaID != "" {
-		q = q.Where("AreaID = ?", areaID)
+		q = q.Where("\"AreaID\" = ?", areaID)
 	}
 	if search != "" {
-		q = q.Where("KawasanName LIKE ?", "%"+search+"%")
+		q = q.Where("\"KawasanName\" LIKE ?", "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -92,20 +92,20 @@ func (r *kawasanRepository) FindAll(page, limit int, areaID, search string) ([]m
 
 func (r *kawasanRepository) FindByID(id string) (*master.Kawasan, error) {
 	var item master.Kawasan
-	err := r.db.Where("KawasanID = ?", id).First(&item).Error
+	err := r.db.Where("\"KawasanID\" = ?", id).Preload("Area").First(&item).Error
 	return &item, err
 }
 
 func (r *kawasanRepository) FindByAreaID(areaID string) ([]master.Kawasan, error) {
 	var items []master.Kawasan
-	err := r.db.Where("AreaID = ?", areaID).Find(&items).Error
+	err := r.db.Where("\"AreaID\" = ?", areaID).Preload("Area").Find(&items).Error
 	return items, err
 }
 
-func (r *kawasanRepository) Create(k *master.Kawasan) error   { return r.db.Create(k).Error }
-func (r *kawasanRepository) Update(k *master.Kawasan) error   { return r.db.Save(k).Error }
+func (r *kawasanRepository) Create(k *master.Kawasan) error { return r.db.Create(k).Error }
+func (r *kawasanRepository) Update(k *master.Kawasan) error { return r.db.Save(k).Error }
 func (r *kawasanRepository) Delete(id string) error {
-	return r.db.Where("KawasanID = ?", id).Delete(&master.Kawasan{}).Error
+	return r.db.Where("\"KawasanID\" = ?", id).Delete(&master.Kawasan{}).Error
 }
 
 // ── DetailKawasan ─────────────────────────────────────────────────────────
@@ -119,12 +119,12 @@ func NewDetailKawasanRepository(db *gorm.DB) master.DetailKawasanRepository {
 func (r *detailKawasanRepository) FindAll(page, limit int, kawasanID, search string) ([]master.DetailKawasan, int64, error) {
 	var items []master.DetailKawasan
 	var total int64
-	q := r.db.Model(&master.DetailKawasan{})
+	q := r.db.Model(&master.DetailKawasan{}).Preload("Kawasan").Preload("Kawasan.Area")
 	if kawasanID != "" {
-		q = q.Where("KawasanID = ?", kawasanID)
+		q = q.Where("\"KawasanID\" = ?", kawasanID)
 	}
 	if search != "" {
-		q = q.Where("DetailKawasanName LIKE ?", "%"+search+"%")
+		q = q.Where("\"DetailKawasanName\" LIKE ?", "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -133,28 +133,30 @@ func (r *detailKawasanRepository) FindAll(page, limit int, kawasanID, search str
 
 func (r *detailKawasanRepository) FindByID(id string) (*master.DetailKawasan, error) {
 	var item master.DetailKawasan
-	err := r.db.Where("DetailKawasanID = ?", id).First(&item).Error
+	err := r.db.Where("\"DetailKawasanID\" = ?", id).First(&item).Error
 	return &item, err
 }
 
 func (r *detailKawasanRepository) FindByKawasanID(kawasanID string) ([]master.DetailKawasan, error) {
 	var items []master.DetailKawasan
-	err := r.db.Where("KawasanID = ?", kawasanID).Find(&items).Error
+	err := r.db.Where("\"KawasanID\" = ?", kawasanID).Find(&items).Error
 	return items, err
 }
 
 func (r *detailKawasanRepository) FindAllByAreaID(areaID string) ([]master.DetailKawasan, error) {
 	var items []master.DetailKawasan
-	err := r.db.Joins("JOIN Kawasan_Master on Kawasan_Master.KawasanID = DetailKawasan_Master.KawasanID").
-		Where("Kawasan_Master.AreaID = ?", areaID).
+	err := r.db.Joins(`JOIN "Kawasan_Master" ON "Kawasan_Master"."KawasanID" = "DetailKawasan_Master"."KawasanID"`).
+		Where("\"Kawasan_Master\".\"AreaID\" = ?", areaID).
 		Find(&items).Error
 	return items, err
 }
 
-func (r *detailKawasanRepository) Create(dk *master.DetailKawasan) error   { return r.db.Create(dk).Error }
-func (r *detailKawasanRepository) Update(dk *master.DetailKawasan) error   { return r.db.Save(dk).Error }
+func (r *detailKawasanRepository) Create(dk *master.DetailKawasan) error {
+	return r.db.Create(dk).Error
+}
+func (r *detailKawasanRepository) Update(dk *master.DetailKawasan) error { return r.db.Save(dk).Error }
 func (r *detailKawasanRepository) Delete(id string) error {
-	return r.db.Where("DetailKawasanID = ?", id).Delete(&master.DetailKawasan{}).Error
+	return r.db.Where("\"DetailKawasanID\" = ?", id).Delete(&master.DetailKawasan{}).Error
 }
 
 // ── Aspek ─────────────────────────────────────────────────────────────────
@@ -170,10 +172,10 @@ func (r *aspekRepository) FindAll(page, limit int, areaID, search string) ([]mas
 	var total int64
 	q := r.db.Model(&master.Aspek{})
 	if areaID != "" {
-		q = q.Where("AreaID = ?", areaID)
+		q = q.Where("\"AreaID\" = ?", areaID)
 	}
 	if search != "" {
-		q = q.Where("AspekName LIKE ?", "%"+search+"%")
+		q = q.Where("\"AspekName\" LIKE ?", "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -182,20 +184,20 @@ func (r *aspekRepository) FindAll(page, limit int, areaID, search string) ([]mas
 
 func (r *aspekRepository) FindByID(id string) (*master.Aspek, error) {
 	var item master.Aspek
-	err := r.db.Where("AspekID = ?", id).First(&item).Error
+	err := r.db.Where("\"AspekID\" = ?", id).First(&item).Error
 	return &item, err
 }
 
 func (r *aspekRepository) FindByAreaID(areaID string) ([]master.Aspek, error) {
 	var items []master.Aspek
-	err := r.db.Where("AreaID = ?", areaID).Find(&items).Error
+	err := r.db.Where("\"AreaID\" = ?", areaID).Find(&items).Error
 	return items, err
 }
 
 func (r *aspekRepository) Create(a *master.Aspek) error { return r.db.Create(a).Error }
 func (r *aspekRepository) Update(a *master.Aspek) error { return r.db.Save(a).Error }
 func (r *aspekRepository) Delete(id string) error {
-	return r.db.Where("AspekID = ?", id).Delete(&master.Aspek{}).Error
+	return r.db.Where("\"AspekID\" = ?", id).Delete(&master.Aspek{}).Error
 }
 
 // ── Detail ────────────────────────────────────────────────────────────────
@@ -211,10 +213,10 @@ func (r *detailRepository) FindAll(page, limit int, aspekID, search string) ([]m
 	var total int64
 	q := r.db.Model(&master.Detail{})
 	if aspekID != "" {
-		q = q.Where("AspekID = ?", aspekID)
+		q = q.Where("\"AspekID\" = ?", aspekID)
 	}
 	if search != "" {
-		q = q.Where("DetailName LIKE ?", "%"+search+"%")
+		q = q.Where("\"DetailName\" LIKE ?", "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -223,20 +225,20 @@ func (r *detailRepository) FindAll(page, limit int, aspekID, search string) ([]m
 
 func (r *detailRepository) FindByID(id string) (*master.Detail, error) {
 	var item master.Detail
-	err := r.db.Where("DetailID = ?", id).First(&item).Error
+	err := r.db.Where("\"DetailID\" = ?", id).First(&item).Error
 	return &item, err
 }
 
 func (r *detailRepository) FindByAspekID(aspekID string) ([]master.Detail, error) {
 	var items []master.Detail
-	err := r.db.Where("AspekID = ?", aspekID).Find(&items).Error
+	err := r.db.Where("\"AspekID\" = ?", aspekID).Find(&items).Error
 	return items, err
 }
 
 func (r *detailRepository) Create(d *master.Detail) error { return r.db.Create(d).Error }
 func (r *detailRepository) Update(d *master.Detail) error { return r.db.Save(d).Error }
 func (r *detailRepository) Delete(id string) error {
-	return r.db.Where("DetailID = ?", id).Delete(&master.Detail{}).Error
+	return r.db.Where("\"DetailID\" = ?", id).Delete(&master.Detail{}).Error
 }
 
 // ── Uraian ────────────────────────────────────────────────────────────────
@@ -252,10 +254,10 @@ func (r *uraianRepository) FindAll(page, limit int, detailID, search string) ([]
 	var total int64
 	q := r.db.Model(&master.Uraian{})
 	if detailID != "" {
-		q = q.Where("DetailID = ?", detailID)
+		q = q.Where("\"DetailID\" = ?", detailID)
 	}
 	if search != "" {
-		q = q.Where("UraianText LIKE ?", "%"+search+"%")
+		q = q.Where("\"UraianText\" LIKE ?", "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -264,18 +266,18 @@ func (r *uraianRepository) FindAll(page, limit int, detailID, search string) ([]
 
 func (r *uraianRepository) FindByID(id string) (*master.Uraian, error) {
 	var item master.Uraian
-	err := r.db.Where("UraianID = ?", id).First(&item).Error
+	err := r.db.Where("\"UraianID\" = ?", id).First(&item).Error
 	return &item, err
 }
 
 func (r *uraianRepository) FindByDetailID(detailID string) ([]master.Uraian, error) {
 	var items []master.Uraian
-	err := r.db.Where("DetailID = ?", detailID).Find(&items).Error
+	err := r.db.Where("\"DetailID\" = ?", detailID).Find(&items).Error
 	return items, err
 }
 
 func (r *uraianRepository) Create(u *master.Uraian) error { return r.db.Create(u).Error }
 func (r *uraianRepository) Update(u *master.Uraian) error { return r.db.Save(u).Error }
 func (r *uraianRepository) Delete(id string) error {
-	return r.db.Where("UraianID = ?", id).Delete(&master.Uraian{}).Error
+	return r.db.Where("\"UraianID\" = ?", id).Delete(&master.Uraian{}).Error
 }

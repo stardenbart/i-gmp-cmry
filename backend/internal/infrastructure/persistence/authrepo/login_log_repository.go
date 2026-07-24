@@ -18,16 +18,16 @@ func (r *loginLogRepository) FindAll(page, limit int, userID string) ([]logdomai
 	var total int64
 	q := r.db.Model(&logdomain.LoginLog{})
 	if userID != "" {
-		q = q.Where("UserID = ?", userID)
+		q = q.Where("\"UserID\" = ?", userID)
 	}
 	q.Count(&total)
-	err := q.Order("LoginAt DESC").Offset((page-1)*limit).Limit(limit).Find(&logs).Error
+	err := q.Order("LoginAt DESC").Offset((page - 1) * limit).Limit(limit).Find(&logs).Error
 	return logs, total, err
 }
 
 func (r *loginLogRepository) FindByID(id string) (*logdomain.LoginLog, error) {
 	var l logdomain.LoginLog
-	err := r.db.Where("LoginLogID = ?", id).First(&l).Error
+	err := r.db.Where("\"LoginLogID\" = ?", id).First(&l).Error
 	return &l, err
 }
 
@@ -37,6 +37,6 @@ func (r *loginLogRepository) Create(l *logdomain.LoginLog) error {
 
 func (r *loginLogRepository) UpdateLogoutAt(id string, logoutAt time.Time) error {
 	return r.db.Model(&logdomain.LoginLog{}).
-		Where("LoginLogID = ?", id).
+		Where("\"LoginLogID\" = ?", id).
 		Update("LogoutAt", logoutAt).Error
 }

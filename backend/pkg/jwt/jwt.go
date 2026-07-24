@@ -17,8 +17,8 @@ type Claims struct {
 
 // Manager handles JWT generation and parsing.
 type Manager struct {
-	secret        []byte
-	expiredHours  int
+	secret       []byte
+	expiredHours int
 }
 
 // New creates a new JWT Manager.

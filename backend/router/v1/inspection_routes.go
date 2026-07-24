@@ -31,21 +31,33 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, emailNotifier)
 	resultUC := inspectionusecase.NewInspectionResultUseCase(resultRepo)
 
-	headerH := inspectionhandler.NewInspectionHeaderHandler(headerUC)
+	// Filter
+	filterRepo := inspectionrepo.NewInspectionFilterRepository(db)
+	filterUC := inspectionusecase.NewInspectionFilterUseCase(filterRepo)
+
+	headerH := inspectionhandler.NewInspectionHeaderHandler(headerUC, resultUC)
 	resultH := inspectionhandler.NewInspectionResultHandler(resultUC)
+	filterH := inspectionhandler.NewInspectionFilterHandler(filterUC)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
+
+	// Analytics Route
+	rg.Get("/analytics/inspections-trend", authMW, actLogMW, headerH.GetTrend)
 
 	insp := rg.Group("/inspections", authMW, actLogMW)
 	{
 		// Inspection Header CRUD
 		insp.Get("", headerH.GetAll)
 		insp.Post("", headerH.Create)
+		// Filter (must be before /:id)
+		insp.Get("/filter", filterH.GetFiltered)
 		// Area Status
 		insp.Get("/area/:areaId/status", headerH.GetAreaStatus)
 
+		insp.Get("/:id/checklist", headerH.GetChecklist)
 		insp.Get("/:id", headerH.GetByID)
+		insp.Get("/:id/export", headerH.ExportExcel)
 		insp.Put("/:id/status", headerH.UpdateStatus)
 		insp.Delete("/:id", headerH.Delete)
 

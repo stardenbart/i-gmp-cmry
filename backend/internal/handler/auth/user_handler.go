@@ -32,7 +32,7 @@ func NewUserHandler(userUC authdomain.UserUseCase) *UserHandler {
 // @Failure      500 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /users [get]
-func (h *UserHandler) GetAll(c *fiber.Ctx) error  {
+func (h *UserHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
 	search := c.Query("search")
 	roleID := c.Query("role_id")
@@ -56,7 +56,7 @@ func (h *UserHandler) GetAll(c *fiber.Ctx) error  {
 // @Failure      404 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /users/{id} [get]
-func (h *UserHandler) GetByID(c *fiber.Ctx) error  {
+func (h *UserHandler) GetByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	user, err := h.userUC.GetByID(id)
 	if err != nil {
@@ -76,7 +76,7 @@ func (h *UserHandler) GetByID(c *fiber.Ctx) error  {
 // @Failure      400 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /users [post]
-func (h *UserHandler) Create(c *fiber.Ctx) error  {
+func (h *UserHandler) Create(c *fiber.Ctx) error {
 	var req authdomain.CreateUserRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body", err.Error())
@@ -103,7 +103,7 @@ func (h *UserHandler) Create(c *fiber.Ctx) error  {
 // @Failure      400 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /users/{id} [put]
-func (h *UserHandler) Update(c *fiber.Ctx) error  {
+func (h *UserHandler) Update(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var req authdomain.UpdateUserRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -130,7 +130,7 @@ func (h *UserHandler) Update(c *fiber.Ctx) error  {
 // @Failure      400 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /users/{id} [delete]
-func (h *UserHandler) Delete(c *fiber.Ctx) error  {
+func (h *UserHandler) Delete(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if err := h.userUC.Delete(id); err != nil {
 		return response.BadRequest(c, err.Error(), nil)
@@ -150,7 +150,7 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error  {
 // @Failure      400 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /users/{id}/password [put]
-func (h *UserHandler) ChangePassword(c *fiber.Ctx) error  {
+func (h *UserHandler) ChangePassword(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var req authdomain.ChangePasswordRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -177,7 +177,7 @@ func (h *UserHandler) ChangePassword(c *fiber.Ctx) error  {
 // @Failure      400 {object} response.APIResponse
 // @Security     BearerAuth
 // @Router       /users/{id}/reset-password [post]
-func (h *UserHandler) ResetPassword(c *fiber.Ctx) error  {
+func (h *UserHandler) ResetPassword(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var req authdomain.AdminResetPasswordRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -202,7 +202,7 @@ func (h *UserHandler) ResetPassword(c *fiber.Ctx) error  {
 // @Success      200 {object} response.APIResponse
 // @Failure      400 {object} response.APIResponse
 // @Router       /auth/forgot-password [post]
-func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error  {
+func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req authdomain.ForgotPasswordRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body", err.Error())

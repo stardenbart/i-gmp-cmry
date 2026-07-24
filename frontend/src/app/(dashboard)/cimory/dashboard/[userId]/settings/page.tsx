@@ -1,125 +1,123 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import {
-  Settings as SettingsIcon,
-  Edit2,
-  X,
-  ShieldAlert
-} from "lucide-react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import EmailEditor, { EditorRef } from "react-email-editor";
 import { api } from "@/lib/api/axios";
-import { useMounted } from "@/lib/useMounted";
+import { useAuthStore } from "@/stores/authStore";
 import { useAdminGuard } from "@/lib/useAdminGuard";
+import { useMounted } from "@/lib/useMounted";
+import { ShieldAlert, Mail, Settings as SettingsIcon, PenSquare, Save, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuthStore } from "@/stores/authStore";
+import { EmailEditorModal } from "./EmailEditorModal";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 
-const fetchSettings = async () => {
-  const res = await api.get("/settings");
-  return res.data; // Expected { data: [...] } if standard response, wait master_routes settings returns response.Paginated? No, settingH.GetAll returns standard response? Let's assume res.data.data
-};
+// The keys we care about for email templates
+const EMAIL_TEMPLATES = [
+  { key: "EMAIL_TEMPLATE_FORGOT_PASSWORD", title: "Lupa Password", description: "Email yang dikirim saat user meminta reset password." },
+  { key: "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT", title: "Penugasan Temuan (Issue)", description: "Email notifikasi saat user ditugaskan memperbaiki suatu temuan." },
+  { key: "EMAIL_TEMPLATE_INSPECTION_CONFIRMED", title: "Konfirmasi Inspeksi", description: "Email saat jadwal inspeksi telah disetujui/dikonfirmasi." },
+];
 
-const updateSetting = async (key: string, value: string) => {
-  const res = await api.put(`/settings/${key}`, { setting_value: value });
-  return res.data;
-};
-
-// Modals
-function StandardModal({
-  isOpen, onClose, title, onSubmit, isLoading, children,
-}: any) {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-card border border-border p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <form onSubmit={onSubmit} className="space-y-4">
-          {children}
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Batal</Button>
-            <Button type="submit" isLoading={isLoading} className="flex-1">Simpan</Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+const GENERAL_SETTINGS = [
+  { group: "Keamanan & Akses", keys: [
+    { key: "MAX_LOGIN_ATTEMPTS", label: "Maksimal Percobaan Login", type: "number", desc: "Jumlah maksimal percobaan sebelum akun terkunci sementara." },
+    { key: "SESSION_IDLE_TIMEOUT_MINUTES", label: "Batas Waktu Sesi (Menit)", type: "number", desc: "Waktu tidak aktif sebelum pengguna dikeluarkan (logout) otomatis." },
+  ]},
+  { group: "Sistem & Penyimpanan", keys: [
+    { key: "MAX_UPLOAD_SIZE_MB", label: "Maksimal Ukuran Unggahan (MB)", type: "number", desc: "Batas ukuran maksimal untuk setiap file yang diunggah ke sistem." },
+    { key: "MINIO_ALLOWED_IPS", label: "IP yang Diizinkan untuk Penyimpanan", type: "text", desc: "Daftar IP yang diizinkan mengakses storage Minio (pisahkan dengan koma)." },
+  ]},
+  { group: "Tenggat Waktu Temuan (Issue)", keys: [
+    { key: "ISSUE_DEADLINE_DAYS", label: "Tenggat Waktu Penyelesaian (Hari)", type: "number", desc: "Waktu default yang diberikan untuk menyelesaikan sebuah temuan." },
+    { key: "ISSUE_AUTO_APPROVE_DAYS", label: "Waktu Auto-Approve (Hari)", type: "number", desc: "Waktu sebelum perbaikan temuan disetujui otomatis jika tidak diulas." },
+  ]}
+];
 
 export default function SettingsPage() {
   const user = useAuthStore((state) => state.user);
   const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
   const mounted = useMounted();
   const queryClient = useQueryClient();
+  const { showSearchLatencyButton, toggleSearchLatencyButton } = useSettingsStore();
 
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [isStandardModalOpen, setIsStandardModalOpen] = useState(false);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [newValue, setNewValue] = useState("");
+  const [activeTab, setActiveTab] = useState<"general" | "email" | "apikey">("general");
   
-  const emailEditorRef = useRef<EditorRef>(null);
+  // General Settings Form State
+  const [generalValues, setGeneralValues] = useState<Record<string, string>>({});
+  
+  // Email Editor State
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorKey, setEditorKey] = useState("");
+  const [editorTitle, setEditorTitle] = useState("");
 
-  const { data: settingsRes, isLoading } = useQuery({
+  // Fetch all settings
+  const { data: settingsData, isLoading: settingsLoading } = useQuery({
     queryKey: ["settings"],
-    queryFn: fetchSettings,
+    queryFn: async () => {
+      const res = await api.get("/master/settings");
+      
+      // Initialize general values
+      const fetched = res.data?.data || [];
+      const initialGen: Record<string, string> = {};
+      fetched.forEach((s: any) => {
+        initialGen[s.setting_key] = s.setting_value;
+      });
+      setGeneralValues(prev => ({ ...initialGen, ...prev }));
+      
+      return fetched;
+    },
     enabled: mounted && !!user && isAdmin,
   });
 
-  const settingsList = settingsRes?.data || [];
-
-  const updateMutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) => updateSetting(key, value),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-      setIsStandardModalOpen(false);
-      setIsEmailModalOpen(false);
-      setEditingItem(null);
-      toast.success("Pengaturan berhasil diperbarui");
+  // Save Mutation
+  const saveSettingMutation = useMutation({
+    mutationFn: async ({ key, value }: { key: string, value: string }) => {
+      return api.put(`/master/settings/${key}`, { setting_value: value });
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || "Gagal memperbarui pengaturan"),
+    onSuccess: () => {
+      toast.success("Pengaturan berhasil disimpan");
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      setEditorOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || "Gagal menyimpan pengaturan");
+    }
   });
 
-  const handleEditClick = (item: any) => {
-    setEditingItem(item);
-    setNewValue(item.setting_value || "");
-    
-    // Check if it's an email template
-    if (item.setting_key.startsWith("EMAIL_TEMPLATE")) {
-      setIsEmailModalOpen(true);
-    } else {
-      setIsStandardModalOpen(true);
-    }
+  const handleOpenEditor = (template: any) => {
+    setEditorKey(template.key);
+    setEditorTitle(`Edit Template: ${template.title}`);
+    setEditorOpen(true);
   };
 
-  const handleStandardSubmit = (e: React.FormEvent) => {
+  // Derive initial data so it's always up to date even if settingsData updates in the background
+  const activeSetting = settingsData?.find((s: any) => s.setting_key === editorKey);
+  const derivedInitialData = activeSetting?.setting_value || "";
+
+  const handleSaveEmailTemplate = (html: string, design: any) => {
+    // Combine HTML and JSON design into a single JSON string
+    const payload = JSON.stringify({ html, design });
+    saveSettingMutation.mutate({ key: editorKey, value: payload });
+  };
+
+  const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem) return;
-    updateMutation.mutate({ key: editingItem.setting_key, value: newValue });
-  };
+    // Save all general settings sequentially
+    const promises = Object.keys(generalValues).map(key => 
+      api.put(`/master/settings/${key}`, { setting_value: generalValues[key] })
+    );
 
-  const saveEmailDesign = () => {
-    if (!emailEditorRef.current?.editor) return;
-    emailEditorRef.current.editor.exportHtml((data) => {
-      const { html } = data;
-      // We will save HTML directly so the backend mailer can use it easily
-      updateMutation.mutate({ key: editingItem.setting_key, value: html });
+    toast.promise(Promise.all(promises), {
+      loading: 'Menyimpan pengaturan...',
+      success: () => {
+        queryClient.invalidateQueries({ queryKey: ["settings"] });
+        return 'Semua pengaturan berhasil disimpan!';
+      },
+      error: 'Gagal menyimpan beberapa pengaturan',
     });
-  };
-
-  const onLoadEmailEditor = () => {
-    // If we have saved design json before, we could load it, but since we only save HTML,
-    // we can't easily reverse-engineer it to a perfect unlayer design.
-    // For now we just load it if we had a JSON structure. Since we don't, we'll just start fresh or inject HTML.
-    // NOTE: Unlayer supports loadDesign to load JSON. Since we only save HTML for backend compatibility, 
-    // it will load as blank initially. In production, we'd save a JSON string with { html, design } and parse it here.
   };
 
   if (!isGuardLoading && !isAdmin) {
@@ -135,91 +133,185 @@ export default function SettingsPage() {
   if (!mounted || isGuardLoading) return <div className="h-64 flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <div>
-        <h1 className="text-2xl font-bold">System Settings</h1>
-        <p className="text-muted-foreground">Konfigurasi dinamis sistem audit</p>
+        <h1 className="text-2xl font-bold">Pengaturan Sistem</h1>
+        <p className="text-muted-foreground mt-1">Kelola konfigurasi umum dan template email sistem.</p>
       </div>
 
-      <div className="grid gap-4">
-        {isLoading ? (
-          <div className="p-12 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
-        ) : settingsList.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground bg-card rounded-xl border border-border shadow-sm">
-            Tidak ada pengaturan yang ditemukan.
-          </div>
-        ) : (
-          settingsList.map((item: any) => (
-            <div key={item.setting_key} className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors hover:border-primary/50">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-lg">{item.setting_key}</h3>
-                  {item.is_encrypted && <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Encrypted</span>}
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Sidebar Tabs */}
+        <div className="w-full md:w-64 shrink-0 space-y-2">
+          <button
+            onClick={() => setActiveTab("general")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-left ${activeTab === "general" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
+          >
+            <SettingsIcon className="w-5 h-5" />
+            Umum
+          </button>
+          <button
+            onClick={() => setActiveTab("email")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-left ${activeTab === "email" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
+          >
+            <Mail className="w-5 h-5" />
+            Template Email
+          </button>
+          <button
+            onClick={() => setActiveTab("apikey")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-left ${activeTab === "apikey" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
+          >
+            <Key className="w-5 h-5" />
+            API Key Power BI
+          </button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1">
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            
+            {activeTab === "general" && (
+              <div className="p-6">
+                <div className="border-b border-border pb-4 mb-6">
+                  <h3 className="text-lg font-semibold">Pengaturan Umum</h3>
+                  <p className="text-sm text-muted-foreground">Konfigurasi umum seperti Batas Login, Timeout, dan Tenggat Waktu.</p>
                 </div>
-                <p className="text-sm text-muted-foreground mb-3">{item.description}</p>
-                <div className="bg-muted p-3 rounded-lg text-sm font-mono truncate max-w-full">
-                  {item.is_encrypted ? "••••••••••••••••" : (item.setting_value || <span className="italic text-muted-foreground">Kosong</span>)}
-                </div>
+                
+                {settingsLoading ? (
+                  <div className="p-12 flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSaveGeneral} className="space-y-8">
+                    {GENERAL_SETTINGS.map((group, idx) => (
+                      <div key={idx} className="bg-muted/30 p-5 rounded-xl border border-border">
+                        <h4 className="font-semibold mb-4 text-primary">{group.group}</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {group.keys.map(item => (
+                            <div key={item.key}>
+                              <label className="text-sm font-medium mb-1 block">{item.label}</label>
+                              <Input 
+                                type={item.type} 
+                                value={generalValues[item.key] || ""} 
+                                onChange={(e) => setGeneralValues(prev => ({...prev, [item.key]: e.target.value}))} 
+                                required 
+                              />
+                              <p className="text-[11px] text-muted-foreground mt-1.5">{item.desc}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Fitur Pengujian & Performa Switch Toggle */}
+                    <div className="bg-muted/30 p-5 rounded-xl border border-border">
+                      <h4 className="font-semibold mb-4 text-primary flex items-center gap-2">
+                        Pengaturan Pengujian & Performa
+                      </h4>
+                      <div className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/80 shadow-sm gap-4">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-semibold text-foreground block">
+                            Tombol Uji Latensi Search
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Aktifkan atau nonaktifkan tombol <strong>Uji Latensi Search</strong> di bilah pencarian (Inspeksi, Temuan, GMP Data, & Logs).
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={showSearchLatencyButton}
+                          onClick={() => {
+                            toggleSearchLatencyButton();
+                            toast.success(
+                              !showSearchLatencyButton
+                                ? "Tombol Uji Latensi Search Diaktifkan"
+                                : "Tombol Uji Latensi Search Dinonaktifkan"
+                            );
+                          }}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            showSearchLatencyButton ? "bg-primary" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              showSearchLatencyButton ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-4 border-t border-border">
+                      <Button type="submit">
+                        <Save className="w-4 h-4 mr-2" /> Simpan Pengaturan Umum
+                      </Button>
+                    </div>
+                  </form>
+                )}
               </div>
+            )}
+
+            {activeTab === "email" && (
               <div>
-                <Button variant="outline" onClick={() => handleEditClick(item)} className="w-full md:w-auto">
-                  <Edit2 className="h-4 w-4 mr-2" /> Edit
-                </Button>
+                <div className="p-6 border-b border-border bg-muted/20">
+                  <h3 className="text-lg font-semibold">Template Email</h3>
+                  <p className="text-sm text-muted-foreground">Sesuaikan tampilan dan konten email yang dikirim otomatis oleh sistem.</p>
+                </div>
+                
+                {settingsLoading ? (
+                  <div className="p-12 flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {EMAIL_TEMPLATES.map((template) => {
+                      const existing = settingsData?.find((s: any) => s.setting_key === template.key);
+                      const isConfigured = !!existing?.setting_value;
+
+                      return (
+                        <div key={template.key} className="p-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between hover:bg-muted/10 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold">{template.title}</h4>
+                              {isConfigured ? (
+                                <span className="bg-green-500/10 text-green-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Terkonfigurasi</span>
+                              ) : (
+                                <span className="bg-orange-500/10 text-orange-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Bawaan Sistem</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{template.description}</p>
+                            <p className="text-xs text-muted-foreground mt-2 font-mono bg-muted inline-block px-2 py-1 rounded">Key: {template.key}</p>
+                          </div>
+                          
+                          <Button variant={isConfigured ? "outline" : "default"} onClick={() => handleOpenEditor(template)} className="shrink-0">
+                            <PenSquare className="w-4 h-4 mr-2" />
+                            {isConfigured ? "Edit Template" : "Buat Template"}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))
-        )}
+            )}
+
+            {activeTab === "apikey" && (
+              <div className="p-6">
+                <ApiKeyManager />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* STANDARD MODAL */}
-      <StandardModal
-        isOpen={isStandardModalOpen}
-        onClose={() => { setIsStandardModalOpen(false); setEditingItem(null); }}
-        title={`Edit ${editingItem?.setting_key}`}
-        onSubmit={handleStandardSubmit}
-        isLoading={updateMutation.isPending}
-      >
-        <div>
-          <label className="text-sm font-medium mb-1 block">Value</label>
-          <Input 
-            value={newValue} 
-            onChange={(e) => setNewValue(e.target.value)} 
-            required 
-            placeholder="Masukkan nilai baru..." 
-          />
-          <p className="text-xs text-muted-foreground mt-2">{editingItem?.description}</p>
-        </div>
-      </StandardModal>
-
-      {/* EMAIL TEMPLATE MODAL (UNLAYER) */}
-      {isEmailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsEmailModalOpen(false)} />
-          <div className="relative z-10 w-full h-[95vh] max-w-6xl rounded-2xl bg-card border border-border flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-border flex items-center justify-between bg-card">
-              <div>
-                <h2 className="text-lg font-semibold">Email Template Editor</h2>
-                <p className="text-sm text-muted-foreground">{editingItem?.setting_key}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(false)}>Batal</Button>
-                <Button size="sm" onClick={saveEmailDesign} isLoading={updateMutation.isPending}>Simpan Template</Button>
-              </div>
-            </div>
-            <div className="flex-1 bg-gray-100">
-              <EmailEditor 
-                ref={emailEditorRef} 
-                onLoad={onLoadEmailEditor}
-                options={{
-                  appearance: {
-                    theme: 'modern_light',
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <EmailEditorModal
+        isOpen={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        title={editorTitle}
+        initialData={derivedInitialData}
+        onSave={handleSaveEmailTemplate}
+        isSaving={saveSettingMutation.isPending}
+      />
     </div>
   );
 }

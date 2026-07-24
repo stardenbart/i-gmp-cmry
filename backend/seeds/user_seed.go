@@ -11,14 +11,14 @@ import (
 // SeedAdminUser creates a default admin user if one doesn't exist.
 func SeedAdminUser(db *gorm.DB) {
 	var count int64
-	db.Model(&authdomain.User{}).Where("Username = ?", "admin").Count(&count)
+	db.Model(&authdomain.User{}).Where(&authdomain.User{Username: "admin"}).Count(&count)
 	if count > 0 {
 		return
 	}
 
 	hashed, err := password.Hash("admin123")
 	if err != nil {
-		log.Printf("❌ Failed to hash admin password: %v", err)
+		log.Printf("Failed to hash admin password: %v", err)
 		return
 	}
 
@@ -37,5 +37,69 @@ func SeedAdminUser(db *gorm.DB) {
 		log.Printf("❌ Failed to seed admin user: %v", err)
 	} else {
 		log.Printf("   ✔ Admin user seeded (username: admin, password: admin123)")
+	}
+}
+
+// SeedAuditorUser creates a default auditor user.
+func SeedAuditorUser(db *gorm.DB) {
+	var count int64
+	db.Model(&authdomain.User{}).Where(&authdomain.User{Username: "auditor"}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	hashed, err := password.Hash("auditor123")
+	if err != nil {
+		log.Printf("Failed to hash auditor password: %v", err)
+		return
+	}
+
+	auditor := authdomain.User{
+		UserID:       "USR-AUDIT-001",
+		DepartmentID: "DEPT-001", // Quality Assurance
+		RoleID:       "ROLE-002", // Auditor
+		Username:     "auditor",
+		FullName:     "Inspektur Auditor",
+		Email:        "auditor@company.com",
+		PasswordHash: hashed,
+		UserStatus:   authdomain.UserStatusActive,
+	}
+
+	if err := db.Create(&auditor).Error; err != nil {
+		log.Printf("❌ Failed to seed auditor user: %v", err)
+	} else {
+		log.Printf("   ✔ Auditor user seeded (username: auditor, password: auditor123)")
+	}
+}
+
+// SeedAuditeeUser creates a default auditee user.
+func SeedAuditeeUser(db *gorm.DB) {
+	var count int64
+	db.Model(&authdomain.User{}).Where(&authdomain.User{Username: "auditee"}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	hashed, err := password.Hash("auditee123")
+	if err != nil {
+		log.Printf("Failed to hash auditee password: %v", err)
+		return
+	}
+
+	auditee := authdomain.User{
+		UserID:       "USR-AUDITEE-001",
+		DepartmentID: "DEPT-002", // Production
+		RoleID:       "ROLE-003", // Auditee
+		Username:     "auditee",
+		FullName:     "PIC Auditee",
+		Email:        "auditee@company.com",
+		PasswordHash: hashed,
+		UserStatus:   authdomain.UserStatusActive,
+	}
+
+	if err := db.Create(&auditee).Error; err != nil {
+		log.Printf("❌ Failed to seed auditee user: %v", err)
+	} else {
+		log.Printf("   ✔ Auditee user seeded (username: auditee, password: auditee123)")
 	}
 }
