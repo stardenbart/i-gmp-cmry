@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { issueApi, IssuePhoto, IssueStatus } from "@/lib/api/issue.api";
-import { cn } from "@/lib/utils";
+import { cn, formatImageUrl } from "@/lib/utils";
 import { InfoCard } from "@/components/isssues/InfoCard";
 import { PhotoSection } from "@/components/isssues/PhotosCard";
 import { WOWRCard } from "@/components/isssues/WOWRCard";
@@ -26,18 +26,23 @@ const statusConfig: Record<IssueStatus, { label: string; icon: React.ElementType
   Closed: { label: "Closed", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
   Verified: { label: "Verified", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
   Overdue: { label: "Overdue", icon: CircleDashed, color: "text-red-500", bg: "bg-red-500/10" },
+  OpenOverdue: { label: "Open Overdue", icon: CircleDashed, color: "text-red-500", bg: "bg-red-500/10" },
+  ClosedOverdue: { label: "Closed Overdue", icon: CheckCircle2, color: "text-orange-500", bg: "bg-orange-500/10" },
 };
 
 const STATUS_TRANSITIONS: Record<IssueStatus, { label: string; next: IssueStatus; color: string }[]> = {
   Open: [{ label: "Mulai Kerjakan", next: "InProgress", color: "bg-amber-500 hover:bg-amber-600" }],
   InProgress: [
-    { label: "Minta Validasi", next: "PendingValidation", color: "bg-purple-500 hover:bg-purple-600" },
-    { label: "Selesaikan", next: "Closed", color: "bg-green-500 hover:bg-green-600" }
+    { label: "Selesaikan Temuan", next: "Closed", color: "bg-green-600 hover:bg-green-700" }
   ],
-  PendingValidation: [{ label: "Setujui", next: "Closed", color: "bg-green-500 hover:bg-green-600" }],
-  Closed: [{ label: "Verifikasi", next: "Verified", color: "bg-emerald-600 hover:bg-emerald-700" }],
+  PendingValidation: [
+    { label: "Selesaikan Temuan", next: "Closed", color: "bg-green-600 hover:bg-green-700" }
+  ],
+  Closed: [],
   Verified: [],
-  Overdue: [{ label: "Mulai Kerjakan", next: "InProgress", color: "bg-amber-500 hover:bg-amber-600" }]
+  Overdue: [{ label: "Mulai Kerjakan", next: "InProgress", color: "bg-amber-500 hover:bg-amber-600" }],
+  OpenOverdue: [{ label: "Mulai Kerjakan", next: "InProgress", color: "bg-amber-500 hover:bg-amber-600" }],
+  ClosedOverdue: [],
 };
 
 export default function IssueDetailPage() {
@@ -46,7 +51,6 @@ export default function IssueDetailPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   const user = useAuthStore((state) => state.user);
-  const isAuditor = isAuditorUser(user?.role_id);
 
   const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: id });
 
@@ -70,8 +74,6 @@ export default function IssueDetailPage() {
     onError: () => toast.error("Gagal memperbarui status"),
   });
 
-
-
   const deleteMutation = useMutation({
     mutationFn: (photoId: string) => issueApi.deletePhoto(id, photoId),
     onSuccess: () => {
@@ -80,8 +82,6 @@ export default function IssueDetailPage() {
     },
     onError: () => toast.error("Gagal menghapus foto"),
   });
-
-
 
   const issue = data?.data;
   const photos: IssuePhoto[] = photosData?.data || [];
@@ -98,38 +98,57 @@ export default function IssueDetailPage() {
 
   if (!issue) return <div className="text-center p-10 text-muted-foreground">Temuan tidak ditemukan.</div>;
 
-  const config = statusConfig[issue.issue_status as IssueStatus];
+  // Role calculation AFTER issue is safely loaded
+  const isAuditorByRole = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
+  const isAuditor = isAuditorByRole;
+  const isPIC = !isAuditor;
+
+  // Status calculation
+  const rawStatus = issue.issue_status as IssueStatus;
+  const currentStatus = (issue.computed_status || issue.issue_status) as IssueStatus;
+  const isPendingValidation = rawStatus === "PendingValidation" || currentStatus === "PendingValidation";
+
+  const config = statusConfig[currentStatus] || statusConfig[rawStatus] || statusConfig["Open"];
   const StatusIcon = config.icon;
-  let transitions = STATUS_TRANSITIONS[issue.issue_status as IssueStatus] || [];
-  
-  // Auditee hanya boleh "Mulai Kerjakan" dan "Minta Validasi"
-  if (!isAuditor) {
-    transitions = transitions.filter(t => t.next === "InProgress" || t.next === "PendingValidation");
+  let transitions = STATUS_TRANSITIONS[currentStatus] || STATUS_TRANSITIONS[rawStatus] || [];
+
+  // Filter transition buttons based on role (PIC vs Auditor)
+  if (isPIC) {
+    if (rawStatus === "Open" || rawStatus === "Overdue" || rawStatus === "OpenOverdue") {
+      transitions = transitions.filter(t => t.next === "InProgress");
+    } else if (rawStatus === "InProgress") {
+      transitions = transitions.filter(t => t.next === "Closed");
+    } else {
+      // Closed, Verified: Auditee cannot perform status changes
+      transitions = [];
+    }
+  } else if (isPendingValidation) {
+    // For Auditor during PendingValidation, approval/rejection buttons are displayed in the dedicated purple banner below
+    transitions = [];
   }
 
   // Hak akses edit untuk Auditee
-  const isWorkStarted = issue.issue_status === "InProgress";
-  const canAuditeeEdit = !isAuditor && isWorkStarted;
-  const canAuditeeUploadFollowUp = isAuditor || isWorkStarted;
+  const isWorkStarted = rawStatus === "InProgress";
+  const canAuditeeEdit = isPIC && isWorkStarted;
+  const canAuditeeUploadFollowUp = !isPIC || isWorkStarted;
 
   const dueDate = issue.due_date ? new Date(issue.due_date) : null;
 
   const handleStatusTransition = (nextStatus: IssueStatus) => {
-    // Validasi khusus untuk Auditee saat meminta validasi
-    if (!isAuditor && nextStatus === "PendingValidation") {
+    // Validasi khusus untuk PIC/Auditee saat menyelesaikan temuan
+    if (isPIC && nextStatus === "Closed") {
       if (issue.needs_wo_wr) {
         if (!issue.wo_id && !issue.wr_id) {
           toast.error("Gagal: Anda harus menginput Nomor WO / WR dan menyimpannya terlebih dahulu.");
           return;
         }
         if (followUpPhotos.length === 0) {
-          toast.error("Gagal: Anda harus mengunggah setidaknya 1 bukti Foto Follow-Up perbaikan WO/WR.");
+          toast.error("Gagal: Anda harus mengunggah setidaknya 1 bukti Foto Follow-Up perbaikan WO/WR terlebih dahulu.");
           return;
         }
       } else {
-         // Jika tidak butuh WO/WR, kita juga bisa set opsional wajib foto
-         if (followUpPhotos.length === 0) {
-          toast.error("Gagal: Anda harus mengunggah bukti Foto Follow-Up penyelesaian temuan.");
+        if (followUpPhotos.length === 0) {
+          toast.error("Gagal: Anda harus mengunggah bukti Foto Follow-Up penyelesaian temuan terlebih dahulu.");
           return;
         }
       }
@@ -143,7 +162,7 @@ export default function IssueDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="../">
+          <Link href="../issues">
             <Button variant="ghost" size="icon" className="rounded-full">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -177,12 +196,54 @@ export default function IssueDetailPage() {
         )}
       </div>
 
-      {/* Auditee Banner Warning if Work Not Started */}
-      {!isAuditor && (issue.issue_status === "Open" || issue.issue_status === "Overdue") && (
-        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-sm font-medium">
-            <span>Silakan klik tombol <strong>&quot;Mulai Kerjakan&quot;</strong> di kanan atas terlebih dahulu untuk mengaktifkan pengisian WO/WR dan pengunggahan Foto Follow-Up.</span>
+      {/* ── Auditor: Pending Validation Banner ─────────────────────────── */}
+      {!isPIC && isPendingValidation && (
+        <div className="p-5 rounded-2xl bg-purple-500/10 border border-purple-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="space-y-1">
+            <h4 className="font-bold text-sm text-purple-700 dark:text-purple-300 flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-500" />
+              </span>
+              Temuan Ini Membutuhkan Validasi Anda
+            </h4>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Auditee telah mengajukan bukti perbaikan. Tinjau foto &amp; informasi di bawah lalu pilih tindakan:
+            </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold shadow-sm"
+              isLoading={updateMutation.isPending}
+              onClick={() => updateMutation.mutate("InProgress")}
+            >
+              ✕ Tolak — Minta Perbaikan Ulang
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-md"
+              isLoading={updateMutation.isPending}
+              onClick={() => updateMutation.mutate("Closed")}
+            >
+              ✓ Setujui — Tutup Temuan
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── PIC/Auditee: Waiting for Validation Banner ───────────────── */}
+      {isPIC && isPendingValidation && (
+        <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-300">
+          <strong className="font-semibold block mb-0.5 text-sm">⏳ Sedang Menunggu Validasi Auditor</strong>
+          <p className="text-xs">Anda telah mengajukan bukti perbaikan. Saat ini temuan sedang ditinjau oleh Auditor.</p>
+        </div>
+      )}
+
+      {/* ── PIC/Auditee: Work Not Started Warning ────────────────────── */}
+      {isPIC && (rawStatus === "Open" || rawStatus === "Overdue" || rawStatus === "OpenOverdue") && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+          <p className="text-sm font-medium">
+            Silakan klik tombol <strong>&quot;Mulai Kerjakan&quot;</strong> di kanan atas terlebih dahulu untuk mengaktifkan pengisian WO/WR dan pengunggahan Foto Follow-Up.
+          </p>
         </div>
       )}
 
@@ -205,6 +266,8 @@ export default function IssueDetailPage() {
           uploadProgress={uploadProgress}
           isAuditor={isAuditor}
           canUploadFollowUp={canAuditeeUploadFollowUp}
+          isClosed={rawStatus === "Closed" || rawStatus === "Verified" || currentStatus === "Closed" || currentStatus === "Verified"}
+          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["issue-photos", id] })}
         />
       </div>
 
@@ -224,7 +287,7 @@ export default function IssueDetailPage() {
               <XCircle className="h-7 w-7" />
             </Button>
             <img
-              src={selectedImage}
+              src={formatImageUrl(selectedImage)}
               alt="Preview"
               className="rounded-2xl max-h-[80vh] w-full object-contain"
             />
@@ -249,7 +312,7 @@ function PhotoCard({
   return (
     <div className="relative group overflow-hidden rounded-2xl border border-border bg-muted aspect-square">
       <img
-        src={photo.image_url || "/placeholder.png"}
+        src={formatImageUrl(photo.image_url) || "/placeholder.png"}
         alt={photo.file_name}
         className="h-full w-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
         onClick={onPreview}

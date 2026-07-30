@@ -70,14 +70,16 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-110">
         {/* Header Section */}
         <div className="mb-10 text-center flex flex-col items-center">
-          <img 
-            src="/Logo_Cimory.png" 
-            alt="Cimory Logo" 
-            width={192} 
-            height={67} 
-            className="w-48 h-auto object-contain drop-shadow-md brightness-0 invert" 
-            loading="eager"
-          />
+          <div className="mb-4 flex items-center justify-center">
+            <Image 
+              src="/Logo_Cimory.png" 
+              alt="Cimory Logo" 
+              width={200} 
+              height={80} 
+              priority
+              className="h-12 sm:h-14 w-auto object-contain" 
+            />
+          </div>
           <p className="mt-6 text-sm text-zinc-400 sm:text-base">
             Masuk untuk mengakses dasbor inspeksi Anda
           </p>

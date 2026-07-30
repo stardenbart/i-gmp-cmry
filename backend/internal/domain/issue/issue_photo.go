@@ -25,6 +25,7 @@ type IssuePhoto struct {
 	PhotoType      PhotoType  `gorm:"column:PhotoType;size:20;not null" json:"photo_type"`
 	ImageUrl       string     `gorm:"column:ImageUrl;size:255" json:"image_url"`
 	FileName       string     `gorm:"column:FileName;size:255" json:"file_name"`
+	Keterangan     string     `gorm:"column:Keterangan;size:255" json:"keterangan,omitempty"`
 	FollowUpDate   *time.Time `gorm:"column:FollowUpDate" json:"follow_up_date,omitempty"`
 	JumlahFollowUp *int       `gorm:"column:JumlahFollowUp" json:"jumlah_follow_up,omitempty"`
 	PhotoCreatedAt time.Time  `gorm:"column:PhotoCreatedAt;autoCreateTime" json:"created_at"`
@@ -39,6 +40,7 @@ type UploadPhotoRequest struct {
 	IssueID        string     `json:"issue_id" validate:"required"`
 	PICUserID      string     `json:"pic_user_id" validate:"required"`
 	PhotoType      PhotoType  `json:"photo_type" validate:"required,oneof=Initial FollowUp WOWR"`
+	Keterangan     string     `json:"keterangan"`
 	FollowUpDate   *time.Time `json:"follow_up_date"`
 	JumlahFollowUp *int       `json:"jumlah_follow_up"`
 }
@@ -49,6 +51,7 @@ type IssuePhotoRepository interface {
 	FindByIssueID(issueID string) ([]IssuePhoto, error)
 	FindByID(id string) (*IssuePhoto, error)
 	Create(p *IssuePhoto) error
+	Update(p *IssuePhoto) error
 	Delete(id string) error
 }
 
@@ -57,5 +60,6 @@ type IssuePhotoRepository interface {
 type IssuePhotoUseCase interface {
 	GetByIssueID(issueID string) ([]IssuePhoto, error)
 	Upload(ctx context.Context, req *UploadPhotoRequest, fileReader io.Reader, fileSize int64, originalFileName, contentType string) (*IssuePhoto, error)
+	Update(ctx context.Context, photoID string, keterangan string) (*IssuePhoto, error)
 	Delete(ctx context.Context, id string) error
 }

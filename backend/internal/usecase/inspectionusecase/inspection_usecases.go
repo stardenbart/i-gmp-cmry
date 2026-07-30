@@ -19,6 +19,7 @@ type inspectionHeaderUseCase struct {
 	repo              inspection.InspectionHeaderRepository
 	producer          kafka.EventProducer
 	detailKawasanRepo master.DetailKawasanRepository
+	kawasanRepo       master.KawasanRepository
 	emailNotifier     *InspectionEmailNotifier
 }
 
@@ -26,12 +27,14 @@ func NewInspectionHeaderUseCase(
 	repo inspection.InspectionHeaderRepository,
 	producer kafka.EventProducer,
 	detailKawasanRepo master.DetailKawasanRepository,
+	kawasanRepo master.KawasanRepository,
 	emailNotifier *InspectionEmailNotifier,
 ) inspection.InspectionHeaderUseCase {
 	return &inspectionHeaderUseCase{
 		repo:              repo,
 		producer:          producer,
 		detailKawasanRepo: detailKawasanRepo,
+		kawasanRepo:       kawasanRepo,
 		emailNotifier:     emailNotifier,
 	}
 }
@@ -61,33 +64,20 @@ func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.Cr
 		return nil, errors.New("detail kawasan ini sudah selesai diinspeksi pada bulan ini, anda baru bisa melakukan inspeksi lagi bulan depan")
 	}
 
-	// 1. Cek apakah auditor punya inspeksi aktif di kawasan lain
-	activeByMe, err := uc.repo.FindActiveByInspector(inspectorID)
-	if err == nil && len(activeByMe) > 0 {
-		for _, a := range activeByMe {
-			if a.KawasanID != req.KawasanID {
-				return nil, errors.New("anda memiliki inspeksi aktif di kawasan lain, harap selesaikan terlebih dahulu")
+	// 1. Cek apakah ada inspeksi aktif (Draft/Ongoing) di detail kawasan ini (oleh siapapun)
+	activeInDK, err := uc.repo.FindActiveByDetailKawasan(req.DetailKawasanID)
+	if err == nil && len(activeInDK) > 0 {
+		for _, a := range activeInDK {
+			if a.InspectorID == inspectorID {
+				// Re-use inspeksi aktif milik inspector yang sama
+				return &a, nil
 			}
+			// Auditor lain sedang mengerjakan detail kawasan ini → tolak
+			return nil, errors.New("detail kawasan ini sedang diinspeksi oleh auditor lain, harap tunggu sampai inspeksi selesai")
 		}
 	}
 
-	// 2. Cek apakah ada auditor lain yang sedang inspeksi detail kawasan ini
-	activeInKawasan, err := uc.repo.FindActiveByDetailKawasan(req.DetailKawasanID)
-	var sessionID string
-	if err == nil && len(activeInKawasan) > 0 {
-		for _, a := range activeInKawasan {
-			if a.InspectorID != inspectorID {
-				return nil, errors.New("kawasan ini sedang diinspeksi oleh auditor lain")
-			}
-			if a.SessionID != nil {
-				sessionID = *a.SessionID
-			}
-		}
-	}
-
-	if sessionID == "" {
-		sessionID = idgen.Generate(idgen.PrefixSession)
-	}
+	sessionID := idgen.Generate(idgen.PrefixSession)
 
 	h := &inspection.InspectionHeader{
 		InspectionID:           idgen.Generate(idgen.PrefixInspection),
@@ -95,7 +85,7 @@ func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.Cr
 		KawasanID:              req.KawasanID,
 		DetailKawasanID:        req.DetailKawasanID,
 		InspectorID:            inspectorID,
-		InspectionHeaderStatus: inspection.InspectionStatusDraft,
+		InspectionHeaderStatus: inspection.InspectionStatusOngoing,
 		SessionID:              &sessionID,
 		LockedAt:               &now,
 	}
@@ -123,6 +113,12 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 	if err != nil {
 		return nil, errors.New("inspection not found")
 	}
+
+	// Reject setting status back to Draft
+	if req.Status == inspection.InspectionStatusDraft {
+		return nil, errors.New("status inspeksi tidak dapat diubah kembali ke Draft")
+	}
+
 	h.InspectionHeaderStatus = req.Status
 	err = uc.repo.Update(h)
 	if err == nil {
@@ -139,8 +135,16 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditInspections, h.InspectionID, event)
 
-		// Check area progress if status is Completed
+		// Record LastInspection timestamp on DetailKawasan & Kawasan when Completed
 		if h.InspectionHeaderStatus == inspection.InspectionStatusCompleted {
+			now := time.Now()
+			if uc.detailKawasanRepo != nil {
+				_ = uc.detailKawasanRepo.UpdateLastInspection(h.DetailKawasanID, now)
+			}
+			if uc.kawasanRepo != nil {
+				_ = uc.kawasanRepo.UpdateLastInspection(h.KawasanID, now)
+			}
+
 			progress, _ := CalculateAreaStatus(h.AreaID, uc.detailKawasanRepo, uc.repo)
 			if progress.Status == inspection.AreaStatusConfirmed {
 				// Send email summary
@@ -183,10 +187,21 @@ func (uc *inspectionResultUseCase) GetByID(id string) (*inspection.InspectionRes
 }
 
 func (uc *inspectionResultUseCase) BulkSave(req *inspection.BulkSaveResultRequest) error {
+	// Load existing results so we can re-use their ResultIDs (upsert by UraianID)
+	existing, _ := uc.repo.FindByInspectionID(req.InspectionID)
+	existingMap := make(map[string]string, len(existing)) // uraianID -> resultID
+	for _, e := range existing {
+		existingMap[e.UraianID] = e.ResultID
+	}
+
 	var results []inspection.InspectionResult
 	for _, r := range req.Results {
+		resultID := existingMap[r.UraianID]
+		if resultID == "" {
+			resultID = idgen.Generate(idgen.PrefixResult)
+		}
 		results = append(results, inspection.InspectionResult{
-			ResultID:     idgen.Generate(idgen.PrefixResult),
+			ResultID:     resultID,
 			InspectionID: req.InspectionID,
 			UraianID:     r.UraianID,
 			Checking:     r.Checking,

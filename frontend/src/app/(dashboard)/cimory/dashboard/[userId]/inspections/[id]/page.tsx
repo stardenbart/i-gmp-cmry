@@ -1,11 +1,22 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
-import { ArrowLeft, Save, CheckCircle2, FileDown } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  ArrowUp,
+  CheckCircle2,
+  FileDown,
+  Trash2,
+  Edit,
+  Play,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,40 +26,59 @@ import { issueApi } from "@/lib/api/issue.api";
 import { picApi } from "@/lib/api/pic.api";
 import { useAuditorGuard } from "@/lib/useAdminGuard";
 import { useAuthStore } from "@/stores/authStore";
-import Image from "next/image";
-import { useEffect, useState } from "react";
-
-function ImagePreview({ file }: { file: File }) {
-  const [preview, setPreview] = useState<string>("");
-
-  useEffect(() => {
-    if (!file) return;
-    if (typeof file === "string") {
-      setPreview(file);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(file);
-    setPreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [file]);
-
-  if (!preview) return null;
-  return (
-    <div className="mb-3 relative h-32 w-48 rounded-xl overflow-hidden border border-border shadow-sm">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-    </div>
-  );
-}
+import {
+  PhotoUploaderWithKeterangan,
+  PhotoItem,
+  dataURLtoFile,
+} from "@/components/Inspection/PhotoUploaderWithKeterangan";
+import { useInspectionDraft } from "@/hooks/useInspectionDraft";
 
 export default function InspectionDetailPage() {
   const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
-  const user = useAuthStore(state => state.user);
-  const { id } = useParams() as { id: string };
+  const user = useAuthStore((state) => state.user);
+  const { id, userId } = useParams() as { id: string; userId: string };
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Per-uraian photo state for NG items: map of uraian_id => PhotoItem[]
+  const [ngPhotosMap, setNgPhotosMap] = useState<Record<string, PhotoItem[]>>({});
+  const ngPhotosMapRef = useRef<Record<string, PhotoItem[]>>({});
+
+  // LocalStorage draft persistence hook
+  const { draftData, saveDraft, clearDraft, hasDraft } = useInspectionDraft(id);
+
+  const isFormInitialized = useRef(false);
+
+  // Reset initialization flag when inspection ID changes
+  useEffect(() => {
+    isFormInitialized.current = false;
+    ngPhotosMapRef.current = {};
+  }, [id]);
+
+  // Data queries
   const { data: inspectionRes, isLoading: isInspectionLoading } = useQuery({
     queryKey: ["inspection", id],
     queryFn: () => inspectionApi.getById(id),
@@ -64,60 +94,165 @@ export default function InspectionDetailPage() {
 
   const { data: picData } = useQuery({
     queryKey: ["pic_mapping", inspection?.area_id, inspection?.kawasan_id],
-    queryFn: () => picApi.getAll({ area_id: inspection?.area_id, kawasan_id: inspection?.kawasan_id }),
+    queryFn: () =>
+      picApi.getAll({ area_id: inspection?.area_id, kawasan_id: inspection?.kawasan_id }),
     enabled: !!inspection?.area_id && !!inspection?.kawasan_id,
   });
 
-  const { register, handleSubmit, watch, formState: { errors }, reset } = useForm();
+  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm();
 
-  // Pre-fill form if checklist has results
+  // Populate form state ONCE when checklist is available (server DB data OR localStorage draft recovery)
   useEffect(() => {
-    if (checklist?.aspeks) {
-      const defaultValues: Record<string, any> = {};
+    if (!checklist?.aspeks || isFormInitialized.current) return;
+
+    const defaultValues: Record<string, any> = {};
+    const photoStateMap: Record<string, PhotoItem[]> = {};
+
+    checklist.aspeks.forEach((aspek: any) => {
+      aspek.details?.forEach((detail: any) => {
+        detail.uraians?.forEach((uraian: any) => {
+          const uId = uraian.uraian_id;
+          
+          // 1. First check if LocalStorage draft exists for this uraian
+          const localDraft = draftData?.results?.[uId];
+          if (localDraft) {
+            if (localDraft.checking === "OK") defaultValues[`nilai_${uId}`] = "2";
+            if (localDraft.checking === "NG") defaultValues[`nilai_${uId}`] = "0";
+            defaultValues[`ket_${uId}`] = localDraft.keterangan || "";
+            if (localDraft.photos && localDraft.photos.length > 0) {
+              const validPhotos = localDraft.photos
+                .filter((p) => p.previewUrl && !p.previewUrl.startsWith("blob:"))
+                .map((p) => ({
+                  id: p.id,
+                  previewUrl: p.previewUrl || "",
+                  keterangan: p.keterangan || "",
+                }));
+              if (validPhotos.length > 0) {
+                photoStateMap[uId] = validPhotos;
+              }
+            }
+          } 
+          // 2. Otherwise use existing server result if available
+          else if (uraian.result) {
+            defaultValues[`nilai_${uId}`] =
+              uraian.result.checking === "OK"
+                ? "2"
+                : uraian.result.checking === "NG"
+                ? "0"
+                : "";
+            defaultValues[`ket_${uId}`] = uraian.result.keterangan || "";
+          }
+        });
+      });
+    });
+
+    reset(defaultValues);
+    if (Object.keys(photoStateMap).length > 0) {
+      ngPhotosMapRef.current = photoStateMap;
+      setNgPhotosMap(photoStateMap);
+    }
+    isFormInitialized.current = true;
+  }, [checklist, draftData, reset]);
+
+  // Auto-save form changes to LocalStorage for recovery
+  const handleFormValueChange = useCallback(
+    (formValues: any) => {
+      if (!isFormInitialized.current || !checklist?.aspeks || inspection?.status === "Completed") return;
+
+      const draftResults: Record<string, any> = {};
       checklist.aspeks.forEach((aspek: any) => {
-        aspek.details.forEach((detail: any) => {
-          detail.uraians.forEach((uraian: any) => {
-            if (uraian.result) {
-              defaultValues[`nilai_${uraian.uraian_id}`] = uraian.result.checking === "OK" ? "2" : (uraian.result.checking === "NG" ? "0" : "");
-              defaultValues[`ket_${uraian.uraian_id}`] = uraian.result.keterangan || "";
+        aspek.details?.forEach((detail: any) => {
+          detail.uraians?.forEach((uraian: any) => {
+            const uId = uraian.uraian_id;
+            const val = formValues[`nilai_${uId}`];
+            const ket = formValues[`ket_${uId}`];
+            const photos = ngPhotosMapRef.current[uId] || [];
+
+            if (val) {
+              draftResults[uId] = {
+                checking: val === "2" ? "OK" : "NG",
+                nilai: parseInt(val, 10),
+                keterangan: ket || "",
+                photos: photos.map((p) => ({
+                  id: p.id,
+                  previewUrl: p.previewUrl,
+                  keterangan: p.keterangan,
+                })),
+              };
             }
           });
         });
       });
-      reset(defaultValues);
-    }
-  }, [checklist, reset]);
 
-  const processSubmit = async (formData: any, finalize: boolean) => {
+      saveDraft(draftResults);
+    },
+    [checklist, inspection?.status, saveDraft]
+  );
+
+  // Subscribe to form input changes for auto-save (prevents infinite re-renders)
+  useEffect(() => {
+    if (!isFormInitialized.current) return;
+    const subscription = watch((values) => {
+      handleFormValueChange(values);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, handleFormValueChange]);
+
+  // Handler for photo updates per NG item
+  const handlePhotosChange = (uraianId: string, photos: PhotoItem[]) => {
+    ngPhotosMapRef.current = {
+      ...ngPhotosMapRef.current,
+      [uraianId]: photos,
+    };
+    setNgPhotosMap({ ...ngPhotosMapRef.current });
+    const currentFormValues = watch();
+    handleFormValueChange(currentFormValues);
+  };
+
+  // Submit Final ("Selesaikan Audit")
+  const onFinalSubmit = async (formData: any) => {
     if (!checklist?.aspeks || !inspection) return;
-    setIsSaving(true);
-    
-    // 1. Build Bulk Save Payload
+
+    // Validate that all uraians are answered
+    let unansweredCount = 0;
+    let missingPhotoInfoCount = 0;
+
     const resultsPayload: any[] = [];
-    const ngUraians: any[] = []; // Collect NG items for issue creation
+    const ngUraianTasks: { uraian: any; keterangan: string; photos: PhotoItem[] }[] = [];
 
     checklist.aspeks.forEach((aspek: any) => {
-      aspek.details.forEach((detail: any) => {
-        detail.uraians.forEach((uraian: any) => {
-          const val = formData[`nilai_${uraian.uraian_id}`];
-          const ket = formData[`ket_${uraian.uraian_id}`];
-          const photo = formData[`photo_${uraian.uraian_id}`];
+      aspek.details?.forEach((detail: any) => {
+        detail.uraians?.forEach((uraian: any) => {
+          const uId = uraian.uraian_id;
+          const val = formData[`nilai_${uId}`];
+          const ket = formData[`ket_${uId}`];
+          const photos = ngPhotosMap[uId] || [];
 
-          if (val) {
+          if (!val) {
+            unansweredCount++;
+          } else {
             const checking = val === "2" ? "OK" : "NG";
             resultsPayload.push({
-              uraian_id: uraian.uraian_id,
-              checking: checking,
+              uraian_id: uId,
+              checking,
               nilai: parseInt(val, 10),
               keterangan: ket || "",
             });
 
-            if (checking === "NG" && !uraian.result) {
-              // Only create issue if it wasn't already created (we assume no result means not created yet)
-              ngUraians.push({
+            if (checking === "NG") {
+              // Validate photos and per-photo keterangan
+              if (photos.length === 0) {
+                missingPhotoInfoCount++;
+              }
+              const hasEmptyPhotoKet = photos.some((p) => !p.keterangan.trim());
+              if (hasEmptyPhotoKet) {
+                missingPhotoInfoCount++;
+              }
+
+              ngUraianTasks.push({
                 uraian,
-                keterangan: ket || "",
-                photo: photo?.[0]
+                keterangan: photos[0]?.keterangan || ket || "Temuan NG pada inspeksi",
+                photos,
               });
             }
           }
@@ -125,92 +260,139 @@ export default function InspectionDetailPage() {
       });
     });
 
+    if (unansweredCount > 0) {
+      toast.error(`Harap isi semua uraian penilaian (${unansweredCount} uraian belum dinilai).`);
+      return;
+    }
+
+    if (missingPhotoInfoCount > 0) {
+      toast.error("Setiap item NG wajib memiliki minimal 1 foto bukti DAN keterangan spesifik per foto.");
+      return;
+    }
+
+    setIsSaving(true);
+
     try {
-      if (resultsPayload.length > 0) {
-        // Bulk save
-        const bulkRes = await inspectionApi.bulkSaveResults(id, resultsPayload);
+      // 1. Bulk Save Results to DB
+      await inspectionApi.bulkSaveResults(id, resultsPayload);
 
-        // Find the PIC for issues
-        const picUserId = picData?.items?.[0]?.user_id || "";
+      // 2. Process NG Issues & Upload Photos with Per-Photo Keterangan
+      const picUserId = picData?.items?.[0]?.user_id || user?.id || "";
 
-        // Wait, BulkSave doesn't return the new result IDs easily because they are generated.
-        // Actually, if we just want to create an Issue, we need a result_id. 
-        // Let's assume the backend will return the saved results or we just fetch again.
-        // For now, if we create an issue, we can pass a dummy result_id if the API allows, or we need the real one.
-        // Let's refetch to get real result IDs if we have NGs, or wait for the backend to return them.
-        
-        // As a workaround, we can fetch the checklist again to get the Result IDs, then create issues.
-        if (ngUraians.length > 0 && picUserId) {
-           const updatedChecklistRes = await inspectionApi.getChecklist(id);
-           const updatedChecklist = updatedChecklistRes?.data;
-           
-           for (const ng of ngUraians) {
-              let savedResultId = "";
-              // Find result id
-              updatedChecklist?.aspeks?.forEach((a: any) => {
-                a.details?.forEach((d: any) => {
-                  d.uraians?.forEach((u: any) => {
-                    if (u.uraian_id === ng.uraian.uraian_id && u.result) {
-                      savedResultId = u.result.result_id;
-                    }
-                  })
-                })
+      if (ngUraianTasks.length > 0) {
+        // Re-fetch checklist to obtain generated Result IDs
+        const updatedChecklistRes = await inspectionApi.getChecklist(id);
+        const updatedChecklist = updatedChecklistRes?.data;
+
+        for (const task of ngUraianTasks) {
+          let savedResultId = "";
+          updatedChecklist?.aspeks?.forEach((a: any) => {
+            a.details?.forEach((d: any) => {
+              d.uraians?.forEach((u: any) => {
+                if (u.uraian_id === task.uraian.uraian_id && u.result) {
+                  savedResultId = u.result.result_id;
+                }
               });
+            });
+          });
 
-              if (savedResultId) {
-                // Create Issue
-                const issueRes = await issueApi.create({
-                  result_id: savedResultId,
-                  issue_pic_user_id: picUserId,
-                  keterangan: ng.keterangan
-                });
-                
-                // Upload Photo
-                if (ng.photo && issueRes?.data?.issue_id) {
+          if (savedResultId) {
+            // Create Issue
+            const issueRes = await issueApi.create({
+              result_id: savedResultId,
+              issue_pic_user_id: picUserId,
+              keterangan: task.keterangan || "Temuan NG pada inspeksi",
+            });
+
+            const createdIssueId = issueRes?.data?.issue_id;
+
+            // Upload each photo with its dedicated keterangan
+            if (createdIssueId && task.photos.length > 0) {
+              for (const photoItem of task.photos) {
+                let photoFile = photoItem.file;
+                if (!photoFile && photoItem.previewUrl?.startsWith("data:")) {
+                  photoFile = dataURLtoFile(photoItem.previewUrl, `photo_${Date.now()}.jpg`);
+                }
+                if (photoFile && photoFile.size > 0) {
                   const fd = new FormData();
-                  fd.append("photo", ng.photo);
+                  fd.append("photo", photoFile);
                   fd.append("photo_type", "Initial");
-                  await issueApi.uploadPhoto(issueRes.data.issue_id, fd);
+                  fd.append("keterangan", photoItem.keterangan || "");
+                  await issueApi.uploadPhoto(createdIssueId, fd);
                 }
               }
-           }
+            }
+          }
         }
       }
 
-      if (finalize) {
-        await inspectionApi.updateStatus(id, "Completed");
-        toast.success("Inspeksi berhasil diselesaikan!");
-        window.location.reload();
-      } else {
-        await queryClient.invalidateQueries({ queryKey: ["inspection", id] });
-        await queryClient.invalidateQueries({ queryKey: ["inspection_checklist", id] });
-        toast.success("Draft inspeksi berhasil disimpan!");
-      }
+      // 3. Update Inspection Status to Completed
+      await inspectionApi.updateStatus(id, "Completed");
+
+      // 4. Clear LocalStorage draft
+      clearDraft();
+
+      toast.success("Inspeksi berhasil diselesaikan!");
+      await queryClient.invalidateQueries({ queryKey: ["inspection", id] });
+      await queryClient.invalidateQueries({ queryKey: ["inspection_checklist", id] });
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Terjadi kesalahan saat menyimpan");
+      toast.error(err.response?.data?.message || "Gagal menyelesaikan inspeksi");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const onSubmitChecklist = async (formData: any) => {
-    await processSubmit(formData, false);
+  // Handler for "Batalkan Inspeksi"
+  const handleCancelInspection = async () => {
+    try {
+      setIsCanceling(true);
+      await inspectionApi.delete(id);
+      clearDraft();
+      toast.success("Inspeksi telah dibatalkan dan kunci lokasi dilepas.");
+      router.push(`/cimory/dashboard/${userId}/inspections`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Gagal membatalkan inspeksi");
+    } finally {
+      setIsCanceling(false);
+      setShowCancelDialog(false);
+    }
   };
 
-  const handleSubmitFinal = handleSubmit(async (formData: any) => {
-    await processSubmit(formData, true);
-  });
+  // Handler for "Edit Inspeksi" (Re-open Completed inspection to Ongoing)
+  const handleReopenForEdit = async () => {
+    try {
+      setIsReopening(true);
+      await inspectionApi.updateStatus(id, "Ongoing");
+      // Reset form init flag so useEffect repopulates from server data (not stale draft)
+      isFormInitialized.current = false;
+      ngPhotosMapRef.current = {};
+      clearDraft(); // clear any stale localStorage draft
+      toast.success("Inspeksi dibuka kembali untuk diedit.");
+      await queryClient.invalidateQueries({ queryKey: ["inspection", id] });
+      await queryClient.invalidateQueries({ queryKey: ["inspection_checklist", id] });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Gagal mengedit inspeksi");
+    } finally {
+      setIsReopening(false);
+    }
+  };
 
+  // Excel Export Handler
   const handleExport = async () => {
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/inspections/${id}/export`, {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const token = localStorage.getItem("auth-storage")
+        ? JSON.parse(localStorage.getItem("auth-storage")!).state.token
+        : "";
+
+      const res = await fetch(`${backendUrl}/api/v1/inspections/${id}/export`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("auth-storage") ? JSON.parse(localStorage.getItem("auth-storage")!).state.token : ""}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
-      
+
       if (!res.ok) throw new Error("Export failed");
-      
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -220,14 +402,13 @@ export default function InspectionDetailPage() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      
-      toast.success("Berhasil mengekspor data");
+
+      toast.success("Berhasil mengekspor laporan Excel");
     } catch (err) {
-      toast.error("Gagal mengekspor laporan excel");
+      toast.error("Gagal mengekspor laporan Excel");
     }
   };
 
-  // Show spinner while: guard is loading, user store not yet hydrated, or data is loading
   if (isGuardLoading || !user || isInspectionLoading || isChecklistLoading) {
     return (
       <div className="flex justify-center p-8">
@@ -236,27 +417,41 @@ export default function InspectionDetailPage() {
     );
   }
 
-  if (!isAuditor) return (
-    <div className="flex justify-center items-center p-12 text-muted-foreground">
-      Anda tidak memiliki akses ke halaman ini.
-    </div>
+  if (!isAuditor) {
+    return (
+      <div className="flex justify-center items-center p-12 text-muted-foreground">
+        Anda tidak memiliki akses ke halaman ini.
+      </div>
+    );
+  }
+
+  if (!inspection) return <div className="p-8 text-center text-muted-foreground">Data inspeksi tidak ditemukan</div>;
+
+  const currentUserId = user?.id;
+  const isInspectorOwner = !!currentUserId && (inspection.inspector_id === currentUserId);
+  const isCompleted = inspection.status === "Completed" || inspection.status === "Approved";
+  const isOngoing = inspection.status === "Ongoing";
+  const isReadOnly = isCompleted || !isInspectorOwner;
+
+  const statusClass = isCompleted
+    ? "bg-green-500/10 text-green-600 border border-green-500/20"
+    : isOngoing
+    ? "bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse"
+    : "bg-zinc-500/10 text-zinc-500 border border-zinc-500/20";
+
+  // Check if checklist has any saved results (meaning it was submitted/completed before)
+  const hasExistingResults = checklist?.aspeks?.some((a: any) =>
+    a.details?.some((d: any) =>
+      d.uraians?.some((u: any) => !!u.result)
+    )
   );
-  if (!inspection) return <div>Data tidak ditemukan</div>;
-
-  const statusClass =
-    inspection.status === "Completed"
-      ? "bg-green-500/10 text-green-500"
-      : inspection.status === "Ongoing"
-      ? "bg-blue-500/10 text-blue-500"
-      : "bg-zinc-500/10 text-zinc-500";
-
-  const isCompleted = inspection.status === "Completed";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="../">
+          <Link href={`/cimory/dashboard/${userId}/inspections`}>
             <Button variant="ghost" size="icon" className="rounded-full">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -264,62 +459,186 @@ export default function InspectionDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold tracking-tight">Detail Inspeksi</h2>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}>
-                {inspection.status}
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusClass}`}>
+                {isOngoing ? "● Ongoing (Sedang Berlangsung)" : inspection.status}
               </span>
             </div>
-            <p className="text-muted-foreground text-sm font-mono mt-1">
-              ID: {inspection.inspection_id}
+            <p className="text-xs text-muted-foreground mt-1">
+              ID: <span className="font-mono">{inspection.inspection_id}</span> · Dibuat oleh{" "}
+              <strong className="text-foreground">{inspection.inspector_name || inspection.inspector_id}</strong>
             </p>
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button onClick={handleExport} variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
-            <FileDown className="mr-2 h-4 w-4" /> Export Excel
-          </Button>
-
-          {inspection.status !== "Completed" && (
-            <Button 
-              onClick={handleSubmitFinal} 
-              disabled={isSaving}
-              className="bg-green-600 hover:bg-green-700 text-white"
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {/* If Completed, show "Edit Inspeksi" button */}
+          {isCompleted && isInspectorOwner && (
+            <Button
+              onClick={handleReopenForEdit}
+              disabled={isReopening}
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/5"
             >
-              <CheckCircle2 className="mr-2 h-4 w-4" /> 
-              {isSaving ? "Menyimpan..." : "Selesaikan Audit"}
+              {isReopening ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Edit className="mr-2 h-4 w-4" />
+              )}
+              Edit Inspeksi
             </Button>
+          )}
+
+          {/* If Ongoing and is owner */}
+          {isOngoing && isInspectorOwner && (
+            <>
+              {/* Show "Batal Edit" if it has existing results, otherwise show "Batalkan Inspeksi" (delete) */}
+              {hasExistingResults ? (
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      setIsSaving(true);
+                      await inspectionApi.updateStatus(id, "Completed");
+                      clearDraft();
+                      toast.info("Perubahan dibatalkan. Status dikembalikan ke Selesai.");
+                      await queryClient.invalidateQueries({ queryKey: ["inspection", id] });
+                    } catch (err: any) {
+                      toast.error("Gagal membatalkan edit");
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                  disabled={isSaving}
+                  className="border-muted-foreground/40 text-muted-foreground hover:bg-muted"
+                >
+                  Batal Edit
+                </Button>
+              ) : (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowCancelDialog(true)}
+                  disabled={isSaving || isCanceling}
+                  className="bg-red-600 hover:bg-red-700 text-white font-medium"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Batalkan Inspeksi
+                </Button>
+              )}
+
+              <Button
+                onClick={handleSubmit(onFinalSubmit)}
+                disabled={isSaving || isCanceling}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold shadow-md px-5"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menyimpan...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" /> Selesaikan Audit
+                  </>
+                )}
+              </Button>
+            </>
           )}
         </div>
       </div>
 
+      {/* Ongoing Lock Status Notice Banner */}
+      {isOngoing && isInspectorOwner && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3 shadow-xs">
+          <div className="rounded-full bg-amber-500/20 p-2 text-amber-600 shrink-0">
+            <Play className="h-5 w-5 fill-current" />
+          </div>
+          <div className="space-y-1 text-xs">
+            <div className="font-bold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
+              <span>Inspeksi Sedang Berlangsung & Lokasi Terkunci</span>
+              {hasDraft && (
+                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-label-sm text-amber-700 dark:text-amber-300 font-mono">
+                  [Draft lokal dipulihkan]
+                </span>
+              )}
+            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              Lokasi <strong className="text-foreground">{inspection.kawasan_name}</strong> -{" "}
+              <strong className="text-foreground">{inspection.detail_kawasan_name}</strong> sedang dikunci untuk Anda. 
+              Isian Anda otomatis tersimpan di memori browser. Klik tombol <strong>"Selesaikan Audit"</strong> untuk menyimpan hasil secara permanen ke database.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Read-Only Notice Banner if opened by another user */}
+      {isOngoing && !isInspectorOwner && (
+        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 flex items-start gap-3 shadow-xs">
+          <div className="rounded-full bg-blue-500/20 p-2 text-blue-600 shrink-0">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="space-y-1 text-xs">
+            <div className="font-bold text-blue-700 dark:text-blue-400 text-sm flex items-center gap-2">
+              <span>Inspeksi Sedang Dikerjakan oleh {inspection.inspector_name || "Auditor Lain"} (Mode Read-Only)</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              Lokasi <strong className="text-foreground">{inspection.kawasan_name}</strong> -{" "}
+              <strong className="text-foreground">{inspection.detail_kawasan_name}</strong> saat ini sedang diinspeksi oleh{" "}
+              <strong className="text-foreground">{inspection.inspector_name || "Auditor Lain"}</strong>. Anda hanya memiliki akses lihat data dalam mode Read-Only.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Grid Content */}
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-1 h-fit sticky top-24">
-          <h3 className="font-semibold mb-4 border-b border-border pb-2">Informasi Area</h3>
-          <div className="space-y-3 text-sm">
+        {/* Info Card */}
+        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-1 h-fit sticky top-24 shadow-sm border-border/80">
+          <h3 className="font-bold text-base mb-4 border-b border-border pb-2 flex items-center justify-between">
+            <span>Informasi Area</span>
+            <span className="text-xs text-muted-foreground font-normal">Audit Session</span>
+          </h3>
+          <div className="space-y-3.5 text-sm">
             <div>
-              <span className="text-muted-foreground block text-xs">Area</span>
-              <span className="font-medium">{inspection.area_name || inspection.area_id}</span>
+              <span className="text-muted-foreground block text-xs font-medium">Area</span>
+              <span className="font-semibold text-foreground">{inspection.area_name || inspection.area_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-xs">Kawasan</span>
-              <span className="font-medium">{inspection.kawasan_name || inspection.kawasan_id}</span>
+              <span className="text-muted-foreground block text-xs font-medium">Kawasan</span>
+              <span className="font-semibold text-foreground">{inspection.kawasan_name || inspection.kawasan_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-xs">Detail Kawasan</span>
-              <span className="font-medium">{inspection.detail_kawasan_name || inspection.detail_kawasan_id}</span>
+              <span className="text-muted-foreground block text-xs font-medium">Detail Kawasan</span>
+              <span className="font-semibold text-foreground">{inspection.detail_kawasan_name || inspection.detail_kawasan_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-xs">Auditor</span>
-              <span className="font-medium">{inspection.inspector_name || inspection.inspector_id}</span>
+              <span className="text-muted-foreground block text-xs font-medium">Auditor Pelaksana</span>
+              <span className="font-semibold text-foreground">{inspection.inspector_name || inspection.inspector_id}</span>
             </div>
+            {inspection.score !== undefined && inspection.score !== null && (
+              <div className="pt-2 border-t border-border">
+                <span className="text-muted-foreground block text-xs font-medium">Skor Hasil Inspeksi</span>
+                <span className={`text-lg font-bold ${inspection.score >= 80 ? "text-green-600" : "text-amber-600"}`}>
+                  {inspection.score.toFixed(1)}%
+                </span>
+              </div>
+            )}
           </div>
         </Card>
 
-        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-2">
-          <h3 className="font-semibold mb-4 border-b border-border pb-2">Checklist Audit</h3>
+        {/* Checklist Form */}
+        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-sm border-border/80">
+          <h3 className="font-bold text-base mb-4 border-b border-border pb-2 flex items-center justify-between">
+            <span>Checklist Penilaian Audit</span>
+            <span className="text-xs text-muted-foreground font-normal">
+              {checklist?.aspeks?.reduce(
+                (acc: number, a: any) =>
+                  acc + a.details?.reduce((dAcc: number, d: any) => dAcc + (d.uraians?.length || 0), 0),
+                0
+              ) || 0}{" "}
+              Item Pengecekan
+            </span>
+          </h3>
 
-          <form onSubmit={handleSubmit(onSubmitChecklist)} className="space-y-8">
-            
+          <form className="space-y-8">
             {checklist?.aspeks?.length === 0 && (
               <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-2xl border border-border">
                 Belum ada Uraian (Checklist) yang diatur untuk Area ini.
@@ -329,148 +648,102 @@ export default function InspectionDetailPage() {
             {checklist?.aspeks?.map((aspek: any, aIndex: number) => (
               <div key={aspek.aspek_id} className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
                     {aIndex + 1}
                   </div>
-                  <h3 className="text-xl font-bold tracking-tight">{aspek.aspek_name}</h3>
+                  <h3 className="text-lg font-bold tracking-tight text-foreground">{aspek.aspek_name}</h3>
                 </div>
 
                 {aspek.details?.map((detail: any, dIndex: number) => (
-                  <div key={detail.detail_id} className="ml-4 pl-4 border-l-2 border-border space-y-4">
-                    <h4 className="font-semibold text-lg text-primary">{detail.detail_name}</h4>
-                    
+                  <div key={detail.detail_id} className="ml-4 pl-4 border-l-2 border-primary/20 space-y-4">
+                    <h4 className="font-semibold text-base text-primary">{detail.detail_name}</h4>
+
                     <div className="space-y-4 mt-4">
                       {detail.uraians?.map((uraian: any, uIndex: number) => {
-                        const isNG = watch(`nilai_${uraian.uraian_id}`) === "0";
-                        const hasExistingResult = !!uraian.result;
-                        
+                        const uId = uraian.uraian_id;
+                        const isNG = watch(`nilai_${uId}`) === "0";
+
                         return (
-                          <div key={uraian.uraian_id} className="p-4 rounded-2xl border border-border bg-background/50 shadow-sm transition-all hover:shadow-md">
-                            <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
+                          <div
+                            key={uId}
+                            className={`p-4 rounded-2xl border transition-all ${
+                              isNG
+                                ? "border-destructive/30 bg-destructive/5"
+                                : watch(`nilai_${uId}`) === "2"
+                                ? "border-green-500/30 bg-green-500/5"
+                                : "border-border bg-card"
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row justify-between gap-4 mb-3">
                               <div>
-                                <h5 className="font-medium">
+                                <h5 className="font-semibold text-sm">
                                   {aIndex + 1}.{dIndex + 1}.{uIndex + 1} Uraian Pengecekan
                                 </h5>
-                                <p className="text-sm text-foreground/80 mt-1">
+                                <p className="text-sm text-foreground/80 mt-1 leading-relaxed">
                                   {uraian.uraian_text}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                            {/* Radio Options: 2 (Aman / OK) vs 0 (Ada Issue / NG) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                               <div className="sm:col-span-2">
-                                <label className="block text-xs font-medium text-muted-foreground mb-2">Uraian Penilaian (Nilai)</label>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-2">
+                                  Penilaian <span className="text-destructive">*</span>
+                                </label>
                                 <div className="flex items-center gap-3">
-                                  <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border transition-all w-full ${isCompleted || hasExistingResult ? 'opacity-50 bg-muted/20' : 'cursor-pointer hover:border-green-500/50 hover:bg-green-500/5'}`}>
-                                    {hasExistingResult || isCompleted ? (
-                                      <input 
-                                        key={`ro_ok_${uraian.uraian_id}`}
-                                        type="radio" 
-                                        name={`nilai_${uraian.uraian_id}`}
-                                        value="2" 
-                                        checked={uraian.result?.checking === "OK"} 
-                                        readOnly
-                                        disabled
-                                        className="accent-green-600 h-4 w-4 disabled:cursor-not-allowed" 
-                                      />
-                                    ) : (
-                                      <input 
-                                        key={`act_ok_${uraian.uraian_id}`}
-                                        type="radio" 
-                                        value="2" 
-                                        {...register(`nilai_${uraian.uraian_id}`, { required: true })}
-                                        className="accent-green-600 h-4 w-4 cursor-pointer" 
-                                      />
-                                    )}
-                                    <span className="font-medium text-green-600">2 - Aman</span>
+                                  <label
+                                    className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl border transition-all w-full ${
+                                      isReadOnly
+                                        ? "opacity-60 cursor-not-allowed bg-muted/20"
+                                        : "cursor-pointer hover:border-green-500/50 hover:bg-green-500/5"
+                                    } ${
+                                      watch(`nilai_${uId}`) === "2"
+                                        ? "border-green-500 bg-green-500/10 font-bold"
+                                        : "border-border"
+                                    }`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      value="2"
+                                      disabled={isReadOnly}
+                                      {...register(`nilai_${uId}`, { required: true })}
+                                      className="accent-green-600 h-4 w-4 cursor-pointer"
+                                    />
+                                    <span className="font-semibold text-green-600">2 - Aman (OK)</span>
                                   </label>
-                                  <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border transition-all w-full ${isCompleted || hasExistingResult ? 'opacity-50 bg-muted/20' : 'cursor-pointer hover:border-red-500/50 hover:bg-red-500/5'}`}>
-                                    {hasExistingResult || isCompleted ? (
-                                      <input 
-                                        key={`ro_ng_${uraian.uraian_id}`}
-                                        type="radio" 
-                                        name={`nilai_${uraian.uraian_id}`}
-                                        value="0" 
-                                        checked={uraian.result?.checking === "NG"} 
-                                        readOnly
-                                        disabled
-                                        className="accent-red-600 h-4 w-4 disabled:cursor-not-allowed" 
-                                      />
-                                    ) : (
-                                      <input 
-                                        key={`act_ng_${uraian.uraian_id}`}
-                                        type="radio" 
-                                        value="0" 
-                                        {...register(`nilai_${uraian.uraian_id}`, { required: true })}
-                                        className="accent-red-600 h-4 w-4 cursor-pointer" 
-                                      />
-                                    )}
-                                    <span className="font-medium text-red-600">0 - Ada Issue</span>
+
+                                  <label
+                                    className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl border transition-all w-full ${
+                                      isReadOnly
+                                        ? "opacity-60 cursor-not-allowed bg-muted/20"
+                                        : "cursor-pointer hover:border-red-500/50 hover:bg-red-500/5"
+                                    } ${
+                                      watch(`nilai_${uId}`) === "0"
+                                        ? "border-red-500 bg-red-500/10 font-bold"
+                                        : "border-border"
+                                    }`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      value="0"
+                                      disabled={isReadOnly}
+                                      {...register(`nilai_${uId}`, { required: true })}
+                                      className="accent-red-600 h-4 w-4 cursor-pointer"
+                                    />
+                                    <span className="font-semibold text-red-600">0 - Ada Issue (NG)</span>
                                   </label>
                                 </div>
-                              </div>
-                              <div className="sm:col-span-2">
-                                <label className="block text-xs font-medium text-muted-foreground mb-2">Keterangan / Temuan</label>
-                                {hasExistingResult || isCompleted ? (
-                                  <Input 
-                                    key={`ro_ket_${uraian.uraian_id}`}
-                                    value={uraian.result?.keterangan || ""} 
-                                    readOnly
-                                    disabled
-                                    className="h-10 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed" 
-                                    placeholder="Tulis catatan detail jika ada issue..." 
-                                  />
-                                ) : (
-                                  <Input 
-                                    key={`act_ket_${uraian.uraian_id}`}
-                                    {...register(`ket_${uraian.uraian_id}`)}
-                                    className="h-10 rounded-xl" 
-                                    placeholder="Tulis catatan detail jika ada issue..." 
-                                  />
-                                )}
                               </div>
                             </div>
 
-                            {/* Show File Uploader if NG and not yet saved */}
-                            {(isNG && !hasExistingResult && !isCompleted) && (
-                              <div className="mt-4 pt-4 border-t border-border/50 animate-in fade-in slide-in-from-top-2">
-                                <label className="block text-xs font-medium text-muted-foreground mb-2">Foto Bukti Temuan (Wajib)</label>
-                                <div className="w-full max-w-xs group">
-                                  {watch(`photo_${uraian.uraian_id}`)?.[0] && (
-                                    <ImagePreview file={watch(`photo_${uraian.uraian_id}`)[0]} />
-                                  )}
-                                  <input 
-                                    type="file" 
-                                    accept="image/*" 
-                                    id={`photo_${uraian.uraian_id}`}
-                                    {...register(`photo_${uraian.uraian_id}`, { required: "Foto bukti wajib diunggah" })} 
-                                    className="hidden" 
-                                  />
-                                  <label htmlFor={`photo_${uraian.uraian_id}`} className={`flex items-center justify-center gap-3 px-4 py-2.5 border rounded-xl transition-colors w-full ${errors[`photo_${uraian.uraian_id}`] ? 'border-red-500 text-red-500 bg-red-500/10 hover:bg-red-500/20' : 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 cursor-pointer'}`}>
-                                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                                    </svg>
-                                    <span className="font-semibold text-sm whitespace-nowrap overflow-hidden text-ellipsis">
-                                      {watch(`photo_${uraian.uraian_id}`)?.[0]?.name || "Pilih Foto Bukti"}
-                                    </span>
-                                  </label>
-                                  {errors[`photo_${uraian.uraian_id}`] && (
-                                    <p className="text-red-500 text-xs mt-2 ml-1">
-                                      {errors[`photo_${uraian.uraian_id}`]?.message as string}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* If NG and already saved, show placeholder indicating issue created */}
-                            {(isNG && hasExistingResult) && (
-                               <div className="mt-4 pt-4 border-t border-border/50">
-                                  <div className="bg-red-500/10 text-red-600 px-4 py-3 rounded-xl border border-red-500/20 text-sm font-medium flex items-center gap-2">
-                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                     Temuan (Issue) telah dicatat.
-                                  </div>
-                               </div>
+                            {/* Multi-Photo Uploader Component for NG Items */}
+                            {isNG && (
+                              <PhotoUploaderWithKeterangan
+                                photos={ngPhotosMap[uId] || []}
+                                onChange={(photos) => handlePhotosChange(uId, photos)}
+                                disabled={isReadOnly}
+                              />
                             )}
                           </div>
                         );
@@ -480,18 +753,70 @@ export default function InspectionDetailPage() {
                 ))}
               </div>
             ))}
-
-            {inspection.status !== "Completed" && (
-              <div className="flex justify-end pt-4">
-                <Button type="submit" variant="outline" disabled={isSaving}>
-                  <Save className="mr-2 h-4 w-4" /> 
-                  {isSaving ? "Menyimpan..." : "Simpan Draft"}
-                </Button>
-              </div>
-            )}
           </form>
         </Card>
       </div>
+
+      {/* Confirmation Dialog for Batalkan Inspeksi */}
+      {showCancelDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-[90vw] sm:w-112.5 shrink-0 rounded-2xl border border-destructive/30 bg-background p-6 shadow-2xl space-y-6 text-foreground">
+            <div className="flex items-start gap-4">
+              <div className="rounded-full bg-destructive/10 p-3 text-destructive shrink-0 mt-0.5">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <h3 className="text-lg font-bold tracking-tight text-foreground">
+                  Batalkan Inspeksi Ini?
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Tindakan ini akan <strong className="text-foreground">menghapus sesi inspeksi</strong> dari database, menghapus seluruh draf lokal di browser Anda, dan <strong className="text-foreground">melepas kunci penguncian lokasi</strong> sehingga kawasan ini dapat diinspeksi kembali.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/60">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCancelDialog(false)}
+                disabled={isCanceling}
+                className="px-4 text-xs font-semibold h-10 rounded-xl"
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleCancelInspection}
+                disabled={isCanceling}
+                className="px-4 bg-destructive hover:bg-destructive/90 text-white text-xs font-semibold h-10 rounded-xl gap-2"
+              >
+                {isCanceling ? (
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                ) : (
+                  <Trash2 className="h-4 w-4 shrink-0" />
+                )}
+                Ya, Batalkan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Floating Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="fixed bottom-28 right-6 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg border border-primary/20 hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all duration-200"
+          title="Ke Atas"
+          aria-label="Scroll ke atas"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      )}
     </div>
   );
 }

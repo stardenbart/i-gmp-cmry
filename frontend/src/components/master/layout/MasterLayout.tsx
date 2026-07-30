@@ -102,6 +102,10 @@ export function MasterLayout() {
       }
     });
 
+    if (activeTab === "urains" && (newData["standard_score"] === undefined || newData["standard_score"] === "")) {
+      newData["standard_score"] = 2;
+    }
+
     if (editingItem) {
       updateMutation.mutate(newData);
     } else {
@@ -154,31 +158,40 @@ export function MasterLayout() {
     const columns: Record<string, { key: string; label: string }[]> = {
       departments: [
         { key: "department_id", label: "ID" },
-        { key: "department_name", label: "Nama" },
+        { key: "department_name", label: "Nama Department" },
       ],
       areas: [
         { key: "area_id", label: "ID" },
-        { key: "area_name", label: "Nama" },
+        { key: "area_name", label: "Nama Area" },
       ],
       kawasans: [
         { key: "kawasan_id", label: "ID" },
-        { key: "kawasan_name", label: "Nama" },
+        { key: "kawasan_name", label: "Nama Kawasan" },
+        { key: "area_name", label: "Area Induk" },
       ],
       "detail-kawasans": [
         { key: "detail_kawasan_id", label: "ID" },
-        { key: "detail_kawasan_name", label: "Nama" },
+        { key: "detail_kawasan_name", label: "Nama Detail Kawasan" },
+        { key: "kawasan_name", label: "Kawasan Induk" },
+        { key: "kawasan_area_name", label: "Area Induk" },
       ],
       aspeks: [
         { key: "aspek_id", label: "ID" },
-        { key: "aspek_name", label: "Nama" },
+        { key: "aspek_name", label: "Nama Aspek" },
+        { key: "area_name", label: "Area Induk" },
       ],
       details: [
         { key: "detail_id", label: "ID" },
-        { key: "detail_name", label: "Nama" },
+        { key: "detail_name", label: "Nama Detail" },
+        { key: "aspek_name", label: "Aspek Induk" },
+        { key: "aspek_area_name", label: "Area Induk" },
       ],
       urains: [
         { key: "uraian_id", label: "ID" },
-        { key: "uraian_text", label: "Uraian" },
+        { key: "uraian_text", label: "Teks Uraian" },
+        { key: "standard_score", label: "Skor Standar" },
+        { key: "detail_name", label: "Detail Induk" },
+        { key: "detail_aspek_name", label: "Aspek Induk" },
       ],
     };
     return columns[activeTab] || [];

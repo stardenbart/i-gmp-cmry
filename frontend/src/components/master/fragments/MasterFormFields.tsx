@@ -162,7 +162,9 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
             <select name="aspek_id" defaultValue={editingItem?.aspek_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Aspek...</option>
               {aspekLookup?.items?.map((a: any) => (
-                <option key={a.aspek_id} value={a.aspek_id}>{a.aspek_name}</option>
+                <option key={a.aspek_id} value={a.aspek_id}>
+                  {a.aspek_name} {a.area?.area_name ? `(Area: ${a.area.area_name})` : ""}
+                </option>
               ))}
             </select>
             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
@@ -187,7 +189,9 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
             <select name="detail_id" defaultValue={editingItem?.detail_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Detail...</option>
               {detailLookup?.items?.map((d: any) => (
-                <option key={d.detail_id} value={d.detail_id}>{d.detail_name}</option>
+                <option key={d.detail_id} value={d.detail_id}>
+                  {d.detail_name} {d.aspek?.aspek_name ? `(Aspek: ${d.aspek.aspek_name})` : ""}
+                </option>
               ))}
             </select>
             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
@@ -202,16 +206,11 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
             required
           />
         </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Skor Standar</label>
-          <Input
-            name="standard_score"
-            type="number"
-            defaultValue={editingItem?.standard_score as number}
-            placeholder="Contoh: 100"
-            required
-          />
-        </div>
+        <input
+          type="hidden"
+          name="standard_score"
+          value={editingItem ? (editingItem.standard_score as number) : 2}
+        />
       </>
     ),
   };

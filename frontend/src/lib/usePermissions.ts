@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
-import { isAdminUser } from "@/lib/useAdminGuard";
+import { isAdminUser, isAuditorUser } from "@/lib/useAdminGuard";
 import { useMounted } from "@/lib/useMounted";
 
 export function usePermissions() {
@@ -12,7 +12,8 @@ export function usePermissions() {
 
   const roleId = user?.role_id;
   const userId = user?.id;
-  const isAdmin = isAdminUser(roleId);
+  const isAdmin = isAdminUser(roleId, user?.role?.role_name);
+  const isAuditor = isAuditorUser(roleId, user?.role?.role_name, user?.username);
 
   // Fetch Role Permissions
   const { data: rolePermsData, isLoading: isRoleLoading } = useQuery({
@@ -39,6 +40,7 @@ export function usePermissions() {
   const hasPermission = (permissionId: string): boolean => {
     if (!user) return false;
     if (isAdmin) return true;
+
     if (isLoading) return false; // pessimistic default while loading to prevent flashes and unauthorized requests
 
     // User override check first

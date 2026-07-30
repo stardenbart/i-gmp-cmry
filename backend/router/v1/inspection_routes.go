@@ -22,13 +22,14 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	resultRepo := inspectionrepo.NewInspectionResultRepository(db)
 
 	detailKawasanRepo := masterrepo.NewDetailKawasanRepository(db)
+	kawasanRepo := masterrepo.NewKawasanRepository(db)
 	picRepo := picrepo.NewPICMappingRepository(db)
 	authRepo := authrepo.NewUserRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
 
 	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, settingRepo)
 
-	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, emailNotifier)
+	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, kawasanRepo, emailNotifier)
 	resultUC := inspectionusecase.NewInspectionResultUseCase(resultRepo)
 
 	// Filter

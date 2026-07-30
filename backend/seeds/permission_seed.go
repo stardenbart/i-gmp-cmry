@@ -45,6 +45,17 @@ var defaultPermissions = []authdomain.Permission{
 
 	// Logging
 	{PermissionID: "PERM-LOG-R", ModuleID: "MOD-LOG", PermissionCode: "READ", PermissionName: "View Logs"},
+
+	// Data Inspeksi (GMP)
+	{PermissionID: "PERM-GMP-R", ModuleID: "MOD-GMP", PermissionCode: "READ", PermissionName: "View GMP Data"},
+
+	// Pengaturan Sistem
+	{PermissionID: "PERM-STNG-R", ModuleID: "MOD-STNG", PermissionCode: "READ", PermissionName: "View Settings"},
+	{PermissionID: "PERM-STNG-U", ModuleID: "MOD-STNG", PermissionCode: "UPDATE", PermissionName: "Update Settings"},
+
+	// Perintah Kerja (WO/WR)
+	{PermissionID: "PERM-WOWR-R", ModuleID: "MOD-WOWR", PermissionCode: "READ", PermissionName: "View Perintah Kerja (WO/WR)"},
+	{PermissionID: "PERM-WOWR-U", ModuleID: "MOD-WOWR", PermissionCode: "UPDATE", PermissionName: "Update / Validasi Bukti WO/WR"},
 }
 
 // SeedPermissions inserts all module permissions and grants default permissions to Admin in Role_Permission table.
@@ -65,11 +76,40 @@ func SeedPermissions(db *gorm.DB) {
 		db.Model(&authdomain.RolePermission{}).Where("\"RoleID\" = ? AND \"PermissionID\" = ?", "ROLE-001", p.PermissionID).Count(&rpCount)
 		if rpCount == 0 {
 			_ = db.Create(&authdomain.RolePermission{
+				RolePermissionID:        "RP-ROLE-001-" + p.PermissionID,
 				RoleID:                  "ROLE-001",
 				PermissionID:            p.PermissionID,
 				IsAllowed:               true,
 				RolePermissionUpdatedBy: "USR-ADMIN-001",
 			})
+		}
+	}
+
+	// Seed default permissions for Non-Admin Roles (Auditor, Auditee, Supervisor, Manager)
+	// Non-Admin roles do NOT get Master Data (PERM-MSTR-R) by default.
+	defaultRolePerms := map[string][]string{
+		"ROLE-002": {"PERM-INSP-C", "PERM-INSP-R", "PERM-INSP-U", "PERM-INSP-A", "PERM-INSP-E", "PERM-ISS-C", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"}, // Auditor
+		"ROLE-003": {"PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"},                                                                                       // Auditee
+		"ROLE-004": {"PERM-INSP-R", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                                     // Supervisor
+		"ROLE-005": {"PERM-INSP-R", "PERM-INSP-E", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                       // Manager
+	}
+
+	// Remove PERM-MSTR-R from non-admin roles if present from previous seeds
+	_ = db.Where("\"RoleID\" IN (?) AND \"PermissionID\" = ?", []string{"ROLE-002", "ROLE-003", "ROLE-004", "ROLE-005"}, "PERM-MSTR-R").Delete(&authdomain.RolePermission{}).Error
+
+	for roleID, permIDs := range defaultRolePerms {
+		for _, permID := range permIDs {
+			var count int64
+			db.Model(&authdomain.RolePermission{}).Where("\"RoleID\" = ? AND \"PermissionID\" = ?", roleID, permID).Count(&count)
+			if count == 0 {
+				_ = db.Create(&authdomain.RolePermission{
+					RolePermissionID:        "RP-" + roleID + "-" + permID,
+					RoleID:                  roleID,
+					PermissionID:            permID,
+					IsAllowed:               true,
+					RolePermissionUpdatedBy: "SYSTEM",
+				})
+			}
 		}
 	}
 }

@@ -80,13 +80,52 @@ export function MasterTable({
                 <tr key={item[idField] as string} className="hover:bg-muted/50 transition-colors">
                   {columns.map((col) => (
                     <td key={col.key} className="px-4 py-3 text-sm">
-                      {col.key === "aspek_weight"
-                        ? `${item[col.key]}%`
-                        : ((item[col.key] as string) ||
-                           (col.key === "department_name" ? (item.department as any)?.department_name : "") ||
-                           (col.key === "area_name" ? (item.area as any)?.area_name : "") ||
-                           (col.key === "kawasan_name" ? (item.kawasan as any)?.kawasan_name : "") ||
-                           "-")}
+                      {(() => {
+                        const raw = item[col.key];
+                        let val = "";
+
+                        if (raw !== undefined && raw !== null && raw !== "") {
+                          val = String(raw);
+                        } else {
+                          // Lookups for 1-level and 2-level parent relations
+                          const lookupMap: Record<string, () => string | undefined> = {
+                            "department_name":   () => (item.department as any)?.department_name,
+                            "area_name":         () => (item.area as any)?.area_name || (item.kawasan as any)?.area?.area_name || (item.aspek as any)?.area?.area_name,
+                            "kawasan_name":      () => (item.kawasan as any)?.kawasan_name,
+                            "aspek_name":        () => (item.aspek as any)?.aspek_name,
+                            "detail_name":       () => (item.detail as any)?.detail_name,
+                            "kawasan_area_name": () => (item.kawasan as any)?.area?.area_name,
+                            "aspek_area_name":   () => (item.aspek as any)?.area?.area_name,
+                            "detail_aspek_name": () => (item.detail as any)?.aspek?.aspek_name,
+                          };
+
+                          val = lookupMap[col.key]?.() || "-";
+                        }
+
+                        if (col.key === "aspek_weight") {
+                          val = `${val}%`;
+                        }
+
+                        const isRelationCol = [
+                          "area_name",
+                          "kawasan_name",
+                          "aspek_name",
+                          "detail_name",
+                          "kawasan_area_name",
+                          "aspek_area_name",
+                          "detail_aspek_name",
+                        ].includes(col.key);
+
+                        if (isRelationCol && val !== "-") {
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-secondary text-secondary-foreground font-medium border border-border/50">
+                              {val}
+                            </span>
+                          );
+                        }
+
+                        return val;
+                      })()}
                     </td>
                   ))}
                   <td className="px-4 py-3 text-right">

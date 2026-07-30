@@ -34,3 +34,26 @@ export function formatTimeAgo(dateString: string): string {
   if (diffDays < 7) return `${diffDays} hari lalu`;
   return date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
+
+export function formatImageUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  let formatted = url.trim();
+
+  // If minio internal hostname is used, replace with window hostname or localhost
+  if (formatted.includes("minio:9000")) {
+    const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+    formatted = formatted.replace("minio:9000", `${host}:9000`);
+  }
+
+  // Ensure full HTTP/HTTPS URLs are preserved for browser image loading
+  if (formatted.startsWith("http://") || formatted.startsWith("https://")) {
+    return formatted;
+  }
+
+  // Relative path fallback
+  if (!formatted.startsWith("/")) {
+    return `/${formatted}`;
+  }
+
+  return formatted;
+}

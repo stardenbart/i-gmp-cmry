@@ -1,6 +1,8 @@
 package masterrepo
 
 import (
+	"time"
+
 	"github.com/monitoring-system/backend/internal/domain/master"
 	"gorm.io/gorm"
 )
@@ -104,6 +106,9 @@ func (r *kawasanRepository) FindByAreaID(areaID string) ([]master.Kawasan, error
 
 func (r *kawasanRepository) Create(k *master.Kawasan) error { return r.db.Create(k).Error }
 func (r *kawasanRepository) Update(k *master.Kawasan) error { return r.db.Save(k).Error }
+func (r *kawasanRepository) UpdateLastInspection(id string, lastInspection time.Time) error {
+	return r.db.Model(&master.Kawasan{}).Where("\"KawasanID\" = ?", id).Update("LastInspection", lastInspection).Error
+}
 func (r *kawasanRepository) Delete(id string) error {
 	return r.db.Where("\"KawasanID\" = ?", id).Delete(&master.Kawasan{}).Error
 }
@@ -119,12 +124,20 @@ func NewDetailKawasanRepository(db *gorm.DB) master.DetailKawasanRepository {
 func (r *detailKawasanRepository) FindAll(page, limit int, kawasanID, search string) ([]master.DetailKawasan, int64, error) {
 	var items []master.DetailKawasan
 	var total int64
-	q := r.db.Model(&master.DetailKawasan{}).Preload("Kawasan").Preload("Kawasan.Area")
+	q := r.db.Model(&master.DetailKawasan{}).
+		Preload("Kawasan").Preload("Kawasan.Area").
+		Select(`"DetailKawasan_Master".*, COALESCE(ih."InspectionHeaderStatus", '') AS "ActiveInspectionStatus"`).
+		Joins(`LEFT JOIN (
+			SELECT DISTINCT ON ("DetailKawasanID") "DetailKawasanID", "InspectionHeaderStatus"
+			FROM "Inspection_Header"
+			WHERE "InspectionHeaderStatus" IN ('Ongoing', 'Draft')
+			ORDER BY "DetailKawasanID", "InspectionHeaderCreatedAt" DESC
+		) ih ON ih."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"`)
 	if kawasanID != "" {
-		q = q.Where("\"KawasanID\" = ?", kawasanID)
+		q = q.Where(`"DetailKawasan_Master"."KawasanID" = ?`, kawasanID)
 	}
 	if search != "" {
-		q = q.Where("\"DetailKawasanName\" LIKE ?", "%"+search+"%")
+		q = q.Where(`"DetailKawasan_Master"."DetailKawasanName" ILIKE ?`, "%"+search+"%")
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
@@ -155,6 +168,9 @@ func (r *detailKawasanRepository) Create(dk *master.DetailKawasan) error {
 	return r.db.Create(dk).Error
 }
 func (r *detailKawasanRepository) Update(dk *master.DetailKawasan) error { return r.db.Save(dk).Error }
+func (r *detailKawasanRepository) UpdateLastInspection(id string, lastInspection time.Time) error {
+	return r.db.Model(&master.DetailKawasan{}).Where("\"DetailKawasanID\" = ?", id).Update("LastInspection", lastInspection).Error
+}
 func (r *detailKawasanRepository) Delete(id string) error {
 	return r.db.Where("\"DetailKawasanID\" = ?", id).Delete(&master.DetailKawasan{}).Error
 }
@@ -170,7 +186,7 @@ func NewAspekRepository(db *gorm.DB) master.AspekRepository {
 func (r *aspekRepository) FindAll(page, limit int, areaID, search string) ([]master.Aspek, int64, error) {
 	var items []master.Aspek
 	var total int64
-	q := r.db.Model(&master.Aspek{})
+	q := r.db.Model(&master.Aspek{}).Preload("Area")
 	if areaID != "" {
 		q = q.Where("\"AreaID\" = ?", areaID)
 	}
@@ -184,13 +200,13 @@ func (r *aspekRepository) FindAll(page, limit int, areaID, search string) ([]mas
 
 func (r *aspekRepository) FindByID(id string) (*master.Aspek, error) {
 	var item master.Aspek
-	err := r.db.Where("\"AspekID\" = ?", id).First(&item).Error
+	err := r.db.Where("\"AspekID\" = ?", id).Preload("Area").First(&item).Error
 	return &item, err
 }
 
 func (r *aspekRepository) FindByAreaID(areaID string) ([]master.Aspek, error) {
 	var items []master.Aspek
-	err := r.db.Where("\"AreaID\" = ?", areaID).Find(&items).Error
+	err := r.db.Where("\"AreaID\" = ?", areaID).Preload("Area").Find(&items).Error
 	return items, err
 }
 
@@ -211,7 +227,7 @@ func NewDetailRepository(db *gorm.DB) master.DetailRepository {
 func (r *detailRepository) FindAll(page, limit int, aspekID, search string) ([]master.Detail, int64, error) {
 	var items []master.Detail
 	var total int64
-	q := r.db.Model(&master.Detail{})
+	q := r.db.Model(&master.Detail{}).Preload("Aspek").Preload("Aspek.Area")
 	if aspekID != "" {
 		q = q.Where("\"AspekID\" = ?", aspekID)
 	}
@@ -225,13 +241,13 @@ func (r *detailRepository) FindAll(page, limit int, aspekID, search string) ([]m
 
 func (r *detailRepository) FindByID(id string) (*master.Detail, error) {
 	var item master.Detail
-	err := r.db.Where("\"DetailID\" = ?", id).First(&item).Error
+	err := r.db.Where("\"DetailID\" = ?", id).Preload("Aspek").First(&item).Error
 	return &item, err
 }
 
 func (r *detailRepository) FindByAspekID(aspekID string) ([]master.Detail, error) {
 	var items []master.Detail
-	err := r.db.Where("\"AspekID\" = ?", aspekID).Find(&items).Error
+	err := r.db.Where("\"AspekID\" = ?", aspekID).Preload("Aspek").Find(&items).Error
 	return items, err
 }
 
@@ -252,7 +268,7 @@ func NewUraianRepository(db *gorm.DB) master.UraianRepository {
 func (r *uraianRepository) FindAll(page, limit int, detailID, search string) ([]master.Uraian, int64, error) {
 	var items []master.Uraian
 	var total int64
-	q := r.db.Model(&master.Uraian{})
+	q := r.db.Model(&master.Uraian{}).Preload("Detail").Preload("Detail.Aspek")
 	if detailID != "" {
 		q = q.Where("\"DetailID\" = ?", detailID)
 	}

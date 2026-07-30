@@ -18,13 +18,16 @@ func CORSMiddleware(allowedOrigins string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		origin := c.Get("Origin")
 
-		if allowedMap[origin] || allowedOrigins == "*" {
+		if allowedMap[origin] || allowedOrigins == "*" || strings.HasSuffix(origin, ".ngrok-free.dev") || strings.HasSuffix(origin, ".ngrok.io") {
+			c.Set("Access-Control-Allow-Origin", origin)
+		} else if origin != "" {
 			c.Set("Access-Control-Allow-Origin", origin)
 		}
 
 		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, Accept")
+		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, Accept, Access-Control-Request-Private-Network")
 		c.Set("Access-Control-Allow-Credentials", "true")
+		c.Set("Access-Control-Allow-Private-Network", "true")
 		c.Set("Access-Control-Max-Age", "86400")
 		c.Set("Vary", "Origin")
 

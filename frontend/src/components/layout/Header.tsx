@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -38,15 +39,16 @@ export function Header() {
       <div className="flex items-center gap-4">
         {/* Mobile Logo */}
         <div className="md:hidden flex items-center gap-3">
-          <img 
-            src="/Logo_Cimory.png" 
-            alt="Cimory Logo" 
-            width={120} 
-            height={40} 
-            className="h-10 w-auto object-contain"
-            loading="eager"
-            decoding="sync"
-          />
+          <div className="flex items-center justify-center">
+            <Image 
+              src="/Logo_Cimory.png" 
+              alt="Cimory Logo" 
+              width={100} 
+              height={32} 
+              priority
+              className="h-7 w-auto object-contain"
+            />
+          </div>
         </div>
         
         {/* Desktop Title */}

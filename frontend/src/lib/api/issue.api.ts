@@ -1,6 +1,6 @@
 import { api } from "./axios";
 
-export type IssueStatus = "Open" | "InProgress" | "PendingValidation" | "Closed" | "Verified" | "Overdue";
+export type IssueStatus = "Open" | "InProgress" | "PendingValidation" | "Closed" | "Verified" | "OpenOverdue" | "ClosedOverdue" | "Overdue";
 export type WOWRStatus = "None" | "PendingValidation" | "Verified" | "Rejected";
 export type PhotoType = "Initial" | "FollowUp" | "WOWR";
 
@@ -11,6 +11,7 @@ export interface IssuePhoto {
   photo_type: PhotoType;
   image_url: string;
   file_name: string;
+  keterangan?: string;
   follow_up_date?: string;
   jumlah_follow_up?: number;
   created_at: string;
@@ -24,6 +25,8 @@ export interface Issue {
   pic_name?: string;
   due_date?: string;
   issue_status: IssueStatus;
+  computed_status?: IssueStatus;
+  follow_up_delay?: number;
   keterangan: string;
   needs_wo_wr?: boolean;
   wo_id?: string;
@@ -114,6 +117,11 @@ export const issueApi = {
     }
     
     return lastResponse;
+  },
+
+  updatePhoto: async (photoId: string, keterangan: string) => {
+    const res = await api.put(`/issues/photos/${photoId}`, { keterangan });
+    return res.data;
   },
 
   deletePhoto: async (issueId: string, photoId: string) => {

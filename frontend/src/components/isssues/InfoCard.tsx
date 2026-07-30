@@ -10,12 +10,15 @@ interface InfoCardProps {
     due_date: string | null
     created_at: string
     issue_status: string
+    computed_status?: string
+    follow_up_delay?: number
   },
   dueDate?: Date | null
-
 }
 
 export const InfoCard = ({ issue, dueDate }: InfoCardProps) => {
+    const isOverdue = (issue.computed_status === "OpenOverdue" || issue.computed_status === "ClosedOverdue" || (dueDate && dueDate < new Date() && issue.issue_status !== "Closed" && issue.issue_status !== "Verified"));
+
     return (
         <Card className="p-6 bg-card/60 backdrop-blur-md lg:col-span-1 space-y-4 h-fit">
           <h3 className="font-semibold border-b border-border pb-2">Informasi Temuan</h3>
@@ -40,7 +43,7 @@ export const InfoCard = ({ issue, dueDate }: InfoCardProps) => {
               <div>
                 <span className="text-xs text-muted-foreground block">Target Penyelesaian</span>
                 {dueDate ? (
-                  <span className={cn("font-medium", dueDate < new Date() && issue.issue_status !== "Closed" && issue.issue_status !== "Verified" ? "text-red-500" : "")}>
+                  <span className={cn("font-medium", isOverdue ? "text-red-500" : "")}>
                     {dueDate.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
                   </span>
                 ) : (
@@ -48,6 +51,17 @@ export const InfoCard = ({ issue, dueDate }: InfoCardProps) => {
                 )}
               </div>
             </div>
+            {issue.follow_up_delay !== undefined && issue.follow_up_delay > 0 && (
+              <div className="flex items-start gap-3">
+                <Clock className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-xs text-muted-foreground block">Keterlambatan Audit</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-orange-500/10 text-orange-600">
+                    Terlambat {issue.follow_up_delay} hari
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="flex items-start gap-3">
               <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
               <div>

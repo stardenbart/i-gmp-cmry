@@ -99,7 +99,7 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
               disabled={isReadOnly}
               className="accent-primary h-4 w-4 disabled:cursor-not-allowed"
             />
-            <span className="text-sm font-medium">Membutuhkan WO / WR</span>
+            <span className="text-sm font-medium">Fu WO / WR</span>
           </label>
           <label className={cn("flex items-center gap-2", !isReadOnly && "cursor-pointer", isReadOnly && "opacity-70 cursor-not-allowed")}>
             <input 
@@ -114,7 +114,7 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
               disabled={isReadOnly}
               className="accent-primary h-4 w-4 disabled:cursor-not-allowed"
             />
-            <span className="text-sm font-medium">Tidak Membutuhkan WO / WR</span>
+            <span className="text-sm font-medium">Tidak Menggunakan WO / WR</span>
           </label>
         </div>
 

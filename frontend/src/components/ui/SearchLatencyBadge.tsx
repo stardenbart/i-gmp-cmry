@@ -7,6 +7,7 @@ import { Button } from "./button";
 import { api } from "@/lib/api/axios";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
+import { isAdminUser } from "@/lib/useAdminGuard";
 
 interface SearchLatencyBadgeProps {
   searchQuery: string;
@@ -53,6 +54,13 @@ export function SearchLatencyBadge({
     return "bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400";
   };
 
+  const isAdmin = isAdminUser(user?.role_id) || user?.role?.role_name?.toLowerCase() === 'admin';
+
+  // Completely hide badge and button if toggle is OFF, not mounted, or not Admin
+  if (!mounted || !showSearchLatencyButton || !isAdmin) {
+    return null;
+  }
+
   return (
     <div className="inline-flex items-center gap-2 shrink-0">
       {/* Live Latency Badge */}
@@ -63,18 +71,16 @@ export function SearchLatencyBadge({
         </span>
       )}
 
-      {/* Latency Test Button (Controlled by Settings Toggle & Admin Only) */}
-      {mounted && showSearchLatencyButton && user?.role?.role_name?.toLowerCase() === 'admin' && (
-        <button
-          type="button"
-          onClick={() => setIsTesterOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-all border border-primary/20 shrink-0"
-          title={`Uji Latensi Pencarian ${pageName}`}
-        >
-          <Zap className="w-3.5 h-3.5" />
-          <span>Uji Latensi Search</span>
-        </button>
-      )}
+      {/* Latency Test Button */}
+      <button
+        type="button"
+        onClick={() => setIsTesterOpen(true)}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-all border border-primary/20 shrink-0 cursor-pointer"
+        title={`Uji Latensi Pencarian ${pageName}`}
+      >
+        <Zap className="w-3.5 h-3.5" />
+        <span>Uji Latensi Search</span>
+      </button>
 
       {/* Interactive Modal rendered via Portal */}
       {isTesterOpen && (

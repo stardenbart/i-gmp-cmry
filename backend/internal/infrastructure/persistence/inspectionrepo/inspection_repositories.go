@@ -3,6 +3,7 @@ package inspectionrepo
 import (
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ── Inspection Header ─────────────────────────────────────────────────────
@@ -70,6 +71,14 @@ func (r *inspectionHeaderRepository) FindActiveByInspector(inspectorID string) (
 	var items []inspection.InspectionHeader
 	err := r.db.Where("\"InspectorID\" = ? AND \"InspectionHeaderStatus\" IN (?, ?)",
 		inspectorID, inspection.InspectionStatusDraft, inspection.InspectionStatusOngoing).
+		Find(&items).Error
+	return items, err
+}
+
+func (r *inspectionHeaderRepository) FindActiveByInspectorAndDetailKawasan(inspectorID, detailKawasanID string) ([]inspection.InspectionHeader, error) {
+	var items []inspection.InspectionHeader
+	err := r.db.Where("\"InspectorID\" = ? AND \"DetailKawasanID\" = ? AND \"InspectionHeaderStatus\" IN (?, ?)",
+		inspectorID, detailKawasanID, inspection.InspectionStatusDraft, inspection.InspectionStatusOngoing).
 		Find(&items).Error
 	return items, err
 }
@@ -186,7 +195,10 @@ func (r *inspectionResultRepository) Create(res *inspection.InspectionResult) er
 	return r.db.Create(res).Error
 }
 func (r *inspectionResultRepository) BulkCreate(rs []inspection.InspectionResult) error {
-	return r.db.CreateInBatches(&rs, 50).Error
+	if len(rs) == 0 {
+		return nil
+	}
+	return r.db.Clauses(clause.OnConflict{UpdateAll: true}).CreateInBatches(&rs, 50).Error
 }
 func (r *inspectionResultRepository) Update(res *inspection.InspectionResult) error {
 	return r.db.Save(res).Error

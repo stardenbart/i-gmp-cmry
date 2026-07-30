@@ -26,6 +26,8 @@ import (
 
 type issueUseCase struct {
 	repo         issue.IssueRepository
+	photoRepo    issue.IssuePhotoRepository
+	storage      *storage.MinioStorage
 	userRepo     authdomain.UserRepository // to fetch PIC email
 	delegateRepo issue.IssueDelegateRepository
 	producer     kafka.EventProducer
@@ -35,14 +37,16 @@ type issueUseCase struct {
 	sseBroker    *sse.Broker
 }
 
-func NewIssueUseCase(repo issue.IssueRepository, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, sseBroker *sse.Broker) issue.IssueUseCase {
-	return &issueUseCase{repo: repo, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, sseBroker: sseBroker}
+func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, sseBroker *sse.Broker) issue.IssueUseCase {
+	return &issueUseCase{repo: repo, photoRepo: photoRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, sseBroker: sseBroker}
 }
 
 func (uc *issueUseCase) GetAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
 	items, total, err := uc.repo.FindAll(page, limit, status, picUserID, needsWOWR)
 	if err == nil {
+		now := time.Now()
 		for i := range items {
+			items[i].ComputedIssueStatus = items[i].ComputedStatus(now)
 			items[i].Keterangan = uc.cryptoSvc.DecryptWithFallback(items[i].Keterangan)
 			for j := range items[i].Photos {
 				items[i].Photos[j].ImageUrl = uc.cryptoSvc.DecryptWithFallback(items[i].Photos[j].ImageUrl)
@@ -54,12 +58,25 @@ func (uc *issueUseCase) GetAll(page, limit int, status, picUserID string, needsW
 			}
 		}
 	}
+
+	// Deduplicate items by IssueID to prevent SQL join duplication
+	seen := make(map[string]bool)
+	unique := make([]issue.Issue, 0, len(items))
+	for _, item := range items {
+		if item.IssueID != "" && !seen[item.IssueID] {
+			seen[item.IssueID] = true
+			unique = append(unique, item)
+		}
+	}
+	items = unique
+
 	return items, total, err
 }
 
 func (uc *issueUseCase) GetByID(id string) (*issue.Issue, error) {
 	item, err := uc.repo.FindByID(id)
 	if err == nil && item != nil {
+		item.ComputedIssueStatus = item.ComputedStatus(time.Now())
 		item.Keterangan = uc.cryptoSvc.DecryptWithFallback(item.Keterangan)
 		for j := range item.Photos {
 			item.Photos[j].ImageUrl = uc.cryptoSvc.DecryptWithFallback(item.Photos[j].ImageUrl)
@@ -220,6 +237,18 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	}
 	if req.WOWRStatus != "" {
 		i.WOWRStatus = req.WOWRStatus
+		// If Auditor rejects WOWR proof, automatically delete existing WOWR proof photos from DB & MinIO
+		if req.WOWRStatus == issue.WOWRStatusRejected && uc.photoRepo != nil {
+			photos, _ := uc.photoRepo.FindByIssueID(i.IssueID)
+			for _, p := range photos {
+				if p.PhotoType == issue.PhotoTypeWOWR || p.PhotoType == issue.PhotoTypeFollowUp {
+					_ = uc.photoRepo.Delete(p.IssuePhotoID)
+					if uc.storage != nil && p.FileName != "" {
+						_ = uc.storage.Delete(context.Background(), p.FileName)
+					}
+				}
+			}
+		}
 	}
 
 	if req.IssueStatus != "" {
@@ -237,6 +266,17 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 			}
 		}
 		i.IssueStatus = req.IssueStatus
+
+		// Calculate FollowUpDelay when closing/verifying issue
+		if req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified {
+			if i.DueDate != nil {
+				delayDays := int(time.Since(*i.DueDate).Hours() / 24)
+				if delayDays < 0 {
+					delayDays = 0
+				}
+				i.FollowUpDelay = &delayDays
+			}
+		}
 	}
 
 	if req.Label != "" {
@@ -267,6 +307,7 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	}
 	err = uc.repo.Update(i)
 	if err == nil {
+		i.ComputedIssueStatus = i.ComputedStatus(time.Now())
 		event := events.IssueEvent{
 			BaseEvent: events.BaseEvent{
 				EventID:   uuid.New().String(),
@@ -342,13 +383,14 @@ func (uc *issueUseCase) Delete(id string, actorID string) error {
 
 type issuePhotoUseCase struct {
 	repo      issue.IssuePhotoRepository
+	issueRepo issue.IssueRepository
 	storage   *storage.MinioStorage
 	cryptoSvc *crypto.Service
 	sseBroker *sse.Broker
 }
 
-func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, sseBroker *sse.Broker) issue.IssuePhotoUseCase {
-	return &issuePhotoUseCase{repo: repo, storage: s, cryptoSvc: cryptoSvc, sseBroker: sseBroker}
+func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, sseBroker *sse.Broker) issue.IssuePhotoUseCase {
+	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, sseBroker: sseBroker}
 }
 
 func (uc *issuePhotoUseCase) GetByIssueID(issueID string) ([]issue.IssuePhoto, error) {
@@ -367,6 +409,23 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 		return nil, errors.New("empty file")
 	}
 
+	// Check if issue is closed/locked
+	if uc.issueRepo != nil {
+		iss, errIss := uc.issueRepo.FindByID(req.IssueID)
+		if errIss == nil && iss != nil {
+			// If uploading WOWR proof for an issue that requires WO/WR and isn't verified yet,
+			// allow uploading and reopen status to InProgress if it was prematurely Closed.
+			if (req.PhotoType == issue.PhotoTypeWOWR || iss.NeedsWOWR) && iss.WOWRStatus != issue.WOWRStatusVerified {
+				if iss.IssueStatus == issue.IssueStatusClosed {
+					iss.IssueStatus = issue.IssueStatusInProgress
+					_ = uc.issueRepo.Update(iss)
+				}
+			} else if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
+				return nil, errors.New("issue ini sudah ditutup (Closed) dan foto tidak dapat diunggah")
+			}
+		}
+	}
+
 	// Construct a unique object name
 	ext := ""
 	for i := len(originalFileName) - 1; i >= 0 && originalFileName[i] != '/'; i-- {
@@ -378,9 +437,13 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 	objectName := fmt.Sprintf("issues/%s/%d%s", req.IssueID, time.Now().UnixNano(), ext)
 
 	// Stream to MinIO
-	publicURL, err := uc.storage.UploadStream(ctx, objectName, fileReader, fileSize, contentType)
-	if err != nil {
-		return nil, err
+	publicURL := fmt.Sprintf("/uploads/%s", objectName)
+	if uc.storage != nil {
+		uploadedURL, err := uc.storage.UploadStream(ctx, objectName, fileReader, fileSize, contentType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload image: %w", err)
+		}
+		publicURL = uploadedURL
 	}
 
 	// Encrypt sensitive info
@@ -401,20 +464,59 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 		PhotoType:      req.PhotoType,
 		ImageUrl:       encPublicURL,
 		FileName:       encObjectName, // we store objectName here so we can delete it later
+		Keterangan:     req.Keterangan,
 		FollowUpDate:   req.FollowUpDate,
 		JumlahFollowUp: req.JumlahFollowUp,
 	}
-	err = uc.repo.Create(p)
+	err := uc.repo.Create(p)
+	if err == nil {
+		p.ImageUrl = publicURL
+		p.FileName = objectName
+		if uc.sseBroker != nil {
+			uc.sseBroker.Broadcast("ISSUE_UPDATED")
+		}
+	}
+	return p, err
+}
+
+func (uc *issuePhotoUseCase) Update(ctx context.Context, photoID string, keterangan string) (*issue.IssuePhoto, error) {
+	photo, err := uc.repo.FindByID(photoID)
+	if err != nil {
+		return nil, errors.New("photo not found")
+	}
+
+	// Check if issue is closed/locked
+	if uc.issueRepo != nil {
+		iss, errIss := uc.issueRepo.FindByID(photo.IssueID)
+		if errIss == nil && iss != nil {
+			if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
+				return nil, errors.New("issue ini sudah ditutup (Closed) dan foto tidak dapat diubah")
+			}
+		}
+	}
+
+	photo.Keterangan = keterangan
+	err = uc.repo.Update(photo)
 	if err == nil && uc.sseBroker != nil {
 		uc.sseBroker.Broadcast("ISSUE_UPDATED")
 	}
-	return p, err
+	return photo, err
 }
 
 func (uc *issuePhotoUseCase) Delete(ctx context.Context, id string) error {
 	photo, err := uc.repo.FindByID(id)
 	if err != nil {
 		return errors.New("photo not found")
+	}
+
+	// Check if issue is closed/locked
+	if uc.issueRepo != nil {
+		iss, errIss := uc.issueRepo.FindByID(photo.IssueID)
+		if errIss == nil && iss != nil {
+			if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
+				return errors.New("issue ini sudah ditutup (Closed) dan foto tidak dapat dihapus")
+			}
+		}
 	}
 
 	// Decrypt the filename before deleting from MinIO

@@ -2,6 +2,9 @@ package kafka
 
 import (
 	"context"
+	"errors"
+	"io"
+	"time"
 
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/segmentio/kafka-go"
@@ -51,7 +54,12 @@ func (c *EventConsumer) Start(ctx context.Context, handler MessageHandler) {
 				if err != nil {
 					// Don't log if it's just a context cancellation
 					if ctx.Err() == nil {
-						c.log.Error("Error fetching message", logger.Error(err))
+						if errors.Is(err, io.EOF) {
+							c.log.Warn("Kafka consumer connection EOF, retrying in 2 seconds...", logger.String("topic", c.reader.Config().Topic))
+						} else {
+							c.log.Error("Error fetching message", logger.Error(err))
+						}
+						time.Sleep(2 * time.Second)
 					}
 					continue
 				}

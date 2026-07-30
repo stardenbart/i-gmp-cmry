@@ -31,9 +31,15 @@ export const dashboardApi = {
   /**
    * Get preview export data (table format)
    */
-  getPreviewExport: async (areaId?: string) => {
+  getPreviewExport: async (filters?: {
+    area_id?: string;
+    kawasan_id?: string;
+    detail_kawasan_id?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => {
     const res = await api.get("/dashboard/preview-export", {
-      params: { area_id: areaId },
+      params: filters,
     });
     return res.data;
   },

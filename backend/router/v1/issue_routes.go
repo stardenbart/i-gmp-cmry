@@ -30,15 +30,15 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Min
 	settingRepo := masterrepo.NewSettingRepository(db)
 	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
 
-	issueUC := issueusecase.NewIssueUseCase(issueRepo, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, sseBroker)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, sseBroker)
 	issueDelegateUC := issueusecase.NewIssueDelegateUseCase(issueDelegateRepo)
-	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, minioStorage, cryptoSvc, sseBroker)
+	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, sseBroker)
 
 	// Filter usecases
 	issueFilterRepo := issuerepo.NewIssueFilterRepository(db)
-	issueFilterUC := issueusecase.NewIssueFilterUseCase(issueFilterRepo)
+	issueFilterUC := issueusecase.NewIssueFilterUseCase(issueFilterRepo, cryptoSvc)
 	followupFilterRepo := issuerepo.NewFollowupFilterRepository(db)
-	followupFilterUC := issueusecase.NewFollowupFilterUseCase(followupFilterRepo)
+	followupFilterUC := issueusecase.NewFollowupFilterUseCase(followupFilterRepo, cryptoSvc)
 
 	// Start Background Worker (interval 1 hour)
 	issueusecase.StartAutoApproveWorker(context.Background(), issueUC, 1*time.Hour)
@@ -79,6 +79,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Min
 		// Issue Photos (initial + follow-up)
 		issues.Get("/:id/photos", photoH.GetByIssueID)
 		issues.Post("/:id/photos/upload", photoH.Upload)
+		issues.Put("/photos/:photo_id", photoH.Update)
 		issues.Delete("/photos/:photo_id", photoH.Delete)
 	}
 }

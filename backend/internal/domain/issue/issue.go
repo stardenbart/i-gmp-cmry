@@ -13,6 +13,8 @@ const (
 	IssueStatusPendingValidation IssueStatus = "PendingValidation"
 	IssueStatusClosed            IssueStatus = "Closed"
 	IssueStatusVerified          IssueStatus = "Verified"
+	IssueStatusOpenOverdue       IssueStatus = "OpenOverdue"
+	IssueStatusClosedOverdue     IssueStatus = "ClosedOverdue"
 )
 
 // WOWRStatus defines allowed values for WOWR validation status.
@@ -27,20 +29,22 @@ const (
 
 // Issue represents the Issue table.
 type Issue struct {
-	IssueID        string      `gorm:"column:IssueID;primaryKey" json:"issue_id"`
-	ResultID       string      `gorm:"column:ResultID;not null" json:"result_id"`
-	IssuePICUserID string      `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`
-	DueDate        *time.Time  `gorm:"column:DueDate" json:"due_date"`
-	IssueStatus    IssueStatus `gorm:"column:IssueStatus;not null;default:Open" json:"issue_status"`
-	Label          string      `gorm:"column:Label;size:100" json:"label"`
-	NeedsWOWR      bool        `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
-	WO_ID          string      `gorm:"column:WO_ID;size:100" json:"wo_id"`
-	WR_ID          string      `gorm:"column:WR_ID;size:100" json:"wr_id"`
-	WOWRStatus     WOWRStatus  `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
-	Keterangan     string      `gorm:"column:Keterangan;size:255" json:"keterangan"`
-	PICName        string      `gorm:"-" json:"pic_name"`
-	IssueCreatedAt time.Time   `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
-	IssueUpdatedAt time.Time   `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
+	IssueID             string      `gorm:"column:IssueID;primaryKey" json:"issue_id"`
+	ResultID            string      `gorm:"column:ResultID;not null" json:"result_id"`
+	IssuePICUserID      string      `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`
+	DueDate             *time.Time  `gorm:"column:DueDate" json:"due_date"`
+	IssueStatus         IssueStatus `gorm:"column:IssueStatus;not null;default:Open" json:"issue_status"`
+	ComputedIssueStatus IssueStatus `gorm:"-" json:"computed_status,omitempty"`
+	FollowUpDelay       *int        `gorm:"column:FollowUpDelay" json:"follow_up_delay,omitempty"`
+	Label               string      `gorm:"column:Label;size:100" json:"label"`
+	NeedsWOWR           bool        `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
+	WO_ID               string      `gorm:"column:WO_ID;size:100" json:"wo_id"`
+	WR_ID               string      `gorm:"column:WR_ID;size:100" json:"wr_id"`
+	WOWRStatus          WOWRStatus  `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
+	Keterangan          string      `gorm:"column:Keterangan;size:255" json:"keterangan"`
+	PICName             string      `gorm:"-" json:"pic_name"`
+	IssueCreatedAt      time.Time   `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
+	IssueUpdatedAt      time.Time   `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Joined Name Fields (not saved to DB)
 	AreaName          string `gorm:"column:AreaName;->" json:"area_name,omitempty"`
@@ -52,6 +56,24 @@ type Issue struct {
 }
 
 func (Issue) TableName() string { return "Issue" }
+
+func (i *Issue) ComputedStatus(now time.Time) IssueStatus {
+	isOverdue := i.DueDate != nil && now.After(*i.DueDate)
+	switch i.IssueStatus {
+	case IssueStatusOpen, IssueStatusInProgress:
+		if isOverdue {
+			return IssueStatusOpenOverdue
+		}
+		return i.IssueStatus
+	case IssueStatusClosed, IssueStatusVerified:
+		if (i.FollowUpDelay != nil && *i.FollowUpDelay > 0) || isOverdue {
+			return IssueStatusClosedOverdue
+		}
+		return i.IssueStatus
+	default:
+		return i.IssueStatus
+	}
+}
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 

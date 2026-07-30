@@ -16,13 +16,9 @@ func NewIssueRepository(db *gorm.DB) issue.IssueRepository {
 func (r *issueRepository) FindAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
 	var items []issue.Issue
 	var total int64
-	q := r.db.Model(&issue.Issue{}).
-		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
-		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
-		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
-		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
-		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue"."IssuePICUserID"`)
+
+	// Base query (no joins to avoid row inflation)
+	q := r.db.Model(&issue.Issue{})
 
 	if status != "" {
 		q = q.Where(`"Issue"."IssueStatus" = ?`, status)
@@ -44,12 +40,27 @@ func (r *issueRepository) FindAll(page, limit int, status, picUserID string, nee
 	if needsWOWR != nil {
 		q = q.Where(`"Issue"."NeedsWOWR" = ?`, *needsWOWR)
 	}
-	q.Count(&total)
-	err := q.Select(`"Issue".*, 
-			am."AreaName" AS "AreaName", 
-			km."KawasanName" AS "KawasanName", 
-			dkm."DetailKawasanName" AS "DetailKawasanName", 
-			u."FullName" AS "PICName"`).
+
+	// Count distinct before pagination
+	countQ := q.Session(&gorm.Session{})
+	countQ.Select(`COUNT(DISTINCT "IssueID")`).Count(&total)
+
+	// Fetch using subqueries for names — no JOINs that could inflate rows
+	err := q.
+		Select(`"Issue".*,
+			(SELECT am."AreaName" FROM "Inspection_Result" ir2
+			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+			  JOIN "Area_Master" am ON am."AreaID" = ih2."AreaID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "AreaName",
+			(SELECT km."KawasanName" FROM "Inspection_Result" ir2
+			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+			  JOIN "Kawasan_Master" km ON km."KawasanID" = ih2."KawasanID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "KawasanName",
+			(SELECT dkm."DetailKawasanName" FROM "Inspection_Result" ir2
+			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+			  JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih2."DetailKawasanID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
+			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName"`).
 		Preload("Photos").
 		Order(`"Issue"."IssueCreatedAt" DESC`).
 		Offset((page - 1) * limit).
@@ -111,6 +122,7 @@ func (r *issuePhotoRepository) FindByID(id string) (*issue.IssuePhoto, error) {
 }
 
 func (r *issuePhotoRepository) Create(p *issue.IssuePhoto) error { return r.db.Create(p).Error }
+func (r *issuePhotoRepository) Update(p *issue.IssuePhoto) error { return r.db.Save(p).Error }
 func (r *issuePhotoRepository) Delete(id string) error {
 	return r.db.Where("\"IssuePhotoID\" = ?", id).Delete(&issue.IssuePhoto{}).Error
 }

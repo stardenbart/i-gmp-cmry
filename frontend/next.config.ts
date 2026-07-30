@@ -8,9 +8,17 @@ const withPWA = require("next-pwa")({
 });
 
 const nextConfig: NextConfig = {
+  reactStrictMode: false,
   reactCompiler: true,
   turbopack: {},
+  allowedDevOrigins: [
+    "localhost:3000",
+    "pug-widow-rewind.ngrok-free.dev",
+    "*.ngrok-free.dev",
+    "*.ngrok.io",
+  ],
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "http",
@@ -24,14 +32,29 @@ const nextConfig: NextConfig = {
         port: "9000",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "*.ngrok-free.dev",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.ngrok.io",
+        pathname: "/**",
+      },
     ],
   },
   async rewrites() {
     const backendUrl = process.env.INTERNAL_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    const minioUrl = process.env.MINIO_ENDPOINT ? (process.env.MINIO_ENDPOINT.startsWith("http") ? process.env.MINIO_ENDPOINT : `http://${process.env.MINIO_ENDPOINT}`) : "http://localhost:9000";
     return [
       {
         source: "/api/v1/:path*",
         destination: `${backendUrl}/api/v1/:path*`,
+      },
+      {
+        source: "/monitoring-audit-bucket/:path*",
+        destination: `${minioUrl}/monitoring-audit-bucket/:path*`,
       },
     ];
   },

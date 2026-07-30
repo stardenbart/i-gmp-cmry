@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Play } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -115,8 +115,14 @@ export default function CreateInspectionPage() {
     try {
       setIsLoading(true);
       const res = await inspectionApi.create(data);
-      toast.success("Inspeksi berhasil dibuat");
-      router.push(`/cimory/dashboard/${userId}/inspections/${res.data.inspection_id}`);
+      const inspectionData = res.data;
+      const isResumed = inspectionData?.inspection_header_status === "Ongoing" || inspectionData?.inspection_header_status === "Draft";
+      if (isResumed) {
+        toast.info("Melanjutkan inspeksi yang sedang berlangsung di lokasi ini");
+      } else {
+        toast.success("Inspeksi berhasil dibuat");
+      }
+      router.push(`/cimory/dashboard/${userId}/inspections/${inspectionData.inspection_id}`);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Gagal membuat inspeksi");
     } finally {
@@ -221,19 +227,50 @@ export default function CreateInspectionPage() {
                   className="flex h-12 w-full rounded-2xl border border-border bg-card px-4 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary appearance-none"
                   disabled={!selectedKawasanId || isDetailKawasansLoading}
                 >
-                  <option value="">-- Pilih Detail --</option>
-                  {detailKawasans.map((dk) => (
-                    <option key={dk.detail_kawasan_id} value={dk.detail_kawasan_id}>
-                      {dk.detail_kawasan_name}
-                    </option>
-                  ))}
+                  <option value="">-- Pilih Detail Kawasan --</option>
+                  {detailKawasans.map((dk) => {
+                    const isOngoing = dk.active_inspection_status === "Ongoing" || dk.active_inspection_status === "Draft";
+
+                    const isCompletedThisMonth = dk.last_inspection
+                      ? (new Date(dk.last_inspection).getMonth() === new Date().getMonth() &&
+                         new Date(dk.last_inspection).getFullYear() === new Date().getFullYear())
+                      : false;
+
+                    let statusText: string;
+                    if (isOngoing) {
+                      statusText = " — [Sedang Berlangsung]";
+                    } else if (dk.last_inspection) {
+                      const dateStr = new Date(dk.last_inspection).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+                      statusText = ` — Terakhir: ${dateStr}${isCompletedThisMonth ? " (Selesai Bulan Ini)" : ""}`;
+                    } else {
+                      statusText = " — Belum Pernah Diinspeksi";
+                    }
+
+                    return (
+                      <option 
+                        key={dk.detail_kawasan_id} 
+                        value={dk.detail_kawasan_id}
+                        disabled={isCompletedThisMonth}
+                      >
+                        {dk.detail_kawasan_name}{statusText}
+                      </option>
+                    );
+                  })}
                 </select>
                 {isDetailKawasansLoading && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                 )}
               </div>
               {!selectedKawasanId && selectedAreaId && (
-                <p className="text-muted-foreground text-xs mt-1 ml-1">Pilih kawasan terlebih dahulu</p>
+                <p className="text-xs text-muted-foreground mt-1 ml-1">
+                  Pilih Kawasan terlebih dahulu untuk melihat daftar Detail Kawasan.
+                </p>
               )}
               {errors.detail_kawasan_id && (
                 <p className="text-red-500 text-xs mt-1 ml-1">{errors.detail_kawasan_id.message}</p>
@@ -241,9 +278,25 @@ export default function CreateInspectionPage() {
             </div>
           </div>
 
+          {/* Info Banner for Real-time Locking */}
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
+            <div className="rounded-full bg-primary/10 p-1.5 text-primary shrink-0 mt-0.5">
+              <Play className="h-4 w-4" />
+            </div>
+            <div className="text-xs leading-relaxed text-muted-foreground">
+              <strong className="font-semibold text-foreground block mb-0.5">Penguncian Lokasi Real-time:</strong>
+              Setelah Anda mengklik <span className="font-semibold text-primary">"Mulai Inspeksi"</span>, status lokasi (Kawasan & Detail Kawasan) akan berubah menjadi <span className="font-semibold text-amber-500 font-mono">Ongoing</span>. Auditor lain tidak dapat memulai inspeksi di lokasi yang sama sampai inspeksi Anda selesai atau dibatalkan.
+            </div>
+          </div>
+
           <div className="pt-4 flex justify-end">
-            <Button type="submit" isLoading={isLoading} disabled={!selectedAreaId || !selectedKawasanId || !selectedDetailKawasanId}>
-              <Save className="mr-2 h-4 w-4" /> Simpan & Mulai Audit
+            <Button 
+              type="submit" 
+              isLoading={isLoading} 
+              disabled={!selectedAreaId || !selectedKawasanId || !selectedDetailKawasanId}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6 py-2.5 rounded-xl shadow-md transition-all"
+            >
+              <Play className="mr-2 h-4 w-4 fill-current" /> Mulai Inspeksi
             </Button>
           </div>
         </form>

@@ -4,11 +4,12 @@ import "time"
 
 // Kawasan represents the Kawasan_Master table.
 type Kawasan struct {
-	KawasanID        string    `gorm:"column:KawasanID;primaryKey" json:"kawasan_id"`
-	AreaID           string    `gorm:"column:AreaID;not null" json:"area_id"`
-	KawasanName      string    `gorm:"column:KawasanName;not null" json:"kawasan_name"`
-	KawasanCreatedAt time.Time `gorm:"column:KawasanCreatedAt;autoCreateTime" json:"created_at"`
-	KawasanUpdatedAt time.Time `gorm:"column:KawasanUpdatedAt;autoUpdateTime" json:"updated_at"`
+	KawasanID        string     `gorm:"column:KawasanID;primaryKey" json:"kawasan_id"`
+	AreaID           string     `gorm:"column:AreaID;not null" json:"area_id"`
+	KawasanName      string     `gorm:"column:KawasanName;not null" json:"kawasan_name"`
+	LastInspection   *time.Time `gorm:"column:LastInspection" json:"last_inspection,omitempty"`
+	KawasanCreatedAt time.Time  `gorm:"column:KawasanCreatedAt;autoCreateTime" json:"created_at"`
+	KawasanUpdatedAt time.Time  `gorm:"column:KawasanUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations
 	Area           *Area           `gorm:"foreignKey:AreaID;references:AreaID" json:"area,omitempty"`
@@ -25,6 +26,7 @@ type KawasanRepository interface {
 	FindByAreaID(areaID string) ([]Kawasan, error)
 	Create(k *Kawasan) error
 	Update(k *Kawasan) error
+	UpdateLastInspection(id string, lastInspection time.Time) error
 	Delete(id string) error
 }
 

@@ -12,16 +12,10 @@ func main() {
 		log.Fatalf("Failed to connect database: %v", err)
 	}
 
-	// Update corrupted photo types
-	err = db.Exec(`UPDATE "Issue_Photo" SET "PhotoType" = 'WOWR' WHERE "PhotoType" = 'undefined'`).Error
+	// Delete proof photos for issues that are currently Rejected
+	err = db.Exec(`DELETE FROM "Issue_Photo" WHERE "PhotoType" IN ('WOWR', 'FollowUp') AND "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "WOWRStatus" = 'Rejected')`).Error
 	if err != nil {
-		log.Fatalf("Failed to update photos: %v", err)
-	}
-
-	// Update issue status that was left behind
-	err = db.Exec(`UPDATE "Issue" SET "WOWRStatus" = 'PendingValidation' WHERE "IssueID" = 'ISSUE-002'`).Error
-	if err != nil {
-		log.Fatalf("Failed to update issue status: %v", err)
+		log.Fatalf("Failed to delete rejected photos: %v", err)
 	}
 
 	log.Println("Data has been successfully restored!")

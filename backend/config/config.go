@@ -86,9 +86,9 @@ func Load() *Config {
 		AppPort:    getEnv("APP_PORT", "8080"),
 		AppBaseURL: getEnv("APP_BASE_URL", "http://localhost:8080"),
 
-		DBDriver:   getEnv("DB_DRIVER", "mysql"),
+		DBDriver:   getEnv("DB_DRIVER", "postgres"),
 		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "3306"),
+		DBPort:     getEnv("DB_PORT", "5434"),
 		DBName:     getEnv("DB_NAME", "monitoring_audit"),
 		DBUser:     getEnv("DB_USER", "postgres"),
 		DBPassword: getEnv("DB_PASSWORD", "secret"),

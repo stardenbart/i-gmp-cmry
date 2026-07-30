@@ -236,9 +236,13 @@ func (h *IssuePhotoHandler) GetByIssueID(c *fiber.Ctx) error {
 // @Router /api/v1/issues/{id}/photos [post]
 // @Security BearerAuth
 func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
+	// Support both 'photo' and 'file' field names
 	header, err := c.FormFile("photo")
 	if err != nil {
-		return response.BadRequest(c, "file is required", err.Error())
+		header, err = c.FormFile("file")
+		if err != nil {
+			return response.BadRequest(c, "file is required", err.Error())
+		}
 	}
 
 	file, err := header.Open()
@@ -247,18 +251,51 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 	}
 	defer file.Close()
 
-	photoType := issue.PhotoType(c.FormValue("photo_type"))
+	photoTypeStr := c.FormValue("photo_type")
+	photoType := issue.PhotoType(photoTypeStr)
+	if photoType == "" || photoType == "undefined" {
+		photoType = issue.PhotoTypeFollowUp
+	}
+
 	picUserID := middleware.GetUserID(c)
 	issueID := c.Params("id")
+	if picUserID == "" {
+		picUserID = "SYSTEM"
+	}
+
 	contentType := header.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 
+	// Parse follow_up_date from form data
+	var followUpDate *time.Time
+	if fuDateStr := c.FormValue("follow_up_date"); fuDateStr != "" {
+		parsed, parseErr := time.Parse(time.RFC3339, fuDateStr)
+		if parseErr != nil {
+			// Try other common formats
+			parsed, parseErr = time.Parse("2006-01-02", fuDateStr)
+		}
+		if parseErr == nil {
+			followUpDate = &parsed
+		}
+	}
+
+	// Parse jumlah_follow_up from form data
+	var jumlahFollowUp *int
+	if jfuStr := c.FormValue("jumlah_follow_up"); jfuStr != "" {
+		if jfu, parseErr := strconv.Atoi(jfuStr); parseErr == nil {
+			jumlahFollowUp = &jfu
+		}
+	}
+
 	req := &issue.UploadPhotoRequest{
-		IssueID:   issueID,
-		PICUserID: picUserID,
-		PhotoType: photoType,
+		IssueID:        issueID,
+		PICUserID:      picUserID,
+		PhotoType:      photoType,
+		Keterangan:     c.FormValue("keterangan"),
+		FollowUpDate:   followUpDate,
+		JumlahFollowUp: jumlahFollowUp,
 	}
 
 	chunkIndexStr := c.FormValue("chunk_index")
@@ -296,7 +333,7 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 
 			photo, err := h.uc.Upload(c.UserContext(), req, fullFile, fileInfo.Size(), header.Filename, contentType)
 			if err != nil {
-				return response.InternalServerError(c, "upload failed", err.Error())
+				return response.BadRequest(c, err.Error(), nil)
 			}
 			return response.Created(c, "photo uploaded", photo)
 		} else {
@@ -306,9 +343,23 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 
 	photo, err := h.uc.Upload(c.UserContext(), req, file, header.Size, header.Filename, contentType)
 	if err != nil {
-		return response.InternalServerError(c, "upload failed", err.Error())
+		return response.BadRequest(c, err.Error(), nil)
 	}
 	return response.Created(c, "photo uploaded", photo)
+}
+
+func (h *IssuePhotoHandler) Update(c *fiber.Ctx) error {
+	var req struct {
+		Keterangan string `json:"keterangan"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
+	}
+	photo, err := h.uc.Update(c.UserContext(), c.Params("photo_id"), req.Keterangan)
+	if err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
+	return response.OK(c, "photo updated", photo)
 }
 
 // @Summary Delete an issue photo

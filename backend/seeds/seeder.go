@@ -18,7 +18,7 @@ func Run(db *gorm.DB) {
 	SeedAuditorUser(db)
 	SeedAuditeeUser(db)
 	SeedSettings(db)
-	SeedDummyData(db)
+	// SeedDummyData(db) // Disabled to prevent dummy data generation
 
 	log.Println("✅ Seeding completed.")
 }

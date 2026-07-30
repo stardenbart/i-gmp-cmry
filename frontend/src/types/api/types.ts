@@ -265,7 +265,7 @@ export interface SubmitInspectionResultRequest {
 
 // ─── Issue Types ────────────────────────────────────────────────────────────
 
-export type IssueStatus = "Open" | "InProgress" | "PendingValidation" | "Closed" | "Verified" | "Overdue";
+export type IssueStatus = "Open" | "InProgress" | "PendingValidation" | "Closed" | "Verified" | "OpenOverdue" | "ClosedOverdue" | "Overdue";
 
 export interface Issue {
   issue_id: string;
@@ -273,6 +273,8 @@ export interface Issue {
   issue_pic_user_id: string;
   pic_name?: string;
   issue_status: IssueStatus;
+  computed_status?: IssueStatus;
+  follow_up_delay?: number;
   due_date?: string;
   keterangan?: string;
   created_at?: string;

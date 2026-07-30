@@ -3,6 +3,9 @@ package exporter
 import (
 	"bytes"
 	"fmt"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -83,7 +86,7 @@ func GenerateExcelWithPlaceholder(templatePath, sheetName string, payload *Place
 		// Cek apakah baris ini adalah rentang baris tabel item yang harus di-inject
 		isItemRow := templateRowIdx != -1 && len(payload.Items) > 0 &&
 			excelRow >= templateRowIdx && excelRow < templateRowIdx+len(payload.Items)
-		
+
 		itemIndex := excelRow - templateRowIdx
 
 		for cIdx, cellValue := range row {
@@ -117,7 +120,7 @@ func GenerateExcelWithPlaceholder(templatePath, sheetName string, payload *Place
 						strVal := fmt.Sprintf("%v", v)
 						if cellValue == matchedPlaceholder {
 							if isImagePath(strVal) {
-								insertImage(f, sheetName, cellAxis, strVal)
+								insertImage(f, sheetName, cellAxis, strVal, excelRow)
 								newVal = ""
 							} else {
 								matchedExact = true
@@ -126,7 +129,7 @@ func GenerateExcelWithPlaceholder(templatePath, sheetName string, payload *Place
 							break
 						} else if strings.Contains(newVal, matchedPlaceholder) {
 							if isImagePath(strVal) {
-								insertImage(f, sheetName, cellAxis, strVal)
+								insertImage(f, sheetName, cellAxis, strVal, excelRow)
 								newVal = strings.ReplaceAll(newVal, matchedPlaceholder, "")
 							} else {
 								newVal = strings.ReplaceAll(newVal, matchedPlaceholder, strVal)
@@ -170,40 +173,99 @@ func GenerateExcelWithPlaceholder(templatePath, sheetName string, payload *Place
 
 // Fungsi helper mendeteksi apakah suatu string adalah path gambar
 func isImagePath(path string) bool {
-	// Strip query parameters for URLs
-	if idx := strings.Index(path, "?"); idx != -1 {
-		path = path[:idx]
+	if path == "" {
+		return false
 	}
-	ext := strings.ToLower(filepath.Ext(path))
-	return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif"
+	// Strip query parameters for extension check
+	cleanPath := path
+	if idx := strings.Index(cleanPath, "?"); idx != -1 {
+		cleanPath = cleanPath[:idx]
+	}
+	ext := strings.ToLower(filepath.Ext(cleanPath))
+	if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".webp" {
+		return true
+	}
+	// For URLs without extension (e.g. MinIO paths like /bucket/issues/ISS-001/17398...)
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return true
+	}
+	return false
 }
 
 // Fungsi helper untuk menyisipkan gambar
-func insertImage(f *excelize.File, sheet, cellAxis, imagePath string) {
+func insertImage(f *excelize.File, sheet, cellAxis, imagePath string, excelRow int) {
+	// Set row height to give picture room to display
+	_ = f.SetRowHeight(sheet, excelRow, 60)
+
 	picFormat := &excelize.GraphicOptions{
-		AutoFit: true,
-		OffsetX: 5,
-		OffsetY: 5,
+		AutoFit:         true,
+		OffsetX:         5,
+		OffsetY:         5,
+		PrintObject:     func() *bool { b := true; return &b }(),
+		Locked:          func() *bool { b := false; return &b }(),
+		LockAspectRatio: true,
 	}
 
 	if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
-		resp, err := http.Get(imagePath)
-		if err == nil {
-			defer resp.Body.Close()
-			if resp.StatusCode == 200 {
-				body, _ := io.ReadAll(resp.Body)
-				ext := filepath.Ext(imagePath)
-				if ext == "" {
-					ext = ".png"
+		urlsToTry := []string{imagePath}
+		// Add host fallbacks for Docker vs local environment
+		if strings.Contains(imagePath, "localhost:9000") {
+			urlsToTry = append(urlsToTry, strings.ReplaceAll(imagePath, "localhost:9000", "minio:9000"))
+			urlsToTry = append(urlsToTry, strings.ReplaceAll(imagePath, "localhost:9000", "127.0.0.1:9000"))
+		} else if strings.Contains(imagePath, "minio:9000") {
+			urlsToTry = append(urlsToTry, strings.ReplaceAll(imagePath, "minio:9000", "localhost:9000"))
+			urlsToTry = append(urlsToTry, strings.ReplaceAll(imagePath, "minio:9000", "127.0.0.1:9000"))
+		}
+
+		for _, targetURL := range urlsToTry {
+			resp, err := http.Get(targetURL)
+			if err == nil {
+				defer resp.Body.Close()
+				if resp.StatusCode == 200 {
+					body, readErr := io.ReadAll(resp.Body)
+					if readErr == nil && len(body) > 0 {
+						cleanPath := targetURL
+						if idx := strings.Index(cleanPath, "?"); idx != -1 {
+							cleanPath = cleanPath[:idx]
+						}
+						ext := strings.ToLower(filepath.Ext(cleanPath))
+						if ext == "" {
+							ct := resp.Header.Get("Content-Type")
+							switch {
+							case strings.Contains(ct, "jpeg") || strings.Contains(ct, "jpg"):
+								ext = ".jpg"
+							case strings.Contains(ct, "png"):
+								ext = ".png"
+							case strings.Contains(ct, "gif"):
+								ext = ".gif"
+							case strings.Contains(ct, "webp"):
+								ext = ".webp"
+							default:
+								ext = ".png"
+							}
+						}
+
+						errPic := f.AddPictureFromBytes(sheet, cellAxis, &excelize.Picture{
+							Extension: ext,
+							File:      body,
+							Format:    picFormat,
+						})
+						if errPic == nil {
+							return
+						}
+					}
 				}
-				_ = f.AddPictureFromBytes(sheet, cellAxis, &excelize.Picture{
-					Extension: ext,
-					File:      body,
-					Format:    picFormat,
-				})
-				return
 			}
 		}
 	}
-	_ = f.AddPicture(sheet, cellAxis, imagePath, picFormat)
+
+	// Try relative or local filesystem path
+	localPath := imagePath
+	if strings.HasPrefix(localPath, "/") {
+		localPath = "." + localPath
+	}
+	if err := f.AddPicture(sheet, cellAxis, localPath, picFormat); err != nil && localPath != imagePath {
+		_ = f.AddPicture(sheet, cellAxis, imagePath, picFormat)
+	}
 }
+

@@ -64,6 +64,7 @@ type InspectionHeaderRepository interface {
 	FindActiveByKawasan(kawasanID string) ([]InspectionHeader, error)
 	FindActiveByDetailKawasan(detailKawasanID string) ([]InspectionHeader, error)
 	FindActiveByInspector(inspectorID string) ([]InspectionHeader, error)
+	FindActiveByInspectorAndDetailKawasan(inspectorID, detailKawasanID string) ([]InspectionHeader, error)
 	CountCompletedThisMonthByDetailKawasan(detailKawasanID string, year int, month int) (int64, error)
 	CountCompletedByAreaAndDetailKawasan(areaID, detailKawasanID string) (int64, error)
 	GetTrendByContext(contextID string, year int) ([]TrendData, error)

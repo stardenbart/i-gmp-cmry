@@ -20,22 +20,27 @@ func (r *issueFilterRepository) FindFiltered(f *issue.IssueFilter) ([]issue.Issu
 	var items []issue.Issue
 	var total int64
 
-	base := r.db.Model(&issue.Issue{})
-	base = f.ApplyTo(base)
-	base.Count(&total)
+	// Count distinct IssueIDs (no JOIN needed, avoids inflation)
+	countBase := r.db.Model(&issue.Issue{})
+	countBase = f.ApplyTo(countBase)
+	countBase.Select(`COUNT(DISTINCT "IssueID")`).Count(&total)
 
-	err := f.ApplySort(base).
-		Select(`"Issue".*, 
-			am."AreaName" AS "AreaName", 
-			km."KawasanName" AS "KawasanName", 
-			dkm."DetailKawasanName" AS "DetailKawasanName", 
-			u."FullName" AS "PICName"`).
-		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
-		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
-		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
-		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
-		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue"."IssuePICUserID"`).
+	// Use subqueries for area/kawasan names — no JOINs, no row inflation
+	err := f.ApplySort(f.ApplyTo(r.db.Model(&issue.Issue{}))).
+		Select(`"Issue".*,
+			(SELECT am."AreaName" FROM "Inspection_Result" ir2
+			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+			  JOIN "Area_Master" am ON am."AreaID" = ih2."AreaID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "AreaName",
+			(SELECT km."KawasanName" FROM "Inspection_Result" ir2
+			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+			  JOIN "Kawasan_Master" km ON km."KawasanID" = ih2."KawasanID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "KawasanName",
+			(SELECT dkm."DetailKawasanName" FROM "Inspection_Result" ir2
+			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+			  JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih2."DetailKawasanID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
+			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName"`).
 		Preload("Photos").
 		Offset((f.Page - 1) * f.Limit).
 		Limit(f.Limit).

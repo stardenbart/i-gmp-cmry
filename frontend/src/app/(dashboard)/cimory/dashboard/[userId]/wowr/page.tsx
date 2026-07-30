@@ -27,7 +27,7 @@ import { isAuditorUser } from "@/lib/useAdminGuard";
 import { useMounted } from "@/lib/useMounted";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useSSE } from "@/hooks/useSSE";
-import { cn } from "@/lib/utils";
+import { cn, formatImageUrl } from "@/lib/utils";
 
 // Modal Component for Uploading Photo (For Auditee)
 function UploadProofModal({ 
@@ -164,15 +164,21 @@ function IssueRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const initialPhotos = issue.photos?.filter(p => p.photo_type === "Initial") || [];
-  const wowrPhotos = issue.photos?.filter(p => p.photo_type === "WOWR") || [];
+  const wowrPhotos = issue.wowr_status === "Rejected"
+    ? []
+    : issue.photos?.filter(p => p.photo_type === "WOWR" || p.photo_type === "FollowUp") || [];
   
   const queryClient = useQueryClient();
   
   const approveMutation = useMutation({
-    mutationFn: () => issueApi.update(issue.issue_id, { wowr_status: "Verified" }),
+    mutationFn: () => issueApi.update(issue.issue_id, { 
+      wowr_status: "Verified",
+      issue_status: "Closed"
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
-      toast.success("Bukti WO/WR berhasil diverifikasi!");
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      toast.success("Bukti WO/WR berhasil diverifikasi & temuan diselesaikan!");
     },
     onError: () => toast.error("Gagal memverifikasi bukti.")
   });
@@ -181,7 +187,9 @@ function IssueRow({
     mutationFn: () => issueApi.update(issue.issue_id, { wowr_status: "Rejected" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
-      toast.error("Bukti WO/WR ditolak. Auditee harus mengunggah ulang.");
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
+      toast.error("Bukti WO/WR ditolak. Foto bukti lama dibersihkan agar Auditee mengunggah ulang.");
     },
     onError: () => toast.error("Gagal menolak bukti.")
   });
@@ -303,7 +311,7 @@ function IssueRow({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
-                            src={p.image_url} 
+                            src={formatImageUrl(p.image_url)} 
                             alt="Initial" 
                             className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                           />
@@ -331,7 +339,7 @@ function IssueRow({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
-                            src={p.image_url} 
+                            src={formatImageUrl(p.image_url)} 
                             alt="WOWR Evidence" 
                             className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                           />
@@ -507,7 +515,7 @@ export default function WOWRPage() {
             </Button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={previewImage}
+              src={formatImageUrl(previewImage)}
               alt="Preview Bukti WO/WR"
               className="rounded-2xl max-h-[85vh] w-full object-contain shadow-2xl border border-white/10"
             />

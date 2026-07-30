@@ -346,6 +346,10 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 // GET /api/v1/dashboard/export
 func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 	areaID := c.Query("area_id")
+	kawasanID := c.Query("kawasan_id")
+	detailKawasanID := c.Query("detail_kawasan_id")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
 
 	type PreviewExportResponse struct {
 		InspectionID    string     `json:"inspection_id"`
@@ -381,17 +385,20 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			COALESCE(km."KawasanName", ih."KawasanID") as kawasan,
 			ih."DetailKawasanID" as detail_kawasan_id,
 			COALESCE(dkm."DetailKawasanName", ih."DetailKawasanID") as detail_kawasan,
-			COALESCE(u."FullName", ih."InspectorID") as pic, 
+			COALESCE(u_pic."FullName", u_inspector."FullName", ih."InspectorID") as pic, 
 			am."AspekName" as aspek, 
 			dm."DetailName" as detail, 
 			um."UraianID" as uraian_id, 
 			um."UraianText" as uraian, 
 			ir."Nilai" as nilai, 
-			ir."Keterangan" as keterangan, 
+			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
-			(SELECT "ImageUrl" FROM "Issue_Photo" p WHERE p."IssueID" = iss."IssueID" ORDER BY p."PhotoCreatedAt" ASC LIMIT 1) as image_url, 
-			(SELECT COALESCE(p."FollowUpDate", p."PhotoCreatedAt") FROM "Issue_Photo" p WHERE p."IssueID" = iss."IssueID" ORDER BY p."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
+			COALESCE(
+				(SELECT p3."ImageUrl" FROM "Issue_Photo" p3 WHERE p3."IssueID" = iss."IssueID" AND p3."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p3."PhotoCreatedAt" DESC LIMIT 1),
+				(SELECT p4."ImageUrl" FROM "Issue_Photo" p4 WHERE p4."IssueID" = iss."IssueID" ORDER BY p4."PhotoCreatedAt" ASC LIMIT 1)
+			) as image_url, 
+			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"`).
 		Joins(`JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
@@ -399,12 +406,25 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Area_Master" am_area ON am_area."AreaID" = ih."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
-		Joins(`LEFT JOIN "Users" u ON u."UserID" = ih."InspectorID"`).
-		Joins(`LEFT JOIN "Issue" iss ON iss."ResultID" = ir."ResultID"`)
+		Joins(`LEFT JOIN "Users" u_inspector ON u_inspector."UserID" = ih."InspectorID"`).
+		Joins(`LEFT JOIN "Issue" iss ON iss."ResultID" = ir."ResultID"`).
+		Joins(`LEFT JOIN "Users" u_pic ON u_pic."UserID" = iss."IssuePICUserID"`)
 
 	allowedAreas := h.getAllowedAreas(c)
 	if areaID != "" {
 		query = query.Where(`ih."AreaID" = ?`, areaID)
+	}
+	if kawasanID != "" {
+		query = query.Where(`ih."KawasanID" = ?`, kawasanID)
+	}
+	if detailKawasanID != "" {
+		query = query.Where(`ih."DetailKawasanID" = ?`, detailKawasanID)
+	}
+	if startDate != "" {
+		query = query.Where(`ih."InspectionHeaderCreatedAt" >= ?`, startDate+" 00:00:00")
+	}
+	if endDate != "" {
+		query = query.Where(`ih."InspectionHeaderCreatedAt" <= ?`, endDate+" 23:59:59")
 	}
 	if allowedAreas != nil {
 		query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
@@ -443,6 +463,9 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			decrypted := h.cryptoSvc.DecryptWithFallback(*results[i].ImageURL)
 			results[i].ImageURL = &decrypted
 		}
+		if h.cryptoSvc != nil && results[i].Keterangan != "" {
+			results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
+		}
 	}
 
 	return response.OK(c, "success", results)
@@ -450,26 +473,30 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 
 func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	areaID := c.Query("area_id")
+	kawasanID := c.Query("kawasan_id")
+	detailKawasanID := c.Query("detail_kawasan_id")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
 
 	type PreviewExportResponse struct {
-		InspectionID    string
-		Tanggal         time.Time
-		Area            string
-		KawasanID       string
-		Kawasan         string
-		DetailKawasanID string
-		DetailKawasan   string
-		PIC             string
-		Aspek           string
-		Detail          string
-		UraianID        string
-		Uraian          string
-		Nilai           int
-		Keterangan      string
-		IssueID         *string
-		DueDate         *time.Time
-		ImageURL        *string
-		FollowUpDate    *time.Time
+		InspectionID    string     `gorm:"column:inspection_id" json:"inspection_id"`
+		Tanggal         time.Time  `gorm:"column:tanggal" json:"tanggal"`
+		Area            string     `gorm:"column:area" json:"area"`
+		KawasanID       string     `gorm:"column:kawasan_id" json:"kawasan_id"`
+		Kawasan         string     `gorm:"column:kawasan" json:"kawasan"`
+		DetailKawasanID string     `gorm:"column:detail_kawasan_id" json:"detail_kawasan_id"`
+		DetailKawasan   string     `gorm:"column:detail_kawasan" json:"detail_kawasan"`
+		PIC             string     `gorm:"column:pic" json:"pic"`
+		Aspek           string     `gorm:"column:aspek" json:"aspek"`
+		Detail          string     `gorm:"column:detail" json:"detail"`
+		UraianID        string     `gorm:"column:uraian_id" json:"uraian_id"`
+		Uraian          string     `gorm:"column:uraian" json:"uraian"`
+		Nilai           int        `gorm:"column:nilai" json:"nilai"`
+		Keterangan      string     `gorm:"column:keterangan" json:"keterangan"`
+		IssueID         *string    `gorm:"column:issue_id" json:"issue_id"`
+		DueDate         *time.Time `gorm:"column:due_date" json:"due_date"`
+		ImageURL        *string    `gorm:"column:image_url" json:"image_url"`
+		FollowUpDate    *time.Time `gorm:"column:follow_up_date" json:"follow_up_date"`
 	}
 
 	var results []PreviewExportResponse
@@ -481,17 +508,20 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			COALESCE(km."KawasanName", ih."KawasanID") as kawasan,
 			ih."DetailKawasanID" as detail_kawasan_id,
 			COALESCE(dkm."DetailKawasanName", ih."DetailKawasanID") as detail_kawasan,
-			COALESCE(u."FullName", ih."InspectorID") as pic, 
+			COALESCE(u_pic."FullName", u_inspector."FullName", ih."InspectorID") as pic, 
 			am."AspekName" as aspek, 
 			dm."DetailName" as detail, 
 			um."UraianID" as uraian_id, 
 			um."UraianText" as uraian, 
 			ir."Nilai" as nilai, 
-			ir."Keterangan" as keterangan, 
+			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
-			(SELECT "ImageUrl" FROM "Issue_Photo" p WHERE p."IssueID" = iss."IssueID" ORDER BY p."PhotoCreatedAt" ASC LIMIT 1) as image_url, 
-			(SELECT COALESCE(p."FollowUpDate", p."PhotoCreatedAt") FROM "Issue_Photo" p WHERE p."IssueID" = iss."IssueID" ORDER BY p."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
+			COALESCE(
+				(SELECT p3."ImageUrl" FROM "Issue_Photo" p3 WHERE p3."IssueID" = iss."IssueID" AND p3."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p3."PhotoCreatedAt" DESC LIMIT 1),
+				(SELECT p4."ImageUrl" FROM "Issue_Photo" p4 WHERE p4."IssueID" = iss."IssueID" ORDER BY p4."PhotoCreatedAt" ASC LIMIT 1)
+			) as image_url, 
+			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"`).
 		Joins(`JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
@@ -499,8 +529,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Area_Master" am_area ON am_area."AreaID" = ih."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
-		Joins(`LEFT JOIN "Users" u ON u."UserID" = ih."InspectorID"`).
-		Joins(`LEFT JOIN "Issue" iss ON iss."ResultID" = ir."ResultID"`)
+		Joins(`LEFT JOIN "Users" u_inspector ON u_inspector."UserID" = ih."InspectorID"`).
+		Joins(`LEFT JOIN "Issue" iss ON iss."ResultID" = ir."ResultID"`).
+		Joins(`LEFT JOIN "Users" u_pic ON u_pic."UserID" = iss."IssuePICUserID"`)
 
 	allowedAreas := h.getAllowedAreas(c)
 	var areaName string = "Semua Area"
@@ -509,6 +540,18 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		query = query.Where(`ih."AreaID" = ?`, areaID)
 		h.db.Table(`"Area_Master"`).Select(`"AreaName"`).Where(`"AreaID" = ?`, areaID).Scan(&areaName)
 		h.db.Table(`"PIC_Mapping" pm`).Select(`u."FullName"`).Joins(`JOIN "Users" u ON u."UserID" = pm."UserID"`).Where(`pm."AreaID" = ?`, areaID).Limit(1).Scan(&picName)
+	}
+	if kawasanID != "" {
+		query = query.Where(`ih."KawasanID" = ?`, kawasanID)
+	}
+	if detailKawasanID != "" {
+		query = query.Where(`ih."DetailKawasanID" = ?`, detailKawasanID)
+	}
+	if startDate != "" {
+		query = query.Where(`ih."InspectionHeaderCreatedAt" >= ?`, startDate+" 00:00:00")
+	}
+	if endDate != "" {
+		query = query.Where(`ih."InspectionHeaderCreatedAt" <= ?`, endDate+" 23:59:59")
 	}
 	if allowedAreas != nil {
 		query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
@@ -523,21 +566,48 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		})
 	}
 
+	if picName == "Semua PIC" && len(results) > 0 && results[0].PIC != "" {
+		picName = results[0].PIC
+	}
+
 	totalNilai := 0
 	totalTemuan := 0
 	kawasanNilai := make(map[string]int)
 	kawasanTemuan := make(map[string]int)
 
-	for _, res := range results {
-		totalNilai += res.Nilai
-		key := res.KawasanID
+	for i := range results {
+		totalNilai += results[i].Nilai
+		key := results[i].KawasanID
 		if key == "" {
-			key = res.Kawasan
+			key = results[i].Kawasan
 		}
-		kawasanNilai[key] += res.Nilai
-		if res.IssueID != nil && *res.IssueID != "" {
+		kawasanNilai[key] += results[i].Nilai
+		if results[i].IssueID != nil && *results[i].IssueID != "" {
 			totalTemuan++
 			kawasanTemuan[key]++
+		}
+
+		if h.cryptoSvc != nil {
+			if results[i].ImageURL != nil && *results[i].ImageURL != "" {
+				decrypted := h.cryptoSvc.DecryptWithFallback(*results[i].ImageURL)
+				results[i].ImageURL = &decrypted
+			}
+			if results[i].Keterangan != "" {
+				results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
+			}
+		}
+	}
+
+	// Prepare header DueDate from the first inspection date or leave empty
+	headerDueDate := ""
+	if len(results) > 0 {
+		headerDueDate = results[0].Tanggal.Format("02-Jan-2006")
+		// If any result has an issue due date, use the latest one
+		for _, r := range results {
+			if r.DueDate != nil {
+				headerDueDate = r.DueDate.Format("02-Jan-2006")
+				break
+			}
 		}
 	}
 
@@ -547,6 +617,7 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"datetime.now()":      time.Now().Format("02-Jan-06"),
 			"AreaName":            areaName,
 			"PICName":             picName,
+			"DueDate":             headerDueDate,
 			"total_semua_nilai":   totalNilai,
 			"total_semua_temuan":  totalTemuan,
 		},
@@ -565,9 +636,13 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		imgUrl := ""
 		if res.ImageURL != nil && *res.ImageURL != "" {
 			imgUrl = *res.ImageURL
-			if h.cryptoSvc != nil {
-				imgUrl = h.cryptoSvc.DecryptWithFallback(imgUrl)
-			}
+		}
+
+		// Keterangan: try to decrypt again if it looks like it might still be encrypted
+		keterangan := res.Keterangan
+		if keterangan != "" && h.cryptoSvc != nil {
+			// DecryptWithFallback will return the original string if it can't be decrypted
+			keterangan = h.cryptoSvc.DecryptWithFallback(keterangan)
 		}
 
 		key := res.KawasanID
@@ -577,6 +652,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 
 		payload.Items = append(payload.Items, map[string]interface{}{
 			"no":                      i + 1,
+			"pic":                     res.PIC,
+			"picName":                 res.PIC,
+			"pic_name":                res.PIC,
 			"kawasanName":             res.Kawasan,
 			"detailKawasanName":       res.DetailKawasan,
 			"aspekName":               res.Aspek,
@@ -589,10 +667,16 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"total_temuan_perkawasan": kawasanTemuan[key],
 			"total_nilai_peraspek":    kawasanNilai[key],
 			"total_temuan_peraspek":   kawasanTemuan[key],
-			"keterangan":              res.Keterangan,
+			"keterangan":              keterangan,
 			"dueDate":                 dueDateStr,
+			"due_date":                dueDateStr,
+			"DueDate":                 dueDateStr,
 			"followUp":                followUpStr,
+			"follow_up":               followUpStr,
+			"follow_up_date":          followUpStr,
+			"FollowUpDate":            followUpStr,
 			"imageUrl":                imgUrl,
+			"image_url":               imgUrl,
 		})
 	}
 

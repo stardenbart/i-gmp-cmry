@@ -181,6 +181,7 @@ services:
     environment:
       NEXT_PUBLIC_BACKEND_URL: http://backend:8080
       INTERNAL_BACKEND_URL: http://backend:8080
+      MINIO_ENDPOINT: http://minio:9000
     networks:
       - audit_network
 

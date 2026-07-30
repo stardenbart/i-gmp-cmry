@@ -6,6 +6,11 @@ export default function proxy(request: NextRequest) {
   const userId = request.cookies.get('user-id')?.value;
   const { pathname } = request.nextUrl;
 
+  // Allow MinIO bucket images to bypass auth middleware
+  if (pathname.startsWith('/monitoring-audit-bucket')) {
+    return NextResponse.next();
+  }
+
   const isAuthRoute = pathname === '/login' || pathname === '/forgot-password';
 
   if (!token && !isAuthRoute) {
@@ -27,14 +32,15 @@ export default function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * Match all request paths EXCEPT:
+     * - api (API routes / rewrite proxy)
+     * - monitoring-audit-bucket (MinIO proxied images)
+     * - _next/static (static files, JS/CSS chunks)
+     * - _next/image (Next.js image optimizer)
+     * - All image/media extensions (.png, .jpg, .jpeg, .webp, .svg, .ico, .gif)
      * - manifest.json (PWA manifest)
-     * - icon-*.png (PWA icons)
+     * - sw.js, workbox-* (PWA service worker)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|icon-.*\\.png).*)',
+    '/((?!api|monitoring-audit-bucket|_next/static|_next/image|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.svg|.*\\.ico|.*\\.gif|manifest\\.json|sw\\.js|workbox-.*).*)',
   ],
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useDeferredValue } from "react";
+import { useState, useDeferredValue, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -20,9 +20,11 @@ import {
 
 import { Issue, IssueStatus } from "@/lib/api/issue.api";
 import { filterApi, IssueFilterParams } from "@/lib/api/filter.api";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
+import { isAuditorUser } from "@/lib/useAdminGuard";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
 import { useSSE } from "@/hooks/useSSE";
 
@@ -30,34 +32,39 @@ import { useSSE } from "@/hooks/useSSE";
 const STATUS_OPTIONS: { label: string; value: IssueStatus | "all" }[] = [
   { label: "Semua", value: "all" },
   { label: "Open", value: "Open" },
+  { label: "Open Overdue", value: "OpenOverdue" },
   { label: "In Progress", value: "InProgress" },
-  { label: "Pending", value: "PendingValidation" },
   { label: "Closed", value: "Closed" },
-  { label: "Verified", value: "Verified" },
+  { label: "Closed Overdue", value: "ClosedOverdue" },
 ];
 
 const statusConfig: Record<
   IssueStatus,
   { label: string; icon: React.ElementType; color: string; bg: string; border: string }
 > = {
-  Open:              { label: "Open",              icon: AlertTriangle,  color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30" },
-  InProgress:        { label: "In Progress",       icon: CircleDot,      color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/30" },
-  PendingValidation: { label: "Pending Validation",icon: Loader2,        color: "text-amber-400",  bg: "bg-amber-500/10",  border: "border-amber-500/30" },
+  Open:              { label: "Open",              icon: AlertTriangle,  color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/30" },
+  InProgress:        { label: "In Progress",       icon: CircleDot,      color: "text-amber-400",  bg: "bg-amber-500/10",  border: "border-amber-500/30" },
+  PendingValidation: { label: "Pending Validation",icon: Loader2,        color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/30" },
   Closed:            { label: "Closed",            icon: XCircle,        color: "text-zinc-400",   bg: "bg-zinc-500/10",   border: "border-zinc-500/30" },
   Verified:          { label: "Verified",          icon: CheckCircle2,   color: "text-emerald-400",bg: "bg-emerald-500/10",border: "border-emerald-500/30" },
-  Overdue:           { label: "Overdue",           icon: ShieldAlert,    color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/30" },
+  Overdue:           { label: "Overdue",           icon: ShieldAlert,    color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30" },
+  OpenOverdue:       { label: "Open Overdue",       icon: ShieldAlert,    color: "text-red-400",    bg: "bg-red-500/10",    border: "border-red-500/30" },
+  ClosedOverdue:     { label: "Closed Overdue",     icon: CheckCircle2,   color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/30" },
 };
 
 /* ── Issue Card ────────────────────────────────────────────────────────── */
 function IssueCard({ issue }: { issue: Issue }) {
-  const cfg = statusConfig[issue.issue_status] ?? statusConfig["Open"];
+  const displayStatus = issue.computed_status || issue.issue_status;
+  const cfg = statusConfig[displayStatus] ?? statusConfig["Open"];
   const StatusIcon = cfg.icon;
   const dueDate = issue.due_date ? new Date(issue.due_date) : null;
   const isOverdue =
-    dueDate &&
-    dueDate < new Date() &&
-    issue.issue_status !== "Closed" &&
-    issue.issue_status !== "Verified";
+    displayStatus === "OpenOverdue" ||
+    displayStatus === "ClosedOverdue" ||
+    (dueDate &&
+      dueDate < new Date() &&
+      issue.issue_status !== "Closed" &&
+      issue.issue_status !== "Verified");
 
   return (
     <Link href={`./issues/${issue.issue_id}`}>
@@ -66,7 +73,7 @@ function IssueCard({ issue }: { issue: Issue }) {
           "group relative flex items-stretch gap-0 rounded-2xl border bg-card/60 backdrop-blur-md",
           "hover:border-primary/40 hover:bg-card/80 hover:shadow-lg hover:shadow-primary/5",
           "active:scale-[0.99] transition-all duration-200 overflow-hidden",
-          isOverdue ? "border-orange-500/40" : "border-border/60"
+          isOverdue ? "border-red-500/40" : "border-border/60"
         )}
       >
         {/* Left accent bar */}
@@ -109,7 +116,7 @@ function IssueCard({ issue }: { issue: Issue }) {
               <span
                 className={cn(
                   "inline-flex items-center gap-1 text-[11px]",
-                  isOverdue ? "text-orange-400 font-semibold" : "text-muted-foreground"
+                  isOverdue ? "text-red-400 font-semibold" : "text-muted-foreground"
                 )}
               >
                 <Clock className="h-3 w-3 shrink-0" />
@@ -119,6 +126,13 @@ function IssueCard({ issue }: { issue: Issue }) {
                   month: "short",
                   year: "numeric",
                 })}
+              </span>
+            )}
+
+            {/* Follow up delay badge */}
+            {issue.follow_up_delay !== undefined && issue.follow_up_delay > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded-full">
+                Terlambat {issue.follow_up_delay} hari
               </span>
             )}
 
@@ -161,6 +175,8 @@ function IssueSkeleton() {
 export default function IssuesPage() {
   const user = useAuthStore((state) => state.user);
   const { hasPermission, isLoading: isPermLoading } = usePermissions();
+  const isAuditor = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
+  const canAccess = hasPermission("PERM-ISS-R") || isAuditor;
 
   useSSE();
 
@@ -183,15 +199,24 @@ export default function IssuesPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["issues-filter", params],
     queryFn: () => filterApi.issues(params),
-    enabled: hasPermission("PERM-ISS-R"),
+    enabled: canAccess,
   });
 
-  const issues: Issue[] = data?.items ?? [];
+  const rawItems: Issue[] = data?.items ?? [];
+  const issues: Issue[] = useMemo(() => {
+    const map = new Map<string, Issue>();
+    for (const item of rawItems) {
+      if (item.issue_id && !map.has(item.issue_id)) {
+        map.set(item.issue_id, item);
+      }
+    }
+    return Array.from(map.values());
+  }, [rawItems]);
   const facets = data?.facets;
   const total = data?.total ?? 0;
   const totalPages = data?.total_pages ?? 1;
 
-  if (!isPermLoading && !hasPermission("PERM-ISS-R")) {
+  if (!isPermLoading && !canAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -295,7 +320,7 @@ export default function IssuesPage() {
       </div>
 
       {/* ── List ── */}
-      <div className="grid gap-3">
+      <div className="w-full grid grid-cols-1 gap-3">
         {isLoading ? (
           <>
             <IssueSkeleton />
@@ -303,28 +328,37 @@ export default function IssuesPage() {
             <IssueSkeleton />
           </>
         ) : issues.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl border border-dashed border-border/60 bg-card/30">
-            <div className="h-14 w-14 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-              <AlertTriangle className="h-7 w-7 text-muted-foreground/50" />
+          <div className="w-full rounded-3xl border border-dashed border-border/70 bg-gradient-to-b from-card/80 via-card/40 to-background p-8 sm:p-12 text-center shadow-sm">
+            <div className="mx-auto w-full max-w-md text-center space-y-4" style={{ width: "100%", maxWidth: "28rem", marginLeft: "auto", marginRight: "auto" }}>
+              <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-inner mx-auto mb-2">
+                <AlertTriangle className="h-8 w-8 text-amber-500" />
+              </div>
+
+              <h3 className="w-full text-lg font-bold text-foreground tracking-tight text-center block">
+                {search || activeStatus !== "all" ? "Tidak Ada Temuan Ditemukan" : "Belum Ada Temuan"}
+              </h3>
+
+              <p className="w-full text-sm text-muted-foreground leading-relaxed text-center block" style={{ wordBreak: "normal", overflowWrap: "break-word" }}>
+                {search
+                  ? `Tidak ada temuan yang cocok dengan kata kunci "${search}".`
+                  : activeStatus !== "all"
+                  ? `Tidak ada temuan berstatus "${activeStatus}".`
+                  : "Temuan akan secara otomatis tercatat ketika ada poin inspeksi yang tidak sesuai (NG)."}
+              </p>
+
+              {(search || activeStatus !== "all") && (
+                <div className="w-full flex items-center justify-center pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSearch(""); setActiveStatus("all"); setPage(1); }}
+                    className="rounded-full px-5 h-9 text-xs font-semibold"
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" /> Hapus Filter
+                  </Button>
+                </div>
+              )}
             </div>
-            <p className="font-semibold text-sm text-foreground">
-              {search || activeStatus !== "all" ? "Tidak ada hasil" : "Belum ada temuan"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
-              {search
-                ? `Tidak ada temuan yang cocok dengan "${search}"`
-                : activeStatus !== "all"
-                ? "Tidak ada temuan dengan status ini."
-                : "Temuan akan muncul setelah inspeksi dilakukan."}
-            </p>
-            {(search || activeStatus !== "all") && (
-              <button
-                onClick={() => { setSearch(""); setActiveStatus("all"); setPage(1); }}
-                className="mt-4 flex items-center gap-1 text-xs text-primary hover:underline"
-              >
-                <X className="h-3 w-3" /> Hapus filter
-              </button>
-            )}
           </div>
         ) : (
           issues.map((issue) => <IssueCard key={issue.issue_id} issue={issue} />)

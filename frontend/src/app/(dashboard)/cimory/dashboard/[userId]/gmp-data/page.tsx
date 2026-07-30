@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, User, MapPin } from "lucide-react";
+import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, Filter, RotateCcw, Layers, ListChecks } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,9 +9,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import { dashboardApi } from "@/types/api/dashboard";
 import { areaApi } from "@/types/api/master";
+import { fetchItems } from "@/components/master/master.api";
 import { useAdminGuard } from "@/lib/useAdminGuard";
 import { useMounted } from "@/lib/useMounted";
-import { cn } from "@/lib/utils";
+import { cn, formatImageUrl } from "@/lib/utils";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
 
 export default function GmpDataAdminPage() {
@@ -19,27 +20,88 @@ export default function GmpDataAdminPage() {
   const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
   
   const [selectedArea, setSelectedArea] = useState<string>("");
+  const [selectedKawasan, setSelectedKawasan] = useState<string>("");
+  const [selectedDetailKawasan, setSelectedDetailKawasan] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [q, setQ] = useState("");
   const [isExporting, setIsExporting] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // Lookups
   const { data: areasResponse } = useQuery({
     queryKey: ["areas-master-admin-gmp"],
     queryFn: () => areaApi.getAll(1, 100),
     enabled: mounted && isAdmin,
   });
 
-  const { data: previewData, isLoading: isPreviewLoading } = useQuery({
-    queryKey: ["dashboard-preview-export", selectedArea],
-    queryFn: () => dashboardApi.getPreviewExport(selectedArea),
+  const { data: kawasanLookup } = useQuery({
+    queryKey: ["kawasan-master-admin-gmp"],
+    queryFn: () => fetchItems("/master/kawasan", 1, "", 500),
     enabled: mounted && isAdmin,
   });
+
+  const { data: detailKawasanLookup } = useQuery({
+    queryKey: ["detail-kawasan-master-admin-gmp"],
+    queryFn: () => fetchItems("/master/detail-kawasan", 1, "", 500),
+    enabled: mounted && isAdmin,
+  });
+
+  // Filtered dropdown options (cascading)
+  const kawasanOptions = kawasanLookup?.items?.filter((k: any) => 
+    !selectedArea || k.area_id === selectedArea || k.area?.area_id === selectedArea
+  ) || [];
+
+  const detailKawasanOptions = detailKawasanLookup?.items?.filter((dk: any) => 
+    !selectedKawasan || dk.kawasan_id === selectedKawasan
+  ) || [];
+
+  // Main data preview query
+  const { data: previewData, isLoading: isPreviewLoading } = useQuery({
+    queryKey: ["dashboard-preview-export", selectedArea, selectedKawasan, selectedDetailKawasan, startDate, endDate],
+    queryFn: () => dashboardApi.getPreviewExport({
+      area_id: selectedArea,
+      kawasan_id: selectedKawasan,
+      detail_kawasan_id: selectedDetailKawasan,
+      start_date: startDate,
+      end_date: endDate,
+    }),
+    enabled: mounted && isAdmin,
+  });
+
+  const handleAreaChange = (val: string) => {
+    setSelectedArea(val);
+    setSelectedKawasan("");
+    setSelectedDetailKawasan("");
+  };
+
+  const handleKawasanChange = (val: string) => {
+    setSelectedKawasan(val);
+    setSelectedDetailKawasan("");
+  };
+
+  const handleResetFilters = () => {
+    setSelectedArea("");
+    setSelectedKawasan("");
+    setSelectedDetailKawasan("");
+    setStartDate("");
+    setEndDate("");
+    setQ("");
+  };
+
+  const hasActiveFilters = Boolean(selectedArea || selectedKawasan || selectedDetailKawasan || startDate || endDate || q);
 
   const handleExport = async () => {
     try {
       setIsExporting(true);
       const response = await api.get("/dashboard/export", { 
-        params: { area_id: selectedArea },
+        params: { 
+          area_id: selectedArea,
+          kawasan_id: selectedKawasan,
+          detail_kawasan_id: selectedDetailKawasan,
+          start_date: startDate,
+          end_date: endDate,
+        },
         responseType: 'blob' 
       });
       
@@ -78,6 +140,8 @@ export default function GmpDataAdminPage() {
     return (
       row.inspection_id?.toLowerCase().includes(searchLower) ||
       row.area?.toLowerCase().includes(searchLower) ||
+      row.kawasan?.toLowerCase().includes(searchLower) ||
+      row.detail_kawasan?.toLowerCase().includes(searchLower) ||
       row.pic?.toLowerCase().includes(searchLower) ||
       row.aspek?.toLowerCase().includes(searchLower) ||
       row.detail?.toLowerCase().includes(searchLower) ||
@@ -107,12 +171,13 @@ export default function GmpDataAdminPage() {
       </div>
 
       {/* Filter Bar */}
-      <Card className="p-4 bg-card/60 backdrop-blur-md border-border/50">
+      <Card className="p-4 bg-card/60 backdrop-blur-md border-border/50 space-y-3">
+        {/* Search & Latency Row */}
         <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Cari Inspeksi ID, Aspek, Detail, Uraian ID, Area, PIC, Keterangan..."
+              placeholder="Cari Inspeksi ID, Aspek, Detail, Uraian ID, Area, Kawasan, PIC, Keterangan..."
               value={q}
               onChange={e => setQ(e.target.value)}
               className="pl-9 bg-background/50"
@@ -125,29 +190,106 @@ export default function GmpDataAdminPage() {
             pageName="Data Inspeksi (GMP)"
             apiPath="/dashboard/stats"
           />
-          
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground hidden sm:inline-block">Area:</span>
-              <select 
-                value={selectedArea} 
-                onChange={(e) => setSelectedArea(e.target.value)}
-                className="px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-10 w-full sm:w-48"
-              >
-                <option value="">Semua Area</option>
-                {areasResponse?.data?.items?.map((area: any) => (
-                  <option key={area.area_id} value={area.area_id}>
-                    {area.area_name}
-                  </option>
-                ))}
-              </select>
+        </div>
+
+        {/* Multi-Filter Controls Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-border/40">
+          {/* Area Filter */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <MapPin className="h-3 w-3 text-primary" /> Area:
+            </label>
+            <select 
+              value={selectedArea} 
+              onChange={(e) => handleAreaChange(e.target.value)}
+              className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Semua Area</option>
+              {areasResponse?.data?.items?.map((area: any) => (
+                <option key={area.area_id} value={area.area_id}>
+                  {area.area_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Kawasan Filter */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <Layers className="h-3 w-3 text-primary" /> Kawasan:
+            </label>
+            <select 
+              value={selectedKawasan} 
+              onChange={(e) => handleKawasanChange(e.target.value)}
+              disabled={!selectedArea && kawasanOptions.length === 0}
+              className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary disabled:opacity-50"
+            >
+              <option value="">Semua Kawasan</option>
+              {kawasanOptions.map((kawasan: any) => (
+                <option key={kawasan.kawasan_id} value={kawasan.kawasan_id}>
+                  {kawasan.kawasan_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Detail Kawasan Filter */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <ListChecks className="h-3 w-3 text-primary" /> Detail Kawasan:
+            </label>
+            <select 
+              value={selectedDetailKawasan} 
+              onChange={(e) => setSelectedDetailKawasan(e.target.value)}
+              disabled={!selectedKawasan && detailKawasanOptions.length === 0}
+              className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary disabled:opacity-50"
+            >
+              <option value="">Semua Detail Kawasan</option>
+              {detailKawasanOptions.map((dk: any) => (
+                <option key={dk.detail_kawasan_id} value={dk.detail_kawasan_id}>
+                  {dk.detail_kawasan_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Start Date Filter */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-primary" /> Tanggal Mulai:
+            </label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-9 text-xs bg-background"
+            />
+          </div>
+
+          {/* End Date Filter & Reset Button */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-primary" /> Tanggal Selesai:
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-9 text-xs bg-background flex-1"
+              />
+              {hasActiveFilters && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleResetFilters} 
+                  title="Reset Semua Filter"
+                  className="h-9 px-2 shrink-0 border-destructive/30 hover:bg-destructive/10 text-destructive"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
-            
-            {q && (
-              <Button variant="ghost" onClick={() => setQ("")} className="shrink-0 h-10">
-                <X className="mr-1 h-4 w-4" /> Reset Cari
-              </Button>
-            )}
           </div>
         </div>
       </Card>
@@ -182,11 +324,11 @@ export default function GmpDataAdminPage() {
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12">
-                    <div className="flex flex-col items-center justify-center text-center min-w-[400px]">
+                  <td colSpan={12} className="px-6 py-12">
+                    <div className="w-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-4">
                       <ClipboardCheck className="h-12 w-12 text-muted-foreground/30 mb-3" />
                       <h3 className="text-lg font-semibold text-foreground">Tidak ada data</h3>
-                      <p className="text-sm text-muted-foreground mt-1 mx-auto max-w-lg">
+                      <p className="text-sm text-muted-foreground mt-1.5 w-full leading-relaxed">
                         Data inspeksi GMP untuk area yang dipilih tidak ditemukan, atau tidak cocok dengan kata kunci pencarian Anda.
                       </p>
                     </div>
@@ -258,11 +400,11 @@ export default function GmpDataAdminPage() {
                       {row.image_url ? (
                         <div 
                           className="relative group h-12 w-16 mx-auto overflow-hidden rounded-lg border border-border/60 shadow-sm cursor-pointer bg-muted"
-                          onClick={() => setPreviewImage(row.image_url)}
+                          onClick={() => setPreviewImage(formatImageUrl(row.image_url))}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
-                            src={row.image_url} 
+                            src={formatImageUrl(row.image_url)} 
                             alt="Issue Photo" 
                             className="h-full w-full object-cover transition-transform group-hover:scale-110" 
                           />
@@ -326,7 +468,7 @@ export default function GmpDataAdminPage() {
             </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img 
-              src={previewImage} 
+              src={formatImageUrl(previewImage)} 
               alt="Visual Issue Large" 
               className="max-h-[80vh] w-auto object-contain rounded-xl" 
             />

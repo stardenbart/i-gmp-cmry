@@ -11,6 +11,7 @@ export interface Kawasan {
   kawasan_name: string;
   kawasan_code?: string;
   area_id: string;
+  last_inspection?: string;
 }
 
 export interface DetailKawasan {
@@ -18,6 +19,8 @@ export interface DetailKawasan {
   detail_kawasan_name: string;
   detail_kawasan_code?: string;
   kawasan_id: string;
+  last_inspection?: string;
+  active_inspection_status?: string; // "Ongoing" | "Draft" | "" — from live join
 }
 
 interface PaginatedResponse<T> {

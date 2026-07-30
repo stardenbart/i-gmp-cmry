@@ -41,38 +41,22 @@ func NewMinioStorage(endpoint, accessKey, secretKey, bucket, allowedIPs string, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create bucket: %w", err)
 		}
+	}
 
-		// Parse allowed IPs
-		ipList := []string{}
-		for _, ip := range strings.Split(allowedIPs, ",") {
-			ip = strings.TrimSpace(ip)
-			if ip != "" {
-				ipList = append(ipList, ip)
+	// Always ensure bucket policy allows public read access for viewing uploaded images
+	policy := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Principal": {"AWS": ["*"]},
+				"Action": ["s3:GetObject"],
+				"Resource": ["arn:aws:s3:::%s/*"]
 			}
-		}
-		ipJson, _ := json.Marshal(ipList)
-
-		// Set bucket policy to allow read but restrict to IP Whitelist
-		policy := fmt.Sprintf(`{
-			"Version": "2012-10-17",
-			"Statement": [
-				{
-					"Action": ["s3:GetObject"],
-					"Effect": "Allow",
-					"Principal": {"AWS": ["*"]},
-					"Resource": ["arn:aws:s3:::%s/*"],
-					"Condition": {
-						"IpAddress": {
-							"aws:SourceIp": %s
-						}
-					}
-				}
-			]
-		}`, bucket, string(ipJson))
-		err = minioClient.SetBucketPolicy(ctx, bucket, policy)
-		if err != nil {
-			log.Printf("Warning: failed to set ip-whitelisted bucket policy: %v", err)
-		}
+		]
+	}`, bucket)
+	if errPolicy := minioClient.SetBucketPolicy(ctx, bucket, policy); errPolicy != nil {
+		log.Printf("Warning: failed to set public read bucket policy: %v", errPolicy)
 	}
 
 	return &MinioStorage{
@@ -81,9 +65,10 @@ func NewMinioStorage(endpoint, accessKey, secretKey, bucket, allowedIPs string, 
 	}, nil
 }
 
-// UploadStream directly streams an io.Reader to MinIO. It handles chunking automatically.
-// Returns the public URL of the uploaded file.
 func (m *MinioStorage) UploadStream(ctx context.Context, objectName string, reader io.Reader, objectSize int64, contentType string) (string, error) {
+	if m == nil || m.client == nil {
+		return fmt.Sprintf("/uploads/%s", objectName), nil
+	}
 	info, err := m.client.PutObject(ctx, m.bucket, objectName, reader, objectSize, minio.PutObjectOptions{
 		ContentType: contentType,
 	})

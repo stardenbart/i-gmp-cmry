@@ -54,9 +54,9 @@ export const DashboardPanelAuditee = () => {
     : [];
   const totalIssues = issues.length;
   
-  const openIssues = issues.filter((i) => i.issue_status === "Open" || i.issue_status === "InProgress" || i.issue_status === "Overdue").length;
+  const openIssues = issues.filter((i) => i.computed_status === "Open" || i.computed_status === "OpenOverdue" || i.issue_status === "Open" || i.issue_status === "InProgress" || i.issue_status === "Overdue").length;
   const pendingIssues = issues.filter((i) => i.issue_status === "PendingValidation").length;
-  const closedIssues = issues.filter((i) => i.issue_status === "Closed" || i.issue_status === "Verified").length;
+  const closedIssues = issues.filter((i) => i.computed_status === "Closed" || i.computed_status === "ClosedOverdue" || i.issue_status === "Closed" || i.issue_status === "Verified").length;
 
   const isLoading = isIssuesLoading;
   const isFetching = isIssuesFetching;

@@ -62,6 +62,11 @@ export const inspectionApi = {
     return res.data;
   },
 
+  delete: async (id: string) => {
+    const res = await api.delete(`/inspections/${id}`);
+    return res.data;
+  },
+
   getAnalyticsTrend: async (context_id: string, year?: number) => {
     const res = await api.get("/analytics/inspections-trend", { params: { context_id, year } });
     return res.data;
