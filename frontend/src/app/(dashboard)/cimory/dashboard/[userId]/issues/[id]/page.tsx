@@ -18,6 +18,7 @@ import { WOWRCard } from "@/components/isssues/WOWRCard";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
 import { isAuditorUser } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 
 const statusConfig: Record<IssueStatus, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   Open: { label: "Open", icon: CircleDashed, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -51,6 +52,7 @@ export default function IssueDetailPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   const user = useAuthStore((state) => state.user);
+  const { hasPermission } = usePermissions();
 
   const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: id });
 
@@ -100,7 +102,7 @@ export default function IssueDetailPage() {
 
   // Role calculation AFTER issue is safely loaded
   const isAuditorByRole = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
-  const isAuditor = isAuditorByRole;
+  const isAuditor = isAuditorByRole || hasPermission("PERM-WOWR-U");
   const isPIC = !isAuditor;
 
   // Status calculation

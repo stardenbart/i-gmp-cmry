@@ -153,8 +153,8 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
           </Button>
         )}
 
-        {/* Auditor Validation Actions */}
-        {isAuditor && issue.needs_wo_wr && issue.wowr_status === "PendingValidation" && (
+        {/* Auditor Validation Actions - show when wowr_status is PendingValidation */}
+        {isAuditor && issue.wowr_status === "PendingValidation" && (
           <div className="mt-4 pt-4 border-t border-border/50 animate-in fade-in zoom-in-95 duration-300">
             <h4 className="text-xs font-bold text-muted-foreground uppercase mb-3 tracking-wider">Validasi Bukti WO/WR</h4>
             <div className="flex gap-2">
