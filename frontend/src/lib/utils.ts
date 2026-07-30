@@ -39,13 +39,25 @@ export function formatImageUrl(url: string | null | undefined): string {
   if (!url) return "";
   let formatted = url.trim();
 
+  // If it's a MinIO image URL containing /monitoring-audit-bucket/, convert to relative path for Next.js proxying
+  const bucketIndex = formatted.indexOf("/monitoring-audit-bucket/");
+  if (bucketIndex !== -1) {
+    return formatted.substring(bucketIndex);
+  }
+
+  // Fallback if port 9000 is included in full URL
+  const portIndex = formatted.indexOf(":9000/");
+  if (portIndex !== -1) {
+    return formatted.substring(portIndex + 5);
+  }
+
   // If minio internal hostname is used, replace with window hostname or localhost
   if (formatted.includes("minio:9000")) {
     const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
     formatted = formatted.replace("minio:9000", `${host}:9000`);
   }
 
-  // Ensure full HTTP/HTTPS URLs are preserved for browser image loading
+  // Ensure full HTTP/HTTPS URLs are preserved for external browser image loading
   if (formatted.startsWith("http://") || formatted.startsWith("https://")) {
     return formatted;
   }
