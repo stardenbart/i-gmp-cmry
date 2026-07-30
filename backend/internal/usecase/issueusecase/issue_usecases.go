@@ -255,7 +255,13 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 		// Validation for closing/verifying if NeedsWOWR is true
 		if (req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified) && i.NeedsWOWR {
 			hasFollowUp := false
-			for _, p := range i.Photos {
+			photosToCheck := i.Photos
+			if len(photosToCheck) == 0 && uc.photoRepo != nil {
+				if dbPhotos, errP := uc.photoRepo.FindByIssueID(i.IssueID); errP == nil {
+					photosToCheck = dbPhotos
+				}
+			}
+			for _, p := range photosToCheck {
 				if p.PhotoType == issue.PhotoTypeFollowUp || p.PhotoType == issue.PhotoTypeWOWR {
 					hasFollowUp = true
 					break

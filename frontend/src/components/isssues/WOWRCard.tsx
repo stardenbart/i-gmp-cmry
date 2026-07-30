@@ -35,12 +35,19 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
 
   const wowrValidationMutation = useMutation({
     mutationFn: (status: WOWRStatus) => 
-      issueApi.update(issue.issue_id, { wowr_status: status }),
-    onSuccess: () => {
+      issueApi.update(issue.issue_id, { 
+        wowr_status: status,
+        ...(status === "Verified" ? { issue_status: "Closed" } : {})
+      }),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["issue", issue.issue_id] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
-      toast.success(`Status validasi WO/WR diperbarui.`);
+      if (variables === "Verified") {
+        toast.success("Bukti WO/WR berhasil diverifikasi & temuan diselesaikan!");
+      } else {
+        toast.error("Bukti WO/WR ditolak. Foto bukti lama dibersihkan.");
+      }
     },
     onError: () => toast.error("Gagal memperbarui status validasi WO/WR."),
   });

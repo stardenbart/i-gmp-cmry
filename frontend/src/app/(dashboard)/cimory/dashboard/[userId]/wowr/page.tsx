@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { issueApi, Issue } from "@/lib/api/issue.api";
 import { useAuthStore } from "@/stores/authStore";
 import { isAuditorUser } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useSSE } from "@/hooks/useSSE";
@@ -377,7 +378,8 @@ export default function WOWRPage() {
 
   useSSE();
 
-  const isAuditor = isAuditorUser(user?.role_id);
+  const { hasPermission } = usePermissions();
+  const isAuditor = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username) || hasPermission("PERM-WOWR-U");
 
   const { data, isLoading } = useQuery({
     queryKey: ["wowr-issues", userId],
