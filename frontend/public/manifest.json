@@ -1,6 +1,6 @@
 {
   "name": "Audit Monitoring System",
-  "short_name": "AuditSys",
+  "short_name": "QA Monitoring",
   "description": "Sistem Monitoring Audit Internal",
   "start_url": "/",
   "display": "standalone",

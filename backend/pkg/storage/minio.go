@@ -95,30 +95,48 @@ func (m *MinioStorage) Delete(ctx context.Context, objectName string) error {
 // Called when an Admin changes MINIO_ALLOWED_IPS through the dashboard.
 func (m *MinioStorage) UpdateIPWhitelistPolicy(ctx context.Context, allowedIPs string) error {
 	ipList := []string{}
+	hasWildcard := false
 	for _, ip := range strings.Split(allowedIPs, ",") {
 		ip = strings.TrimSpace(ip)
-		if ip != "" {
+		if ip == "*" || ip == "0.0.0.0/0" || ip == "0.0.0.0" {
+			hasWildcard = true;
+		} else if ip != "" {
 			ipList = append(ipList, ip)
 		}
 	}
-	ipJSON, _ := json.Marshal(ipList)
 
-	policy := fmt.Sprintf(`{
-		"Version": "2012-10-17",
-		"Statement": [
-			{
-				"Action": ["s3:GetObject"],
-				"Effect": "Allow",
-				"Principal": {"AWS": ["*"]},
-				"Resource": ["arn:aws:s3:::%s/*"],
-				"Condition": {
-					"IpAddress": {
-						"aws:SourceIp": %s
+	var policy string
+	if hasWildcard || len(ipList) == 0 {
+		policy = fmt.Sprintf(`{
+			"Version": "2012-10-17",
+			"Statement": [
+				{
+					"Effect": "Allow",
+					"Principal": {"AWS": ["*"]},
+					"Action": ["s3:GetObject"],
+					"Resource": ["arn:aws:s3:::%s/*"]
+				}
+			]
+		}`, m.bucket)
+	} else {
+		ipJSON, _ := json.Marshal(ipList)
+		policy = fmt.Sprintf(`{
+			"Version": "2012-10-17",
+			"Statement": [
+				{
+					"Action": ["s3:GetObject"],
+					"Effect": "Allow",
+					"Principal": {"AWS": ["*"]},
+					"Resource": ["arn:aws:s3:::%s/*"],
+					"Condition": {
+						"IpAddress": {
+							"aws:SourceIp": %s
+						}
 					}
 				}
-			}
-		]
-	}`, m.bucket, string(ipJSON))
+			]
+		}`, m.bucket, string(ipJSON))
+	}
 
 	return m.client.SetBucketPolicy(ctx, m.bucket, policy)
 }

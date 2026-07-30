@@ -13,8 +13,8 @@ func SeedSettings(db *gorm.DB) {
 	settings := []master.Setting{
 		{
 			SettingKey:   master.SettingKeyMinioAllowedIPs,
-			SettingValue: "127.0.0.1,192.168.1.1",
-			Description:  "Daftar IP yang diizinkan untuk bypass URL MinIO (pisahkan dengan koma)",
+			SettingValue: "*",
+			Description:  "Daftar IP yang diizinkan untuk bypass URL MinIO (pisahkan dengan koma, atau * untuk publik)",
 		},
 		{
 			SettingKey:   master.SettingKeyMaxUploadSizeMB,
@@ -67,6 +67,9 @@ func SeedSettings(db *gorm.DB) {
 			log.Fatalf("❌ Failed to seed setting %s: %v", setting.SettingKey, err)
 		}
 	}
+
+	// Update existing MINIO_ALLOWED_IPS setting to '*' for public read access over ngrok/docker
+	_ = db.Model(&master.Setting{}).Where("\"SettingKey\" = ?", master.SettingKeyMinioAllowedIPs).Update("SettingValue", "*").Error
 
 	log.Println("✅ Settings seeded successfully.")
 }
