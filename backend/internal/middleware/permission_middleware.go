@@ -22,6 +22,12 @@ func PermissionMiddleware(
 			return response.Unauthorized(c, "unauthenticated: session identity not found in context")
 		}
 
+		// 0. SuperAdmin Bypass (ROLE-000 or isSuperAdmin context)
+		isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+		if isSuperAdmin || roleID == "ROLE-000" || roleID == "SUPERADMIN" {
+			return c.Next()
+		}
+
 		// 1. Check User-Level Permission Overrides First (Dynamic DB Query)
 		if upUseCase != nil && userID != "" {
 			override, err := upUseCase.CheckOverride(userID, moduleID, permissionCode)

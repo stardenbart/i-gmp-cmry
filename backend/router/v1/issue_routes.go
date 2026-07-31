@@ -53,35 +53,37 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Min
 	rpUC := authusecase.NewRolePermissionUseCase(rpRepo)
 	upRepo := authrepo.NewUserPermissionRepository(db)
 	upUC := authusecase.NewUserPermissionUseCase(upRepo)
-	permMW := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "READ")
+	permReadIss := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "READ")
+	permCreateIss := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "CREATE")
+	permUpdateIss := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "UPDATE")
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
 	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
-	issues := rg.Group("/issues", authMW, actLogMW, permMW, plantScopeMW)
+	issues := rg.Group("/issues", authMW, actLogMW, plantScopeMW)
 	{
 		// Issue CRUD
-		issues.Get("", issueH.GetAll)
-		issues.Post("", issueH.Create)
+		issues.Get("", permReadIss, issueH.GetAll)
+		issues.Post("", permCreateIss, issueH.Create)
 		// Static filter routes MUST come before /:id
-		issues.Get("/filter", issueFilterH.GetFiltered)
-		issues.Get("/followup/filter", followupFilterH.GetFiltered)
+		issues.Get("/filter", permReadIss, issueFilterH.GetFiltered)
+		issues.Get("/followup/filter", permReadIss, followupFilterH.GetFiltered)
 
-		issues.Get("/:id", issueH.GetByID)
-		issues.Put("/:id", issueH.Update)
-		issues.Put("/:id/extend-deadline", issueH.ExtendDueDate)
-		issues.Delete("/:id", issueH.Delete)
+		issues.Get("/:id", permReadIss, issueH.GetByID)
+		issues.Put("/:id", permUpdateIss, issueH.Update)
+		issues.Put("/:id/extend-deadline", permUpdateIss, issueH.ExtendDueDate)
+		issues.Delete("/:id", permUpdateIss, issueH.Delete)
 
 		// Issue Delegates
-		issues.Post("/:id/delegates", issueDelegateH.AddDelegate)
-		issues.Delete("/:id/delegates/:user_id", issueDelegateH.RemoveDelegate)
-		issues.Get("/:id/delegates", issueDelegateH.GetDelegates)
+		issues.Post("/:id/delegates", permUpdateIss, issueDelegateH.AddDelegate)
+		issues.Delete("/:id/delegates/:user_id", permUpdateIss, issueDelegateH.RemoveDelegate)
+		issues.Get("/:id/delegates", permReadIss, issueDelegateH.GetDelegates)
 
-	// Issue Photos (initial + follow-up)
-		issues.Get("/:id/photos", photoH.GetByIssueID)
-		issues.Post("/:id/photos/upload", photoH.Upload)
-		issues.Put("/photos/:photo_id", photoH.Update)
-		issues.Delete("/photos/:photo_id", photoH.Delete)
+		// Issue Photos (initial + follow-up)
+		issues.Get("/:id/photos", permReadIss, photoH.GetByIssueID)
+		issues.Post("/:id/photos/upload", permUpdateIss, photoH.Upload)
+		issues.Put("/photos/:photo_id", permUpdateIss, photoH.Update)
+		issues.Delete("/photos/:photo_id", permUpdateIss, photoH.Delete)
 	}
 
 	// ── HEI (Habit, Equipment, Infrastructure) Master Routes ─────────────────
@@ -95,27 +97,32 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Min
 
 	heiH := issuehandler.NewHEIHandler(habitUC, equipmentUC, infraUC)
 
+	permReadMstr := middleware.PermissionMiddleware(rpUC, upUC, "MOD-MSTR", "READ")
+	permCreateMstr := middleware.PermissionMiddleware(rpUC, upUC, "MOD-MSTR", "CREATE")
+	permUpdateMstr := middleware.PermissionMiddleware(rpUC, upUC, "MOD-MSTR", "UPDATE")
+	permDeleteMstr := middleware.PermissionMiddleware(rpUC, upUC, "MOD-MSTR", "DELETE")
+
 	masterGroup := rg.Group("/master", authMW, actLogMW)
 	{
 		habits := masterGroup.Group("/habits")
-		habits.Get("", heiH.GetAllHabits)
-		habits.Post("", heiH.CreateHabit)
-		habits.Get("/:id", heiH.GetHabitByID)
-		habits.Put("/:id", heiH.UpdateHabit)
-		habits.Delete("/:id", heiH.DeleteHabit)
+		habits.Get("", permReadMstr, heiH.GetAllHabits)
+		habits.Post("", permCreateMstr, heiH.CreateHabit)
+		habits.Get("/:id", permReadMstr, heiH.GetHabitByID)
+		habits.Put("/:id", permUpdateMstr, heiH.UpdateHabit)
+		habits.Delete("/:id", permDeleteMstr, heiH.DeleteHabit)
 
 		equipments := masterGroup.Group("/equipments")
-		equipments.Get("", heiH.GetAllEquipments)
-		equipments.Post("", heiH.CreateEquipment)
-		equipments.Get("/:id", heiH.GetEquipmentByID)
-		equipments.Put("/:id", heiH.UpdateEquipment)
-		equipments.Delete("/:id", heiH.DeleteEquipment)
+		equipments.Get("", permReadMstr, heiH.GetAllEquipments)
+		equipments.Post("", permCreateMstr, heiH.CreateEquipment)
+		equipments.Get("/:id", permReadMstr, heiH.GetEquipmentByID)
+		equipments.Put("/:id", permUpdateMstr, heiH.UpdateEquipment)
+		equipments.Delete("/:id", permDeleteMstr, heiH.DeleteEquipment)
 
 		infras := masterGroup.Group("/infrastructures")
-		infras.Get("", heiH.GetAllInfrastructures)
-		infras.Post("", heiH.CreateInfrastructure)
-		infras.Get("/:id", heiH.GetInfrastructureByID)
-		infras.Put("/:id", heiH.UpdateInfrastructure)
-		infras.Delete("/:id", heiH.DeleteInfrastructure)
+		infras.Get("", permReadMstr, heiH.GetAllInfrastructures)
+		infras.Post("", permCreateMstr, heiH.CreateInfrastructure)
+		infras.Get("/:id", permReadMstr, heiH.GetInfrastructureByID)
+		infras.Put("/:id", permUpdateMstr, heiH.UpdateInfrastructure)
+		infras.Delete("/:id", permDeleteMstr, heiH.DeleteInfrastructure)
 	}
 }

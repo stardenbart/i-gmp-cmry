@@ -92,10 +92,11 @@ func SeedPermissions(db *gorm.DB) {
 		"ROLE-003": {"PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"},                                                                                       // Auditee
 		"ROLE-004": {"PERM-INSP-R", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                                     // Supervisor
 		"ROLE-005": {"PERM-INSP-R", "PERM-INSP-E", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                       // Manager
+		"ROLE-006": {"PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R"},                                                                                                       // Staff
 	}
 
 	// Remove PERM-MSTR-R from non-admin roles if present from previous seeds
-	_ = db.Where("\"RoleID\" IN (?) AND \"PermissionID\" = ?", []string{"ROLE-002", "ROLE-003", "ROLE-004", "ROLE-005"}, "PERM-MSTR-R").Delete(&authdomain.RolePermission{}).Error
+	_ = db.Where("\"RoleID\" IN (?) AND \"PermissionID\" = ?", []string{"ROLE-002", "ROLE-003", "ROLE-004", "ROLE-005", "ROLE-006"}, "PERM-MSTR-R").Delete(&authdomain.RolePermission{}).Error
 
 	for roleID, permIDs := range defaultRolePerms {
 		for _, permID := range permIDs {

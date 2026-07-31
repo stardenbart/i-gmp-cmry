@@ -9,6 +9,7 @@ import (
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/picrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
+	"github.com/monitoring-system/backend/internal/usecase/authusecase"
 	"github.com/monitoring-system/backend/internal/usecase/inspectionusecase"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/kafka"
@@ -40,33 +41,44 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	resultH := inspectionhandler.NewInspectionResultHandler(resultUC)
 	filterH := inspectionhandler.NewInspectionFilterHandler(filterUC)
 
+	rpRepo := authrepo.NewRolePermissionRepository(db)
+	rpUC := authusecase.NewRolePermissionUseCase(rpRepo)
+	upRepo := authrepo.NewUserPermissionRepository(db)
+	upUC := authusecase.NewUserPermissionUseCase(upRepo)
+
+	permRead := middleware.PermissionMiddleware(rpUC, upUC, "MOD-INSP", "READ")
+	permCreate := middleware.PermissionMiddleware(rpUC, upUC, "MOD-INSP", "CREATE")
+	permUpdate := middleware.PermissionMiddleware(rpUC, upUC, "MOD-INSP", "UPDATE")
+	permApprove := middleware.PermissionMiddleware(rpUC, upUC, "MOD-INSP", "APPROVE")
+	permExport := middleware.PermissionMiddleware(rpUC, upUC, "MOD-INSP", "EXPORT")
+
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
 	plantScopeMW := middleware.PlantScopeMiddleware(authRepo)
 
 	// Analytics Route
-	rg.Get("/analytics/inspections-trend", authMW, actLogMW, plantScopeMW, headerH.GetTrend)
+	rg.Get("/analytics/inspections-trend", authMW, actLogMW, plantScopeMW, permRead, headerH.GetTrend)
 
 	insp := rg.Group("/inspections", authMW, actLogMW, plantScopeMW)
 	{
 		// Inspection Header CRUD
-		insp.Get("", headerH.GetAll)
-		insp.Post("", headerH.Create)
+		insp.Get("", permRead, headerH.GetAll)
+		insp.Post("", permCreate, headerH.Create)
 		// Filter (must be before /:id)
-		insp.Get("/filter", filterH.GetFiltered)
+		insp.Get("/filter", permRead, filterH.GetFiltered)
 		// Area Status
-		insp.Get("/area/:areaId/status", headerH.GetAreaStatus)
+		insp.Get("/area/:areaId/status", permRead, headerH.GetAreaStatus)
 
-		insp.Get("/:id/checklist", headerH.GetChecklist)
-		insp.Get("/:id", headerH.GetByID)
-		insp.Get("/:id/export", headerH.ExportExcel)
-		insp.Put("/:id/status", headerH.UpdateStatus)
-		insp.Delete("/:id", headerH.Delete)
+		insp.Get("/:id/checklist", permRead, headerH.GetChecklist)
+		insp.Get("/:id", permRead, headerH.GetByID)
+		insp.Get("/:id/export", permExport, headerH.ExportExcel)
+		insp.Put("/:id/status", permApprove, headerH.UpdateStatus)
+		insp.Delete("/:id", permUpdate, headerH.Delete)
 
 		// Inspection Results (nested under header)
-		insp.Get("/:id/results", resultH.GetByInspectionID)
-		insp.Post("/:id/results/bulk", resultH.BulkSave)
-		insp.Put("/results/:result_id", resultH.Update)
-		insp.Delete("/results/:result_id", resultH.Delete)
+		insp.Get("/:id/results", permRead, resultH.GetByInspectionID)
+		insp.Post("/:id/results/bulk", permUpdate, resultH.BulkSave)
+		insp.Put("/results/:result_id", permUpdate, resultH.Update)
+		insp.Delete("/results/:result_id", permUpdate, resultH.Delete)
 	}
 }
