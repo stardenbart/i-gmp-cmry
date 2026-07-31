@@ -62,6 +62,9 @@ func (r *issueRepository) FindAll(page, limit int, status, picUserID string, nee
 			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
 			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName"`).
 		Preload("Photos").
+		Preload("Habit").
+		Preload("Equipment").
+		Preload("Infrastructure").
 		Order(`"Issue"."IssueCreatedAt" DESC`).
 		Offset((page - 1) * limit).
 		Limit(limit).
@@ -84,6 +87,9 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue"."IssuePICUserID"`).
 		Preload("Photos").
+		Preload("Habit").
+		Preload("Equipment").
+		Preload("Infrastructure").
 		Where(`"Issue"."IssueID" = ?`, id).
 		First(&item).Error
 	return &item, err

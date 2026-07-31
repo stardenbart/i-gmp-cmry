@@ -76,10 +76,45 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Min
 		issues.Delete("/:id/delegates/:user_id", issueDelegateH.RemoveDelegate)
 		issues.Get("/:id/delegates", issueDelegateH.GetDelegates)
 
-		// Issue Photos (initial + follow-up)
+	// Issue Photos (initial + follow-up)
 		issues.Get("/:id/photos", photoH.GetByIssueID)
 		issues.Post("/:id/photos/upload", photoH.Upload)
 		issues.Put("/photos/:photo_id", photoH.Update)
 		issues.Delete("/photos/:photo_id", photoH.Delete)
+	}
+
+	// ── HEI (Habit, Equipment, Infrastructure) Master Routes ─────────────────
+	habitRepo := issuerepo.NewHabitRepository(db)
+	equipmentRepo := issuerepo.NewEquipmentRepository(db)
+	infraRepo := issuerepo.NewInfrastructureRepository(db)
+
+	habitUC := issueusecase.NewHabitUseCase(habitRepo)
+	equipmentUC := issueusecase.NewEquipmentUseCase(equipmentRepo)
+	infraUC := issueusecase.NewInfrastructureUseCase(infraRepo)
+
+	heiH := issuehandler.NewHEIHandler(habitUC, equipmentUC, infraUC)
+
+	masterGroup := rg.Group("/master", authMW, actLogMW)
+	{
+		habits := masterGroup.Group("/habits")
+		habits.Get("", heiH.GetAllHabits)
+		habits.Post("", heiH.CreateHabit)
+		habits.Get("/:id", heiH.GetHabitByID)
+		habits.Put("/:id", heiH.UpdateHabit)
+		habits.Delete("/:id", heiH.DeleteHabit)
+
+		equipments := masterGroup.Group("/equipments")
+		equipments.Get("", heiH.GetAllEquipments)
+		equipments.Post("", heiH.CreateEquipment)
+		equipments.Get("/:id", heiH.GetEquipmentByID)
+		equipments.Put("/:id", heiH.UpdateEquipment)
+		equipments.Delete("/:id", heiH.DeleteEquipment)
+
+		infras := masterGroup.Group("/infrastructures")
+		infras.Get("", heiH.GetAllInfrastructures)
+		infras.Post("", heiH.CreateInfrastructure)
+		infras.Get("/:id", heiH.GetInfrastructureByID)
+		infras.Put("/:id", heiH.UpdateInfrastructure)
+		infras.Delete("/:id", heiH.DeleteInfrastructure)
 	}
 }

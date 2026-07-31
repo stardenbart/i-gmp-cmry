@@ -21,6 +21,7 @@ import (
 func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
 	// ── Wire dependencies ──────────────────────────────────────────────
 	deptRepo := masterrepo.NewDepartmentRepository(db)
+	plantRepo := masterrepo.NewPlantRepository(db)
 	areaRepo := masterrepo.NewAreaRepository(db)
 	kawasanRepo := masterrepo.NewKawasanRepository(db)
 	dkRepo := masterrepo.NewDetailKawasanRepository(db)
@@ -31,6 +32,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	moduleRepo := authrepo.NewModuleRepository(db)
 
 	deptUC := masterusecase.NewDepartmentUseCase(deptRepo)
+	plantUC := masterusecase.NewPlantUseCase(plantRepo)
 	areaUC := masterusecase.NewAreaUseCase(areaRepo)
 	kawasanUC := masterusecase.NewKawasanUseCase(kawasanRepo)
 	dkUC := masterusecase.NewDetailKawasanUseCase(dkRepo)
@@ -48,6 +50,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	settingH := masterhandler.NewSettingHandler(settingUC)
 
 	deptH := masterhandler.NewDepartmentHandler(deptUC)
+	plantH := masterhandler.NewPlantHandler(plantUC)
 	areaH := masterhandler.NewAreaHandler(areaUC)
 	kawasanH := masterhandler.NewKawasanHandler(kawasanUC)
 	dkH := masterhandler.NewDetailKawasanHandler(dkUC)
@@ -62,6 +65,14 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
 	master := rg.Group("/master", authMW, actLogMW)
 	{
+		// Plants
+		plant := master.Group("/plants")
+		plant.Get("", plantH.GetAll)
+		plant.Post("", plantH.Create)
+		plant.Get("/:id", plantH.GetByID)
+		plant.Put("/:id", plantH.Update)
+		plant.Delete("/:id", plantH.Delete)
+
 		// Department
 		dept := master.Group("/departments")
 		dept.Get("", deptH.GetAll)

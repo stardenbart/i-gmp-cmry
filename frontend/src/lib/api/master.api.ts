@@ -1,9 +1,20 @@
 import { api } from "./axios";
 
+export interface Plant {
+  plant_id: string;
+  plant_code: string;
+  plant_name: string;
+  address?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Area {
   area_id: string;
   area_name: string;
   area_code?: string;
+  plant_id?: string;
+  plant?: Plant;
 }
 
 export interface Kawasan {
@@ -39,6 +50,12 @@ interface ApiResponse<T> {
 }
 
 export const masterApi = {
+  // Plants
+  getPlants: async (params?: { page?: number; limit?: number; search?: string }): Promise<Plant[]> => {
+    const res = await api.get<ApiResponse<Plant>>("/master/plants", { params });
+    return res.data.data.items;
+  },
+
   // Areas
   getAreas: async (params?: { page?: number; limit?: number; search?: string }): Promise<Area[]> => {
     const res = await api.get<ApiResponse<Area>>("/master/area", { params });

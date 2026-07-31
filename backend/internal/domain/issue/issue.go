@@ -27,24 +27,37 @@ const (
 	WOWRStatusRejected          WOWRStatus = "Rejected"
 )
 
+// IssueCategory defines HEI categories.
+type IssueCategory string
+
+const (
+	IssueCategoryHabit          IssueCategory = "Habit"
+	IssueCategoryEquipment      IssueCategory = "Equipment"
+	IssueCategoryInfrastructure IssueCategory = "Infrastructure"
+)
+
 // Issue represents the Issue table.
 type Issue struct {
-	IssueID             string      `gorm:"column:IssueID;primaryKey" json:"issue_id"`
-	ResultID            string      `gorm:"column:ResultID;not null" json:"result_id"`
-	IssuePICUserID      string      `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`
-	DueDate             *time.Time  `gorm:"column:DueDate" json:"due_date"`
-	IssueStatus         IssueStatus `gorm:"column:IssueStatus;not null;default:Open" json:"issue_status"`
-	ComputedIssueStatus IssueStatus `gorm:"-" json:"computed_status,omitempty"`
-	FollowUpDelay       *int        `gorm:"column:FollowUpDelay" json:"follow_up_delay,omitempty"`
-	Label               string      `gorm:"column:Label;size:100" json:"label"`
-	NeedsWOWR           bool        `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
-	WO_ID               string      `gorm:"column:WO_ID;size:100" json:"wo_id"`
-	WR_ID               string      `gorm:"column:WR_ID;size:100" json:"wr_id"`
-	WOWRStatus          WOWRStatus  `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
-	Keterangan          string      `gorm:"column:Keterangan;size:255" json:"keterangan"`
-	PICName             string      `gorm:"-" json:"pic_name"`
-	IssueCreatedAt      time.Time   `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
-	IssueUpdatedAt      time.Time   `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
+	IssueID             string        `gorm:"column:IssueID;primaryKey" json:"issue_id"`
+	ResultID            string        `gorm:"column:ResultID;not null" json:"result_id"`
+	IssuePICUserID      string        `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`
+	DueDate             *time.Time    `gorm:"column:DueDate" json:"due_date"`
+	IssueStatus         IssueStatus   `gorm:"column:IssueStatus;not null;default:Open" json:"issue_status"`
+	ComputedIssueStatus IssueStatus   `gorm:"-" json:"computed_status,omitempty"`
+	FollowUpDelay       *int          `gorm:"column:FollowUpDelay" json:"follow_up_delay,omitempty"`
+	Label               string        `gorm:"column:Label;size:100" json:"label"`
+	NeedsWOWR           bool          `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
+	WO_ID               string        `gorm:"column:WO_ID;size:100" json:"wo_id"`
+	WR_ID               string        `gorm:"column:WR_ID;size:100" json:"wr_id"`
+	WOWRStatus          WOWRStatus    `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
+	IssueCategory       IssueCategory `gorm:"column:IssueCategory;type:issue_category_enum" json:"issue_category,omitempty"`
+	HabitID             *string       `gorm:"column:HabitID" json:"habit_id,omitempty"`
+	EquipmentID         *string       `gorm:"column:EquipmentID" json:"equipment_id,omitempty"`
+	InfrastructureID    *string       `gorm:"column:InfrastructureID" json:"infrastructure_id,omitempty"`
+	Keterangan          string        `gorm:"column:Keterangan;size:255" json:"keterangan"`
+	PICName             string        `gorm:"-" json:"pic_name"`
+	IssueCreatedAt      time.Time     `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
+	IssueUpdatedAt      time.Time     `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Joined Name Fields (not saved to DB)
 	AreaName          string `gorm:"column:AreaName;->" json:"area_name,omitempty"`
@@ -52,7 +65,10 @@ type Issue struct {
 	DetailKawasanName string `gorm:"column:DetailKawasanName;->" json:"detail_kawasan_name,omitempty"`
 
 	// Relations
-	Photos []IssuePhoto `gorm:"foreignKey:IssueID" json:"photos,omitempty"`
+	Photos         []IssuePhoto    `gorm:"foreignKey:IssueID" json:"photos,omitempty"`
+	Habit          *Habit          `gorm:"foreignKey:HabitID" json:"habit,omitempty"`
+	Equipment      *Equipment      `gorm:"foreignKey:EquipmentID" json:"equipment,omitempty"`
+	Infrastructure *Infrastructure `gorm:"foreignKey:InfrastructureID" json:"infrastructure,omitempty"`
 }
 
 func (Issue) TableName() string { return "Issue" }
@@ -78,27 +94,35 @@ func (i *Issue) ComputedStatus(now time.Time) IssueStatus {
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 
 type CreateIssueRequest struct {
-	ResultID       string     `json:"result_id" validate:"required"`
-	IssuePICUserID string     `json:"issue_pic_user_id" validate:"required"`
-	DueDate        *time.Time `json:"due_date"`
-	Label          string     `json:"label"`
-	NeedsWOWR      bool       `json:"needs_wo_wr"`
-	WO_ID          string     `json:"wo_id"`
-	WR_ID          string     `json:"wr_id"`
-	WOWRStatus     WOWRStatus `json:"wowr_status"`
-	Keterangan     string     `json:"keterangan"`
+	ResultID         string        `json:"result_id" validate:"required"`
+	IssuePICUserID   string        `json:"issue_pic_user_id" validate:"required"`
+	DueDate          *time.Time    `json:"due_date"`
+	Label            string        `json:"label"`
+	NeedsWOWR        bool          `json:"needs_wo_wr"`
+	WO_ID            string        `json:"wo_id"`
+	WR_ID            string        `json:"wr_id"`
+	WOWRStatus       WOWRStatus    `json:"wowr_status"`
+	IssueCategory    IssueCategory `json:"issue_category"`
+	HabitID          *string       `json:"habit_id"`
+	EquipmentID      *string       `json:"equipment_id"`
+	InfrastructureID *string       `json:"infrastructure_id"`
+	Keterangan       string        `json:"keterangan"`
 }
 
 type UpdateIssueRequest struct {
-	IssuePICUserID string      `json:"issue_pic_user_id"`
-	DueDate        *time.Time  `json:"due_date"`
-	IssueStatus    IssueStatus `json:"issue_status" validate:"omitempty,oneof=Open InProgress PendingValidation Closed Verified"`
-	Label          string      `json:"label"`
-	NeedsWOWR      bool        `json:"needs_wo_wr"`
-	WO_ID          string      `json:"wo_id"`
-	WR_ID          string      `json:"wr_id"`
-	WOWRStatus     WOWRStatus  `json:"wowr_status" validate:"omitempty,oneof=None PendingValidation Verified Rejected"`
-	Keterangan     string      `json:"keterangan"`
+	IssuePICUserID   string        `json:"issue_pic_user_id"`
+	DueDate          *time.Time    `json:"due_date"`
+	IssueStatus      IssueStatus   `json:"issue_status" validate:"omitempty,oneof=Open InProgress PendingValidation Closed Verified"`
+	Label            string        `json:"label"`
+	NeedsWOWR        bool          `json:"needs_wo_wr"`
+	WO_ID            string        `json:"wo_id"`
+	WR_ID            string        `json:"wr_id"`
+	WOWRStatus       WOWRStatus    `json:"wowr_status" validate:"omitempty,oneof=None PendingValidation Verified Rejected"`
+	IssueCategory    IssueCategory `json:"issue_category" validate:"omitempty,oneof=Habit Equipment Infrastructure"`
+	HabitID          *string       `json:"habit_id"`
+	EquipmentID      *string       `json:"equipment_id"`
+	InfrastructureID *string       `json:"infrastructure_id"`
+	Keterangan       string        `json:"keterangan"`
 }
 
 // ─── Repository Interface ──────────────────────────────────────────────────

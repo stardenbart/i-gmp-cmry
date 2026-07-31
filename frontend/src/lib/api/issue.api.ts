@@ -3,6 +3,35 @@ import { api } from "./axios";
 export type IssueStatus = "Open" | "InProgress" | "PendingValidation" | "Closed" | "Verified" | "OpenOverdue" | "ClosedOverdue" | "Overdue";
 export type WOWRStatus = "None" | "PendingValidation" | "Verified" | "Rejected";
 export type PhotoType = "Initial" | "FollowUp" | "WOWR";
+export type IssueCategory = "Habit" | "Equipment" | "Infrastructure";
+
+export interface Habit {
+  habit_id: string;
+  habit_code?: string;
+  habit_name: string;
+  habit_category?: string;
+  description?: string;
+}
+
+export interface Equipment {
+  equipment_id: string;
+  kawasan_id: string;
+  equipment_code?: string;
+  equipment_name: string;
+  equipment_type?: string;
+  equipment_status?: string;
+  kawasan_name?: string;
+}
+
+export interface Infrastructure {
+  infrastructure_id: string;
+  kawasan_id: string;
+  infrastructure_code?: string;
+  infrastructure_name: string;
+  infrastructure_type?: string;
+  infrastructure_status?: string;
+  kawasan_name?: string;
+}
 
 export interface IssuePhoto {
   issue_photo_id: string;
@@ -32,6 +61,13 @@ export interface Issue {
   wo_id?: string;
   wr_id?: string;
   wowr_status?: WOWRStatus;
+  issue_category?: IssueCategory;
+  habit_id?: string;
+  equipment_id?: string;
+  infrastructure_id?: string;
+  habit?: Habit;
+  equipment?: Equipment;
+  infrastructure?: Infrastructure;
   created_at: string;
   updated_at: string;
   photos?: IssuePhoto[];
