@@ -168,6 +168,12 @@ export default function UsersPage() {
     enabled: mounted && !!user && isAdmin,
   });
 
+  const { data: plantsRes } = useQuery({
+    queryKey: ["master-plants"],
+    queryFn: () => masterApi.getPlants({ limit: 1000 }),
+    enabled: mounted && !!user && isAdmin,
+  });
+
   const { data: kawasansRes } = useQuery({
     queryKey: ["master-kawasans"],
     queryFn: () => masterApi.getKawasans({ limit: 1000 }),
@@ -185,6 +191,7 @@ export default function UsersPage() {
   const facets = usersRes?.facets;
   const rolesList = rolesRes?.data?.items || [];
   const deptsList = deptsRes?.data?.items || [];
+  const plantsList = plantsRes || [];
   const kawasansList = kawasansRes || [];
 
   // Mutations
@@ -336,6 +343,7 @@ export default function UsersPage() {
               <tr className="border-b border-border bg-muted/50 text-left text-muted-foreground uppercase tracking-wider text-xs font-semibold">
                 <th className="px-4 py-3">Pengguna</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Plant (Pabrik)</th>
                 <th className="px-4 py-3">Departemen</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-right">Aksi</th>
@@ -343,9 +351,9 @@ export default function UsersPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading || isFetching ? (
-                <tr><td colSpan={5} className="p-8 text-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div></td></tr>
+                <tr><td colSpan={6} className="p-8 text-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div></td></tr>
               ) : usersList.length === 0 ? (
-                <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">Tidak ada user ditemukan</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Tidak ada user ditemukan</td></tr>
               ) : (
                 usersList.map((u: any) => (
                   <tr key={u.user_id} className="hover:bg-muted/30 transition-colors">
@@ -361,6 +369,17 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 font-medium">{rolesList.find((r:any) => r.role_id === u.role_id)?.role_name || u.role_id}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {u.plant_id ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20">
+                          {plantsList.find((p: any) => p.plant_id === u.plant_id)?.plant_name || u.plant_id}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 font-semibold border border-purple-500/20">
+                          Global (SuperAdmin)
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{deptsList.find((d:any) => d.department_id === u.department_id)?.department_name || u.department_id}</td>
                     <td className="px-4 py-3 text-center">{getStatusBadge(u.user_status)}</td>
                     <td className="px-4 py-3 text-right">
@@ -451,6 +470,17 @@ export default function UsersPage() {
                   <select name="department_id" defaultValue={editingItem?.department_id || ""} required className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                     <option value="" disabled>Pilih Departemen</option>
                     {deptsList.map((d: any) => <option key={d.department_id} value={d.department_id}>{d.department_name}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-sm font-medium mb-1 block">Plant (Pabrik)</label>
+                <div className="relative">
+                  <select name="plant_id" defaultValue={editingItem?.plant_id || ""} className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                    <option value="">Semua Plant (Global / SuperAdmin)</option>
+                    {plantsList.map((p: any) => <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>)}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>

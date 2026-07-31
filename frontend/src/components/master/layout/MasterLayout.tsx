@@ -130,6 +130,7 @@ export function MasterLayout() {
 
   const getIdField = () => {
     const idFields: Record<string, string> = {
+      plants: "plant_id",
       departments: "department_id",
       areas: "area_id",
       kawasans: "kawasan_id",
@@ -137,12 +138,16 @@ export function MasterLayout() {
       aspeks: "aspek_id",
       details: "detail_id",
       urains: "uraian_id",
+      habits: "habit_id",
+      equipments: "equipment_id",
+      infrastructures: "infrastructure_id",
     };
     return idFields[activeTab] || "id";
   };
 
   const getNameField = () => {
     const nameFields: Record<string, string> = {
+      plants: "plant_name",
       departments: "department_name",
       areas: "area_name",
       kawasans: "kawasan_name",
@@ -150,12 +155,20 @@ export function MasterLayout() {
       aspeks: "aspek_name",
       details: "detail_name",
       urains: "uraian_name",
+      habits: "habit_name",
+      equipments: "equipment_name",
+      infrastructures: "infrastructure_name",
     };
     return nameFields[activeTab] || "name";
   };
 
   const getColumns = () => {
     const columns: Record<string, { key: string; label: string }[]> = {
+      plants: [
+        { key: "plant_code", label: "Kode Plant" },
+        { key: "plant_name", label: "Nama Plant (Pabrik)" },
+        { key: "address", label: "Alamat" },
+      ],
       departments: [
         { key: "department_id", label: "ID" },
         { key: "department_name", label: "Nama Department" },
@@ -163,6 +176,7 @@ export function MasterLayout() {
       areas: [
         { key: "area_id", label: "ID" },
         { key: "area_name", label: "Nama Area" },
+        { key: "plant_name", label: "Plant Induk" },
       ],
       kawasans: [
         { key: "kawasan_id", label: "ID" },
@@ -192,6 +206,24 @@ export function MasterLayout() {
         { key: "standard_score", label: "Skor Standar" },
         { key: "detail_name", label: "Detail Induk" },
         { key: "detail_aspek_name", label: "Aspek Induk" },
+      ],
+      habits: [
+        { key: "habit_code", label: "Kode Habit" },
+        { key: "habit_name", label: "Nama Habit" },
+        { key: "habit_category", label: "Kategori" },
+        { key: "description", label: "Deskripsi" },
+      ],
+      equipments: [
+        { key: "equipment_code", label: "Kode Equipment" },
+        { key: "equipment_name", label: "Nama Equipment" },
+        { key: "equipment_type", label: "Tipe" },
+        { key: "kawasan_name", label: "Kawasan Induk" },
+      ],
+      infrastructures: [
+        { key: "infrastructure_code", label: "Kode Infrastructure" },
+        { key: "infrastructure_name", label: "Nama Infrastructure" },
+        { key: "infrastructure_type", label: "Tipe" },
+        { key: "kawasan_name", label: "Kawasan Induk" },
       ],
     };
     return columns[activeTab] || [];

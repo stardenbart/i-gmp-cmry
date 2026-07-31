@@ -10,6 +10,11 @@ interface MasterFormFieldsProps {
 
 export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsProps) {
   // Fetch lookups for forms
+  const { data: plantLookup } = useQuery({
+    queryKey: ["master", "plants", "lookup"],
+    queryFn: () => fetchItems("/master/plants", 1, "", 500),
+    enabled: activeTab === "areas",
+  });
   const { data: deptLookup } = useQuery({
     queryKey: ["master", "departments", "lookup"],
     queryFn: () => fetchItems("/master/departments", 1, "", 500),
@@ -23,7 +28,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
   const { data: kawasanLookup } = useQuery({
     queryKey: ["master", "kawasan", "lookup"],
     queryFn: () => fetchItems("/master/kawasan", 1, "", 500),
-    enabled: activeTab === "detail-kawasans",
+    enabled: activeTab === "detail-kawasans" || activeTab === "equipments" || activeTab === "infrastructures",
   });
   const { data: aspekLookup } = useQuery({
     queryKey: ["master", "aspek", "lookup"],
@@ -39,6 +44,36 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
   const selectClass = "flex h-12 w-full appearance-none rounded-2xl border border-border bg-card px-4 py-2 pr-10 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50";
 
   const fields: Record<string, React.ReactNode> = {
+    plants: (
+      <>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kode Plant</label>
+          <Input
+            name="plant_code"
+            defaultValue={editingItem?.plant_code as string}
+            placeholder="Contoh: PLT-001"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Nama Plant (Pabrik)</label>
+          <Input
+            name="plant_name"
+            defaultValue={editingItem?.plant_name as string}
+            placeholder="Contoh: Plant Sentul Utama"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Alamat Plant</label>
+          <Input
+            name="address"
+            defaultValue={editingItem?.address as string}
+            placeholder="Contoh: Jl. Industri No. 1, Sentul, Bogor"
+          />
+        </div>
+      </>
+    ),
     departments: (
       <>
         <div className="space-y-1.5">
@@ -54,6 +89,18 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
     ),
     areas: (
       <>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Plant Induk (Pabrik)</label>
+          <div className="relative">
+            <select name="plant_id" defaultValue={editingItem?.plant_id as string} className={selectClass}>
+              <option value="">Pilih Plant (Opsional)...</option>
+              {plantLookup?.items?.map((p: any) => (
+                <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Department Induk</label>
           <div className="relative">
@@ -73,6 +120,125 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
             defaultValue={editingItem?.area_name as string}
             placeholder="Contoh: Pabrik Utama"
             required
+          />
+        </div>
+      </>
+    ),
+    habits: (
+      <>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kode Habit</label>
+          <Input
+            name="habit_code"
+            defaultValue={editingItem?.habit_code as string}
+            placeholder="Contoh: HBT-01"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Nama Habit</label>
+          <Input
+            name="habit_name"
+            defaultValue={editingItem?.habit_name as string}
+            placeholder="Contoh: Penggunaan APD Lengkap"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kategori Habit</label>
+          <Input
+            name="habit_category"
+            defaultValue={editingItem?.habit_category as string}
+            placeholder="Contoh: Safety & Hygiene"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Deskripsi</label>
+          <Input
+            name="description"
+            defaultValue={editingItem?.description as string}
+            placeholder="Keterangan singkat..."
+          />
+        </div>
+      </>
+    ),
+    equipments: (
+      <>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kawasan Induk</label>
+          <div className="relative">
+            <select name="kawasan_id" defaultValue={editingItem?.kawasan_id as string} className={selectClass} required>
+              <option value="" disabled>Pilih Kawasan...</option>
+              {kawasanLookup?.items?.map((k: any) => (
+                <option key={k.kawasan_id} value={k.kawasan_id}>{k.kawasan_name || k.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kode Equipment</label>
+          <Input
+            name="equipment_code"
+            defaultValue={editingItem?.equipment_code as string}
+            placeholder="Contoh: EQP-MC-01"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Nama Equipment</label>
+          <Input
+            name="equipment_name"
+            defaultValue={editingItem?.equipment_name as string}
+            placeholder="Contoh: Mesin Pasteurisasi 1"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Tipe Equipment</label>
+          <Input
+            name="equipment_type"
+            defaultValue={editingItem?.equipment_type as string}
+            placeholder="Contoh: Machine"
+          />
+        </div>
+      </>
+    ),
+    infrastructures: (
+      <>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kawasan Induk</label>
+          <div className="relative">
+            <select name="kawasan_id" defaultValue={editingItem?.kawasan_id as string} className={selectClass} required>
+              <option value="" disabled>Pilih Kawasan...</option>
+              {kawasanLookup?.items?.map((k: any) => (
+                <option key={k.kawasan_id} value={k.kawasan_id}>{k.kawasan_name || k.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kode Infrastructure</label>
+          <Input
+            name="infrastructure_code"
+            defaultValue={editingItem?.infrastructure_code as string}
+            placeholder="Contoh: INF-DRAIN-01"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Nama Infrastructure</label>
+          <Input
+            name="infrastructure_name"
+            defaultValue={editingItem?.infrastructure_name as string}
+            placeholder="Contoh: Saluran Drainase Utama"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Tipe Infrastructure</label>
+          <Input
+            name="infrastructure_type"
+            defaultValue={editingItem?.infrastructure_type as string}
+            placeholder="Contoh: Facility"
           />
         </div>
       </>
