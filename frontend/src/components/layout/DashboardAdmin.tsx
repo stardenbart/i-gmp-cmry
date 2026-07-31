@@ -152,7 +152,7 @@ export const DashboardPanelAdmin = () => {
                 </div>
               </div>
               <Link 
-                href={`/cimory/dashboard/${user?.id}/monitoring`}
+                href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id}/monitoring`}
                 className="mt-6 text-xs font-semibold text-center text-muted-foreground hover:text-primary transition-colors block"
               >
                 Lihat Detail Auditor &rarr;
@@ -208,7 +208,7 @@ export const DashboardPanelAdmin = () => {
                 </div>
               </div>
               <Link 
-                href={`/cimory/dashboard/${user?.id}/monitoring`}
+                href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id}/monitoring`}
                 className="mt-6 text-xs font-semibold text-center text-muted-foreground hover:text-primary transition-colors block"
               >
                 Lihat Detail PIC &rarr;
@@ -253,7 +253,7 @@ export const DashboardPanelAdmin = () => {
               </div>
             </div>
             <Link
-              href={`/cimory/dashboard/${user?.id}/gmp-data`}
+              href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id}/gmp-data`}
               className="mt-4 text-xs font-semibold text-center text-muted-foreground hover:text-primary transition-colors block"
             >
               Lihat Data Auditee GMP &rarr;

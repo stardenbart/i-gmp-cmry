@@ -46,7 +46,8 @@ export function useAdminGuard(redirectTo?: string) {
     setIsAdmin(hasAdminRole);
     
     if (!hasAdminRole) {
-      const target = redirectTo || `/cimory/dashboard/${user.id}`;
+      const plantCode = user.plant_id || "global";
+      const target = redirectTo || `/cimory/${plantCode}/dashboard/${user.id}`;
       router.replace(target);
     } else {
       setIsLoading(false);
@@ -69,7 +70,7 @@ export function isAdminUser(roleId?: string, roleName?: string): boolean {
   }
   if (!roleId) return false;
   const lowerId = roleId.toLowerCase();
-  return ADMIN_ROLES.includes(roleId) || lowerId.includes("admin") || lowerId.includes("adm");
+  return ADMIN_ROLES.includes(roleId) || lowerId.includes("admin") || lowerId.includes("adm") || lowerId.includes("role-000") || lowerId.includes("role-001");
 }
 
 export function isAuditorUser(roleId?: string, roleName?: string, username?: string): boolean {
@@ -83,7 +84,7 @@ export function isAuditorUser(roleId?: string, roleName?: string, username?: str
   }
   if (!roleId) return false;
   const lowerId = roleId.toLowerCase();
-  return AUDITOR_ROLES.includes(roleId) || lowerId.includes("auditor") || lowerId.includes("admin") || lowerId.includes("adm") || lowerId.includes("role-001") || lowerId.includes("role-002");
+  return AUDITOR_ROLES.includes(roleId) || lowerId.includes("auditor") || lowerId.includes("admin") || lowerId.includes("adm") || lowerId.includes("role-000") || lowerId.includes("role-001") || lowerId.includes("role-002");
 }
 
 /**
@@ -106,7 +107,8 @@ export function useAuditorGuard(redirectTo?: string) {
     setIsAuditor(hasAuditorRole);
     
     if (!hasAuditorRole) {
-      const target = redirectTo || `/cimory/dashboard/${user.id}/issues`;
+      const plantCode = user.plant_id || "global";
+      const target = redirectTo || `/cimory/${plantCode}/dashboard/${user.id}/issues`;
       router.replace(target);
     } else {
       setIsLoading(false);
@@ -142,7 +144,8 @@ export function useAuditeeGuard(redirectTo?: string) {
     setIsAuditee(hasAuditeeRole);
     
     if (!hasAuditeeRole) {
-      const target = redirectTo || `/cimory/dashboard/${user.id}/issues`;
+      const plantCode = user.plant_id || "global";
+      const target = redirectTo || `/cimory/${plantCode}/dashboard/${user.id}/issues`;
       router.replace(target);
     } else {
       setIsLoading(false);

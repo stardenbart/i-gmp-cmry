@@ -7,7 +7,7 @@ import { isAdminUser } from "@/lib/useAdminGuard";
 import { Loader2 } from "lucide-react";
 
 export function ScopeGuard({ children }: { children: React.ReactNode }) {
-  const { userId: urlUserId } = useParams() as { userId: string };
+  const { plantCode: urlPlantCode, userId: urlUserId } = useParams() as { plantCode: string; userId: string };
   const router = useRouter();
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
@@ -19,18 +19,21 @@ export function ScopeGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // If the userId in the URL does not match the logged-in user's ID
-    if (user.id !== urlUserId) {
-      // We block access and redirect them to their own URL scope
-      // (Unless they are an Admin and we explicitly want to allow impersonation, 
-      // but for strict security, we'll force redirect everyone to their own scope for now)
-      
-      const newPath = pathname.replace(`/cimory/dashboard/${urlUserId}`, `/cimory/dashboard/${user.id}`);
+    const userPlant = user.plant_id || "global";
+    const isSuperAdmin = user.role_id === "ROLE-000" || user.role_id === "SUPERADMIN";
+
+    // Validate plant scope if user is non-superadmin
+    const isInvalidPlant = !isSuperAdmin && userPlant !== "global" && urlPlantCode !== userPlant;
+    const isInvalidUser = user.id !== urlUserId;
+
+    if (isInvalidPlant || isInvalidUser) {
+      const targetPlant = isSuperAdmin ? urlPlantCode : userPlant;
+      const newPath = pathname.replace(`/cimory/${urlPlantCode}/dashboard/${urlUserId}`, `/cimory/${targetPlant}/dashboard/${user.id}`);
       router.replace(newPath);
     } else {
       setIsAuthorized(true);
     }
-  }, [user, urlUserId, pathname, router]);
+  }, [user, urlPlantCode, urlUserId, pathname, router]);
 
   if (!isAuthorized) {
     return (

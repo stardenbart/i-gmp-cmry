@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { Home, ClipboardCheck, AlertTriangle, User, FileBox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -10,10 +10,12 @@ import { isAuditorUser } from "@/lib/useAdminGuard";
 
 export function BottomNav() {
   const pathname = usePathname();
+  const params = useParams();
   const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
 
-  const basePath = `/cimory/dashboard/${mounted ? user?.id : 'overview'}`;
+  const plantCode = (params?.plantCode as string) || user?.plant_id || "global";
+  const basePath = `/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}`;
 
   const NAV_ITEMS = [
     { href: `${basePath}`, label: "Home", icon: Home },

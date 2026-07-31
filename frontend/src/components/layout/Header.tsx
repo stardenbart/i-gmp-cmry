@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
@@ -12,8 +12,11 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export function Header() {
   const pathname = usePathname();
+  const params = useParams();
   const { logout, user } = useAuthStore();
   const mounted = useMounted();
+
+  const plantCode = (params?.plantCode as string) || user?.plant_id || "global";
 
   const getTitle = () => {
     if (pathname.includes("/profile")) return "Profil Pengguna";
@@ -23,7 +26,7 @@ export function Header() {
     if (pathname.includes("/users")) return "Manajemen Pengguna";
     if (pathname.includes("/logs")) return "Riwayat Aktivitas";
     if (pathname.includes("/settings")) return "Pengaturan";
-    if (pathname.includes("/cimory/dashboard")) return "Dasbor Utama";
+    if (pathname.includes("/dashboard")) return "Dasbor Utama";
     return "";
   };
 
@@ -60,7 +63,7 @@ export function Header() {
         <ThemeToggle />
         <NotificationBell />
         <div className="h-6 w-px bg-border mx-1"></div>
-        <Link href={`/cimory/dashboard/${mounted ? user?.id : 'overview'}/profile`}>
+        <Link href={`/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}/profile`}>
           <div className="flex items-center gap-2 rounded-full px-2 py-1.5 hover:bg-muted cursor-pointer transition-colors">
             <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
               {mounted && user?.name ? user.name.charAt(0).toUpperCase() : "U"}

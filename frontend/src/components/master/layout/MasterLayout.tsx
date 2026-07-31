@@ -242,7 +242,7 @@ export function MasterLayout() {
         </p>
         {mounted && user && (
           <Button variant="outline" asChild>
-            <a href={`/cimory/dashboard/${user.id}`}>Kembali ke Dashboard</a>
+            <a href={`/cimory/${user.plant_id || 'global'}/dashboard/${user.id}`}>Kembali ke Dashboard</a>
           </Button>
         )}
       </div>

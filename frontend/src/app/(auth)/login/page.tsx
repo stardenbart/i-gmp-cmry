@@ -47,10 +47,11 @@ export default function LoginPage() {
         name: backendUser.full_name,
       };
       
+      const plantCode = backendUser.plant_id || "global";
       setAuth(token, user);
       
       toast.success("Login berhasil!");
-      router.push(`/cimory/dashboard/${user.id}`);
+      router.push(`/cimory/${plantCode}/dashboard/${user.id}`);
     } catch (error: any) {
       toast.error(
         error.response?.data?.message || "Login gagal. Periksa kembali email dan password Anda."

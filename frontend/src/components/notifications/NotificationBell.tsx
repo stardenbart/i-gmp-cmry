@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   Bell,
   Check,
@@ -121,13 +121,15 @@ function NotificationItem({
 // Main Notification Bell Component
 export function NotificationBell() {
   const router = useRouter();
+  const params = useParams();
   const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  const basePath = `/cimory/dashboard/${mounted ? user?.id : 'overview'}`;
+  const plantCode = (params?.plantCode as string) || user?.plant_id || "global";
+  const basePath = `/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}`;
 
   // Fetch notifications
   const { data, isLoading, isFetching } = useQuery({

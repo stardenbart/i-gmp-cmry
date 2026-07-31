@@ -17,13 +17,15 @@ export default function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  const plantCode = request.cookies.get('plant-code')?.value || 'global';
+
   if (token && isAuthRoute) {
-    return NextResponse.redirect(new URL(`/cimory/dashboard/${userId || 'overview'}`, request.url));
+    return NextResponse.redirect(new URL(`/cimory/${plantCode}/dashboard/${userId || 'overview'}`, request.url));
   }
   
   // Optional: Redirect root to dashboard if logged in
   if (token && pathname === '/') {
-    return NextResponse.redirect(new URL(`/cimory/dashboard/${userId || 'overview'}`, request.url));
+    return NextResponse.redirect(new URL(`/cimory/${plantCode}/dashboard/${userId || 'overview'}`, request.url));
   }
 
   return NextResponse.next();
