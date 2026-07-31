@@ -135,7 +135,11 @@ func NewAreaHandler(uc master.AreaUseCase) *AreaHandler { return &AreaHandler{uc
 // @Security BearerAuth
 func (h *AreaHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("search"))
+	plantID, _ := c.Locals("userPlantID").(string)
+	if plantID == "" {
+		plantID = c.Query("plant_id")
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, plantID, c.Query("search"))
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch areas", err.Error())
 	}

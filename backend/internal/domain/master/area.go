@@ -21,7 +21,7 @@ func (Area) TableName() string { return "Area_Master" }
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type AreaRepository interface {
-	FindAll(page, limit int, search string) ([]Area, int64, error)
+	FindAll(page, limit int, plantID, search string) ([]Area, int64, error)
 	FindByID(id string) (*Area, error)
 	Create(area *Area) error
 	Update(area *Area) error
@@ -31,7 +31,7 @@ type AreaRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type AreaUseCase interface {
-	GetAll(page, limit int, search string) ([]Area, int64, error)
+	GetAll(page, limit int, plantID, search string) ([]Area, int64, error)
 	GetByID(id string) (*Area, error)
 	Create(area *Area) error
 	Update(area *Area) error

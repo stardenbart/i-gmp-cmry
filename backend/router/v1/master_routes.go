@@ -61,9 +61,11 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	rolePermH := auth.NewRolePermissionHandler(rolePermUC)
 	moduleH := auth.NewModuleHandler(moduleUC)
 
+	userRepo := authrepo.NewUserRepository(db)
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
-	master := rg.Group("/master", authMW, actLogMW)
+	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
+	master := rg.Group("/master", authMW, actLogMW, plantScopeMW)
 	{
 		// Plants
 		plant := master.Group("/plants")

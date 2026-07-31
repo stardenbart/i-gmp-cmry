@@ -7,6 +7,7 @@ export interface UserInfo {
   email: string;
   department_id: string;
   role_id: string;
+  plant_id?: string;
   user_status: "Active" | "Inactive" | "Suspended";
 }
 

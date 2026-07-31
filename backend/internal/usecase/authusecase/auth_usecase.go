@@ -67,6 +67,7 @@ func (uc *authUseCase) Login(req *authdomain.LoginRequest, ip, device string) (*
 			Email:        user.Email,
 			DepartmentID: user.DepartmentID,
 			RoleID:       user.RoleID,
+			PlantID:      user.PlantID,
 			UserStatus:   user.UserStatus,
 		},
 	}, nil
@@ -89,6 +90,7 @@ func (uc *authUseCase) Me(userID string) (*authdomain.UserInfo, error) {
 		Email:        user.Email,
 		DepartmentID: user.DepartmentID,
 		RoleID:       user.RoleID,
+		PlantID:      user.PlantID,
 		UserStatus:   user.UserStatus,
 	}, nil
 }

@@ -45,10 +45,13 @@ func NewAreaRepository(db *gorm.DB) master.AreaRepository {
 	return &areaRepository{db: db}
 }
 
-func (r *areaRepository) FindAll(page, limit int, search string) ([]master.Area, int64, error) {
+func (r *areaRepository) FindAll(page, limit int, plantID, search string) ([]master.Area, int64, error) {
 	var items []master.Area
 	var total int64
-	q := r.db.Model(&master.Area{})
+	q := r.db.Model(&master.Area{}).Preload("Plant")
+	if plantID != "" {
+		q = q.Where("\"PlantID\" = ?", plantID)
+	}
 	if search != "" {
 		q = q.Where("\"AreaName\" LIKE ?", "%"+search+"%")
 	}

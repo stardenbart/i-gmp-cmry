@@ -32,8 +32,8 @@ type areaUseCase struct{ repo master.AreaRepository }
 func NewAreaUseCase(repo master.AreaRepository) master.AreaUseCase {
 	return &areaUseCase{repo: repo}
 }
-func (uc *areaUseCase) GetAll(page, limit int, search string) ([]master.Area, int64, error) {
-	return uc.repo.FindAll(page, limit, search)
+func (uc *areaUseCase) GetAll(page, limit int, plantID, search string) ([]master.Area, int64, error) {
+	return uc.repo.FindAll(page, limit, plantID, search)
 }
 func (uc *areaUseCase) GetByID(id string) (*master.Area, error) { return uc.repo.FindByID(id) }
 func (uc *areaUseCase) Create(a *master.Area) error {

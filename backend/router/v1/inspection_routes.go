@@ -42,11 +42,12 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
+	plantScopeMW := middleware.PlantScopeMiddleware(authRepo)
 
 	// Analytics Route
-	rg.Get("/analytics/inspections-trend", authMW, actLogMW, headerH.GetTrend)
+	rg.Get("/analytics/inspections-trend", authMW, actLogMW, plantScopeMW, headerH.GetTrend)
 
-	insp := rg.Group("/inspections", authMW, actLogMW)
+	insp := rg.Group("/inspections", authMW, actLogMW, plantScopeMW)
 	{
 		// Inspection Header CRUD
 		insp.Get("", headerH.GetAll)

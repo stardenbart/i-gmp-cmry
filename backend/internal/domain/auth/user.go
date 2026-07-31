@@ -20,6 +20,7 @@ type User struct {
 	UserID        string     `gorm:"column:UserID;primaryKey" json:"user_id"`
 	DepartmentID  string     `gorm:"column:DepartmentID;not null" json:"department_id"`
 	RoleID        string     `gorm:"column:RoleID;not null" json:"role_id"`
+	PlantID       *string    `gorm:"column:PlantID" json:"plant_id,omitempty"`
 	Username      string     `gorm:"column:Username;uniqueIndex;not null" json:"username"`
 	FullName      string     `gorm:"column:FullName;not null" json:"full_name"`
 	Email         string     `gorm:"column:Email;uniqueIndex;not null" json:"email"`
@@ -29,7 +30,7 @@ type User struct {
 	UserUpdatedAt time.Time  `gorm:"column:UserUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations (preload when needed)
-	Role        *Role          `gorm:"foreignKey:RoleID;references:RoleID" json:"role,omitempty"`
+	Role        *Role            `gorm:"foreignKey:RoleID;references:RoleID" json:"role,omitempty"`
 	PICMappings []pic.PICMapping `gorm:"foreignKey:UserID;references:UserID" json:"pic_mappings,omitempty"`
 }
 
@@ -55,12 +56,14 @@ type UserInfo struct {
 	Email        string     `json:"email"`
 	DepartmentID string     `json:"department_id"`
 	RoleID       string     `json:"role_id"`
+	PlantID      *string    `json:"plant_id,omitempty"`
 	UserStatus   UserStatus `json:"user_status"`
 }
 
 type CreateUserRequest struct {
 	DepartmentID  string   `json:"department_id" validate:"required"`
 	RoleID        string   `json:"role_id" validate:"required"`
+	PlantID       *string  `json:"plant_id"`
 	Username      string   `json:"username" validate:"required,min=3,max=50"`
 	FullName      string   `json:"full_name" validate:"required"`
 	Email         string   `json:"email" validate:"required,email"`
@@ -72,6 +75,7 @@ type CreateUserRequest struct {
 type UpdateUserRequest struct {
 	DepartmentID  string     `json:"department_id"`
 	RoleID        string     `json:"role_id"`
+	PlantID       *string    `json:"plant_id"`
 	FullName      string     `json:"full_name"`
 	Email         string     `json:"email" validate:"omitempty,email"`
 	UserStatus    UserStatus `json:"user_status" validate:"omitempty,oneof=Active Inactive Suspended"`

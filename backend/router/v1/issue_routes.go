@@ -57,7 +57,8 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Min
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
-	issues := rg.Group("/issues", authMW, actLogMW, permMW)
+	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
+	issues := rg.Group("/issues", authMW, actLogMW, permMW, plantScopeMW)
 	{
 		// Issue CRUD
 		issues.Get("", issueH.GetAll)

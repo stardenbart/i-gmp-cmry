@@ -49,6 +49,7 @@ func (uc *userUseCase) Create(req *authdomain.CreateUserRequest) (*authdomain.Us
 		UserID:       idgen.Generate(idgen.PrefixUser),
 		DepartmentID: req.DepartmentID,
 		RoleID:       req.RoleID,
+		PlantID:      req.PlantID,
 		Username:     req.Username,
 		FullName:     req.FullName,
 		Email:        req.Email,
@@ -79,6 +80,9 @@ func (uc *userUseCase) Update(id string, req *authdomain.UpdateUserRequest) (*au
 	}
 	if req.RoleID != "" {
 		user.RoleID = req.RoleID
+	}
+	if req.PlantID != nil {
+		user.PlantID = req.PlantID
 	}
 	if req.FullName != "" {
 		user.FullName = req.FullName
