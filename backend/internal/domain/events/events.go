@@ -8,6 +8,12 @@ const (
 	TopicAuditInspections = "audit.inspections"
 	TopicAuditIssues      = "audit.issues"
 	TopicActivityLogs     = "audit.activity-logs"
+
+	// Distributed Inspection Topics
+	TopicInspeksiAspekSave     = "inspeksi.aspek.save"
+	TopicInspeksiAspekComplete = "inspeksi.aspek.complete"
+	TopicInspeksiKawasanSync   = "inspeksi.kawasan.sync"
+	TopicInspeksiDLQ           = "inspeksi.dlq"
 )
 
 // ── Event Types ───────────────────────────────────────────────────────────

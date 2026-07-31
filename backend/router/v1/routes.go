@@ -14,12 +14,13 @@ import (
 	"github.com/monitoring-system/backend/pkg/opensearch"
 	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
+	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 // Register mounts all v1 route groups onto the given RouterGroup.
 // Each route file is responsible for wiring its own repositories, use cases, and handlers.
-func Register(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, sseBroker *sse.Broker, log *logger.Logger) {
+func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, sseBroker *sse.Broker, log *logger.Logger) {
 	// Bootstrap shared ActivityLog UseCase — passed to all route groups for activity tracking
 	actLogRepo := loggingrepo.NewActivityLogRepository(db)
 	actLogUC := loggingusecase.NewActivityLogUseCase(actLogRepo, producer)
@@ -38,6 +39,7 @@ func Register(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, 
 	RegisterMasterRoutes(rg, db, minioStorage, cryptoSvc, jwtManager, log, actLogUC)
 	RegisterPICRoutes(rg, db, jwtManager, log, actLogUC)
 	RegisterInspectionRoutes(rg, db, producer, mailer, jwtManager, log, actLogUC)
+	RegisterDistributedInspectionRoutes(app, rg, db, redisClient, producer, jwtManager, log)
 	RegisterIssueRoutes(rg, db, minioStorage, cryptoSvc, producer, mailer, jwtManager, sseBroker, log, actLogUC)
 	RegisterLoggingRoutes(rg, db, producer, jwtManager, log)
 	RegisterSearchRoutes(rg, osClient, jwtManager, log)

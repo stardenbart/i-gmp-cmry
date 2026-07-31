@@ -26,6 +26,12 @@ type Config struct {
 	DBTimezone string
 	DBSSLMode  string // disable | require | verify-ca | verify-full
 
+	// Redis Config
+	RedisHost     string
+	RedisPort     string
+	RedisPassword string
+	RedisDB       int
+
 	// SMTP Config
 	SMTPHost        string
 	SMTPPort        int
@@ -94,6 +100,11 @@ func Load() *Config {
 		DBPassword: getEnv("DB_PASSWORD", "secret"),
 		DBTimezone: getEnv("DB_TIMEZONE", "Asia/Jakarta"),
 		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
+
+		RedisHost:     getEnv("REDIS_HOST", "localhost"),
+		RedisPort:     getEnv("REDIS_PORT", "6379"),
+		RedisPassword: getEnv("REDIS_PASSWORD", ""),
+		RedisDB:       getEnvAsInt("REDIS_DB", 0),
 
 		SMTPHost:        getEnv("SMTP_HOST", "smtp.gmail.com"),
 		SMTPPort:        getEnvAsInt("SMTP_PORT", 587),

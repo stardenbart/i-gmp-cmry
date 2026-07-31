@@ -30,6 +30,7 @@ import (
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/loggingrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/uploadrepo"
+	"github.com/monitoring-system/backend/internal/usecase/lockusecase"
 	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
 	"github.com/monitoring-system/backend/internal/worker"
 	"github.com/monitoring-system/backend/pkg/crypto"
@@ -37,6 +38,7 @@ import (
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/opensearch"
+	pkgredis "github.com/monitoring-system/backend/pkg/redis"
 	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
 	"github.com/monitoring-system/backend/router"
@@ -55,6 +57,9 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to connect database", logger.Error(err))
 	}
+
+	// ── Connect Redis ──────────────────────────────────────────────────
+	redisClient := pkgredis.NewRedisClient(cfg)
 
 	// ── Prepare ActivityLog repo (still used for DB writes from Consumer) ──
 	actLogRepo := loggingrepo.NewActivityLogRepository(db)
@@ -129,12 +134,17 @@ func main() {
 	)
 	go imageProcessingConsumer.Start(bgCtx)
 
+	// ── Setup Inspeksi Consumer ───────────────────────────────────────
+	lockMgr := lockusecase.NewLockManager(redisClient, log.Logger)
+	inspeksiConsumer := kafkainfra.NewInspeksiConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, lockMgr, db, redisClient, log)
+	go inspeksiConsumer.Start(bgCtx)
+
 	// ── Setup SSE Broker ───────────────────────────────────────────────
 	sseBroker := sse.NewBroker()
 	go sseBroker.Start()
 
 	// ── Setup router ───────────────────────────────────────────────────
-	r := router.Setup(cfg, db, minioStorage, cryptoSvc, mailer, eventProducer, osClient, sseBroker, log)
+	r := router.Setup(cfg, db, redisClient, minioStorage, cryptoSvc, mailer, eventProducer, osClient, sseBroker, log)
 
 	// ── HTTP Server ────────────────────────────────────────────────────
 	// ── Graceful shutdown ──────────────────────────────────────────────

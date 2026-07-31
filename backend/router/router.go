@@ -15,6 +15,7 @@ import (
 	"github.com/monitoring-system/backend/pkg/opensearch"
 	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
+	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	// Handler imports (will be wired during full implementation)
@@ -22,7 +23,7 @@ import (
 )
 
 // Setup initialises Fiber, applies global middleware, and registers all API routes.
-func Setup(cfg *config.Config, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, sseBroker *sse.Broker, log *logger.Logger) *fiber.App {
+func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, sseBroker *sse.Broker, log *logger.Logger) *fiber.App {
 	// Fiber doesn't have an exact equivalent to gin.SetMode. It relies on the Config.
 
 	r := fiber.New(fiber.Config{
@@ -52,7 +53,7 @@ func Setup(cfg *config.Config, db *gorm.DB, minioStorage *storage.MinioStorage, 
 
 	// ── API v1 routes ─────────────────────────────────────────────────
 	api := r.Group("/api/v1")
-	v1.Register(api, db, minioStorage, cryptoSvc, mailer, producer, osClient, jwtManager, sseBroker, log)
+	v1.Register(r, api, db, redisClient, minioStorage, cryptoSvc, mailer, producer, osClient, jwtManager, sseBroker, log)
 
 	return r
 }
