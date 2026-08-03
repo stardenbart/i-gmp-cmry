@@ -81,6 +81,16 @@ func SeedDummyData(db *gorm.DB) {
 
 		// 9. Issue (Only if NG)
 		if checking == "NG" {
+			eqID := fmt.Sprintf("EQ%03d", i)
+			eq := issuedomain.Equipment{
+				EquipmentID:     eqID,
+				KawasanID:       kawasanID,
+				EquipmentCode:   fmt.Sprintf("EQ-CODE-%03d", i),
+				EquipmentName:   fmt.Sprintf("Mesin Pompa %d", i),
+				EquipmentStatus: "Active",
+			}
+			db.Where(&issuedomain.Equipment{EquipmentID: eq.EquipmentID}).FirstOrCreate(&eq)
+
 			issueID := fmt.Sprintf("ISSUE-%03d", i)
 			dueDate := now.AddDate(0, 0, 3)
 			cat := issuedomain.IssueCategoryEquipment
@@ -91,6 +101,7 @@ func SeedDummyData(db *gorm.DB) {
 				DueDate:        &dueDate,
 				IssueStatus:    issuedomain.IssueStatusOpen,
 				IssueCategory:  &cat,
+				EquipmentID:    &eqID,
 				Keterangan:     fmt.Sprintf("Segera perbaiki masalah ke-%d", i),
 			}
 			db.Where(&issuedomain.Issue{IssueID: issue.IssueID}).FirstOrCreate(&issue)
