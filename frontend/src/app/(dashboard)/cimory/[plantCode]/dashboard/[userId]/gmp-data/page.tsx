@@ -297,7 +297,7 @@ export default function GmpDataAdminPage() {
       {/* Table Section */}
       <Card className="overflow-hidden border-border/50 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full min-w-[1400px] text-sm text-left border-collapse">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">ID Inspeksi</th>
@@ -317,18 +317,18 @@ export default function GmpDataAdminPage() {
             <tbody className="divide-y divide-border/50">
               {isPreviewLoading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={12} className="px-6 py-12 text-center text-muted-foreground">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary/50" />
                     Memuat data inspeksi GMP...
                   </td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12">
-                    <div className="w-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-4">
+                  <td colSpan={12} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center text-center max-w-md mx-auto">
                       <ClipboardCheck className="h-12 w-12 text-muted-foreground/30 mb-3" />
                       <h3 className="text-lg font-semibold text-foreground">Tidak ada data</h3>
-                      <p className="text-sm text-muted-foreground mt-1.5 w-full leading-relaxed">
+                      <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
                         Data inspeksi GMP untuk area yang dipilih tidak ditemukan, atau tidak cocok dengan kata kunci pencarian Anda.
                       </p>
                     </div>
