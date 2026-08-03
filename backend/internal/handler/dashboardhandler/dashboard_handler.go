@@ -890,11 +890,25 @@ func (h *DashboardHandler) GetPICDetail(c *fiber.Ctx) error {
 // getAllowedAreas returns a slice of AreaIDs the user is allowed to access.
 // If the user is Admin (ROLE-001), it returns nil (meaning no restrictions).
 func (h *DashboardHandler) getAllowedAreas(c *fiber.Ctx) []string {
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
 	roleID := middleware.GetRoleID(c)
-	if roleID == "ROLE-001" || roleID == "" {
-		return nil // No restriction
+	if isSuperAdmin || roleID == "ROLE-000" || roleID == "SUPERADMIN" {
+		return nil // SuperAdmin has unrestricted global access across all plants
 	}
+
+	userPlantID, _ := c.Locals("userPlantID").(string)
 	var areaIDs []string
+
+	if userPlantID != "" {
+		// Non-SuperAdmin: Strictly scoped to areas belonging to their assigned PlantID
+		h.db.Table("\"Area_Master\"").Select("\"AreaID\"").Where("\"PlantID\" = ?", userPlantID).Scan(&areaIDs)
+		if len(areaIDs) == 0 {
+			return []string{"RESTRICTED_NONE"}
+		}
+		return areaIDs
+	}
+
+	// Fallback to PIC_Mapping for non-superadmin users without explicit plant assignment
 	h.db.Table("\"PIC_Mapping\"").Select("\"AreaID\"").Where("\"UserID\" = ?", middleware.GetUserID(c)).Scan(&areaIDs)
 	if len(areaIDs) == 0 {
 		return []string{"RESTRICTED_NONE"}
