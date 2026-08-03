@@ -72,6 +72,7 @@ func (r *issueFilterRepository) FindFacets(f *issue.IssueFilter) (issue.IssueFac
 		tmp := &issue.IssueFilter{
 			Q:           f.Q,
 			ScopeUserID: f.ScopeUserID,
+			PlantID:     f.PlantID,
 			NeedsWOWR:   f.NeedsWOWR,
 			Label:       f.Label,
 		}

@@ -54,7 +54,7 @@ func runAutoApprove(uc issue.IssueUseCase) {
 
 	// 2. Fetch all issues that are PendingValidation
 	// In a real app we might paginate if there are thousands, but let's fetch a large batch for now.
-	issues, _, err := usecaseImpl.repo.FindAll(1, 1000, string(issue.IssueStatusPendingValidation), "", nil)
+	issues, _, err := usecaseImpl.repo.FindAll(1, 1000, "", string(issue.IssueStatusPendingValidation), "", nil)
 	if err != nil {
 		log.Println("AutoApproveWorker: failed to fetch issues", err)
 		return

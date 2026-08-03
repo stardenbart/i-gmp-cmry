@@ -128,7 +128,7 @@ type UpdateIssueRequest struct {
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type IssueRepository interface {
-	FindAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
+	FindAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
 	FindByID(id string) (*Issue, error)
 	FindByResultID(resultID string) (*Issue, error)
 	Create(i *Issue) error
@@ -139,7 +139,7 @@ type IssueRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type IssueUseCase interface {
-	GetAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
+	GetAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
 	GetByID(id string) (*Issue, error)
 	Create(actorID string, req *CreateIssueRequest) (*Issue, error)
 	Update(id string, actorID string, req *UpdateIssueRequest) (*Issue, error)

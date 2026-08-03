@@ -13,12 +13,25 @@ func NewIssueRepository(db *gorm.DB) issue.IssueRepository {
 	return &issueRepository{db: db}
 }
 
-func (r *issueRepository) FindAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
+func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
 	var items []issue.Issue
 	var total int64
 
 	// Base query (no joins to avoid row inflation)
 	q := r.db.Model(&issue.Issue{})
+
+	if plantID != "" {
+		q = q.Where(
+			`"IssueID" IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"
+				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
+				JOIN "Area_Master" am ON ih."AreaID" = am."AreaID"
+				WHERE am."PlantID" = ?
+			)`,
+			plantID,
+		)
+	}
 
 	if status != "" {
 		q = q.Where(`"Issue"."IssueStatus" = ?`, status)

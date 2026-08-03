@@ -41,8 +41,8 @@ func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepos
 	return &issueUseCase{repo: repo, photoRepo: photoRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, sseBroker: sseBroker}
 }
 
-func (uc *issueUseCase) GetAll(page, limit int, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
-	items, total, err := uc.repo.FindAll(page, limit, status, picUserID, needsWOWR)
+func (uc *issueUseCase) GetAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
+	items, total, err := uc.repo.FindAll(page, limit, plantID, status, picUserID, needsWOWR)
 	if err == nil {
 		now := time.Now()
 		for i := range items {

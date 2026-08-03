@@ -63,7 +63,10 @@ func (h *IssueHandler) GetAll(c *fiber.Ctx) error {
 		picUserID = actorID
 	}
 
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("status"), picUserID, needsWOWR)
+	// Plant scope enforcement for non-SuperAdmin users
+	userPlantID, _ := c.Locals("userPlantID").(string)
+
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, userPlantID, c.Query("status"), picUserID, needsWOWR)
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch issues", err.Error())
 	}

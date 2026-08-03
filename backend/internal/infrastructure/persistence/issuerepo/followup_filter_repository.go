@@ -55,6 +55,7 @@ func (r *followupFilterRepository) FindFacets(f *issue.FollowupFilter) (issue.Fo
 		tmp := &issue.FollowupFilter{
 			Q:             f.Q,
 			ScopeUserID:   f.ScopeUserID,
+			PlantID:       f.PlantID,
 			NeedsWOWR:     f.NeedsWOWR,
 			Label:         f.Label,
 			IncludeClosed: f.IncludeClosed,
