@@ -74,13 +74,15 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		permUpdateMstr := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-MSTR", "UPDATE")
 		permDeleteMstr := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-MSTR", "DELETE")
 
-		// Plants
-		plant := master.Group("/plants")
-		plant.Get("", permReadMstr, plantH.GetAll)
-		plant.Post("", permCreateMstr, plantH.Create)
-		plant.Get("/:id", permReadMstr, plantH.GetByID)
-		plant.Put("/:id", permUpdateMstr, plantH.Update)
-		plant.Delete("/:id", permDeleteMstr, plantH.Delete)
+		requireSuperAdmin := middleware.RequireSuperAdminMiddleware()
+
+		// Plants (Exclusively accessible by SuperAdmin - ROLE-000)
+		plant := master.Group("/plants", requireSuperAdmin)
+		plant.Get("", plantH.GetAll)
+		plant.Post("", plantH.Create)
+		plant.Get("/:id", plantH.GetByID)
+		plant.Put("/:id", plantH.Update)
+		plant.Delete("/:id", plantH.Delete)
 
 		// Department
 		dept := master.Group("/departments")

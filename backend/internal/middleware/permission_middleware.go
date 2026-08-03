@@ -82,3 +82,17 @@ func PermissionMiddleware(
 		return response.Forbidden(c, "you do not have permission to perform this action")
 	}
 }
+
+// RequireSuperAdminMiddleware restricts access exclusively to SuperAdmin (ROLE-000).
+func RequireSuperAdminMiddleware() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		roleID := GetRoleID(c)
+		isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+
+		if isSuperAdmin || roleID == "ROLE-000" || roleID == "SUPERADMIN" {
+			return c.Next()
+		}
+
+		return response.Forbidden(c, "Hanya Super Admin yang diizinkan mengelola data Plant Master")
+	}
+}

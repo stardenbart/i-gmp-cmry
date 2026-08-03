@@ -267,6 +267,7 @@ export function MasterLayout() {
 
       <MasterTabs
         activeTab={activeTab}
+        userRole={user?.role_id}
         onTabChange={(tabId) => {
           setActiveTab(tabId);
           setPage(1);
