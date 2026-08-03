@@ -59,7 +59,7 @@ type TrendData struct {
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type InspectionHeaderRepository interface {
-	FindAll(page, limit int, areaID, status, inspectorID string) ([]InspectionHeader, int64, error)
+	FindAll(page, limit int, plantID, areaID, status, inspectorID string) ([]InspectionHeader, int64, error)
 	FindByID(id string) (*InspectionHeader, error)
 	FindActiveByKawasan(kawasanID string) ([]InspectionHeader, error)
 	FindActiveByDetailKawasan(detailKawasanID string) ([]InspectionHeader, error)
@@ -77,7 +77,7 @@ type InspectionHeaderRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type InspectionHeaderUseCase interface {
-	GetAll(page, limit int, areaID, status, inspectorID string) ([]InspectionHeader, int64, error)
+	GetAll(page, limit int, plantID, areaID, status, inspectorID string) ([]InspectionHeader, int64, error)
 	GetByID(id string) (*InspectionHeader, error)
 	GetAreaStatus(areaID string) (AreaProgress, error)
 	GetTrend(contextID string, year int) ([]TrendData, error)

@@ -14,10 +14,13 @@ func NewInspectionHeaderRepository(db *gorm.DB) inspection.InspectionHeaderRepos
 	return &inspectionHeaderRepository{db: db}
 }
 
-func (r *inspectionHeaderRepository) FindAll(page, limit int, areaID, status, inspectorID string) ([]inspection.InspectionHeader, int64, error) {
+func (r *inspectionHeaderRepository) FindAll(page, limit int, plantID, areaID, status, inspectorID string) ([]inspection.InspectionHeader, int64, error) {
 	var items []inspection.InspectionHeader
 	var total int64
 	q := r.db.Model(&inspection.InspectionHeader{})
+	if plantID != "" {
+		q = q.Where(`"AreaID" IN (SELECT "AreaID" FROM "Area_Master" WHERE "PlantID" = ?)`, plantID)
+	}
 	if areaID != "" {
 		q = q.Where("\"AreaID\" = ?", areaID)
 	}

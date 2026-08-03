@@ -65,9 +65,10 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 	// Helper: base query without a specific field so we get all counts for that field.
 	baseWithout := func(excludeStatus, excludeArea, excludeKawasan, excludeInspector, excludeDate bool) *gorm.DB {
 		tmp := &inspection.InspectionFilter{
-			Q:               f.Q,
+			Q:                f.Q,
 			ScopeInspectorID: f.ScopeInspectorID,
-			DetailKawasanID: f.DetailKawasanID,
+			PlantID:          f.PlantID,
+			DetailKawasanID:  f.DetailKawasanID,
 		}
 		if !excludeStatus {
 			tmp.Status = f.Status

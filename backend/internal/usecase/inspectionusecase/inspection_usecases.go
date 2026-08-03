@@ -39,8 +39,8 @@ func NewInspectionHeaderUseCase(
 	}
 }
 
-func (uc *inspectionHeaderUseCase) GetAll(page, limit int, areaID, status, inspectorID string) ([]inspection.InspectionHeader, int64, error) {
-	return uc.repo.FindAll(page, limit, areaID, status, inspectorID)
+func (uc *inspectionHeaderUseCase) GetAll(page, limit int, plantID, areaID, status, inspectorID string) ([]inspection.InspectionHeader, int64, error) {
+	return uc.repo.FindAll(page, limit, plantID, areaID, status, inspectorID)
 }
 
 func (uc *inspectionHeaderUseCase) GetByID(id string) (*inspection.InspectionHeader, error) {

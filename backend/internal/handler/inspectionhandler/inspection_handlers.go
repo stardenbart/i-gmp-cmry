@@ -39,7 +39,8 @@ func NewInspectionHeaderHandler(uc inspection.InspectionHeaderUseCase, resultUC 
 // @Security BearerAuth
 func (h *InspectionHeaderHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("area_id"), c.Query("status"), c.Query("inspector_id"))
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, userPlantID, c.Query("area_id"), c.Query("status"), c.Query("inspector_id"))
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch inspections", err.Error())
 	}
