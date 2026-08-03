@@ -1,10 +1,10 @@
 package masterhandler
 
 import (
-	"strconv"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/master"
+	"github.com/monitoring-system/backend/pkg/pagination"
+	"github.com/monitoring-system/backend/pkg/response"
 )
 
 type PlantHandler struct {
@@ -16,68 +16,59 @@ func NewPlantHandler(uc master.PlantUseCase) *PlantHandler {
 }
 
 func (h *PlantHandler) GetAll(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	p := pagination.FromQuery(c)
 	search := c.Query("search", "")
 
-	plants, total, err := h.uc.GetAll(page, limit, search)
+	plants, total, err := h.uc.GetAll(p.Page, p.Limit, search)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalServerError(c, "failed to fetch plants", err.Error())
 	}
 
-	return c.JSON(fiber.Map{
-		"success": true,
-		"data":    plants,
-		"meta": fiber.Map{
-			"page":  page,
-			"limit": limit,
-			"total": total,
-		},
-	})
+	return response.Paginated(c, "success", plants, total, p.Page, p.Limit)
 }
 
 func (h *PlantHandler) GetByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	plant, err := h.uc.GetByID(id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Plant tidak ditemukan"})
+		return response.NotFound(c, "Plant tidak ditemukan")
 	}
-	return c.JSON(fiber.Map{"success": true, "data": plant})
+	return response.OK(c, "success", plant)
 }
 
 func (h *PlantHandler) Create(c *fiber.Ctx) error {
 	var req master.CreatePlantRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Payload tidak valid"})
+		return response.BadRequest(c, "Payload tidak valid", err.Error())
 	}
 
 	plant, err := h.uc.Create(&req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return response.BadRequest(c, err.Error(), nil)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"success": true, "data": plant})
+	return response.Created(c, "Plant berhasil dibuat", plant)
 }
 
 func (h *PlantHandler) Update(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var req master.UpdatePlantRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Payload tidak valid"})
+		return response.BadRequest(c, "Payload tidak valid", err.Error())
 	}
 
 	plant, err := h.uc.Update(id, &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return response.BadRequest(c, err.Error(), nil)
 	}
 
-	return c.JSON(fiber.Map{"success": true, "data": plant})
+	return response.OK(c, "Plant berhasil diperbarui", plant)
 }
 
 func (h *PlantHandler) Delete(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if err := h.uc.Delete(id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return response.InternalServerError(c, "failed to delete plant", err.Error())
 	}
-	return c.JSON(fiber.Map{"success": true, "message": "Plant berhasil dihapus"})
+	return response.OK(c, "Plant berhasil dihapus", nil)
 }
