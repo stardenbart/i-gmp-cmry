@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { ChevronDown } from "lucide-react";
 import { fetchItems } from "../master.api";
+import { useAuthStore } from "@/stores/authStore";
+import { isSuperAdminUser } from "@/lib/useAdminGuard";
 
 interface MasterFormFieldsProps {
   activeTab: string;
@@ -9,11 +11,14 @@ interface MasterFormFieldsProps {
 }
 
 export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsProps) {
+  const user = useAuthStore((state) => state.user);
+  const isSuperAdmin = isSuperAdminUser(user?.role_id);
+
   // Fetch lookups for forms
   const { data: plantLookup } = useQuery({
     queryKey: ["master", "plants", "lookup"],
     queryFn: () => fetchItems("/master/plants", 1, "", 500),
-    enabled: activeTab === "areas",
+    enabled: activeTab === "areas" && isSuperAdmin,
   });
   const { data: deptLookup } = useQuery({
     queryKey: ["master", "departments", "lookup"],
@@ -89,18 +94,26 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
     ),
     areas: (
       <>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Plant Induk (Pabrik)</label>
-          <div className="relative">
-            <select name="plant_id" defaultValue={editingItem?.plant_id as string} className={selectClass}>
-              <option value="">Pilih Plant (Opsional)...</option>
-              {plantLookup?.items?.map((p: any) => (
-                <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+        {isSuperAdmin ? (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Plant Induk (Pabrik)</label>
+            <div className="relative">
+              <select name="plant_id" defaultValue={editingItem?.plant_id as string} className={selectClass}>
+                <option value="">Pilih Plant (Opsional)...</option>
+                {plantLookup?.items?.map((p: any) => (
+                  <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
-        </div>
+        ) : (
+          <input
+            type="hidden"
+            name="plant_id"
+            value={(editingItem?.plant_id as string) || user?.plant_id || ""}
+          />
+        )}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Department Induk</label>
           <div className="relative">

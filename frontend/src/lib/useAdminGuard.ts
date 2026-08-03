@@ -60,6 +60,16 @@ export function useAdminGuard(redirectTo?: string) {
   };
 }
 
+export function isSuperAdminUser(roleId?: string, roleName?: string): boolean {
+  if (roleName) {
+    const lower = roleName.toLowerCase();
+    if (lower.includes("super admin") || lower.includes("superadmin")) return true;
+  }
+  if (!roleId) return false;
+  const lowerId = roleId.toLowerCase();
+  return lowerId === "role-000" || lowerId === "superadmin";
+}
+
 /**
  * Simple check if user has admin role
  */
