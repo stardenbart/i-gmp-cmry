@@ -11,7 +11,7 @@ type Area struct {
 	AreaUpdatedAt time.Time `gorm:"column:AreaUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Plant    *Plant    `gorm:"foreignKey:PlantID" json:"plant,omitempty"`
+	Plant    *Plant    `gorm:"foreignKey:PlantID;references:PlantID" json:"plant,omitempty"`
 	Kawasans []Kawasan `gorm:"foreignKey:AreaID" json:"kawasans,omitempty"`
 	Aspeks   []Aspek   `gorm:"foreignKey:AreaID" json:"aspeks,omitempty"`
 }
