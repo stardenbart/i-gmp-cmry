@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler"
 	"github.com/monitoring-system/backend/internal/middleware"
@@ -21,21 +20,8 @@ func RegisterDistributedInspectionRoutes(app *fiber.App, rg fiber.Router, db *go
 	}
 	lockMgr := lockusecase.NewLockManager(rClient, log.Logger)
 
-	inspeksiH := handler.NewInspeksiHandler(lockMgr, db, producer, log)
+	inspeksiH := handler.NewInspeksiHandler(lockMgr, db, producer, log, rClient)
 	authMW := middleware.AuthMiddleware(jwtManager)
-
-	// WebSocket Upgrade & Handler (App-level route for WebSocket)
-	app.Use("/ws/inspeksi", func(c *fiber.Ctx) error {
-		if websocket.IsWebSocketUpgrade(c) {
-			c.Locals("allowed", true)
-			return c.Next()
-		}
-		return fiber.ErrUpgradeRequired
-	})
-	app.Get("/ws/inspeksi/:kawasanId", websocket.New(inspeksiH.WebSocketGrid))
-
-	// SSE Route
-	rg.Get("/sse/inspeksi/notifications", inspeksiH.SSENotifications)
 
 	// REST Endpoints under /inspeksi
 	insp := rg.Group("/inspeksi", authMW)

@@ -18,21 +18,21 @@ import (
 	"github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/mail"
-	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
+	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
-func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, sseBroker *sse.Broker, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
+func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
 	issueRepo := issuerepo.NewIssueRepository(db)
 	photoRepo := issuerepo.NewIssuePhotoRepository(db)
 	userRepo := authrepo.NewUserRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
 	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
 
-	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, sseBroker)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient)
 	issueDelegateUC := issueusecase.NewIssueDelegateUseCase(issueDelegateRepo)
-	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, sseBroker)
+	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, redisClient)
 
 	// Filter usecases
 	issueFilterRepo := issuerepo.NewIssueFilterRepository(db)

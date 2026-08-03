@@ -17,7 +17,7 @@ import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { format, isPast } from "date-fns";
-import { useSSE } from "@/hooks/useSSE";
+import { usePolling } from "@/hooks/usePolling";
 
 export const DashboardPanelAuditee = () => {
   const mounted = useMounted();
@@ -25,7 +25,7 @@ export const DashboardPanelAuditee = () => {
   const queryClient = useQueryClient();
 
   // Enable real-time Server-Sent Events for issue updates
-  useSSE();
+  usePolling();
 
   // Fetch Issues specific to this auditee (PIC)
   const {

@@ -26,7 +26,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
 import { isAuditorUser } from "@/lib/useAdminGuard";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
-import { useSSE } from "@/hooks/useSSE";
+import { usePolling } from "@/hooks/usePolling";
 
 /* ── Status configuration ─────────────────────────────────────────────── */
 const STATUS_OPTIONS: { label: string; value: IssueStatus | "all" }[] = [
@@ -178,7 +178,7 @@ export default function IssuesPage() {
   const isAuditor = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
   const canAccess = hasPermission("PERM-ISS-R") || isAuditor;
 
-  useSSE();
+  usePolling();
 
   const [activeStatus, setActiveStatus] = useState<IssueStatus | "all">("all");
   const [search, setSearch] = useState("");

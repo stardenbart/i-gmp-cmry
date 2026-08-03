@@ -10,9 +10,9 @@ import (
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/usecase/lockusecase"
+	"github.com/monitoring-system/backend/pkg/eventstore"
 	pkgkafka "github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/logger"
-	"github.com/monitoring-system/backend/pkg/realtime"
 	redis "github.com/redis/go-redis/v9"
 	segmentio "github.com/segmentio/kafka-go"
 	"gorm.io/gorm"
@@ -72,8 +72,8 @@ func (c *InspeksiConsumer) handleMessage(ctx context.Context, msg segmentio.Mess
 		return err
 	}
 
-	// Notify User via SSE that draft was saved
-	realtime.GetSSEBroker().SendToUser(req.UserID, realtime.SSEEvent{
+	// Notify User via EventStore that draft was saved
+	eventstore.GetEventStore(c.redis).PushUser(req.UserID, eventstore.UserEvent{
 		Type:    "SAVE_SUCCESS",
 		AspekID: req.AspekID,
 		Message: "Draft aspek berhasil disimpan",
@@ -88,8 +88,8 @@ func (c *InspeksiConsumer) handleMessage(ctx context.Context, msg segmentio.Mess
 			return err
 		}
 
-		// Broadcast Aspek Completed via WebSocket
-		realtime.GetWSHub().BroadcastToKawasan(req.KawasanID, realtime.WSEvent{
+		// Push ASPEK_COMPLETED event to Kawasan event stream
+		eventstore.GetEventStore(c.redis).PushKawasan(req.KawasanID, eventstore.KawasanEvent{
 			Type:      "ASPEK_COMPLETED",
 			KawasanID: req.KawasanID,
 			AspekID:   req.AspekID,
@@ -188,15 +188,18 @@ func (c *InspeksiConsumer) SyncKawasanToDB(ctx context.Context, kawasanID, sessi
 
 	c.log.Info("DB Sync completed successfully for Kawasan", logger.String("kawasan_id", kawasanID))
 
-	// WebSocket broadcast: KAWASAN_SYNCED
-	realtime.GetWSHub().BroadcastToKawasan(kawasanID, realtime.WSEvent{
+	// EventStore push: KAWASAN_SYNCED
+	eventstore.GetEventStore(c.redis).PushKawasan(kawasanID, eventstore.KawasanEvent{
 		Type:      "KAWASAN_SYNCED",
 		KawasanID: kawasanID,
 	})
 
-	// SSE broadcast to users
+	// Also push global event INSPECTION_UPDATED so dashboard updates
+	eventstore.GetEventStore(c.redis).PushGlobal("INSPECTION_UPDATED")
+
+	// EventStore push to users: KAWASAN_DONE
 	for _, r := range results {
-		realtime.GetSSEBroker().SendToUser(r.UserID, realtime.SSEEvent{
+		eventstore.GetEventStore(c.redis).PushUser(r.UserID, eventstore.UserEvent{
 			Type:    "KAWASAN_DONE",
 			Message: fmt.Sprintf("Inspeksi kawasan %s telah selesai & tersimpan di database", kawasanID),
 		})

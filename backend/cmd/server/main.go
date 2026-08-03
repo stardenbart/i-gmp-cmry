@@ -39,7 +39,6 @@ import (
 	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/opensearch"
 	pkgredis "github.com/monitoring-system/backend/pkg/redis"
-	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
 	"github.com/monitoring-system/backend/router"
 )
@@ -139,12 +138,8 @@ func main() {
 	inspeksiConsumer := kafkainfra.NewInspeksiConsumer(kafkaBrokers, cfg.KafkaConsumerGroup, lockMgr, db, redisClient, log)
 	go inspeksiConsumer.Start(bgCtx)
 
-	// ── Setup SSE Broker ───────────────────────────────────────────────
-	sseBroker := sse.NewBroker()
-	go sseBroker.Start()
-
 	// ── Setup router ───────────────────────────────────────────────────
-	r := router.Setup(cfg, db, redisClient, minioStorage, cryptoSvc, mailer, eventProducer, osClient, sseBroker, log)
+	r := router.Setup(cfg, db, redisClient, minioStorage, cryptoSvc, mailer, eventProducer, osClient, log)
 
 	// ── HTTP Server ────────────────────────────────────────────────────
 	// ── Graceful shutdown ──────────────────────────────────────────────

@@ -12,7 +12,6 @@ import (
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/opensearch"
-	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
 	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -20,7 +19,7 @@ import (
 
 // Register mounts all v1 route groups onto the given RouterGroup.
 // Each route file is responsible for wiring its own repositories, use cases, and handlers.
-func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, sseBroker *sse.Broker, log *logger.Logger) {
+func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, log *logger.Logger) {
 	// Bootstrap shared ActivityLog UseCase — passed to all route groups for activity tracking
 	actLogRepo := loggingrepo.NewActivityLogRepository(db)
 	actLogUC := loggingusecase.NewActivityLogUseCase(actLogRepo, producer)
@@ -40,11 +39,11 @@ func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.C
 	RegisterPICRoutes(rg, db, jwtManager, log, actLogUC)
 	RegisterInspectionRoutes(rg, db, producer, mailer, jwtManager, log, actLogUC)
 	RegisterDistributedInspectionRoutes(app, rg, db, redisClient, producer, jwtManager, log)
-	RegisterIssueRoutes(rg, db, minioStorage, cryptoSvc, producer, mailer, jwtManager, sseBroker, log, actLogUC)
+	RegisterIssueRoutes(rg, db, redisClient, minioStorage, cryptoSvc, producer, mailer, jwtManager, log, actLogUC)
 	RegisterLoggingRoutes(rg, db, producer, jwtManager, log)
 	RegisterSearchRoutes(rg, osClient, jwtManager, log)
 	RegisterUploadRoutes(rg, db, minioStorage, producer, jwtManager, log, actLogUC)
 	RegisterNotificationRoutes(rg, db, jwtManager, log)
-	RegisterSSERoutes(rg, sseBroker)
+	RegisterPollingRoutes(rg, redisClient, jwtManager)
 	RegisterDashboardRoutes(rg, db, cryptoSvc, jwtManager, log)
 }

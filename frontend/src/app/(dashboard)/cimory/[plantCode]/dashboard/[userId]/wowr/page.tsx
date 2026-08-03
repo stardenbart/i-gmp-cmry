@@ -27,7 +27,7 @@ import { isAuditorUser } from "@/lib/useAdminGuard";
 import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
-import { useSSE } from "@/hooks/useSSE";
+import { usePolling } from "@/hooks/usePolling";
 import { cn, formatImageUrl } from "@/lib/utils";
 
 // Modal Component for Uploading Photo (For Auditee)
@@ -376,7 +376,7 @@ export default function WOWRPage() {
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  useSSE();
+  usePolling();
 
   const { hasPermission } = usePermissions();
   const isAuditor = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username) || hasPermission("PERM-WOWR-U");

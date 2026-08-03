@@ -21,14 +21,14 @@ import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { format, isPast } from "date-fns";
-import { useSSE } from "@/hooks/useSSE";
+import { usePolling } from "@/hooks/usePolling";
 
 export const DashboardPanelAuditor = () => {
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
-  useSSE();
+  usePolling();
 
   const {
     data: inspectionsData,

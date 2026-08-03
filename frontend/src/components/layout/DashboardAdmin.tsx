@@ -20,7 +20,7 @@ import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
 import { StatsCards } from "../admin/StatCard";
 
-import { useSSE } from "@/hooks/useSSE";
+import { usePolling } from "@/hooks/usePolling";
 import { plantApi } from "@/types/api/master";
 
 // Fetch dashboard stats directly from backend API
@@ -35,7 +35,7 @@ export const DashboardPanelAdmin = () => {
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
 
-  useSSE();
+  usePolling();
 
   const [selectedPlant, setSelectedPlant] = useState<string>("");
   const [selectedArea, setSelectedArea] = useState<string>("");

@@ -1,18 +1,17 @@
 package handler
 
 import (
-	"bufio"
 	"encoding/json"
 
-	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/usecase/lockusecase"
+	"github.com/monitoring-system/backend/pkg/eventstore"
 	pkgkafka "github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/logger"
-	"github.com/monitoring-system/backend/pkg/realtime"
+	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -21,14 +20,16 @@ type InspeksiHandler struct {
 	db            *gorm.DB
 	kafkaProducer pkgkafka.EventProducer
 	log           *logger.Logger
+	rdb           *redis.Client
 }
 
-func NewInspeksiHandler(lockMgr *lockusecase.LockManager, db *gorm.DB, producer pkgkafka.EventProducer, log *logger.Logger) *InspeksiHandler {
+func NewInspeksiHandler(lockMgr *lockusecase.LockManager, db *gorm.DB, producer pkgkafka.EventProducer, log *logger.Logger, rdb *redis.Client) *InspeksiHandler {
 	return &InspeksiHandler{
 		lockMgr:       lockMgr,
 		db:            db,
 		kafkaProducer: producer,
 		log:           log,
+		rdb:           rdb,
 	}
 }
 
@@ -47,8 +48,8 @@ func (h *InspeksiHandler) AcquireLock(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Broadcast LOCK_ACQUIRED via WebSocket
-	realtime.GetWSHub().BroadcastToKawasan(kawasanID, realtime.WSEvent{
+	// Push LOCK_ACQUIRED event to Kawasan event stream
+	eventstore.GetEventStore(h.rdb).PushKawasan(kawasanID, eventstore.KawasanEvent{
 		Type:      "LOCK_ACQUIRED",
 		KawasanID: kawasanID,
 		AspekID:   aspekID,
@@ -87,8 +88,8 @@ func (h *InspeksiHandler) ReleaseLock(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Broadcast LOCK_RELEASED via WebSocket
-	realtime.GetWSHub().BroadcastToKawasan(kawasanID, realtime.WSEvent{
+	// Push LOCK_RELEASED event to Kawasan event stream
+	eventstore.GetEventStore(h.rdb).PushKawasan(kawasanID, eventstore.KawasanEvent{
 		Type:      "LOCK_RELEASED",
 		KawasanID: kawasanID,
 		AspekID:   aspekID,
@@ -109,8 +110,8 @@ func (h *InspeksiHandler) YieldRequest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusGone).JSON(fiber.Map{"message": "Aspek sudah tidak dikunci"})
 	}
 
-	// Send SSE to lock holder
-	realtime.GetSSEBroker().SendToUser(lockInfo.LockedBy, realtime.SSEEvent{
+	// Push YIELD_REQUEST to lock holder's event stream
+	eventstore.GetEventStore(h.rdb).PushUser(lockInfo.LockedBy, eventstore.UserEvent{
 		Type:    "YIELD_REQUEST",
 		AspekID: aspekID,
 		Message: "User lain meminta giliran untuk mengisi aspek ini",
@@ -212,46 +213,4 @@ func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
 		"draft":     draft,
 		"lock_info": lockInfo,
 	})
-}
-
-// WebSocket Endpoint - GET /ws/inspeksi/:kawasanId
-func (h *InspeksiHandler) WebSocketGrid(c *websocket.Conn) {
-	kawasanID := c.Params("kawasanId")
-	hub := realtime.GetWSHub()
-
-	hub.Register(kawasanID, c)
-	defer hub.Unregister(kawasanID, c)
-
-	for {
-		_, _, err := c.ReadMessage()
-		if err != nil {
-			break
-		}
-	}
-}
-
-// SSE Endpoint - GET /api/v1/sse/inspeksi/notifications
-func (h *InspeksiHandler) SSENotifications(c *fiber.Ctx) error {
-	userID, _ := c.Locals("userID").(string)
-	if userID == "" {
-		userID = c.Query("user_id")
-	}
-	if userID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "user_id required"})
-	}
-
-	c.Set("Content-Type", "text/event-stream")
-	c.Set("Cache-Control", "no-cache")
-	c.Set("Connection", "keep-alive")
-
-	broker := realtime.GetSSEBroker()
-	ch := broker.Register(userID)
-
-	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		stopCh := make(chan struct{})
-		realtime.StreamToClient(w, ch, stopCh)
-		broker.Unregister(userID, ch)
-	})
-
-	return nil
 }

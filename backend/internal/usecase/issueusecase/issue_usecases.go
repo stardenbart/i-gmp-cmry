@@ -15,11 +15,12 @@ import (
 	"github.com/monitoring-system/backend/internal/domain/issue"
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/pkg/crypto"
+	"github.com/monitoring-system/backend/pkg/eventstore"
 	"github.com/monitoring-system/backend/pkg/idgen"
 	"github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/mail"
-	"github.com/monitoring-system/backend/pkg/sse"
 	"github.com/monitoring-system/backend/pkg/storage"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // ── Issue UseCase ─────────────────────────────────────────────────────────
@@ -34,11 +35,11 @@ type issueUseCase struct {
 	mailer       mail.Mailer
 	settingRepo  masterdomain.SettingRepository
 	cryptoSvc    *crypto.Service
-	sseBroker    *sse.Broker
+	rdb          *redis.Client
 }
 
-func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, sseBroker *sse.Broker) issue.IssueUseCase {
-	return &issueUseCase{repo: repo, photoRepo: photoRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, sseBroker: sseBroker}
+func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssueUseCase {
+	return &issueUseCase{repo: repo, photoRepo: photoRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb}
 }
 
 func (uc *issueUseCase) GetAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
@@ -149,9 +150,7 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 			DueDate:        i.DueDate,
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, i.IssueID, event)
-		if uc.sseBroker != nil {
-			uc.sseBroker.Broadcast("ISSUE_UPDATED")
-		}
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 
 		// Send email notification to PIC asynchronously
 		go func(issueSnapshot issue.Issue) {
@@ -328,9 +327,7 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 			DueDate:        i.DueDate,
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, i.IssueID, event)
-		if uc.sseBroker != nil {
-			uc.sseBroker.Broadcast("ISSUE_UPDATED")
-		}
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return i, err
 }
@@ -358,9 +355,7 @@ func (uc *issueUseCase) ExtendDueDate(id string, actorID string, newDueDate time
 			DueDate:        i.DueDate,
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, i.IssueID, event)
-		if uc.sseBroker != nil {
-			uc.sseBroker.Broadcast("ISSUE_UPDATED")
-		}
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return i, err
 }
@@ -378,9 +373,7 @@ func (uc *issueUseCase) Delete(id string, actorID string) error {
 			IssueID: id,
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, id, event)
-		if uc.sseBroker != nil {
-			uc.sseBroker.Broadcast("ISSUE_UPDATED")
-		}
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return err
 }
@@ -392,11 +385,11 @@ type issuePhotoUseCase struct {
 	issueRepo issue.IssueRepository
 	storage   *storage.MinioStorage
 	cryptoSvc *crypto.Service
-	sseBroker *sse.Broker
+	rdb       *redis.Client
 }
 
-func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, sseBroker *sse.Broker) issue.IssuePhotoUseCase {
-	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, sseBroker: sseBroker}
+func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssuePhotoUseCase {
+	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, rdb: rdb}
 }
 
 func (uc *issuePhotoUseCase) GetByIssueID(issueID string) ([]issue.IssuePhoto, error) {
@@ -478,9 +471,7 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 	if err == nil {
 		p.ImageUrl = publicURL
 		p.FileName = objectName
-		if uc.sseBroker != nil {
-			uc.sseBroker.Broadcast("ISSUE_UPDATED")
-		}
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return p, err
 }
@@ -503,8 +494,8 @@ func (uc *issuePhotoUseCase) Update(ctx context.Context, photoID string, keteran
 
 	photo.Keterangan = keterangan
 	err = uc.repo.Update(photo)
-	if err == nil && uc.sseBroker != nil {
-		uc.sseBroker.Broadcast("ISSUE_UPDATED")
+	if err == nil {
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return photo, err
 }
@@ -530,8 +521,8 @@ func (uc *issuePhotoUseCase) Delete(ctx context.Context, id string) error {
 	_ = uc.storage.Delete(ctx, plainFileName) // best-effort file deletion from MinIO
 
 	err = uc.repo.Delete(id)
-	if err == nil && uc.sseBroker != nil {
-		uc.sseBroker.Broadcast("ISSUE_UPDATED")
+	if err == nil {
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return err
 }
