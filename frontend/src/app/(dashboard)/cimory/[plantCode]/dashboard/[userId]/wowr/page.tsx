@@ -468,10 +468,39 @@ export default function WOWRPage() {
                   </tr>
                 ) : issues.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                      {isAuditor 
-                        ? "Tidak ada data WO / WR yang perlu Anda tinjau saat ini."
-                        : "Belum ada data WO / WR yang perlu dikerjakan."}
+                    <td colSpan={5} className="p-6 sm:p-10">
+                      <div className="w-full rounded-3xl border border-dashed border-border/70 bg-gradient-to-b from-card/80 via-card/40 to-background p-8 sm:p-12 text-center shadow-sm">
+                        <div className="mx-auto w-full max-w-md text-center space-y-4" style={{ width: "100%", maxWidth: "28rem", marginLeft: "auto", marginRight: "auto" }}>
+                          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-inner mx-auto mb-2">
+                            <AlertTriangle className="h-8 w-8 text-amber-500" />
+                          </div>
+
+                          <h3 className="w-full text-lg font-bold text-foreground tracking-tight text-center block">
+                            {search ? "Tidak Ada Data WO/WR Ditemukan" : "Belum Ada Data WO/WR"}
+                          </h3>
+
+                          <p className="w-full text-sm text-muted-foreground leading-relaxed text-center block" style={{ wordBreak: "normal", overflowWrap: "break-word" }}>
+                            {search
+                              ? `Tidak ada data WO/WR yang cocok dengan kata kunci "${search}".`
+                              : isAuditor
+                              ? "Tidak ada data Work Order / Work Request yang memerlukan peninjauan Auditor saat ini."
+                              : "Belum ada data Work Order / Work Request yang perlu Anda tindak lanjuti."}
+                          </p>
+
+                          {search && (
+                            <div className="w-full flex items-center justify-center pt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSearch("")}
+                                className="rounded-full px-5 h-9 text-xs font-semibold"
+                              >
+                                <X className="mr-1.5 h-3.5 w-3.5" /> Hapus Filter
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ) : (
