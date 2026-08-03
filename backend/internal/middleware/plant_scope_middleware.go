@@ -11,8 +11,8 @@ import (
 // - If user attempts to query a explicit plant_id different from their assigned PlantID -> 403 Forbidden.
 func PlantScopeMiddleware(userRepo authdomain.UserRepository) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userID, ok := c.Locals("userID").(string)
-		if !ok || userID == "" {
+		userID := GetUserID(c)
+		if userID == "" {
 			return c.Next()
 		}
 

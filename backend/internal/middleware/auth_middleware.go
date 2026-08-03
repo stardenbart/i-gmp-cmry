@@ -41,8 +41,10 @@ func AuthMiddleware(jwtManager *jwt.Manager) fiber.Handler {
 
 		// Store claims in context for downstream handlers
 		c.Locals(ContextKeyUserID, claims.UserID)
+		c.Locals("userID", claims.UserID)
 		c.Locals(ContextKeyUsername, claims.Username)
 		c.Locals(ContextKeyRoleID, claims.RoleID)
+		c.Locals("roleID", claims.RoleID)
 		return c.Next()
 	}
 }
