@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, Filter, RotateCcw, Layers, ListChecks } from "lucide-react";
+import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, Filter, RotateCcw, Layers, ListChecks, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -324,13 +324,36 @@ export default function GmpDataAdminPage() {
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center text-center max-w-md mx-auto">
-                      <ClipboardCheck className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                      <h3 className="text-lg font-semibold text-foreground">Tidak ada data</h3>
-                      <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-                        Data inspeksi GMP untuk area yang dipilih tidak ditemukan, atau tidak cocok dengan kata kunci pencarian Anda.
-                      </p>
+                  <td colSpan={12} className="p-6 sm:p-10">
+                    <div className="w-full rounded-3xl border border-dashed border-border/70 bg-gradient-to-b from-card/80 via-card/40 to-background p-8 sm:p-12 text-center shadow-sm">
+                      <div className="mx-auto w-full max-w-md text-center space-y-4" style={{ width: "100%", maxWidth: "28rem", marginLeft: "auto", marginRight: "auto" }}>
+                        <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-inner mx-auto mb-2">
+                          <AlertTriangle className="h-8 w-8 text-amber-500" />
+                        </div>
+
+                        <h3 className="w-full text-lg font-bold text-foreground tracking-tight text-center block">
+                          {q || hasActiveFilters ? "Tidak Ada Data Inspeksi Ditemukan" : "Belum Ada Data Inspeksi"}
+                        </h3>
+
+                        <p className="w-full text-sm text-muted-foreground leading-relaxed text-center block" style={{ wordBreak: "normal", overflowWrap: "break-word" }}>
+                          {hasActiveFilters
+                            ? "Data inspeksi GMP untuk area atau filter yang dipilih tidak ditemukan, atau tidak cocok dengan kata kunci pencarian Anda."
+                            : "Data inspeksi GMP akan secara otomatis tercatat ketika ada sesi inspeksi yang telah dilaksanakan."}
+                        </p>
+
+                        {hasActiveFilters && (
+                          <div className="w-full flex items-center justify-center pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleResetFilters}
+                              className="rounded-full px-5 h-9 text-xs font-semibold"
+                            >
+                              <X className="mr-1.5 h-3.5 w-3.5" /> Hapus Filter
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
