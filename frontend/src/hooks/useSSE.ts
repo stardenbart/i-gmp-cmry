@@ -33,12 +33,17 @@ export function useSSE(options?: UseSSEOptions) {
 
     eventSource.onmessage = (event) => {
       const data = event.data;
-      if (data === "ISSUE_UPDATED") {
-        // Invalidate both auditee, wowr, auditor, and filter queries
+      if (data === "ISSUE_UPDATED" || data === "INSPECTION_UPDATED") {
+        // Invalidate both auditee, wowr, auditor, filter, and dashboard queries
         queryClient.invalidateQueries({ queryKey: ["auditee-issues"] });
         queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
         queryClient.invalidateQueries({ queryKey: ["issues"] });
         queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-stats-stitch"] });
+        queryClient.invalidateQueries({ queryKey: ["auditor-inspections"] });
+        queryClient.invalidateQueries({ queryKey: ["auditor-inspections-trend"] });
+        queryClient.invalidateQueries({ queryKey: ["auditor-global-issues"] });
         
         if (optionsRef.current?.onIssueUpdated) {
           optionsRef.current.onIssueUpdated();

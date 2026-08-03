@@ -245,3 +245,15 @@ export const uraianApi = {
   delete: (id: string): Promise<void> =>
     deleteItem("/master/urain", id),
 };
+
+/**
+ * Plant API
+ */
+export const plantApi = {
+  getAll: (
+    page = 1,
+    limit = 100,
+    search = ""
+  ): Promise<any> =>
+    fetchMasterData("/master/plant", page, limit, search),
+};

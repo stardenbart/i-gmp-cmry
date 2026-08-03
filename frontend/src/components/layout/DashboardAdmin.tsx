@@ -20,10 +20,13 @@ import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
 import { StatsCards } from "../admin/StatCard";
 
+import { useSSE } from "@/hooks/useSSE";
+import { plantApi } from "@/types/api/master";
+
 // Fetch dashboard stats directly from backend API
-const fetchDashboardStats = async (areaId?: string, period: string = "6m") => {
+const fetchDashboardStats = async (areaId?: string, period: string = "6m", plantId?: string) => {
   const res = await api.get("/dashboard/stats", {
-    params: { area_id: areaId, period }
+    params: { area_id: areaId, period, plant_id: plantId }
   });
   return res.data.data;
 };
@@ -32,11 +35,22 @@ export const DashboardPanelAdmin = () => {
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
 
+  useSSE();
+
+  const [selectedPlant, setSelectedPlant] = useState<string>("");
   const [selectedArea, setSelectedArea] = useState<string>("");
   const [trendPeriod, setTrendPeriod] = useState<"1m" | "3m" | "6m" | "1y">("6m");
 
+  const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN";
+
+  const { data: plantsResponse } = useQuery({
+    queryKey: ["plants-master-dashboard"],
+    queryFn: () => plantApi.getAll(1, 100),
+    enabled: mounted && isSuperAdmin,
+  });
+
   const { data: areasResponse } = useQuery({
-    queryKey: ["areas-master-dashboard"],
+    queryKey: ["areas-master-dashboard", selectedPlant],
     queryFn: () => areaApi.getAll(1, 100),
     enabled: mounted,
   });
@@ -46,8 +60,8 @@ export const DashboardPanelAdmin = () => {
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ["dashboard-stats-stitch", selectedArea, trendPeriod],
-    queryFn: () => fetchDashboardStats(selectedArea, trendPeriod),
+    queryKey: ["dashboard-stats-stitch", selectedArea, trendPeriod, selectedPlant],
+    queryFn: () => fetchDashboardStats(selectedArea, trendPeriod, selectedPlant),
     enabled: mounted && !!user,
     staleTime: 10000,
   });
@@ -67,18 +81,35 @@ export const DashboardPanelAdmin = () => {
               Selamat Datang, {user?.name || "Administrator"}
             </h1>
             <span className="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded uppercase tracking-wider">
-              ADMINISTRATOR
+              {isSuperAdmin ? "SUPER ADMIN" : "ADMINISTRATOR"}
             </span>
           </div>
           <p className="text-muted-foreground text-sm">
             Pengawasan Berkelanjutan · Ringkasan aktivitas dan performa seluruh peran
           </p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Plant Selector Dropdown for SuperAdmin */}
+          {isSuperAdmin && (
+            <select
+              value={selectedPlant}
+              onChange={(e) => setSelectedPlant(e.target.value)}
+              className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none"
+            >
+              <option value="">Semua Plant</option>
+              {plantsResponse?.data?.items?.map((plant: any) => (
+                <option key={plant.plant_id} value={plant.plant_id}>
+                  {plant.plant_name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Area Selector Dropdown */}
           <select 
             value={selectedArea} 
             onChange={(e) => setSelectedArea(e.target.value)}
-            className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground"
+            className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none"
           >
             <option value="">Semua Area</option>
             {areasResponse?.data?.items?.map((area: any) => (

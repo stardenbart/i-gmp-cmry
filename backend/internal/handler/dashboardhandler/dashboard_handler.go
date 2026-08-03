@@ -892,15 +892,22 @@ func (h *DashboardHandler) GetPICDetail(c *fiber.Ctx) error {
 func (h *DashboardHandler) getAllowedAreas(c *fiber.Ctx) []string {
 	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
 	roleID := middleware.GetRoleID(c)
-	if isSuperAdmin || roleID == "ROLE-000" || roleID == "SUPERADMIN" {
-		return nil // SuperAdmin has unrestricted global access across all plants
+
+	queryPlantID := c.Query("plant_id")
+
+	if (isSuperAdmin || roleID == "ROLE-000" || roleID == "SUPERADMIN") && queryPlantID == "" {
+		return nil // SuperAdmin has unrestricted global access across all plants if no specific plant_id is requested
 	}
 
-	userPlantID, _ := c.Locals("userPlantID").(string)
+	userPlantID := queryPlantID
+	if userPlantID == "" {
+		userPlantID, _ = c.Locals("userPlantID").(string)
+	}
+
 	var areaIDs []string
 
 	if userPlantID != "" {
-		// Non-SuperAdmin: Strictly scoped to areas belonging to their assigned PlantID
+		// Non-SuperAdmin or SuperAdmin filtering: Scoped to areas belonging to PlantID
 		h.db.Table("\"Area_Master\"").Select("\"AreaID\"").Where("\"PlantID\" = ?", userPlantID).Scan(&areaIDs)
 		if len(areaIDs) == 0 {
 			return []string{"RESTRICTED_NONE"}
