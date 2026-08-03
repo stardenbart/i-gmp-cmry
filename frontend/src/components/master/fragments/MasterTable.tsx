@@ -89,6 +89,7 @@ export function MasterTable({
                         } else {
                           // Lookups for 1-level and 2-level parent relations
                           const lookupMap: Record<string, () => string | undefined> = {
+                            "plant_name":        () => (item.plant as any)?.plant_name,
                             "department_name":   () => (item.department as any)?.department_name,
                             "area_name":         () => (item.area as any)?.area_name || (item.kawasan as any)?.area?.area_name || (item.aspek as any)?.area?.area_name,
                             "kawasan_name":      () => (item.kawasan as any)?.kawasan_name,
@@ -107,6 +108,7 @@ export function MasterTable({
                         }
 
                         const isRelationCol = [
+                          "plant_name",
                           "area_name",
                           "kawasan_name",
                           "aspek_name",
