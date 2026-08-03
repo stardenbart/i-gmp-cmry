@@ -21,7 +21,7 @@ type InspectionHeader struct {
 	InspectorID               string           `gorm:"column:InspectorID;not null" json:"inspector_id"`
 	InspectionHeaderStatus    InspectionStatus `gorm:"column:InspectionHeaderStatus;not null;default:Draft" json:"status"`
 	InspectionHeaderCreatedAt time.Time        `gorm:"column:InspectionHeaderCreatedAt;autoCreateTime" json:"created_at"`
-	InspectionheaderUpdatedAt time.Time        `gorm:"column:InspectionheaderUpdatedAt;autoUpdateTime" json:"updated_at"`
+	InspectionHeaderUpdatedAt time.Time        `gorm:"column:InspectionHeaderUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	SessionID *string    `gorm:"column:SessionID;size:255" json:"session_id"`
 	LockedAt  *time.Time `gorm:"column:LockedAt" json:"locked_at"`

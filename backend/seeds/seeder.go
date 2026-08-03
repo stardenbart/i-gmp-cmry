@@ -14,11 +14,10 @@ func Run(db *gorm.DB) {
 	SeedModules(db)
 	SeedPermissions(db)
 	SeedDepartments(db)
-	SeedAdminUser(db)
-	SeedAuditorUser(db)
-	SeedAuditeeUser(db)
+	SeedPlants(db)
+	SeedUsers(db)
 	SeedSettings(db)
-	// SeedDummyData(db) // Disabled to prevent dummy data generation
+	SeedDummyData(db)
 
 	log.Println("✅ Seeding completed.")
 }

@@ -153,7 +153,7 @@ func (uc *userUseCase) upsertPICMappings(userID string, kawasanIDs []string, kat
 		}
 		picMap := &pic.PICMapping{
 			PICMapID:    idgen.Generate(idgen.PrefixPICMap),
-			AreaID:      "", // Deprecated: kawasan is the join key used by issue scoping.
+			AreaID:      nil, // Deprecated: kawasan is the join key used by issue scoping.
 			KawasanID:   kawasanID,
 			UserID:      userID,
 			KategoriPIC: kategori,

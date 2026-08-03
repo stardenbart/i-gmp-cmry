@@ -16,10 +16,11 @@ func SeedDummyData(db *gorm.DB) {
 
 	now := time.Now()
 
-	for i := 1; i <= 100; i++ {
-		// 1. Area
+	for i := 1; i <= 20; i++ {
+		// 1. Area (Assigned to PLT-SENTUL)
 		areaID := fmt.Sprintf("A%03d", i)
-		area := masterdomain.Area{AreaID: areaID, AreaName: fmt.Sprintf("Pabrik Utama %d", i)}
+		plantID := "PLT-SENTUL"
+		area := masterdomain.Area{AreaID: areaID, PlantID: &plantID, AreaName: fmt.Sprintf("Area Pabrik Sentul %d", i)}
 		db.Where(&masterdomain.Area{AreaID: area.AreaID}).FirstOrCreate(&area)
 
 		// 2. Kawasan
@@ -82,12 +83,14 @@ func SeedDummyData(db *gorm.DB) {
 		if checking == "NG" {
 			issueID := fmt.Sprintf("ISSUE-%03d", i)
 			dueDate := now.AddDate(0, 0, 3)
+			cat := issuedomain.IssueCategoryEquipment
 			issue := issuedomain.Issue{
 				IssueID:        issueID,
 				ResultID:       resID,
 				IssuePICUserID: "USR-ADMIN-001",
 				DueDate:        &dueDate,
 				IssueStatus:    issuedomain.IssueStatusOpen,
+				IssueCategory:  &cat,
 				Keterangan:     fmt.Sprintf("Segera perbaiki masalah ke-%d", i),
 			}
 			db.Where(&issuedomain.Issue{IssueID: issue.IssueID}).FirstOrCreate(&issue)

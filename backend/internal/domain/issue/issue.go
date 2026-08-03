@@ -50,7 +50,7 @@ type Issue struct {
 	WO_ID               string        `gorm:"column:WO_ID;size:100" json:"wo_id"`
 	WR_ID               string        `gorm:"column:WR_ID;size:100" json:"wr_id"`
 	WOWRStatus          WOWRStatus    `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
-	IssueCategory       IssueCategory `gorm:"column:IssueCategory;type:issue_category_enum" json:"issue_category,omitempty"`
+	IssueCategory       *IssueCategory `gorm:"column:IssueCategory;type:issue_category_enum" json:"issue_category,omitempty"`
 	HabitID             *string       `gorm:"column:HabitID" json:"habit_id,omitempty"`
 	EquipmentID         *string       `gorm:"column:EquipmentID" json:"equipment_id,omitempty"`
 	InfrastructureID    *string       `gorm:"column:InfrastructureID" json:"infrastructure_id,omitempty"`
@@ -102,7 +102,7 @@ type CreateIssueRequest struct {
 	WO_ID            string        `json:"wo_id"`
 	WR_ID            string        `json:"wr_id"`
 	WOWRStatus       WOWRStatus    `json:"wowr_status"`
-	IssueCategory    IssueCategory `json:"issue_category"`
+	IssueCategory    *IssueCategory `json:"issue_category"`
 	HabitID          *string       `json:"habit_id"`
 	EquipmentID      *string       `json:"equipment_id"`
 	InfrastructureID *string       `json:"infrastructure_id"`
@@ -118,7 +118,7 @@ type UpdateIssueRequest struct {
 	WO_ID            string        `json:"wo_id"`
 	WR_ID            string        `json:"wr_id"`
 	WOWRStatus       WOWRStatus    `json:"wowr_status" validate:"omitempty,oneof=None PendingValidation Verified Rejected"`
-	IssueCategory    IssueCategory `json:"issue_category" validate:"omitempty,oneof=Habit Equipment Infrastructure"`
+	IssueCategory    *IssueCategory `json:"issue_category" validate:"omitempty,oneof=Habit Equipment Infrastructure"`
 	HabitID          *string       `json:"habit_id"`
 	EquipmentID      *string       `json:"equipment_id"`
 	InfrastructureID *string       `json:"infrastructure_id"`

@@ -4,7 +4,7 @@ import "time"
 
 // UserPermission represents the User_Permission table for user-level overrides.
 type UserPermission struct {
-	UserPermissionID        string    `gorm:"column:UserPermissionID;primaryKey" json:"user_permission_id"`
+	UserPermissionID        string    `gorm:"column:UserPermissionID;primaryKey;size:50" json:"user_permission_id"`
 	UserID                  string    `gorm:"column:UserID;not null" json:"user_id"`
 	PermissionID            string    `gorm:"column:PermissionID;not null" json:"permission_id"`
 	IsAllowed               bool      `gorm:"column:IsAllowed;not null" json:"is_allowed"`

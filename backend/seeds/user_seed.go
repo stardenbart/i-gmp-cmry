@@ -8,98 +8,133 @@ import (
 	"gorm.io/gorm"
 )
 
-// SeedAdminUser creates a default admin user if one doesn't exist.
-func SeedAdminUser(db *gorm.DB) {
-	var count int64
-	db.Model(&authdomain.User{}).Where(&authdomain.User{Username: "admin"}).Count(&count)
-	if count > 0 {
-		return
-	}
-
-	hashed, err := password.Hash("admin123")
-	if err != nil {
-		log.Printf("Failed to hash admin password: %v", err)
-		return
-	}
-
-	admin := authdomain.User{
-		UserID:       "USR-ADMIN-001",
-		DepartmentID: "DEPT-007", // IT
-		RoleID:       "ROLE-001", // Admin
-		Username:     "admin",
-		FullName:     "Super Admin",
-		Email:        "admin@company.com",
-		PasswordHash: hashed,
-		UserStatus:   authdomain.UserStatusActive,
-	}
-
-	if err := db.Create(&admin).Error; err != nil {
-		log.Printf("❌ Failed to seed admin user: %v", err)
-	} else {
-		log.Printf("   ✔ Admin user seeded (username: admin, password: admin123)")
-	}
+type SeedUserDef struct {
+	UserID       string
+	DepartmentID string
+	RoleID       string
+	PlantID      *string
+	Username     string
+	FullName     string
+	Email        string
+	Password     string
 }
 
-// SeedAuditorUser creates a default auditor user.
-func SeedAuditorUser(db *gorm.DB) {
-	var count int64
-	db.Model(&authdomain.User{}).Where(&authdomain.User{Username: "auditor"}).Count(&count)
-	if count > 0 {
-		return
-	}
+func strPtr(s string) *string {
+	return &s
+}
 
-	hashed, err := password.Hash("auditor123")
-	if err != nil {
-		log.Printf("Failed to hash auditor password: %v", err)
-		return
-	}
-
-	auditor := authdomain.User{
+var defaultUsers = []SeedUserDef{
+	{
+		UserID:       "USR-SUPERADMIN-001",
+		DepartmentID: "DEPT-007",
+		RoleID:       "ROLE-000", // Super Admin
+		PlantID:      nil,        // Global
+		Username:     "superadmin",
+		FullName:     "Global Super Admin",
+		Email:        "superadmin@cimory.com",
+		Password:     "admin123",
+	},
+	{
+		UserID:       "USR-ADMIN-001",
+		DepartmentID: "DEPT-007",
+		RoleID:       "ROLE-001", // Admin
+		PlantID:      strPtr("PLT-SENTUL"),
+		Username:     "admin",
+		FullName:     "Admin Sentul",
+		Email:        "admin@cimory.com",
+		Password:     "admin123",
+	},
+	{
 		UserID:       "USR-AUDIT-001",
 		DepartmentID: "DEPT-001", // Quality Assurance
 		RoleID:       "ROLE-002", // Auditor
+		PlantID:      strPtr("PLT-SENTUL"),
 		Username:     "auditor",
 		FullName:     "Inspektur Auditor",
-		Email:        "auditor@company.com",
-		PasswordHash: hashed,
-		UserStatus:   authdomain.UserStatusActive,
-	}
-
-	if err := db.Create(&auditor).Error; err != nil {
-		log.Printf("❌ Failed to seed auditor user: %v", err)
-	} else {
-		log.Printf("   ✔ Auditor user seeded (username: auditor, password: auditor123)")
-	}
-}
-
-// SeedAuditeeUser creates a default auditee user.
-func SeedAuditeeUser(db *gorm.DB) {
-	var count int64
-	db.Model(&authdomain.User{}).Where(&authdomain.User{Username: "auditee"}).Count(&count)
-	if count > 0 {
-		return
-	}
-
-	hashed, err := password.Hash("auditee123")
-	if err != nil {
-		log.Printf("Failed to hash auditee password: %v", err)
-		return
-	}
-
-	auditee := authdomain.User{
+		Email:        "auditor@cimory.com",
+		Password:     "auditor123",
+	},
+	{
 		UserID:       "USR-AUDITEE-001",
 		DepartmentID: "DEPT-002", // Production
 		RoleID:       "ROLE-003", // Auditee
+		PlantID:      strPtr("PLT-SENTUL"),
 		Username:     "auditee",
 		FullName:     "PIC Auditee",
-		Email:        "auditee@company.com",
-		PasswordHash: hashed,
-		UserStatus:   authdomain.UserStatusActive,
-	}
+		Email:        "auditee@cimory.com",
+		Password:     "auditee123",
+	},
+	{
+		UserID:       "USR-SUPERVISOR-001",
+		DepartmentID: "DEPT-001",
+		RoleID:       "ROLE-004", // Supervisor
+		PlantID:      strPtr("PLT-SENTUL"),
+		Username:     "supervisor",
+		FullName:     "Supervisor Area",
+		Email:        "supervisor@cimory.com",
+		Password:     "supervisor123",
+	},
+	{
+		UserID:       "USR-MANAGER-001",
+		DepartmentID: "DEPT-001",
+		RoleID:       "ROLE-005", // Manager
+		PlantID:      strPtr("PLT-SENTUL"),
+		Username:     "manager",
+		FullName:     "Manager QA",
+		Email:        "manager@cimory.com",
+		Password:     "manager123",
+	},
+	{
+		UserID:       "USR-STAFF-001",
+		DepartmentID: "DEPT-002",
+		RoleID:       "ROLE-006", // Staff
+		PlantID:      strPtr("PLT-SENTUL"),
+		Username:     "staff",
+		FullName:     "Staff Operasional",
+		Email:        "staff@cimory.com",
+		Password:     "staff123",
+	},
+}
 
-	if err := db.Create(&auditee).Error; err != nil {
-		log.Printf("❌ Failed to seed auditee user: %v", err)
-	} else {
-		log.Printf("   ✔ Auditee user seeded (username: auditee, password: auditee123)")
+// SeedUsers creates default users for all roles.
+func SeedUsers(db *gorm.DB) {
+	for _, u := range defaultUsers {
+		var count int64
+		db.Model(&authdomain.User{}).Where("username = ?", u.Username).Count(&count)
+		if count == 0 {
+			hashed, err := password.Hash(u.Password)
+			if err != nil {
+				log.Printf("Failed to hash password for %s: %v", u.Username, err)
+				continue
+			}
+
+			user := authdomain.User{
+				UserID:       u.UserID,
+				DepartmentID: u.DepartmentID,
+				RoleID:       u.RoleID,
+				PlantID:      u.PlantID,
+				Username:     u.Username,
+				FullName:     u.FullName,
+				Email:        u.Email,
+				PasswordHash: hashed,
+				UserStatus:   authdomain.UserStatusActive,
+			}
+
+			if err := db.Create(&user).Error; err != nil {
+				log.Printf("❌ Failed to seed user %s: %v", u.Username, err)
+			} else {
+				log.Printf("   ✔ User seeded (username: %s, password: %s)", u.Username, u.Password)
+			}
+		} else {
+			// Update PlantID if missing on existing user
+			if u.PlantID != nil {
+				_ = db.Model(&authdomain.User{}).Where("username = ? AND (\"PlantID\" IS NULL OR \"PlantID\" = '')", u.Username).Update("PlantID", u.PlantID).Error
+			}
+		}
 	}
 }
+
+// Backwards compatibility wrappers
+func SeedAdminUser(db *gorm.DB)   { SeedUsers(db) }
+func SeedAuditorUser(db *gorm.DB) {}
+func SeedAuditeeUser(db *gorm.DB) {}

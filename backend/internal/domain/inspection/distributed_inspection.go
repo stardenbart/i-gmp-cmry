@@ -42,8 +42,8 @@ type InspeksiAspekResult struct {
 	AspekID      string    `gorm:"column:AspekID;not null" json:"aspek_id"`
 	UserID       string    `gorm:"column:UserID;not null" json:"user_id"`
 	DataInspeksi string    `gorm:"column:DataInspeksi;type:jsonb;not null" json:"data_inspeksi"` // JSON payload string
-	Skor         float64   `gorm:"column:Skor" json:"skor"`
-	Catatan      string    `gorm:"column:Catatan" json:"catatan"`
+	Skor         *float64  `gorm:"column:Skor;type:numeric(5,2)" json:"skor,omitempty"`
+	Catatan      *string   `gorm:"column:Catatan" json:"catatan,omitempty"`
 	CompletedAt  time.Time `gorm:"column:CompletedAt;not null" json:"completed_at"`
 	CreatedAt    time.Time `gorm:"column:CreatedAt;autoCreateTime" json:"created_at"`
 }
@@ -59,7 +59,7 @@ type InspeksiAuditLog struct {
 	AspekID   string    `gorm:"column:AspekID;not null" json:"aspek_id"`
 	UserID    string    `gorm:"column:UserID;not null" json:"user_id"`
 	Action    string    `gorm:"column:Action;not null" json:"action"`
-	Meta      string    `gorm:"column:Meta;type:jsonb" json:"meta"`
+	Meta      *string   `gorm:"column:Meta;type:jsonb" json:"meta,omitempty"`
 	CreatedAt time.Time `gorm:"column:CreatedAt;autoCreateTime" json:"created_at"`
 }
 

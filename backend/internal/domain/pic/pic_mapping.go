@@ -6,7 +6,7 @@ import "time"
 // Maps a user as Person-in-Charge for a specific Area/Kawasan.
 type PICMapping struct {
 	PICMapID            string    `gorm:"column:PICMapID;primaryKey" json:"pic_map_id"`
-	AreaID              string    `gorm:"column:AreaID;not null" json:"area_id"`
+	AreaID              *string   `gorm:"column:AreaID" json:"area_id,omitempty"`
 	KawasanID           string    `gorm:"column:KawasanID;not null" json:"kawasan_id"`
 	UserID              string    `gorm:"column:UserID;not null" json:"user_id"`
 	KategoriPIC         string    `gorm:"column:KategoriPIC;size:50" json:"kategori_pic"`
@@ -19,7 +19,7 @@ func (PICMapping) TableName() string { return "PIC_Mapping" }
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 
 type CreatePICMappingRequest struct {
-	AreaID      string `json:"area_id" validate:"required"`
+	AreaID      *string `json:"area_id"`
 	KawasanID   string `json:"kawasan_id" validate:"required"`
 	UserID      string `json:"user_id" validate:"required"`
 	KategoriPIC string `json:"kategori_pic"`
