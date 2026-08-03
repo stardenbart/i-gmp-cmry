@@ -72,9 +72,8 @@ func SeedPermissions(db *gorm.DB) {
 		}
 
 		// Ensure ROLE-001 (Admin) has explicit true entries in Role_Permission table
-		var rpCount int64
-		db.Model(&authdomain.RolePermission{}).Where("\"RoleID\" = ? AND \"PermissionID\" = ?", "ROLE-001", p.PermissionID).Count(&rpCount)
-		if rpCount == 0 {
+		var rp authdomain.RolePermission
+		if err := db.Where("\"RoleID\" = ? AND \"PermissionID\" = ?", "ROLE-001", p.PermissionID).First(&rp).Error; err != nil {
 			_ = db.Create(&authdomain.RolePermission{
 				RolePermissionID:        "RP-ROLE-001-" + p.PermissionID,
 				RoleID:                  "ROLE-001",
@@ -82,6 +81,8 @@ func SeedPermissions(db *gorm.DB) {
 				IsAllowed:               true,
 				RolePermissionUpdatedBy: "USR-ADMIN-001",
 			})
+		} else if !rp.IsAllowed {
+			_ = db.Model(&rp).Update("IsAllowed", true).Error
 		}
 	}
 
@@ -97,9 +98,8 @@ func SeedPermissions(db *gorm.DB) {
 
 	for roleID, permIDs := range defaultRolePerms {
 		for _, permID := range permIDs {
-			var count int64
-			db.Model(&authdomain.RolePermission{}).Where("\"RoleID\" = ? AND \"PermissionID\" = ?", roleID, permID).Count(&count)
-			if count == 0 {
+			var rp authdomain.RolePermission
+			if err := db.Where("\"RoleID\" = ? AND \"PermissionID\" = ?", roleID, permID).First(&rp).Error; err != nil {
 				_ = db.Create(&authdomain.RolePermission{
 					RolePermissionID:        "RP-" + roleID + "-" + permID,
 					RoleID:                  roleID,
@@ -107,6 +107,8 @@ func SeedPermissions(db *gorm.DB) {
 					IsAllowed:               true,
 					RolePermissionUpdatedBy: "SYSTEM",
 				})
+			} else if !rp.IsAllowed {
+				_ = db.Model(&rp).Update("IsAllowed", true).Error
 			}
 		}
 	}
