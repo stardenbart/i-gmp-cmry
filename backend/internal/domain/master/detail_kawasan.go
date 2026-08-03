@@ -23,7 +23,7 @@ func (DetailKawasan) TableName() string { return "DetailKawasan_Master" }
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type DetailKawasanRepository interface {
-	FindAll(page, limit int, kawasanID, search string) ([]DetailKawasan, int64, error)
+	FindAll(page, limit int, plantID, kawasanID, search string) ([]DetailKawasan, int64, error)
 	FindByID(id string) (*DetailKawasan, error)
 	FindByKawasanID(kawasanID string) ([]DetailKawasan, error)
 	FindAllByAreaID(areaID string) ([]DetailKawasan, error)
@@ -36,7 +36,7 @@ type DetailKawasanRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type DetailKawasanUseCase interface {
-	GetAll(page, limit int, kawasanID, search string) ([]DetailKawasan, int64, error)
+	GetAll(page, limit int, plantID, kawasanID, search string) ([]DetailKawasan, int64, error)
 	GetByID(id string) (*DetailKawasan, error)
 	GetByKawasanID(kawasanID string) ([]DetailKawasan, error)
 	Create(dk *DetailKawasan) error

@@ -21,7 +21,7 @@ func (Uraian) TableName() string { return "Uraian_Master" }
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type UraianRepository interface {
-	FindAll(page, limit int, detailID, search string) ([]Uraian, int64, error)
+	FindAll(page, limit int, plantID, detailID, search string) ([]Uraian, int64, error)
 	FindByID(id string) (*Uraian, error)
 	FindByDetailID(detailID string) ([]Uraian, error)
 	Create(u *Uraian) error
@@ -32,7 +32,7 @@ type UraianRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type UraianUseCase interface {
-	GetAll(page, limit int, detailID, search string) ([]Uraian, int64, error)
+	GetAll(page, limit int, plantID, detailID, search string) ([]Uraian, int64, error)
 	GetByID(id string) (*Uraian, error)
 	GetByDetailID(detailID string) ([]Uraian, error)
 	Create(u *Uraian) error

@@ -20,7 +20,7 @@ func (Detail) TableName() string { return "Detail_Master" }
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type DetailRepository interface {
-	FindAll(page, limit int, aspekID, search string) ([]Detail, int64, error)
+	FindAll(page, limit int, plantID, aspekID, search string) ([]Detail, int64, error)
 	FindByID(id string) (*Detail, error)
 	FindByAspekID(aspekID string) ([]Detail, error)
 	Create(d *Detail) error
@@ -31,7 +31,7 @@ type DetailRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type DetailUseCase interface {
-	GetAll(page, limit int, aspekID, search string) ([]Detail, int64, error)
+	GetAll(page, limit int, plantID, aspekID, search string) ([]Detail, int64, error)
 	GetByID(id string) (*Detail, error)
 	GetByAspekID(aspekID string) ([]Detail, error)
 	Create(d *Detail) error

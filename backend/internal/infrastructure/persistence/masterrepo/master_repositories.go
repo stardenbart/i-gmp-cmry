@@ -82,18 +82,23 @@ func NewKawasanRepository(db *gorm.DB) master.KawasanRepository {
 	return &kawasanRepository{db: db}
 }
 
-func (r *kawasanRepository) FindAll(page, limit int, areaID, search string) ([]master.Kawasan, int64, error) {
+func (r *kawasanRepository) FindAll(page, limit int, plantID, areaID, search string) ([]master.Kawasan, int64, error) {
 	var items []master.Kawasan
 	var total int64
-	q := r.db.Model(&master.Kawasan{}).Preload("Area")
+	q := r.db.Model(&master.Kawasan{})
+	if plantID != "" {
+		q = q.Joins(`JOIN "Area_Master" am ON am."AreaID" = "Kawasan_Master"."AreaID"`).Where(`am."PlantID" = ?`, plantID)
+	}
 	if areaID != "" {
-		q = q.Where("\"AreaID\" = ?", areaID)
+		q = q.Where(`"Kawasan_Master"."AreaID" = ?`, areaID)
 	}
 	if search != "" {
-		q = q.Where("\"KawasanName\" LIKE ?", "%"+search+"%")
+		q = q.Where(`"Kawasan_Master"."KawasanName" ILIKE ?`, "%"+search+"%")
 	}
-	q.Count(&total)
-	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Preload("Area").Offset((page - 1) * limit).Limit(limit).Find(&items).Error
 	return items, total, err
 }
 
@@ -126,11 +131,10 @@ func NewDetailKawasanRepository(db *gorm.DB) master.DetailKawasanRepository {
 	return &detailKawasanRepository{db: db}
 }
 
-func (r *detailKawasanRepository) FindAll(page, limit int, kawasanID, search string) ([]master.DetailKawasan, int64, error) {
+func (r *detailKawasanRepository) FindAll(page, limit int, plantID, kawasanID, search string) ([]master.DetailKawasan, int64, error) {
 	var items []master.DetailKawasan
 	var total int64
 	q := r.db.Model(&master.DetailKawasan{}).
-		Preload("Kawasan").Preload("Kawasan.Area").
 		Select(`"DetailKawasan_Master".*, COALESCE(ih."InspectionHeaderStatus", '') AS "ActiveInspectionStatus"`).
 		Joins(`LEFT JOIN (
 			SELECT DISTINCT ON ("DetailKawasanID") "DetailKawasanID", "InspectionHeaderStatus"
@@ -138,14 +142,20 @@ func (r *detailKawasanRepository) FindAll(page, limit int, kawasanID, search str
 			WHERE "InspectionHeaderStatus" IN ('Ongoing', 'Draft')
 			ORDER BY "DetailKawasanID", "InspectionHeaderCreatedAt" DESC
 		) ih ON ih."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"`)
+	if plantID != "" {
+		q = q.Joins(`JOIN "Kawasan_Master" km ON km."KawasanID" = "DetailKawasan_Master"."KawasanID" JOIN "Area_Master" am ON am."AreaID" = km."AreaID"`).
+			Where(`am."PlantID" = ?`, plantID)
+	}
 	if kawasanID != "" {
 		q = q.Where(`"DetailKawasan_Master"."KawasanID" = ?`, kawasanID)
 	}
 	if search != "" {
 		q = q.Where(`"DetailKawasan_Master"."DetailKawasanName" ILIKE ?`, "%"+search+"%")
 	}
-	q.Count(&total)
-	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Preload("Kawasan").Preload("Kawasan.Area").Offset((page - 1) * limit).Limit(limit).Find(&items).Error
 	return items, total, err
 }
 
@@ -188,18 +198,23 @@ func NewAspekRepository(db *gorm.DB) master.AspekRepository {
 	return &aspekRepository{db: db}
 }
 
-func (r *aspekRepository) FindAll(page, limit int, areaID, search string) ([]master.Aspek, int64, error) {
+func (r *aspekRepository) FindAll(page, limit int, plantID, areaID, search string) ([]master.Aspek, int64, error) {
 	var items []master.Aspek
 	var total int64
-	q := r.db.Model(&master.Aspek{}).Preload("Area")
+	q := r.db.Model(&master.Aspek{})
+	if plantID != "" {
+		q = q.Joins(`JOIN "Area_Master" am ON am."AreaID" = "Aspek_Master"."AreaID"`).Where(`am."PlantID" = ?`, plantID)
+	}
 	if areaID != "" {
-		q = q.Where("\"AreaID\" = ?", areaID)
+		q = q.Where(`"Aspek_Master"."AreaID" = ?`, areaID)
 	}
 	if search != "" {
-		q = q.Where("\"AspekName\" LIKE ?", "%"+search+"%")
+		q = q.Where(`"Aspek_Master"."AspekName" ILIKE ?`, "%"+search+"%")
 	}
-	q.Count(&total)
-	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Preload("Area").Offset((page - 1) * limit).Limit(limit).Find(&items).Error
 	return items, total, err
 }
 
@@ -229,18 +244,24 @@ func NewDetailRepository(db *gorm.DB) master.DetailRepository {
 	return &detailRepository{db: db}
 }
 
-func (r *detailRepository) FindAll(page, limit int, aspekID, search string) ([]master.Detail, int64, error) {
+func (r *detailRepository) FindAll(page, limit int, plantID, aspekID, search string) ([]master.Detail, int64, error) {
 	var items []master.Detail
 	var total int64
-	q := r.db.Model(&master.Detail{}).Preload("Aspek").Preload("Aspek.Area")
+	q := r.db.Model(&master.Detail{})
+	if plantID != "" {
+		q = q.Joins(`JOIN "Aspek_Master" asp ON asp."AspekID" = "Detail_Master"."AspekID" JOIN "Area_Master" am ON am."AreaID" = asp."AreaID"`).
+			Where(`am."PlantID" = ?`, plantID)
+	}
 	if aspekID != "" {
-		q = q.Where("\"AspekID\" = ?", aspekID)
+		q = q.Where(`"Detail_Master"."AspekID" = ?`, aspekID)
 	}
 	if search != "" {
-		q = q.Where("\"DetailName\" LIKE ?", "%"+search+"%")
+		q = q.Where(`"Detail_Master"."DetailName" ILIKE ?`, "%"+search+"%")
 	}
-	q.Count(&total)
-	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Preload("Aspek").Preload("Aspek.Area").Offset((page - 1) * limit).Limit(limit).Find(&items).Error
 	return items, total, err
 }
 
@@ -270,18 +291,24 @@ func NewUraianRepository(db *gorm.DB) master.UraianRepository {
 	return &uraianRepository{db: db}
 }
 
-func (r *uraianRepository) FindAll(page, limit int, detailID, search string) ([]master.Uraian, int64, error) {
+func (r *uraianRepository) FindAll(page, limit int, plantID, detailID, search string) ([]master.Uraian, int64, error) {
 	var items []master.Uraian
 	var total int64
-	q := r.db.Model(&master.Uraian{}).Preload("Detail").Preload("Detail.Aspek")
+	q := r.db.Model(&master.Uraian{})
+	if plantID != "" {
+		q = q.Joins(`JOIN "Detail_Master" dt ON dt."DetailID" = "Uraian_Master"."DetailID" JOIN "Aspek_Master" asp ON asp."AspekID" = dt."AspekID" JOIN "Area_Master" am ON am."AreaID" = asp."AreaID"`).
+			Where(`am."PlantID" = ?`, plantID)
+	}
 	if detailID != "" {
-		q = q.Where("\"DetailID\" = ?", detailID)
+		q = q.Where(`"Uraian_Master"."DetailID" = ?`, detailID)
 	}
 	if search != "" {
-		q = q.Where("\"UraianText\" LIKE ?", "%"+search+"%")
+		q = q.Where(`"Uraian_Master"."UraianText" ILIKE ?`, "%"+search+"%")
 	}
-	q.Count(&total)
-	err := q.Offset((page - 1) * limit).Limit(limit).Find(&items).Error
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Preload("Detail").Preload("Detail.Aspek").Offset((page - 1) * limit).Limit(limit).Find(&items).Error
 	return items, total, err
 }
 

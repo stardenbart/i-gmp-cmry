@@ -246,7 +246,11 @@ func NewKawasanHandler(uc master.KawasanUseCase) *KawasanHandler { return &Kawas
 // @Security BearerAuth
 func (h *KawasanHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("area_id"), c.Query("search"))
+	plantID, _ := c.Locals("userPlantID").(string)
+	if plantID == "" {
+		plantID = c.Query("plant_id")
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, plantID, c.Query("area_id"), c.Query("search"))
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch kawasans", err.Error())
 	}
@@ -355,7 +359,11 @@ func NewDetailKawasanHandler(uc master.DetailKawasanUseCase) *DetailKawasanHandl
 // @Security BearerAuth
 func (h *DetailKawasanHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("kawasan_id"), c.Query("search"))
+	plantID, _ := c.Locals("userPlantID").(string)
+	if plantID == "" {
+		plantID = c.Query("plant_id")
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, plantID, c.Query("kawasan_id"), c.Query("search"))
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch detail kawasans", err.Error())
 	}
@@ -462,7 +470,11 @@ func NewAspekHandler(uc master.AspekUseCase) *AspekHandler { return &AspekHandle
 // @Security BearerAuth
 func (h *AspekHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("area_id"), c.Query("search"))
+	plantID, _ := c.Locals("userPlantID").(string)
+	if plantID == "" {
+		plantID = c.Query("plant_id")
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, plantID, c.Query("area_id"), c.Query("search"))
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch aspeks", err.Error())
 	}
@@ -569,7 +581,11 @@ func NewDetailHandler(uc master.DetailUseCase) *DetailHandler { return &DetailHa
 // @Security BearerAuth
 func (h *DetailHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("aspek_id"), c.Query("search"))
+	plantID, _ := c.Locals("userPlantID").(string)
+	if plantID == "" {
+		plantID = c.Query("plant_id")
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, plantID, c.Query("aspek_id"), c.Query("search"))
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch details", err.Error())
 	}
@@ -676,9 +692,13 @@ func NewUraianHandler(uc master.UraianUseCase) *UraianHandler { return &UraianHa
 // @Security BearerAuth
 func (h *UraianHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("detail_id"), c.Query("search"))
+	plantID, _ := c.Locals("userPlantID").(string)
+	if plantID == "" {
+		plantID = c.Query("plant_id")
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, plantID, c.Query("detail_id"), c.Query("search"))
 	if err != nil {
-		return response.InternalServerError(c, "failed to fetch urains", err.Error())
+		return response.InternalServerError(c, "failed to fetch uraians", err.Error())
 	}
 	return response.Paginated(c, "success", items, total, p.Page, p.Limit)
 }

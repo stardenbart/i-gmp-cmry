@@ -20,7 +20,7 @@ func (Aspek) TableName() string { return "Aspek_Master" }
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type AspekRepository interface {
-	FindAll(page, limit int, areaID, search string) ([]Aspek, int64, error)
+	FindAll(page, limit int, plantID, areaID, search string) ([]Aspek, int64, error)
 	FindByID(id string) (*Aspek, error)
 	FindByAreaID(areaID string) ([]Aspek, error)
 	Create(a *Aspek) error
@@ -31,7 +31,7 @@ type AspekRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type AspekUseCase interface {
-	GetAll(page, limit int, areaID, search string) ([]Aspek, int64, error)
+	GetAll(page, limit int, plantID, areaID, search string) ([]Aspek, int64, error)
 	GetByID(id string) (*Aspek, error)
 	GetByAreaID(areaID string) ([]Aspek, error)
 	Create(a *Aspek) error

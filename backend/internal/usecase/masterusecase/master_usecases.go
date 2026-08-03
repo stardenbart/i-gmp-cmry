@@ -50,8 +50,8 @@ type kawasanUseCase struct{ repo master.KawasanRepository }
 func NewKawasanUseCase(repo master.KawasanRepository) master.KawasanUseCase {
 	return &kawasanUseCase{repo: repo}
 }
-func (uc *kawasanUseCase) GetAll(page, limit int, areaID, search string) ([]master.Kawasan, int64, error) {
-	return uc.repo.FindAll(page, limit, areaID, search)
+func (uc *kawasanUseCase) GetAll(page, limit int, plantID, areaID, search string) ([]master.Kawasan, int64, error) {
+	return uc.repo.FindAll(page, limit, plantID, areaID, search)
 }
 func (uc *kawasanUseCase) GetByID(id string) (*master.Kawasan, error) { return uc.repo.FindByID(id) }
 func (uc *kawasanUseCase) GetByAreaID(areaID string) ([]master.Kawasan, error) {
@@ -73,8 +73,8 @@ type detailKawasanUseCase struct {
 func NewDetailKawasanUseCase(repo master.DetailKawasanRepository) master.DetailKawasanUseCase {
 	return &detailKawasanUseCase{repo: repo}
 }
-func (uc *detailKawasanUseCase) GetAll(page, limit int, kawasanID, search string) ([]master.DetailKawasan, int64, error) {
-	return uc.repo.FindAll(page, limit, kawasanID, search)
+func (uc *detailKawasanUseCase) GetAll(page, limit int, plantID, kawasanID, search string) ([]master.DetailKawasan, int64, error) {
+	return uc.repo.FindAll(page, limit, plantID, kawasanID, search)
 }
 func (uc *detailKawasanUseCase) GetByID(id string) (*master.DetailKawasan, error) {
 	return uc.repo.FindByID(id)
@@ -96,8 +96,8 @@ type aspekUseCase struct{ repo master.AspekRepository }
 func NewAspekUseCase(repo master.AspekRepository) master.AspekUseCase {
 	return &aspekUseCase{repo: repo}
 }
-func (uc *aspekUseCase) GetAll(page, limit int, areaID, search string) ([]master.Aspek, int64, error) {
-	return uc.repo.FindAll(page, limit, areaID, search)
+func (uc *aspekUseCase) GetAll(page, limit int, plantID, areaID, search string) ([]master.Aspek, int64, error) {
+	return uc.repo.FindAll(page, limit, plantID, areaID, search)
 }
 func (uc *aspekUseCase) GetByID(id string) (*master.Aspek, error) { return uc.repo.FindByID(id) }
 func (uc *aspekUseCase) GetByAreaID(areaID string) ([]master.Aspek, error) {
@@ -117,8 +117,8 @@ type detailUseCase struct{ repo master.DetailRepository }
 func NewDetailUseCase(repo master.DetailRepository) master.DetailUseCase {
 	return &detailUseCase{repo: repo}
 }
-func (uc *detailUseCase) GetAll(page, limit int, aspekID, search string) ([]master.Detail, int64, error) {
-	return uc.repo.FindAll(page, limit, aspekID, search)
+func (uc *detailUseCase) GetAll(page, limit int, plantID, aspekID, search string) ([]master.Detail, int64, error) {
+	return uc.repo.FindAll(page, limit, plantID, aspekID, search)
 }
 func (uc *detailUseCase) GetByID(id string) (*master.Detail, error) { return uc.repo.FindByID(id) }
 func (uc *detailUseCase) GetByAspekID(aspekID string) ([]master.Detail, error) {
@@ -138,8 +138,8 @@ type uraianUseCase struct{ repo master.UraianRepository }
 func NewUraianUseCase(repo master.UraianRepository) master.UraianUseCase {
 	return &uraianUseCase{repo: repo}
 }
-func (uc *uraianUseCase) GetAll(page, limit int, detailID, search string) ([]master.Uraian, int64, error) {
-	return uc.repo.FindAll(page, limit, detailID, search)
+func (uc *uraianUseCase) GetAll(page, limit int, plantID, detailID, search string) ([]master.Uraian, int64, error) {
+	return uc.repo.FindAll(page, limit, plantID, detailID, search)
 }
 func (uc *uraianUseCase) GetByID(id string) (*master.Uraian, error) { return uc.repo.FindByID(id) }
 func (uc *uraianUseCase) GetByDetailID(detailID string) ([]master.Uraian, error) {
