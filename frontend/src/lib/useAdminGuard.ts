@@ -8,7 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
  * Admin role IDs that have access to admin-only pages.
  * Adjust these values based on your backend role configuration.
  */
-export const ADMIN_ROLES = ["ROLE-001", "ADM", "admin", "1"];
+export const ADMIN_ROLES = ["ROLE-000", "ROLE-001", "SUPERADMIN", "ADM", "admin", "1"];
 export const AUDITOR_ROLES = ["ROLE-002", "AUDITOR", "auditor", "2", ...ADMIN_ROLES];
 
 /**

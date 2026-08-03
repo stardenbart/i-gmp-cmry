@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { usePermissions } from "@/lib/usePermissions";
+import { isAdminUser } from "@/lib/useAdminGuard";
 
 
 export function Sidebar() {
@@ -31,6 +32,8 @@ export function Sidebar() {
   const basePath = `/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}`;
 
 
+
+  const isAdmin = isAdminUser(user?.role_id);
 
   const MAIN_MENU = [
     { href: `${basePath}`, label: "Dasbor", icon: Home },
@@ -46,26 +49,29 @@ export function Sidebar() {
     ...(hasPermission("PERM-WOWR-R")
       ? [{ href: `${basePath}/wowr`, label: "Perintah Kerja", icon: FileBox }]
       : []),
-  ];
-
-  // Admin/management menu - controlled by permissions
-  const ADMIN_MENU = [
-    ...(hasPermission("PERM-MSTR-R")
-      ? [{ href: `${basePath}/master`, label: "Data Induk", icon: Database }]
-      : []),
-    ...(hasPermission("PERM-USR-R")
-      ? [{ href: `${basePath}/users`, label: "Manajemen Pengguna", icon: Users }]
-      : []),
+    // Data Inspeksi (GMP)
     ...(hasPermission("PERM-GMP-R")
       ? [{ href: `${basePath}/gmp-data`, label: "Data Inspeksi (GMP)", icon: ClipboardList }]
       : []),
-    ...(hasPermission("PERM-LOG-R")
-      ? [{ href: `${basePath}/logs`, label: "Riwayat Aktivitas", icon: History }]
-      : []),
-    ...(hasPermission("PERM-STNG-R")
-      ? [{ href: `${basePath}/settings`, label: "Pengaturan", icon: Settings }]
-      : []),
   ];
+
+  // Admin-only management menu - strictly restricted to SuperAdmin (ROLE-000) and Admin (ROLE-001)
+  const ADMIN_MENU = isAdmin
+    ? [
+        ...(hasPermission("PERM-MSTR-R")
+          ? [{ href: `${basePath}/master`, label: "Data Induk", icon: Database }]
+          : []),
+        ...(hasPermission("PERM-USR-R")
+          ? [{ href: `${basePath}/users`, label: "Manajemen Pengguna", icon: Users }]
+          : []),
+        ...(hasPermission("PERM-LOG-R")
+          ? [{ href: `${basePath}/logs`, label: "Riwayat Aktivitas", icon: History }]
+          : []),
+        ...(hasPermission("PERM-STNG-R")
+          ? [{ href: `${basePath}/settings`, label: "Pengaturan", icon: Settings }]
+          : []),
+      ]
+    : [];
 
   const renderLinks = (links: typeof MAIN_MENU) => {
     return links.map((item) => {
