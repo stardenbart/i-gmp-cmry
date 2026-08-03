@@ -193,7 +193,7 @@ export default function GmpDataAdminPage() {
         </div>
 
         {/* Multi-Filter Controls Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-border/40">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 pt-2 border-t border-border/40">
           {/* Area Filter */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
