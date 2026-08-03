@@ -53,6 +53,9 @@ type IssueFilter struct {
 
 	// Scope override: if set, only issues with IssuePICUserID==ScopeUserID or delegated to ScopeUserID
 	ScopeUserID string
+
+	// PlantID scope: if set (non-SuperAdmin), only issues whose inspection area belongs to this plant
+	PlantID string
 }
 
 var issueSortWhitelist = map[string]string{
@@ -83,6 +86,20 @@ func escapeLike(q string) string {
 
 // ApplyTo builds a GORM query for the issue filter.
 func (f *IssueFilter) ApplyTo(q *gorm.DB) *gorm.DB {
+	// Plant scope enforcement: non-SuperAdmin users can only see issues from their plant's areas
+	if f.PlantID != "" {
+		q = q.Where(
+			`"IssueID" IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"
+				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
+				JOIN "Area_Master" am ON ih."AreaID" = am."AreaID"
+				WHERE am."PlantID" = ?
+			)`,
+			f.PlantID,
+		)
+	}
+
 	// Scope enforcement for auditee
 	if f.ScopeUserID != "" {
 		q = q.Where(

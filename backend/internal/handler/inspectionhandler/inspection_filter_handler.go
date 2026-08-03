@@ -48,6 +48,12 @@ func (h *InspectionFilterHandler) GetFiltered(c *fiber.Ctx) error {
 		f.ScopeInspectorID = actorID
 	}
 
+	// Apply plant scope: non-SuperAdmin users can only see inspections from their own plant
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	if userPlantID != "" {
+		f.PlantID = userPlantID
+	}
+
 	result, err := h.uc.GetFiltered(f)
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch inspections", err.Error())

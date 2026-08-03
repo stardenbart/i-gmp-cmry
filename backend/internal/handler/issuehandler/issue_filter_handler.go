@@ -50,6 +50,12 @@ func (h *IssueFilterHandler) GetFiltered(c *fiber.Ctx) error {
 		f.ScopeUserID = actorID
 	}
 
+	// Apply plant scope: non-SuperAdmin users can only see issues from their own plant
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	if userPlantID != "" {
+		f.PlantID = userPlantID
+	}
+
 	result, err := h.uc.GetFiltered(f)
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch issues", err.Error())

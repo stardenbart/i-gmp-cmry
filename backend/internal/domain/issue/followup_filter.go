@@ -47,6 +47,9 @@ type FollowupFilter struct {
 
 	// Scope: auditee → only their own (PIC or delegated)
 	ScopeUserID string
+
+	// PlantID scope: if set (non-SuperAdmin), only issues from this plant's inspection areas
+	PlantID string
 }
 
 var followupSortWhitelist = map[string]string{
@@ -74,6 +77,20 @@ func (f *FollowupFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 	// Default: exclude terminal statuses unless IncludeClosed
 	if !f.IncludeClosed {
 		q = q.Where(`"Issue"."IssueStatus" NOT IN ?`, []string{"Verified", "Closed"})
+	}
+
+	// Plant scope enforcement: non-SuperAdmin users can only see issues from their plant's areas
+	if f.PlantID != "" {
+		q = q.Where(
+			`"Issue"."IssueID" IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"
+				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
+				JOIN "Area_Master" am ON ih."AreaID" = am."AreaID"
+				WHERE am."PlantID" = ?
+			)`,
+			f.PlantID,
+		)
 	}
 
 	// Scope enforcement for auditee

@@ -62,6 +62,9 @@ type InspectionFilter struct {
 
 	// Scope override (injected by handler for auditee)
 	ScopeInspectorID string
+
+	// PlantID scope: if set (non-SuperAdmin), only inspections from this plant's areas
+	PlantID string
 }
 
 var inspectionSortWhitelist = map[string]string{
@@ -103,6 +106,14 @@ func escapeLike(q string) string {
 // ApplyTo builds a GORM query for the inspection filter (without pagination).
 // Call this method and then apply Offset/Limit separately.
 func (f *InspectionFilter) ApplyTo(q *gorm.DB) *gorm.DB {
+	// Plant scope enforcement: non-SuperAdmin users only see inspections from their plant's areas
+	if f.PlantID != "" {
+		q = q.Where(
+			`"AreaID" IN (SELECT "AreaID" FROM "Area_Master" WHERE "PlantID" = ?)`,
+			f.PlantID,
+		)
+	}
+
 	// Scope override: auditee can only see their own inspections
 	if f.ScopeInspectorID != "" {
 		q = q.Where(`"InspectorID" = ?`, f.ScopeInspectorID)
