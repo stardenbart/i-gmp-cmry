@@ -42,7 +42,7 @@ services:
       - audit_network
 
   zookeeper:
-    image: docker.io/bitnamilegacy/zookeeper:3.8
+    image: bitnami/zookeeper:3.9
     container_name: monitoring_zookeeper
     restart: unless-stopped
     ports:
@@ -53,11 +53,12 @@ services:
       - audit_network
 
   kafka:
-    image: docker.io/bitnamilegacy/kafka:3.4
+    image: bitnami/kafka:3.6
     container_name: kafka
     restart: unless-stopped
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - ALLOW_PLAINTEXT_LISTENER=yes
@@ -69,11 +70,11 @@ services:
     depends_on:
       - zookeeper
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
-      interval: 20s
+      test: ["CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list || exit 1"]
+      interval: 10s
       timeout: 10s
-      retries: 15
-      start_period: 30s
+      retries: 10
+      start_period: 15s
     volumes:
       - kafka_data:/bitnami/kafka
     networks:
