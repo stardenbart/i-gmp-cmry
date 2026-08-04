@@ -31,7 +31,7 @@ func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.C
 	// NOTE: PowerBI and APIKey public routes MUST be registered BEFORE RegisterAuthRoutes.
 	// RegisterAuthRoutes creates a protected := rg.Group("/", authMW) group which in Fiber
 	// matches ALL paths. Registering public routes first ensures Fiber matches them first.
-	RegisterAPIKeyRoutes(rg, apiKeyUC, jwtManager, log)
+	RegisterAPIKeyRoutes(rg, db, apiKeyUC, jwtManager, log)
 	RegisterPowerBIRoutes(rg, db, apiKeyUC, cryptoSvc, log)
 
 	RegisterAuthRoutes(rg, db, mailer, jwtManager, log, actLogUC)

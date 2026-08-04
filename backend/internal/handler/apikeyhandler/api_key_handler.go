@@ -18,24 +18,38 @@ func NewAPIKeyHandler(uc apikey.UseCase, log *logger.Logger) *APIKeyHandler {
 }
 
 func getPlantID(c *fiber.Ctx) string {
-	plantID := c.Query("plant_id")
-	userPlantID, _ := c.Locals("userPlantID").(string)
 	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
-	if !isSuperAdmin && userPlantID != "" {
-		plantID = userPlantID
+	userPlantID, _ := c.Locals("userPlantID").(string)
+
+	if !isSuperAdmin {
+		return userPlantID
 	}
-	return plantID
+
+	return c.Query("plant_id")
 }
 
 func (h *APIKeyHandler) Create(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
-	plantID := getPlantID(c)
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+	userPlantID, _ := c.Locals("userPlantID").(string)
+
 	var req apikey.CreateAPIKeyRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "Invalid request payload", err.Error())
 	}
 
-	res, err := h.uc.CreateKey(&req, userID, plantID)
+	targetPlantID := ""
+	if !isSuperAdmin {
+		targetPlantID = userPlantID
+	} else {
+		if req.PlantID != nil && *req.PlantID != "" && *req.PlantID != "GLOBAL" && *req.PlantID != "ALL" {
+			targetPlantID = *req.PlantID
+		} else if qP := c.Query("plant_id"); qP != "" && qP != "GLOBAL" && qP != "ALL" {
+			targetPlantID = qP
+		}
+	}
+
+	res, err := h.uc.CreateKey(&req, userID, targetPlantID)
 	if err != nil {
 		h.log.Error("Failed to create API key", logger.Error(err))
 		return response.InternalServerError(c, "Failed to create API key", err.Error())

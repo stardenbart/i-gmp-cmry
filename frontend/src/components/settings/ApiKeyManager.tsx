@@ -126,16 +126,27 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
 
             <div>
               <label className="text-xs font-medium block mb-1">Cakupan Data Pabrik (Target Plant)</label>
-              <select
-                className="w-full text-xs bg-background border border-border rounded-xl px-3 py-2 outline-none h-10 font-medium"
-                value={targetPlant}
-                onChange={(e) => setTargetPlant(e.target.value)}
-              >
-                <option value="GLOBAL">Semua Plant / Akses Global (SuperAdmin)</option>
-                {plantsList.map((p: any) => (
-                  <option key={p.plant_id} value={p.plant_id}>Pabrik {p.plant_name} ({p.plant_id})</option>
-                ))}
-              </select>
+              {plantFilter !== "ALL" ? (
+                <div className="p-2.5 bg-card border border-border rounded-xl text-xs flex items-center justify-between">
+                  <span className="font-semibold text-foreground">
+                    Pabrik {plantsList.find((p: any) => p.plant_id === plantFilter)?.plant_name || plantFilter}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-mono font-medium">
+                    Otomatis dari Akun ({plantFilter})
+                  </span>
+                </div>
+              ) : (
+                <select
+                  className="w-full text-xs bg-background border border-border rounded-xl px-3 py-2 outline-none h-10 font-medium"
+                  value={targetPlant}
+                  onChange={(e) => setTargetPlant(e.target.value)}
+                >
+                  <option value="GLOBAL">Semua Plant / Akses Global (SuperAdmin)</option>
+                  {plantsList.map((p: any) => (
+                    <option key={p.plant_id} value={p.plant_id}>Pabrik {p.plant_name} ({p.plant_id})</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="flex items-center justify-between p-3 bg-card rounded-xl border border-border">
