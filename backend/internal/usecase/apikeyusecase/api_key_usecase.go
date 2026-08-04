@@ -20,7 +20,7 @@ func NewAPIKeyUseCase(repo apikey.Repository) apikey.UseCase {
 	return &useCase{repo: repo}
 }
 
-func (uc *useCase) CreateKey(req *apikey.CreateAPIKeyRequest, createdByID string) (*apikey.CreateAPIKeyResponse, error) {
+func (uc *useCase) CreateKey(req *apikey.CreateAPIKeyRequest, createdByID, plantID string) (*apikey.CreateAPIKeyResponse, error) {
 	if req.Name == "" {
 		return nil, errors.New("key name is required")
 	}
@@ -28,6 +28,13 @@ func (uc *useCase) CreateKey(req *apikey.CreateAPIKeyRequest, createdByID string
 	isSingleUse := false
 	if req.IsSingleUse != nil {
 		isSingleUse = *req.IsSingleUse
+	}
+
+	var pID *string
+	if req.PlantID != nil && *req.PlantID != "" && *req.PlantID != "GLOBAL" {
+		pID = req.PlantID
+	} else if plantID != "" && plantID != "ALL" && plantID != "GLOBAL" {
+		pID = &plantID
 	}
 
 	// 1. Generate random token
@@ -51,6 +58,7 @@ func (uc *useCase) CreateKey(req *apikey.CreateAPIKeyRequest, createdByID string
 		KeyHash:     keyHash,
 		Prefix:      prefix,
 		CreatedByID: createdByID,
+		PlantID:     pID,
 		IsActive:    true,
 		IsSingleUse: isSingleUse,
 		CreatedAt:   time.Now(),
@@ -65,13 +73,14 @@ func (uc *useCase) CreateKey(req *apikey.CreateAPIKeyRequest, createdByID string
 		Name:        entity.Name,
 		RawToken:    rawToken,
 		Prefix:      prefix,
+		PlantID:     pID,
 		IsSingleUse: isSingleUse,
 		CreatedAt:   entity.CreatedAt,
 	}, nil
 }
 
-func (uc *useCase) ListKeys(createdBy string) ([]apikey.APIKeyResponse, error) {
-	keys, err := uc.repo.FindAll(createdBy)
+func (uc *useCase) ListKeys(createdBy, plantID string) ([]apikey.APIKeyResponse, error) {
+	keys, err := uc.repo.FindAll(createdBy, plantID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +92,7 @@ func (uc *useCase) ListKeys(createdBy string) ([]apikey.APIKeyResponse, error) {
 			Name:        k.Name,
 			Prefix:      k.Prefix,
 			CreatedByID: k.CreatedByID,
+			PlantID:     k.PlantID,
 			IsActive:    k.IsActive,
 			IsSingleUse: k.IsSingleUse,
 			UsedAt:      k.UsedAt,

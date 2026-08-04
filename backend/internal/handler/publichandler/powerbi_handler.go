@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/internal/domain/apikey"
+	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/response"
@@ -54,6 +56,13 @@ func parseSinceParam(c *fiber.Ctx) *time.Time {
 func (h *PowerBIHandler) GetAllData(c *fiber.Ctx) error {
 	since := parseSinceParam(c)
 
+	var apiKeyPlantID string
+	if keyEntity, ok := c.Locals(middleware.ContextKeyAPIKey).(*apikey.APIKey); ok && keyEntity != nil {
+		if keyEntity.PlantID != nil && *keyEntity.PlantID != "" {
+			apiKeyPlantID = *keyEntity.PlantID
+		}
+	}
+
 	// 1. Inspection Headers
 	type InspectionHeaderDTO struct {
 		InspectionID      string    `json:"inspection_id"`
@@ -77,6 +86,10 @@ func (h *PowerBIHandler) GetAllData(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = ih."InspectorID"`)
+
+	if apiKeyPlantID != "" {
+		headerQuery = headerQuery.Where(`am."PlantID" = ?`, apiKeyPlantID)
+	}
 
 	if since != nil {
 		headerQuery = headerQuery.Where(`ih."InspectionheaderUpdatedAt" >= ? OR ih."InspectionHeaderCreatedAt" >= ?`, *since, *since)
@@ -102,6 +115,12 @@ func (h *PowerBIHandler) GetAllData(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" am ON am."AspekID" = dm."AspekID"`)
+
+	if apiKeyPlantID != "" {
+		resultQuery = resultQuery.Joins(`JOIN "Inspection_Header" ih_res ON ih_res."InspectionID" = ir."InspectionID"`).
+			Joins(`JOIN "Area_Master" am_res ON am_res."AreaID" = ih_res."AreaID"`).
+			Where(`am_res."PlantID" = ?`, apiKeyPlantID)
+	}
 
 	if since != nil {
 		resultQuery = resultQuery.Where(`ir."ResultCreatedAt" >= ?`, *since)
@@ -132,6 +151,12 @@ func (h *PowerBIHandler) GetAllData(c *fiber.Ctx) error {
 		Select(`i."IssueID" as issue_id, i."ResultID" as result_id, ir."InspectionID" as inspection_id, i."IssuePICUserID" as issue_pic_user_id, COALESCE(u."FullName", i."IssuePICUserID") as pic_name, i."DueDate" as due_date, i."IssueStatus" as issue_status, i."Label" as label, i."NeedsWOWR" as needs_wo_wr, i."WO_ID" as wo_id, i."WR_ID" as wr_id, i."WOWRStatus" as wowr_status, i."Keterangan" as keterangan, i."IssueCreatedAt" as created_at, i."IssueUpdatedAt" as updated_at`).
 		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = i."IssuePICUserID"`)
+
+	if apiKeyPlantID != "" {
+		issueQuery = issueQuery.Joins(`JOIN "Inspection_Header" ih_iss ON ih_iss."InspectionID" = ir."InspectionID"`).
+			Joins(`JOIN "Area_Master" am_iss ON am_iss."AreaID" = ih_iss."AreaID"`).
+			Where(`am_iss."PlantID" = ?`, apiKeyPlantID)
+	}
 
 	if since != nil {
 		issueQuery = issueQuery.Where(`i."IssueUpdatedAt" >= ? OR i."IssueCreatedAt" >= ?`, *since, *since)
@@ -164,6 +189,14 @@ func (h *PowerBIHandler) GetAllData(c *fiber.Ctx) error {
 	photoQuery := h.db.Table(`"Issue_Photo" ip`).
 		Select(`ip."IssuePhotoID" as issue_photo_id, ip."IssueID" as issue_id, ip."PICUserID" as pic_user_id, COALESCE(u."FullName", ip."PICUserID") as pic_name, ip."PhotoType" as photo_type, ip."ImageUrl" as image_url, ip."FileName" as file_name, ip."FollowUpDate" as follow_up_date, ip."JumlahFollowUp" as jumlah_follow_up, ip."PhotoCreatedAt" as created_at, ip."PhotoUpdatedAt" as updated_at`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = ip."PICUserID"`)
+
+	if apiKeyPlantID != "" {
+		photoQuery = photoQuery.Joins(`JOIN "Issue" i_pho ON i_pho."IssueID" = ip."IssueID"`).
+			Joins(`JOIN "Inspection_Result" ir_pho ON ir_pho."ResultID" = i_pho."ResultID"`).
+			Joins(`JOIN "Inspection_Header" ih_pho ON ih_pho."InspectionID" = ir_pho."InspectionID"`).
+			Joins(`JOIN "Area_Master" am_pho ON am_pho."AreaID" = ih_pho."AreaID"`).
+			Where(`am_pho."PlantID" = ?`, apiKeyPlantID)
+	}
 
 	if since != nil {
 		photoQuery = photoQuery.Where(`ip."PhotoUpdatedAt" >= ? OR ip."PhotoCreatedAt" >= ?`, *since, *since)

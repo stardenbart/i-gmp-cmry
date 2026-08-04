@@ -8,11 +8,18 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { apiKeyApi, CreateAPIKeyResponse } from "@/types/api/apikey";
 
-export function ApiKeyManager() {
+import { masterApi } from "@/lib/api/master.api";
+
+interface ApiKeyManagerProps {
+  plantFilter?: string;
+}
+
+export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [isSingleUse, setIsSingleUse] = useState(false);
+  const [targetPlant, setTargetPlant] = useState(plantFilter !== "ALL" ? plantFilter : "GLOBAL");
   const [createdKeyData, setCreatedKeyData] = useState<CreateAPIKeyResponse | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -22,13 +29,18 @@ export function ApiKeyManager() {
   );
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  const { data: plantsList = [] } = useQuery({
+    queryKey: ["master-plants"],
+    queryFn: () => masterApi.getPlants({ limit: 1000 }),
+  });
+
   const { data: keys = [], isLoading } = useQuery({
-    queryKey: ["api-keys"],
-    queryFn: apiKeyApi.list,
+    queryKey: ["api-keys", plantFilter],
+    queryFn: () => apiKeyApi.list(plantFilter),
   });
 
   const createMutation = useMutation({
-    mutationFn: () => apiKeyApi.create(newKeyName, isSingleUse),
+    mutationFn: () => apiKeyApi.create(newKeyName, isSingleUse, targetPlant),
     onSuccess: (data) => {
       setCreatedKeyData(data);
       setNewKeyName("");
@@ -110,6 +122,20 @@ export function ApiKeyManager() {
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
               />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium block mb-1">Cakupan Data Pabrik (Target Plant)</label>
+              <select
+                className="w-full text-xs bg-background border border-border rounded-xl px-3 py-2 outline-none h-10 font-medium"
+                value={targetPlant}
+                onChange={(e) => setTargetPlant(e.target.value)}
+              >
+                <option value="GLOBAL">Semua Plant / Akses Global (SuperAdmin)</option>
+                {plantsList.map((p: any) => (
+                  <option key={p.plant_id} value={p.plant_id}>Pabrik {p.plant_name} ({p.plant_id})</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-card rounded-xl border border-border">
@@ -212,6 +238,7 @@ export function ApiKeyManager() {
               <thead className="bg-muted/50 border-b border-border text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="px-4 py-3">Nama Key</th>
+                  <th className="px-4 py-3">Cakupan Plant</th>
                   <th className="px-4 py-3">Prefix Token</th>
                   <th className="px-4 py-3">Tipe Expiry</th>
                   <th className="px-4 py-3">Status</th>
@@ -223,6 +250,17 @@ export function ApiKeyManager() {
                 {keys.map((k) => (
                   <tr key={k.key_id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3 font-medium text-foreground">{k.name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {k.plant_id ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                          {plantsList.find((p: any) => p.plant_id === k.plant_id)?.plant_name || k.plant_id}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                          Global (All Plants)
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{k.prefix}...</td>
                     <td className="px-4 py-3">
                       {k.is_single_use ? (

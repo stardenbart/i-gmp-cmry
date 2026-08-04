@@ -24,12 +24,18 @@ func (r *repository) Create(key *apikey.APIKey) error {
 	return r.db.Create(key).Error
 }
 
-func (r *repository) FindAll(createdBy string) ([]apikey.APIKey, error) {
+func (r *repository) FindAll(createdBy, plantID string) ([]apikey.APIKey, error) {
 	var keys []apikey.APIKey
 	query := r.db
 	if createdBy != "" {
-		// Use struct-based Where: GORM resolves the column name from struct tag automatically
-		query = query.Where(&apikey.APIKey{CreatedByID: createdBy})
+		query = query.Where("\"CreatedByID\" = ?", createdBy)
+	}
+	if plantID != "" && plantID != "ALL" {
+		if plantID == "GLOBAL" || plantID == "NULL" {
+			query = query.Where("\"PlantID\" IS NULL OR \"PlantID\" = ''")
+		} else {
+			query = query.Where("\"PlantID\" = ?", plantID)
+		}
 	}
 	err := query.Order(`"CreatedAt" DESC`).Find(&keys).Error
 	return keys, err

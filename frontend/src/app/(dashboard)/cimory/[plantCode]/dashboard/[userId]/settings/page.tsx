@@ -340,7 +340,7 @@ export default function SettingsPage() {
 
             {activeTab === "apikey" && (
               <div className="p-6">
-                <ApiKeyManager />
+                <ApiKeyManager plantFilter={plantFilter} />
               </div>
             )}
           </div>
