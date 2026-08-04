@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api/axios";
@@ -46,9 +46,17 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { showSearchLatencyButton, toggleSearchLatencyButton } = useSettingsStore();
 
+  const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN" || user?.role?.role_name === "Super Admin";
+
   const [activeTab, setActiveTab] = useState<"general" | "email" | "apikey">("general");
   const [plantFilter, setPlantFilter] = useState("ALL");
   
+  useEffect(() => {
+    if (!isSuperAdmin && user?.plant_id) {
+      setPlantFilter(user.plant_id);
+    }
+  }, [isSuperAdmin, user?.plant_id]);
+
   // General Settings Form State
   const [generalValues, setGeneralValues] = useState<Record<string, string>>({});
   
@@ -163,23 +171,25 @@ export default function SettingsPage() {
           <p className="text-muted-foreground mt-1">Kelola konfigurasi umum dan template email sistem per plant.</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <div className="relative">
-            <select
-              className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 font-medium"
-              value={plantFilter}
-              onChange={(e) => setPlantFilter(e.target.value)}
-            >
-              <option value="ALL">Semua Plant / Default Global</option>
-              <option value="GLOBAL">Global Only (Default)</option>
-              {plantsList.map((p: any) => (
-                <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        {isSuperAdmin && (
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <div className="relative">
+              <select
+                className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 font-medium"
+                value={plantFilter}
+                onChange={(e) => setPlantFilter(e.target.value)}
+              >
+                <option value="ALL">Semua Plant / Default Global</option>
+                <option value="GLOBAL">Global Only (Default)</option>
+                {plantsList.map((p: any) => (
+                  <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
