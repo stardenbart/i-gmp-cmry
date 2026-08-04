@@ -76,13 +76,13 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 
 		requireSuperAdmin := middleware.RequireSuperAdminMiddleware()
 
-		// Plants (Exclusively accessible by SuperAdmin - ROLE-000)
-		plant := master.Group("/plants", requireSuperAdmin)
+		// Plants (CRUD modification exclusively accessible by SuperAdmin, GET list readable for plant filter dropdowns)
+		plant := master.Group("/plants")
 		plant.Get("", plantH.GetAll)
-		plant.Post("", plantH.Create)
+		plant.Post("", requireSuperAdmin, plantH.Create)
 		plant.Get("/:id", plantH.GetByID)
-		plant.Put("/:id", plantH.Update)
-		plant.Delete("/:id", plantH.Delete)
+		plant.Put("/:id", requireSuperAdmin, plantH.Update)
+		plant.Delete("/:id", requireSuperAdmin, plantH.Delete)
 
 		// Department
 		dept := master.Group("/departments")

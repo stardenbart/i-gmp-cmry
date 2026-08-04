@@ -8,6 +8,7 @@ import (
 type settingRepository struct{ db *gorm.DB }
 
 func NewSettingRepository(db *gorm.DB) master.SettingRepository {
+	_ = db.AutoMigrate(&master.Setting{})
 	return &settingRepository{db: db}
 }
 
