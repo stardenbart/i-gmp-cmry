@@ -37,7 +37,7 @@ func NewInspectionEmailNotifier(
 // SendInspectionSummary is called when an Area's status becomes Confirmed
 func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress inspection.AreaProgress) error {
 	// 1. Get the dynamic email template from Settings
-	setting, err := n.settingRepo.FindByKey(master.SettingKeyEmailTemplateInspectionConfirmed)
+	setting, err := n.settingRepo.FindByKey(master.SettingKeyEmailTemplateInspectionConfirmed, "")
 	if err != nil {
 		log.Printf("[EmailNotifier] Error retrieving template: %v", err)
 		return err

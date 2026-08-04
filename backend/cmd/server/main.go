@@ -102,7 +102,7 @@ func main() {
 
 	// ── Sync MinIO IP Whitelist from DB on startup ─────────────────────
 	settingRepo := masterrepo.NewSettingRepository(db)
-	if s, err := settingRepo.FindByKey("MINIO_ALLOWED_IPS"); err == nil && s.SettingValue != "" {
+	if s, err := settingRepo.FindByKey("MINIO_ALLOWED_IPS", ""); err == nil && s.SettingValue != "" {
 		_ = minioStorage.UpdateIPWhitelistPolicy(context.Background(), s.SettingValue)
 		log.Info("MinIO IP whitelist synced from DB")
 	}

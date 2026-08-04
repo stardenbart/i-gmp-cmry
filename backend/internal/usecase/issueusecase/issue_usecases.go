@@ -94,7 +94,7 @@ func (uc *issueUseCase) GetByID(id string) (*issue.Issue, error) {
 func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*issue.Issue, error) {
 	dueDate := req.DueDate
 	if dueDate == nil {
-		s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyIssueDeadlineDays)
+		s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyIssueDeadlineDays, "")
 		days := 14
 		if err == nil && s.SettingValue != "" {
 			if d, errParse := strconv.Atoi(s.SettingValue); errParse == nil {
@@ -164,7 +164,7 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 			}
 
 			tmpl := mail.TmplIssueAssignment
-			if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue); err == nil && s.SettingValue != "" {
+			if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, ""); err == nil && s.SettingValue != "" {
 				tmpl = s.SettingValue
 			}
 

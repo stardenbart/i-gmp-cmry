@@ -14,6 +14,9 @@ import { EmailEditorModal } from "./EmailEditorModal";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 
+import { masterApi } from "@/lib/api/master.api";
+import { ChevronDown, Filter } from "lucide-react";
+
 // The keys we care about for email templates
 const EMAIL_TEMPLATES = [
   { key: "EMAIL_TEMPLATE_FORGOT_PASSWORD", title: "Lupa Password", description: "Email yang dikirim saat user meminta reset password." },
@@ -44,6 +47,7 @@ export default function SettingsPage() {
   const { showSearchLatencyButton, toggleSearchLatencyButton } = useSettingsStore();
 
   const [activeTab, setActiveTab] = useState<"general" | "email" | "apikey">("general");
+  const [plantFilter, setPlantFilter] = useState("ALL");
   
   // General Settings Form State
   const [generalValues, setGeneralValues] = useState<Record<string, string>>({});
@@ -53,11 +57,22 @@ export default function SettingsPage() {
   const [editorKey, setEditorKey] = useState("");
   const [editorTitle, setEditorTitle] = useState("");
 
+  // Fetch plants
+  const { data: plantsList = [] } = useQuery({
+    queryKey: ["master-plants"],
+    queryFn: () => masterApi.getPlants({ limit: 1000 }),
+    enabled: mounted && !!user && isAdmin,
+  });
+
   // Fetch all settings
   const { data: settingsData, isLoading: settingsLoading } = useQuery({
-    queryKey: ["settings"],
+    queryKey: ["settings", plantFilter],
     queryFn: async () => {
-      const res = await api.get("/master/settings");
+      const params: Record<string, any> = {};
+      if (plantFilter && plantFilter !== "ALL") {
+        params.plant_id = plantFilter;
+      }
+      const res = await api.get("/master/settings", { params });
       
       // Initialize general values
       const fetched = res.data?.data || [];
@@ -65,7 +80,7 @@ export default function SettingsPage() {
       fetched.forEach((s: any) => {
         initialGen[s.setting_key] = s.setting_value;
       });
-      setGeneralValues(prev => ({ ...initialGen, ...prev }));
+      setGeneralValues(initialGen);
       
       return fetched;
     },
@@ -75,7 +90,11 @@ export default function SettingsPage() {
   // Save Mutation
   const saveSettingMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string, value: string }) => {
-      return api.put(`/master/settings/${key}`, { setting_value: value });
+      const params: Record<string, any> = {};
+      if (plantFilter && plantFilter !== "ALL") {
+        params.plant_id = plantFilter;
+      }
+      return api.put(`/master/settings/${key}`, { setting_value: value, plant_id: plantFilter !== "ALL" ? plantFilter : undefined }, { params });
     },
     onSuccess: () => {
       toast.success("Pengaturan berhasil disimpan");
@@ -105,9 +124,13 @@ export default function SettingsPage() {
 
   const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();
+    const params: Record<string, any> = {};
+    if (plantFilter && plantFilter !== "ALL") {
+      params.plant_id = plantFilter;
+    }
     // Save all general settings sequentially
     const promises = Object.keys(generalValues).map(key => 
-      api.put(`/master/settings/${key}`, { setting_value: generalValues[key] })
+      api.put(`/master/settings/${key}`, { setting_value: generalValues[key], plant_id: plantFilter !== "ALL" ? plantFilter : undefined }, { params })
     );
 
     toast.promise(Promise.all(promises), {
@@ -134,9 +157,29 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 pb-20">
-      <div>
-        <h1 className="text-2xl font-bold">Pengaturan Sistem</h1>
-        <p className="text-muted-foreground mt-1">Kelola konfigurasi umum dan template email sistem.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Pengaturan Sistem</h1>
+          <p className="text-muted-foreground mt-1">Kelola konfigurasi umum dan template email sistem per plant.</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <div className="relative">
+            <select
+              className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 font-medium"
+              value={plantFilter}
+              onChange={(e) => setPlantFilter(e.target.value)}
+            >
+              <option value="ALL">Semua Plant / Default Global</option>
+              <option value="GLOBAL">Global Only (Default)</option>
+              {plantsList.map((p: any) => (
+                <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">

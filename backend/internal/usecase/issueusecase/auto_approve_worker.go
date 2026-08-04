@@ -45,7 +45,7 @@ func runAutoApprove(uc issue.IssueUseCase) {
 
 	// 1. Get setting ISSUE_AUTO_APPROVE_DAYS
 	days := 3
-	s, err := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyIssueAutoApproveDays)
+	s, err := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyIssueAutoApproveDays, "")
 	if err == nil && s.SettingValue != "" {
 		if d, errParse := strconv.Atoi(s.SettingValue); errParse == nil {
 			days = d
@@ -103,7 +103,7 @@ func runAutoApprove(uc issue.IssueUseCase) {
 
 					// Re-use assignment template or fallback
 					tmpl := mail.TmplIssueAssignment
-					if s, errSet := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue); errSet == nil && s.SettingValue != "" {
+					if s, errSet := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, ""); errSet == nil && s.SettingValue != "" {
 						tmpl = s.SettingValue
 					}
 

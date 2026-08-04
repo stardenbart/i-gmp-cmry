@@ -23,8 +23,8 @@ func NewSettingUseCase(
 	return &settingUseCase{repo: repo, crypto: crypto, minio: minio}
 }
 
-func (uc *settingUseCase) GetAll() ([]master.SettingResponse, error) {
-	items, err := uc.repo.FindAll()
+func (uc *settingUseCase) GetAll(plantID string) ([]master.SettingResponse, error) {
+	items, err := uc.repo.FindAll(plantID)
 	if err != nil {
 		return nil, err
 	}
@@ -35,8 +35,8 @@ func (uc *settingUseCase) GetAll() ([]master.SettingResponse, error) {
 	return result, nil
 }
 
-func (uc *settingUseCase) GetByKey(key string) (*master.SettingResponse, error) {
-	item, err := uc.repo.FindByKey(key)
+func (uc *settingUseCase) GetByKey(key, plantID string) (*master.SettingResponse, error) {
+	item, err := uc.repo.FindByKey(key, plantID)
 	if err != nil {
 		return nil, fmt.Errorf("setting not found: %w", err)
 	}
@@ -44,9 +44,14 @@ func (uc *settingUseCase) GetByKey(key string) (*master.SettingResponse, error) 
 	return &res, nil
 }
 
-func (uc *settingUseCase) Update(key string, req *master.UpdateSettingRequest, updatedBy string) (*master.SettingResponse, error) {
-	// Check the setting exists
-	existing, err := uc.repo.FindByKey(key)
+func (uc *settingUseCase) Update(key string, req *master.UpdateSettingRequest, updatedBy, plantID string) (*master.SettingResponse, error) {
+	targetPlantID := plantID
+	if req.PlantID != nil && *req.PlantID != "" {
+		targetPlantID = *req.PlantID
+	}
+
+	// Check the setting exists (or fallback to global)
+	existing, err := uc.repo.FindByKey(key, targetPlantID)
 	if err != nil {
 		return nil, fmt.Errorf("setting not found: %w", err)
 	}
@@ -63,7 +68,7 @@ func (uc *settingUseCase) Update(key string, req *master.UpdateSettingRequest, u
 	}
 
 	// Persist new value
-	if err := uc.repo.Update(key, valueToStore, updatedBy); err != nil {
+	if err := uc.repo.Update(key, valueToStore, updatedBy, targetPlantID); err != nil {
 		return nil, err
 	}
 
@@ -77,7 +82,7 @@ func (uc *settingUseCase) Update(key string, req *master.UpdateSettingRequest, u
 	}
 
 	// Return updated record
-	return uc.GetByKey(key)
+	return uc.GetByKey(key, targetPlantID)
 }
 
 // toResponse converts a Setting DB record to a safe SettingResponse.
@@ -89,6 +94,7 @@ func (uc *settingUseCase) toResponse(s *master.Setting) master.SettingResponse {
 	}
 	return master.SettingResponse{
 		SettingKey:   s.SettingKey,
+		PlantID:      s.PlantID,
 		SettingValue: value,
 		IsEncrypted:  s.IsEncrypted,
 		Description:  s.Description,

@@ -227,7 +227,11 @@ func (uc *userUseCase) ForgotPassword(req *authdomain.ForgotPasswordRequest) err
 	go func() {
 		// Fetch dynamic template from database, fallback to static if not found
 		tmpl := mail.TmplForgotPassword
-		if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateForgotPass); err == nil && s.SettingValue != "" {
+		plantID := ""
+		if user.PlantID != nil {
+			plantID = *user.PlantID
+		}
+		if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateForgotPass, plantID); err == nil && s.SettingValue != "" {
 			tmpl = s.SettingValue
 		}
 

@@ -49,6 +49,16 @@ interface ApiResponse<T> {
   data: PaginatedResponse<T>;
 }
 
+export interface SystemSetting {
+  setting_key: string;
+  plant_id?: string;
+  setting_value: string;
+  is_encrypted: boolean;
+  description: string;
+  updated_at: string;
+  updated_by?: string;
+}
+
 export const masterApi = {
   // Plants
   getPlants: async (params?: { page?: number; limit?: number; search?: string }): Promise<Plant[]> => {
@@ -72,5 +82,18 @@ export const masterApi = {
   getDetailKawasans: async (params?: { kawasan_id?: string; page?: number; limit?: number; search?: string }): Promise<DetailKawasan[]> => {
     const res = await api.get<ApiResponse<DetailKawasan>>("/master/detail-kawasan", { params });
     return res.data.data.items;
+  },
+
+  // Settings
+  getSettings: async (params?: { plant_id?: string }): Promise<SystemSetting[]> => {
+    const res = await api.get<{ data: SystemSetting[] }>("/master/settings", { params });
+    return res.data.data;
+  },
+
+  updateSetting: async (key: string, data: { setting_value: string; plant_id?: string }, plant_id?: string): Promise<SystemSetting> => {
+    const params: Record<string, any> = {};
+    if (plant_id) params.plant_id = plant_id;
+    const res = await api.put<{ data: SystemSetting }>(`/master/settings/${key}`, data, { params });
+    return res.data.data;
   },
 };
