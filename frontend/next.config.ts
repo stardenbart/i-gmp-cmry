@@ -44,6 +44,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/cimory/dashboard/:path*",
+        destination: "/cimory/all/dashboard/:path*",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     const backendUrl = process.env.INTERNAL_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
     const minioUrl = process.env.MINIO_ENDPOINT ? (process.env.MINIO_ENDPOINT.startsWith("http") ? process.env.MINIO_ENDPOINT : `http://${process.env.MINIO_ENDPOINT}`) : "http://localhost:9000";

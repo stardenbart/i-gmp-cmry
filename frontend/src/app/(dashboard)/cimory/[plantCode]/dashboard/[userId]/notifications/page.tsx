@@ -18,7 +18,7 @@ import { formatDistanceToNow } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 // Helper to get icon based on notification type
 const getNotificationIcon = (type: string) => {
@@ -41,8 +41,9 @@ export default function NotificationsPage() {
   const mounted = useMounted();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { plantCode } = useParams() as { plantCode?: string };
 
-  const basePath = `/cimory/dashboard/${mounted && user ? user.id : "overview"}`;
+  const basePath = `/cimory/${plantCode || "all"}/dashboard/${mounted && user ? user.id : "overview"}`;
 
   const { data, isLoading } = useQuery({
     queryKey: ["notifications", "all"],

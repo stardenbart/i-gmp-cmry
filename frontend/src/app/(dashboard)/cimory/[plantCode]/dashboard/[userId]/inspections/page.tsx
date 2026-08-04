@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useParams } from "next/navigation";
 import {
   Plus, Search, ClipboardCheck, ChevronLeft, ChevronRight,
   X, PlayCircle, ArrowRight, Clock, CheckCircle2, AlertCircle, RotateCcw,
@@ -52,7 +53,7 @@ function InspectionSkeleton() {
 }
 
 // ── My Task Card ──────────────────────────────────────────────────────────
-function MyTaskCard({ inspection, userId }: { inspection: any; userId: string }) {
+function MyTaskCard({ inspection, userId, plantCode }: { inspection: any; userId: string; plantCode?: string }) {
   const elapsed = (() => {
     const diff = Date.now() - new Date(inspection.created_at).getTime();
     const h = Math.floor(diff / 3_600_000);
@@ -62,7 +63,7 @@ function MyTaskCard({ inspection, userId }: { inspection: any; userId: string })
   })();
 
   return (
-    <Link href={`/cimory/dashboard/${userId}/inspections/${inspection.inspection_id}`}>
+    <Link href={`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections/${inspection.inspection_id}`}>
       <div className="group relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-card/60 to-orange-500/5 p-4 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300 cursor-pointer">
         {/* Animated glow dot */}
         <span className="absolute top-3.5 right-3.5 flex h-2.5 w-2.5">
@@ -106,6 +107,7 @@ function MyTaskCard({ inspection, userId }: { inspection: any; userId: string })
 // ── Main Page ─────────────────────────────────────────────────────────────
 export default function InspectionsPage() {
   const user = useAuthStore(state => state.user);
+  const { plantCode } = useParams() as { plantCode?: string };
   const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
 
   // Filter state
@@ -191,7 +193,7 @@ export default function InspectionsPage() {
               </span>
             )}
           </div>
-          <Link href={`/cimory/dashboard/${user?.id}/inspections/create`}>
+          <Link href={`/cimory/${plantCode || "all"}/dashboard/${user?.id}/inspections/create`}>
             <Button size="sm" className="rounded-xl">
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Buat Inspeksi
             </Button>
@@ -217,7 +219,7 @@ export default function InspectionsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {myTasks.map(t => (
-              <MyTaskCard key={t.inspection_id} inspection={t} userId={user?.id ?? ""} />
+              <MyTaskCard key={t.inspection_id} inspection={t} userId={user?.id ?? ""} plantCode={plantCode} />
             ))}
           </div>
         )}
@@ -355,7 +357,7 @@ export default function InspectionsPage() {
                       <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset Filter
                     </Button>
                   )}
-                  <Link href={`/cimory/dashboard/${user?.id}/inspections/create`}>
+                  <Link href={`/cimory/${plantCode || "all"}/dashboard/${user?.id}/inspections/create`}>
                     <Button className="rounded-full px-5 h-9 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90">
                       <Plus className="mr-1.5 h-3.5 w-3.5" /> Buat Inspeksi
                     </Button>
@@ -415,7 +417,7 @@ export default function InspectionsPage() {
                       {statusIcon[inspection.status]}
                       {inspection.status}
                     </span>
-                    <Link href={`/cimory/dashboard/${user?.id}/inspections/${inspection.inspection_id}`}>
+                    <Link href={`/cimory/${plantCode || "all"}/dashboard/${user?.id}/inspections/${inspection.inspection_id}`}>
                       <Button variant="outline" size="sm" className="rounded-xl text-xs">
                         {inspection.status === "Ongoing" ? "Lanjutkan" : "Detail"}
                       </Button>

@@ -177,7 +177,7 @@ export const DashboardPanelAuditee = () => {
                       </div>
                     </div>
                     <Link
-                      href={`/cimory/dashboard/${user?.id || 'overview'}/issues/${task.issue_id}`}
+                      href={`/cimory/all/dashboard/${user?.id || 'overview'}/issues/${task.issue_id}`}
                       className="p-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors shrink-0"
                     >
                       <ArrowRight className="h-4 w-4" />

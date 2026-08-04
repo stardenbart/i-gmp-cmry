@@ -22,7 +22,7 @@ interface CreateFormValues {
 export default function CreateInspectionPage() {
   const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
   const router = useRouter();
-  const { userId } = useParams() as { userId: string };
+  const { userId, plantCode } = useParams() as { userId: string; plantCode?: string };
   const [isLoading, setIsLoading] = useState(false);
   const [isAreasLoading, setIsAreasLoading] = useState(true);
   const [isKawasansLoading, setIsKawasansLoading] = useState(false);
@@ -122,7 +122,7 @@ export default function CreateInspectionPage() {
       } else {
         toast.success("Inspeksi berhasil dibuat");
       }
-      router.push(`/cimory/dashboard/${userId}/inspections/${inspectionData.inspection_id}`);
+      router.push(`/cimory/${plantCode}/dashboard/${userId}/inspections/${inspectionData.inspection_id}`);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Gagal membuat inspeksi");
     } finally {

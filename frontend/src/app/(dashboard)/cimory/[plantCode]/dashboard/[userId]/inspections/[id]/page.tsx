@@ -36,7 +36,7 @@ import { useInspectionDraft } from "@/hooks/useInspectionDraft";
 export default function InspectionDetailPage() {
   const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
   const user = useAuthStore((state) => state.user);
-  const { id, userId } = useParams() as { id: string; userId: string };
+  const { id, userId, plantCode } = useParams() as { id: string; userId: string; plantCode?: string };
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -349,7 +349,7 @@ export default function InspectionDetailPage() {
       await inspectionApi.delete(id);
       clearDraft();
       toast.success("Inspeksi telah dibatalkan dan kunci lokasi dilepas.");
-      router.push(`/cimory/dashboard/${userId}/inspections`);
+      router.push(`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Gagal membatalkan inspeksi");
     } finally {
@@ -451,7 +451,7 @@ export default function InspectionDetailPage() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href={`/cimory/dashboard/${userId}/inspections`}>
+          <Link href={`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections`}>
             <Button variant="ghost" size="icon" className="rounded-full">
               <ArrowLeft className="h-5 w-5" />
             </Button>
