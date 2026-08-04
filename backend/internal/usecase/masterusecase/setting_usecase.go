@@ -46,8 +46,8 @@ func (uc *settingUseCase) GetByKey(key, plantID string) (*master.SettingResponse
 
 func (uc *settingUseCase) Update(key string, req *master.UpdateSettingRequest, updatedBy, plantID string) (*master.SettingResponse, error) {
 	targetPlantID := plantID
-	if req.PlantID != nil && *req.PlantID != "" {
-		targetPlantID = *req.PlantID
+	if req.PlantID != "" {
+		targetPlantID = req.PlantID
 	}
 
 	// Check the setting exists (or fallback to global)

@@ -8,6 +8,12 @@ import (
 type settingRepository struct{ db *gorm.DB }
 
 func NewSettingRepository(db *gorm.DB) master.SettingRepository {
+	// Migration steps to transition to composite PK ("SettingKey", "PlantID")
+	_ = db.Exec(`ALTER TABLE "System_Setting" ADD COLUMN IF NOT EXISTS "PlantID" varchar(50) NOT NULL DEFAULT ''`).Error
+	_ = db.Exec(`UPDATE "System_Setting" SET "PlantID" = '' WHERE "PlantID" IS NULL`).Error
+	_ = db.Exec(`ALTER TABLE "System_Setting" DROP CONSTRAINT IF EXISTS "System_Setting_pkey"`).Error
+	_ = db.Exec(`ALTER TABLE "System_Setting" ADD CONSTRAINT "System_Setting_pkey" PRIMARY KEY ("SettingKey", "PlantID")`).Error
+
 	_ = db.AutoMigrate(&master.Setting{})
 	return &settingRepository{db: db}
 }
@@ -15,12 +21,10 @@ func NewSettingRepository(db *gorm.DB) master.SettingRepository {
 func (r *settingRepository) FindAll(plantID string) ([]master.Setting, error) {
 	var items []master.Setting
 	q := r.db.Order("\"SettingKey\"")
-	if plantID != "" && plantID != "ALL" {
-		if plantID == "GLOBAL" || plantID == "NULL" {
-			q = q.Where("\"PlantID\" IS NULL OR \"PlantID\" = ''")
-		} else {
-			q = q.Where("\"PlantID\" = ? OR \"PlantID\" IS NULL OR \"PlantID\" = ''", plantID)
-		}
+	if plantID == "GLOBAL" || plantID == "NULL" {
+		q = q.Where("\"PlantID\" = ''")
+	} else if plantID != "" && plantID != "ALL" {
+		q = q.Where("\"PlantID\" = ? OR \"PlantID\" = ''", plantID)
 	}
 	if err := q.Find(&items).Error; err != nil {
 		return nil, err
@@ -33,10 +37,10 @@ func (r *settingRepository) FindAll(plantID string) ([]master.Setting, error) {
 			existing, exists := m[s.SettingKey]
 			if !exists {
 				m[s.SettingKey] = s
-			} else if s.PlantID != nil && *s.PlantID == plantID {
+			} else if s.PlantID == plantID {
 				m[s.SettingKey] = s
-			} else if existing.PlantID == nil {
-				// Keep current
+			} else if existing.PlantID == "" {
+				// Keep current override
 			}
 		}
 		res := make([]master.Setting, 0, len(m))
@@ -57,45 +61,40 @@ func (r *settingRepository) FindByKey(key, plantID string) (*master.Setting, err
 			return &item, nil
 		}
 	}
-	err := r.db.Where("\"SettingKey\" = ? AND (\"PlantID\" IS NULL OR \"PlantID\" = '')", key).First(&item).Error
+	err := r.db.Where("\"SettingKey\" = ? AND \"PlantID\" = ''", key).First(&item).Error
 	return &item, err
 }
 
 func (r *settingRepository) Update(key, value, updatedBy, plantID string) error {
-	var pID *string
-	if plantID != "" && plantID != "GLOBAL" && plantID != "NULL" {
-		pID = &plantID
+	targetPlantID := plantID
+	if targetPlantID == "GLOBAL" || targetPlantID == "NULL" {
+		targetPlantID = ""
 	}
 
 	// Check if record exists for key + plantID
 	var existing master.Setting
-	q := r.db.Where("\"SettingKey\" = ?", key)
-	if pID != nil {
-		q = q.Where("\"PlantID\" = ?", *pID)
-	} else {
-		q = q.Where("\"PlantID\" IS NULL OR \"PlantID\" = ''")
-	}
-
-	err := q.First(&existing).Error
+	err := r.db.Where("\"SettingKey\" = ? AND \"PlantID\" = ?", key, targetPlantID).First(&existing).Error
 	if err == nil {
 		// Update existing
-		return q.Model(&master.Setting{}).Updates(map[string]interface{}{
-			"SettingValue": value,
-			"UpdatedBy":    updatedBy,
-		}).Error
+		return r.db.Model(&master.Setting{}).
+			Where("\"SettingKey\" = ? AND \"PlantID\" = ?", key, targetPlantID).
+			Updates(map[string]interface{}{
+				"SettingValue": value,
+				"UpdatedBy":    updatedBy,
+			}).Error
 	}
 
 	// Get description from global default if available
 	var globalDef master.Setting
 	desc := ""
-	if r.db.Where("\"SettingKey\" = ? AND (\"PlantID\" IS NULL OR \"PlantID\" = '')", key).First(&globalDef).Error == nil {
+	if r.db.Where("\"SettingKey\" = ? AND \"PlantID\" = ''", key).First(&globalDef).Error == nil {
 		desc = globalDef.Description
 	}
 
 	// Create new override
 	newSetting := master.Setting{
 		SettingKey:   key,
-		PlantID:      pID,
+		PlantID:      targetPlantID,
 		SettingValue: value,
 		Description:  desc,
 	}

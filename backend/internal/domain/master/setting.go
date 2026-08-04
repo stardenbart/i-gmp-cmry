@@ -5,7 +5,7 @@ import "time"
 // Setting represents a dynamic system configuration key-value pair.
 type Setting struct {
 	SettingKey   string    `gorm:"column:SettingKey;primaryKey" json:"setting_key"`
-	PlantID      *string   `gorm:"column:PlantID" json:"plant_id,omitempty"`
+	PlantID      string    `gorm:"column:PlantID;primaryKey;default:''" json:"plant_id"`
 	SettingValue string    `gorm:"column:SettingValue;not null" json:"setting_value"`
 	IsEncrypted  bool      `gorm:"column:IsEncrypted;not null;default:false" json:"is_encrypted"`
 	Description  string    `gorm:"column:Description;size:255" json:"description"`
@@ -32,14 +32,14 @@ const (
 // ── DTOs ──────────────────────────────────────────────────────────────────
 
 type UpdateSettingRequest struct {
-	SettingValue string  `json:"setting_value" validate:"required"`
-	PlantID      *string `json:"plant_id,omitempty"`
+	SettingValue string `json:"setting_value" validate:"required"`
+	PlantID      string `json:"plant_id,omitempty"`
 }
 
 // SettingResponse is a sanitized view that never exposes raw encrypted values.
 type SettingResponse struct {
 	SettingKey   string    `json:"setting_key"`
-	PlantID      *string   `json:"plant_id,omitempty"`
+	PlantID      string    `json:"plant_id,omitempty"`
 	SettingValue string    `json:"setting_value"` // will be masked if IsEncrypted
 	IsEncrypted  bool      `json:"is_encrypted"`
 	Description  string    `json:"description"`
