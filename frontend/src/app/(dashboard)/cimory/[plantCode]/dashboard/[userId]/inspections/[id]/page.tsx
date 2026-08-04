@@ -12,6 +12,9 @@ import {
   Play,
   AlertTriangle,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -45,6 +48,7 @@ export default function InspectionDetailPage() {
   const [isReopening, setIsReopening] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [activeAspekIndex, setActiveAspekIndex] = useState(0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -76,6 +80,7 @@ export default function InspectionDetailPage() {
   useEffect(() => {
     isFormInitialized.current = false;
     ngPhotosMapRef.current = {};
+    setActiveAspekIndex(0);
   }, [id]);
 
   // Data queries
@@ -100,6 +105,57 @@ export default function InspectionDetailPage() {
   });
 
   const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm();
+
+  // Helper to calculate completion progress for a single Aspek
+  const getAspekProgress = useCallback(
+    (aspek: any) => {
+      let total = 0;
+      let answered = 0;
+      const formValues = watch();
+
+      aspek?.details?.forEach((detail: any) => {
+        detail?.uraians?.forEach((uraian: any) => {
+          total++;
+          const val = formValues[`nilai_${uraian.uraian_id}`];
+          if (val !== undefined && val !== null && val !== "") {
+            answered++;
+          }
+        });
+      });
+
+      return {
+        total,
+        answered,
+        isComplete: total > 0 && answered === total,
+      };
+    },
+    [watch]
+  );
+
+  // Helper to calculate total overall progress
+  const getOverallProgress = useCallback(() => {
+    let total = 0;
+    let answered = 0;
+    const formValues = watch();
+
+    checklist?.aspeks?.forEach((aspek: any) => {
+      aspek?.details?.forEach((detail: any) => {
+        detail?.uraians?.forEach((uraian: any) => {
+          total++;
+          const val = formValues[`nilai_${uraian.uraian_id}`];
+          if (val !== undefined && val !== null && val !== "") {
+            answered++;
+          }
+        });
+      });
+    });
+
+    return {
+      total,
+      answered,
+      percent: total > 0 ? Math.round((answered / total) * 100) : 0,
+    };
+  }, [checklist, watch]);
 
   // Populate form state ONCE when checklist is available (server DB data OR localStorage draft recovery)
   useEffect(() => {
@@ -446,6 +502,10 @@ export default function InspectionDetailPage() {
     )
   );
 
+  const aspeksList = checklist?.aspeks || [];
+  const currentAspek = aspeksList[activeAspekIndex] || aspeksList[0];
+  const overallProgress = getOverallProgress();
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* Header Bar */}
@@ -621,139 +681,246 @@ export default function InspectionDetailPage() {
                 </span>
               </div>
             )}
+
+            {/* Overall Inspection Completion Progress Bar */}
+            <div className="pt-3 border-t border-border space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">Progres Penilaian</span>
+                <span className="font-bold text-primary">{overallProgress.answered} / {overallProgress.total} ({overallProgress.percent}%)</span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300 rounded-full"
+                  style={{ width: `${overallProgress.percent}%` }}
+                />
+              </div>
+            </div>
           </div>
         </Card>
 
-        {/* Checklist Form */}
-        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-sm border-border/80">
-          <h3 className="font-bold text-base mb-4 border-b border-border pb-2 flex items-center justify-between">
-            <span>Checklist Penilaian Audit</span>
-            <span className="text-xs text-muted-foreground font-normal">
-              {checklist?.aspeks?.reduce(
-                (acc: number, a: any) =>
-                  acc + a.details?.reduce((dAcc: number, d: any) => dAcc + (d.uraians?.length || 0), 0),
-                0
-              ) || 0}{" "}
-              Item Pengecekan
+        {/* Checklist Form with Separated Aspek Tabs */}
+        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-sm border-border/80 space-y-6">
+          {/* Header Title */}
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h3 className="font-bold text-base">Checklist Penilaian Audit</h3>
+            <span className="text-xs text-muted-foreground font-medium">
+              {aspeksList.length} Aspek Pengecekan
             </span>
-          </h3>
+          </div>
 
-          <form className="space-y-8">
-            {checklist?.aspeks?.length === 0 && (
-              <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-2xl border border-border">
-                Belum ada Uraian (Checklist) yang diatur untuk Area ini.
+          {aspeksList.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-2xl border border-border">
+              Belum ada Uraian (Checklist) yang diatur untuk Area ini.
+            </div>
+          ) : (
+            <form className="space-y-6">
+              {/* Interactive Horizontal Aspek Tabs Bar */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-border scrollbar-none">
+                {aspeksList.map((aspek: any, idx: number) => {
+                  const isCurrent = idx === activeAspekIndex;
+                  const { answered, total, isComplete } = getAspekProgress(aspek);
+
+                  return (
+                    <button
+                      key={aspek.aspek_id || idx}
+                      type="button"
+                      onClick={() => setActiveAspekIndex(idx)}
+                      className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold whitespace-nowrap transition-all ${
+                        isCurrent
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : isComplete
+                          ? "bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20"
+                          : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      <span
+                        className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                          isCurrent
+                            ? "bg-primary-foreground text-primary"
+                            : isComplete
+                            ? "bg-green-600 text-white"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {isComplete ? "✓" : idx + 1}
+                      </span>
+                      <span className="truncate max-w-[140px]">{aspek.aspek_name}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                          isCurrent
+                            ? "bg-primary-foreground/20 text-primary-foreground font-bold"
+                            : isComplete
+                            ? "bg-green-500/20 text-green-700 font-bold"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {answered}/{total}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
 
-            {checklist?.aspeks?.map((aspek: any, aIndex: number) => (
-              <div key={aspek.aspek_id} className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
-                    {aIndex + 1}
-                  </div>
-                  <h3 className="text-lg font-bold tracking-tight text-foreground">{aspek.aspek_name}</h3>
-                </div>
-
-                {aspek.details?.map((detail: any, dIndex: number) => (
-                  <div key={detail.detail_id} className="ml-4 pl-4 border-l-2 border-primary/20 space-y-4">
-                    <h4 className="font-semibold text-base text-primary">{detail.detail_name}</h4>
-
-                    <div className="space-y-4 mt-4">
-                      {detail.uraians?.map((uraian: any, uIndex: number) => {
-                        const uId = uraian.uraian_id;
-                        const isNG = watch(`nilai_${uId}`) === "0";
-
-                        return (
-                          <div
-                            key={uId}
-                            className={`p-4 rounded-2xl border transition-all ${
-                              isNG
-                                ? "border-destructive/30 bg-destructive/5"
-                                : watch(`nilai_${uId}`) === "2"
-                                ? "border-green-500/30 bg-green-500/5"
-                                : "border-border bg-card"
-                            }`}
-                          >
-                            <div className="flex flex-col sm:flex-row justify-between gap-4 mb-3">
-                              <div>
-                                <h5 className="font-semibold text-sm">
-                                  {aIndex + 1}.{dIndex + 1}.{uIndex + 1} Uraian Pengecekan
-                                </h5>
-                                <p className="text-sm text-foreground/80 mt-1 leading-relaxed">
-                                  {uraian.uraian_text}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Radio Options: 2 (Aman / OK) vs 0 (Ada Issue / NG) */}
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                              <div className="sm:col-span-2">
-                                <label className="block text-xs font-semibold text-muted-foreground mb-2">
-                                  Penilaian <span className="text-destructive">*</span>
-                                </label>
-                                <div className="flex items-center gap-3">
-                                  <label
-                                    className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl border transition-all w-full ${
-                                      isReadOnly
-                                        ? "opacity-60 cursor-not-allowed bg-muted/20"
-                                        : "cursor-pointer hover:border-green-500/50 hover:bg-green-500/5"
-                                    } ${
-                                      watch(`nilai_${uId}`) === "2"
-                                        ? "border-green-500 bg-green-500/10 font-bold"
-                                        : "border-border"
-                                    }`}
-                                  >
-                                    <input
-                                      type="radio"
-                                      value="2"
-                                      disabled={isReadOnly}
-                                      {...register(`nilai_${uId}`, { required: true })}
-                                      className="accent-green-600 h-4 w-4 cursor-pointer"
-                                    />
-                                    <span className="font-semibold text-green-600">2 - Aman (OK)</span>
-                                  </label>
-
-                                  <label
-                                    className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl border transition-all w-full ${
-                                      isReadOnly
-                                        ? "opacity-60 cursor-not-allowed bg-muted/20"
-                                        : "cursor-pointer hover:border-red-500/50 hover:bg-red-500/5"
-                                    } ${
-                                      watch(`nilai_${uId}`) === "0"
-                                        ? "border-red-500 bg-red-500/10 font-bold"
-                                        : "border-border"
-                                    }`}
-                                  >
-                                    <input
-                                      type="radio"
-                                      value="0"
-                                      disabled={isReadOnly}
-                                      {...register(`nilai_${uId}`, { required: true })}
-                                      className="accent-red-600 h-4 w-4 cursor-pointer"
-                                    />
-                                    <span className="font-semibold text-red-600">0 - Ada Issue (NG)</span>
-                                  </label>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Multi-Photo Uploader Component for NG Items */}
-                            {isNG && (
-                              <PhotoUploaderWithKeterangan
-                                photos={ngPhotosMap[uId] || []}
-                                onChange={(photos) => handlePhotosChange(uId, photos)}
-                                disabled={isReadOnly}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
+              {/* Current Active Aspek Header & Detail Aspeks Content */}
+              {currentAspek && (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  {/* Active Aspek Info Banner */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 bg-muted/40 rounded-2xl border border-border">
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                        Aspek {activeAspekIndex + 1} dari {aspeksList.length}
+                      </span>
+                      <h3 className="text-lg font-bold text-foreground mt-0.5">{currentAspek.aspek_name}</h3>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <span className="text-xs text-muted-foreground block font-medium">Progres Aspek</span>
+                      <span className="text-xs font-bold text-foreground font-mono">
+                        {getAspekProgress(currentAspek).answered} / {getAspekProgress(currentAspek).total} Uraian Terisi
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            ))}
-          </form>
+
+                  {/* Detail Aspek Loop inside Current Aspek */}
+                  {currentAspek.details?.map((detail: any, dIndex: number) => (
+                    <div key={detail.detail_id || dIndex} className="space-y-4 bg-card/40 p-4 sm:p-5 rounded-2xl border border-border/80">
+                      <div className="flex items-center gap-2 border-b border-border/60 pb-2.5">
+                        <div className="h-2.5 w-2.5 rounded-full bg-primary shrink-0" />
+                        <h4 className="font-bold text-sm text-primary tracking-tight">
+                          Detail Aspek: {detail.detail_name}
+                        </h4>
+                      </div>
+
+                      <div className="space-y-4">
+                        {detail.uraians?.map((uraian: any, uIndex: number) => {
+                          const uId = uraian.uraian_id;
+                          const isNG = watch(`nilai_${uId}`) === "0";
+
+                          return (
+                            <div
+                              key={uId}
+                              className={`p-4 rounded-2xl border transition-all ${
+                                isNG
+                                  ? "border-destructive/30 bg-destructive/5"
+                                  : watch(`nilai_${uId}`) === "2"
+                                  ? "border-green-500/30 bg-green-500/5"
+                                  : "border-border bg-card"
+                              }`}
+                            >
+                              <div className="flex flex-col sm:flex-row justify-between gap-4 mb-3">
+                                <div>
+                                  <h5 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">
+                                    Item {activeAspekIndex + 1}.{dIndex + 1}.{uIndex + 1}
+                                  </h5>
+                                  <p className="text-sm font-medium text-foreground mt-1 leading-relaxed">
+                                    {uraian.uraian_text}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Radio Options: 2 (Aman / OK) vs 0 (Ada Issue / NG) */}
+                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                <div className="sm:col-span-2">
+                                  <label className="block text-xs font-semibold text-muted-foreground mb-2">
+                                    Penilaian <span className="text-destructive">*</span>
+                                  </label>
+                                  <div className="flex items-center gap-3">
+                                    <label
+                                      className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl border transition-all w-full ${
+                                        isReadOnly
+                                          ? "opacity-60 cursor-not-allowed bg-muted/20"
+                                          : "cursor-pointer hover:border-green-500/50 hover:bg-green-500/5"
+                                      } ${
+                                        watch(`nilai_${uId}`) === "2"
+                                          ? "border-green-500 bg-green-500/10 font-bold"
+                                          : "border-border"
+                                      }`}
+                                    >
+                                      <input
+                                        type="radio"
+                                        value="2"
+                                        disabled={isReadOnly}
+                                        {...register(`nilai_${uId}`, { required: true })}
+                                        className="accent-green-600 h-4 w-4 cursor-pointer"
+                                      />
+                                      <span className="font-semibold text-green-600 text-xs sm:text-sm">2 - Aman (OK)</span>
+                                    </label>
+
+                                    <label
+                                      className={`flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl border transition-all w-full ${
+                                        isReadOnly
+                                          ? "opacity-60 cursor-not-allowed bg-muted/20"
+                                          : "cursor-pointer hover:border-red-500/50 hover:bg-red-500/5"
+                                      } ${
+                                        watch(`nilai_${uId}`) === "0"
+                                          ? "border-red-500 bg-red-500/10 font-bold"
+                                          : "border-border"
+                                      }`}
+                                    >
+                                      <input
+                                        type="radio"
+                                        value="0"
+                                        disabled={isReadOnly}
+                                        {...register(`nilai_${uId}`, { required: true })}
+                                        className="accent-red-600 h-4 w-4 cursor-pointer"
+                                      />
+                                      <span className="font-semibold text-red-600 text-xs sm:text-sm">0 - Ada Issue (NG)</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Multi-Photo Uploader Component for NG Items */}
+                              {isNG && (
+                                <PhotoUploaderWithKeterangan
+                                  photos={ngPhotosMap[uId] || []}
+                                  onChange={(photos) => handlePhotosChange(uId, photos)}
+                                  disabled={isReadOnly}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Aspek Footer Navigation Buttons */}
+                  <div className="flex items-center justify-between pt-4 border-t border-border mt-6">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={activeAspekIndex === 0}
+                      onClick={() => setActiveAspekIndex((prev) => Math.max(0, prev - 1))}
+                      className="rounded-xl text-xs"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" /> Aspek Sebelumnya
+                    </Button>
+
+                    {activeAspekIndex < aspeksList.length - 1 ? (
+                      <Button
+                        type="button"
+                        onClick={() => setActiveAspekIndex((prev) => Math.min(aspeksList.length - 1, prev + 1))}
+                        className="rounded-xl text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                      >
+                        Aspek Selanjutnya <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    ) : (
+                      isOngoing && isInspectorOwner && (
+                        <Button
+                          type="button"
+                          onClick={handleSubmit(onFinalSubmit)}
+                          disabled={isSaving}
+                          className="rounded-xl text-xs bg-green-600 hover:bg-green-700 text-white font-semibold shadow-md px-4"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-1.5" /> Selesaikan Audit
+                        </Button>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+            </form>
+          )}
         </Card>
       </div>
 
