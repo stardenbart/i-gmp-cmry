@@ -157,9 +157,9 @@ export default function InspectionDetailPage() {
     };
   }, [checklist, watch]);
 
-  // Populate form state ONCE when checklist is available (server DB data OR localStorage draft recovery)
+  // Populate form state when checklist is available (server DB data + localStorage draft recovery)
   useEffect(() => {
-    if (!checklist?.aspeks || isFormInitialized.current) return;
+    if (!checklist?.aspeks) return;
 
     const defaultValues: Record<string, any> = {};
     const photoStateMap: Record<string, PhotoItem[]> = {};
@@ -169,9 +169,20 @@ export default function InspectionDetailPage() {
         detail.uraians?.forEach((uraian: any) => {
           const uId = uraian.uraian_id;
           
-          // 1. First check if LocalStorage draft exists for this uraian
+          // 1. Priority: Check existing server DB result first
+          if (uraian.result) {
+            defaultValues[`nilai_${uId}`] =
+              uraian.result.checking === "OK"
+                ? "2"
+                : uraian.result.checking === "NG"
+                ? "0"
+                : "";
+            defaultValues[`ket_${uId}`] = uraian.result.keterangan || "";
+          }
+
+          // 2. LocalStorage draft override if present
           const localDraft = draftData?.results?.[uId];
-          if (localDraft) {
+          if (localDraft && !uraian.result) {
             if (localDraft.checking === "OK") defaultValues[`nilai_${uId}`] = "2";
             if (localDraft.checking === "NG") defaultValues[`nilai_${uId}`] = "0";
             defaultValues[`ket_${uId}`] = localDraft.keterangan || "";
@@ -187,35 +198,29 @@ export default function InspectionDetailPage() {
                 photoStateMap[uId] = validPhotos;
               }
             }
-          } 
-          // 2. Otherwise use existing server result if available
-          else if (uraian.result) {
-            defaultValues[`nilai_${uId}`] =
-              uraian.result.checking === "OK"
-                ? "2"
-                : uraian.result.checking === "NG"
-                ? "0"
-                : "";
-            defaultValues[`ket_${uId}`] = uraian.result.keterangan || "";
           }
         });
       });
     });
 
-    reset(defaultValues);
+    reset((prev) => ({ ...defaultValues, ...prev }));
     if (Object.keys(photoStateMap).length > 0) {
-      ngPhotosMapRef.current = photoStateMap;
-      setNgPhotosMap(photoStateMap);
+      ngPhotosMapRef.current = { ...photoStateMap, ...ngPhotosMapRef.current };
+      setNgPhotosMap((prev) => ({ ...photoStateMap, ...prev }));
     }
     isFormInitialized.current = true;
   }, [checklist, draftData, reset]);
 
-  // Auto-save form changes to LocalStorage for recovery
+  // Auto-save form changes to LocalStorage AND Backend DB (Debounced)
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleFormValueChange = useCallback(
     (formValues: any) => {
       if (!isFormInitialized.current || !checklist?.aspeks || inspection?.status === "Completed") return;
 
       const draftResults: Record<string, any> = {};
+      const dbResultsPayload: any[] = [];
+
       checklist.aspeks.forEach((aspek: any) => {
         aspek.details?.forEach((detail: any) => {
           detail.uraians?.forEach((uraian: any) => {
@@ -225,8 +230,9 @@ export default function InspectionDetailPage() {
             const photos = ngPhotosMapRef.current[uId] || [];
 
             if (val) {
+              const checking = val === "2" ? "OK" : "NG";
               draftResults[uId] = {
-                checking: val === "2" ? "OK" : "NG",
+                checking,
                 nilai: parseInt(val, 10),
                 keterangan: ket || "",
                 photos: photos.map((p) => ({
@@ -235,14 +241,34 @@ export default function InspectionDetailPage() {
                   keterangan: p.keterangan,
                 })),
               };
+
+              dbResultsPayload.push({
+                uraian_id: uId,
+                checking,
+                nilai: parseInt(val, 10),
+                keterangan: ket || "",
+              });
             }
           });
         });
       });
 
+      // 1. Save to LocalStorage immediately
       saveDraft(draftResults);
+
+      // 2. Debounced save to Backend DB (so data is persisted on server even if logged out)
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = setTimeout(async () => {
+        if (dbResultsPayload.length > 0 && id) {
+          try {
+            await inspectionApi.bulkSaveResults(id, dbResultsPayload);
+          } catch (e) {
+            console.warn("Background auto-save to server failed:", e);
+          }
+        }
+      }, 1500);
     },
-    [checklist, inspection?.status, saveDraft]
+    [checklist, id, inspection?.status, saveDraft]
   );
 
   // Subscribe to form input changes for auto-save (prevents infinite re-renders)
