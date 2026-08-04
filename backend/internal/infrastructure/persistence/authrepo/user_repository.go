@@ -11,7 +11,7 @@ func NewUserRepository(db *gorm.DB) authdomain.UserRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) FindAll(page, limit int, search, roleID, deptID string) ([]authdomain.User, int64, error) {
+func (r *userRepository) FindAll(page, limit int, search, roleID, deptID, plantID string) ([]authdomain.User, int64, error) {
 	var users []authdomain.User
 	var total int64
 	q := r.db.Model(&authdomain.User{})
@@ -23,6 +23,13 @@ func (r *userRepository) FindAll(page, limit int, search, roleID, deptID string)
 	}
 	if deptID != "" {
 		q = q.Where("\"DepartmentID\" = ?", deptID)
+	}
+	if plantID != "" {
+		if plantID == "GLOBAL" || plantID == "NULL" {
+			q = q.Where("\"PlantID\" IS NULL OR \"PlantID\" = ''")
+		} else {
+			q = q.Where("\"PlantID\" = ?", plantID)
+		}
 	}
 	q.Count(&total)
 	err := q.Offset((page - 1) * limit).Limit(limit).Find(&users).Error

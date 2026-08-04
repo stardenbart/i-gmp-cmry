@@ -41,6 +41,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
+	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
 
 	// ── Public routes ──────────────────────────────────────────────────
 	authGroup := rg.Group("/auth")
@@ -56,7 +57,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 		protected.Get("/auth/me", authHandler.Me)
 
 		// User management — requires permission check
-		users := protected.Group("/users")
+		users := protected.Group("/users", plantScopeMW)
 		{
 			users.Get("", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "READ"), userHandler.GetAll)
 			users.Post("", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "CREATE"), userHandler.Create)

@@ -113,6 +113,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
+  const [plantFilter, setPlantFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -145,6 +146,7 @@ export default function UsersPage() {
     limit: 10,
     ...(searchQuery && { q: searchQuery }),
     ...(roleFilter !== "ALL" && { role_id: roleFilter }),
+    ...(plantFilter !== "ALL" && { plant_id: plantFilter }),
     ...(statusFilter !== "ALL" && { user_status: statusFilter }),
     sort_by: "created_at",
     sort_order: "desc",
@@ -312,6 +314,20 @@ export default function UsersPage() {
                 <option value="ALL">Semua Role</option>
                 {rolesList.map((r: any) => (
                   <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select
+                className="text-sm bg-background appearance-none border border-border rounded-md pl-3 pr-8 py-2 outline-none"
+                value={plantFilter}
+                onChange={(e) => { setPlantFilter(e.target.value); setPage(1); }}
+              >
+                <option value="ALL">Semua Plant</option>
+                <option value="GLOBAL">Global (SuperAdmin)</option>
+                {plantsList.map((p: any) => (
+                  <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />

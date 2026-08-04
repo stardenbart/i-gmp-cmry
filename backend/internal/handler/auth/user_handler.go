@@ -37,8 +37,15 @@ func (h *UserHandler) GetAll(c *fiber.Ctx) error {
 	search := c.Query("search")
 	roleID := c.Query("role_id")
 	deptID := c.Query("department_id")
+	plantID := c.Query("plant_id")
 
-	users, total, err := h.userUC.GetAll(p.Page, p.Limit, search, roleID, deptID)
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+	if !isSuperAdmin && userPlantID != "" {
+		plantID = userPlantID
+	}
+
+	users, total, err := h.userUC.GetAll(p.Page, p.Limit, search, roleID, deptID, plantID)
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch users", err.Error())
 	}

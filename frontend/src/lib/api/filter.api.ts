@@ -94,6 +94,7 @@ export interface FollowupFilterParams extends IssueFilterParams {
 export interface UserFacets {
   role_id: Record<string, number>;
   department_id: Record<string, number>;
+  plant_id: Record<string, number>;
   user_status: Record<string, number>;
   date_range: DateRangeFacet;
 }
@@ -103,6 +104,8 @@ export interface UserFilterParams {
   role_id?: string;
   role_id__in?: string;
   department_id?: string;
+  plant_id?: string;
+  plant_id__in?: string;
   user_status?: string;
   user_status__in?: string;
   date_from?: string;

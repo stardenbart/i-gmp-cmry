@@ -25,8 +25,8 @@ func NewUserUseCase(userRepo authdomain.UserRepository, mailer mail.Mailer, sett
 	return &userUseCase{userRepo: userRepo, mailer: mailer, settingRepo: settingRepo, picRepo: picRepo}
 }
 
-func (uc *userUseCase) GetAll(page, limit int, search, roleID, deptID string) ([]authdomain.User, int64, error) {
-	return uc.userRepo.FindAll(page, limit, search, roleID, deptID)
+func (uc *userUseCase) GetAll(page, limit int, search, roleID, deptID, plantID string) ([]authdomain.User, int64, error) {
+	return uc.userRepo.FindAll(page, limit, search, roleID, deptID, plantID)
 }
 
 func (uc *userUseCase) GetByID(id string) (*authdomain.User, error) {

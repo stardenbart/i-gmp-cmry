@@ -38,6 +38,7 @@ func (r *userFilterRepository) FindFacets(f *authdomain.UserFilter) (authdomain.
 	facets := authdomain.UserFacets{
 		RoleID:       make(map[string]int64),
 		DepartmentID: make(map[string]int64),
+		PlantID:      make(map[string]int64),
 		UserStatus:   make(map[string]int64),
 	}
 	facets.DateRange.Field = "created_at"
@@ -48,7 +49,7 @@ func (r *userFilterRepository) FindFacets(f *authdomain.UserFilter) (authdomain.
 	}
 
 	// Helper: build base query excluding a specific field
-	baseWithout := func(excludeRole, excludeDept, excludeStatus, excludeDate bool) *gorm.DB {
+	baseWithout := func(excludeRole, excludeDept, excludePlant, excludeStatus, excludeDate bool) *gorm.DB {
 		tmp := &authdomain.UserFilter{
 			Q: f.Q,
 		}
@@ -58,6 +59,10 @@ func (r *userFilterRepository) FindFacets(f *authdomain.UserFilter) (authdomain.
 		}
 		if !excludeDept {
 			tmp.DepartmentID = f.DepartmentID
+		}
+		if !excludePlant {
+			tmp.PlantID = f.PlantID
+			tmp.PlantIDIn = f.PlantIDIn
 		}
 		if !excludeStatus {
 			tmp.UserStatus = f.UserStatus
@@ -72,7 +77,7 @@ func (r *userFilterRepository) FindFacets(f *authdomain.UserFilter) (authdomain.
 
 	// RoleID facet
 	var roleRows []kv
-	if err := baseWithout(true, false, false, false).
+	if err := baseWithout(true, false, false, false, false).
 		Select(`"RoleID" AS key, COUNT(*) AS count`).
 		Group(`"RoleID"`).
 		Scan(&roleRows).Error; err == nil {
@@ -83,7 +88,7 @@ func (r *userFilterRepository) FindFacets(f *authdomain.UserFilter) (authdomain.
 
 	// DepartmentID facet
 	var deptRows []kv
-	if err := baseWithout(false, true, false, false).
+	if err := baseWithout(false, true, false, false, false).
 		Select(`"DepartmentID" AS key, COUNT(*) AS count`).
 		Group(`"DepartmentID"`).
 		Scan(&deptRows).Error; err == nil {
@@ -92,9 +97,20 @@ func (r *userFilterRepository) FindFacets(f *authdomain.UserFilter) (authdomain.
 		}
 	}
 
+	// PlantID facet
+	var plantRows []kv
+	if err := baseWithout(false, false, true, false, false).
+		Select(`COALESCE("PlantID", 'GLOBAL') AS key, COUNT(*) AS count`).
+		Group(`"PlantID"`).
+		Scan(&plantRows).Error; err == nil {
+		for _, row := range plantRows {
+			facets.PlantID[row.Key] = row.Count
+		}
+	}
+
 	// UserStatus facet
 	var statusRows []kv
-	if err := baseWithout(false, false, true, false).
+	if err := baseWithout(false, false, false, true, false).
 		Select(`"UserStatus" AS key, COUNT(*) AS count`).
 		Group(`"UserStatus"`).
 		Scan(&statusRows).Error; err == nil {
@@ -109,7 +125,7 @@ func (r *userFilterRepository) FindFacets(f *authdomain.UserFilter) (authdomain.
 		Max *time.Time
 	}
 	var dr dateResult
-	if err := baseWithout(false, false, false, true).
+	if err := baseWithout(false, false, false, false, true).
 		Select(`MIN("UserCreatedAt") AS min, MAX("UserCreatedAt") AS max`).
 		Scan(&dr).Error; err == nil {
 		facets.DateRange.Min = dr.Min

@@ -13,6 +13,7 @@ import (
 type UserFacets struct {
 	RoleID       map[string]int64 `json:"role_id"`
 	DepartmentID map[string]int64 `json:"department_id"`
+	PlantID      map[string]int64 `json:"plant_id"`
 	UserStatus   map[string]int64 `json:"user_status"`
 	DateRange    struct {
 		Min   *time.Time `json:"min"`
@@ -32,6 +33,8 @@ type UserFilter struct {
 	RoleID       string
 	RoleIDIn     []string
 	DepartmentID string
+	PlantID      string
+	PlantIDIn    []string
 	UserStatus   string
 	UserStatusIn []string
 
@@ -82,6 +85,16 @@ func (f *UserFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 		q = q.Where(`"DepartmentID" = ?`, f.DepartmentID)
 	}
 
+	if len(f.PlantIDIn) > 0 {
+		q = q.Where(`"PlantID" IN ?`, f.PlantIDIn)
+	} else if f.PlantID != "" {
+		if f.PlantID == "GLOBAL" || f.PlantID == "NULL" {
+			q = q.Where(`"PlantID" IS NULL OR "PlantID" = ''`)
+		} else {
+			q = q.Where(`"PlantID" = ?`, f.PlantID)
+		}
+	}
+
 	if len(f.UserStatusIn) > 0 {
 		q = q.Where(`"UserStatus" IN ?`, f.UserStatusIn)
 	} else if f.UserStatus != "" {
@@ -117,6 +130,12 @@ func (f *UserFilter) FiltersApplied() map[string]interface{} {
 	}
 	if f.DepartmentID != "" {
 		applied["department_id"] = []string{f.DepartmentID}
+	}
+	if f.PlantID != "" {
+		applied["plant_id"] = []string{f.PlantID}
+	}
+	if len(f.PlantIDIn) > 0 {
+		applied["plant_id"] = f.PlantIDIn
 	}
 	if f.UserStatus != "" {
 		applied["user_status"] = []string{f.UserStatus}
@@ -190,11 +209,21 @@ func NewUserFilter(c *fiber.Ctx) *UserFilter {
 		Q:            c.Query("q"),
 		RoleID:       c.Query("role_id"),
 		DepartmentID: c.Query("department_id"),
+		PlantID:      c.Query("plant_id"),
 		UserStatus:   c.Query("user_status"),
+	}
+
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+	if !isSuperAdmin && userPlantID != "" {
+		f.PlantID = userPlantID
 	}
 
 	if v := c.Query("role_id__in"); v != "" {
 		f.RoleIDIn = userSplitCSV(v)
+	}
+	if v := c.Query("plant_id__in"); v != "" {
+		f.PlantIDIn = userSplitCSV(v)
 	}
 	if v := c.Query("user_status__in"); v != "" {
 		f.UserStatusIn = userSplitCSV(v)

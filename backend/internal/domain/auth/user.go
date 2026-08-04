@@ -99,7 +99,7 @@ type ForgotPasswordRequest struct {
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type UserRepository interface {
-	FindAll(page, limit int, search, roleID, deptID string) ([]User, int64, error)
+	FindAll(page, limit int, search, roleID, deptID, plantID string) ([]User, int64, error)
 	FindByID(id string) (*User, error)
 	FindByUsername(username string) (*User, error)
 	FindByEmail(email string) (*User, error)
@@ -111,7 +111,7 @@ type UserRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type UserUseCase interface {
-	GetAll(page, limit int, search, roleID, deptID string) ([]User, int64, error)
+	GetAll(page, limit int, search, roleID, deptID, plantID string) ([]User, int64, error)
 	GetByID(id string) (*User, error)
 	Create(req *CreateUserRequest) (*User, error)
 	Update(id string, req *UpdateUserRequest) (*User, error)
