@@ -19,8 +19,8 @@ func NewLoginLogUseCase(repo logdomain.LoginLogRepository) logdomain.LoginLogUse
 	return &loginLogUseCase{repo: repo}
 }
 
-func (uc *loginLogUseCase) GetAll(page, limit int, userID string) ([]logdomain.LoginLog, int64, error) {
-	return uc.repo.FindAll(page, limit, userID)
+func (uc *loginLogUseCase) GetAll(page, limit int, userID, plantID string) ([]logdomain.LoginLog, int64, error) {
+	return uc.repo.FindAll(page, limit, userID, plantID)
 }
 
 func (uc *loginLogUseCase) GetByID(id string) (*logdomain.LoginLog, error) {
@@ -38,8 +38,8 @@ func NewActivityLogUseCase(repo logdomain.ActivityLogRepository, producer kafka.
 	return &activityLogUseCase{repo: repo, producer: producer}
 }
 
-func (uc *activityLogUseCase) GetAll(page, limit int, userID, moduleID, action string) ([]logdomain.ActivityLog, int64, error) {
-	return uc.repo.FindAll(page, limit, userID, moduleID, action)
+func (uc *activityLogUseCase) GetAll(page, limit int, userID, moduleID, action, plantID string) ([]logdomain.ActivityLog, int64, error) {
+	return uc.repo.FindAll(page, limit, userID, moduleID, action, plantID)
 }
 
 func (uc *activityLogUseCase) GetByID(id string) (*logdomain.ActivityLog, error) {

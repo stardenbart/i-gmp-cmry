@@ -27,7 +27,7 @@ func (LoginLog) TableName() string { return "Login_Log" }
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type LoginLogRepository interface {
-	FindAll(page, limit int, userID string) ([]LoginLog, int64, error)
+	FindAll(page, limit int, userID, plantID string) ([]LoginLog, int64, error)
 	FindByID(id string) (*LoginLog, error)
 	Create(l *LoginLog) error
 	// UpdateLogoutAt records the logout timestamp for a session.
@@ -37,6 +37,6 @@ type LoginLogRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type LoginLogUseCase interface {
-	GetAll(page, limit int, userID string) ([]LoginLog, int64, error)
+	GetAll(page, limit int, userID, plantID string) ([]LoginLog, int64, error)
 	GetByID(id string) (*LoginLog, error)
 }

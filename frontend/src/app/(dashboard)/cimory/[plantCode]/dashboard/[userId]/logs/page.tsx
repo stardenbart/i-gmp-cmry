@@ -18,24 +18,28 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
+import { masterApi } from "@/lib/api/master.api";
 import { useMounted } from "@/lib/useMounted";
 import { useAdminGuard } from "@/lib/useAdminGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/authStore";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
+import { ChevronDown, Filter } from "lucide-react";
 
-const fetchActivityLogs = async (page = 1, search = "", userId = "") => {
+const fetchActivityLogs = async (page = 1, search = "", userId = "", plantId = "") => {
   const params: Record<string, any> = { page, limit: 10 };
   if (search) params.search = search;
   if (userId && userId !== "ALL") params.user_id = userId;
+  if (plantId && plantId !== "ALL") params.plant_id = plantId;
   const res = await api.get("/logs/activity", { params });
   return res.data;
 };
 
-const fetchLoginLogs = async (page = 1, userId = "") => {
+const fetchLoginLogs = async (page = 1, userId = "", plantId = "") => {
   const params: Record<string, any> = { page, limit: 10 };
   if (userId && userId !== "ALL") params.user_id = userId;
+  if (plantId && plantId !== "ALL") params.plant_id = plantId;
   const res = await api.get("/logs/login", { params });
   return res.data;
 };
@@ -54,6 +58,7 @@ export default function LogsPage() {
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [userFilter, setUserFilter] = useState("ALL");
+  const [plantFilter, setPlantFilter] = useState("ALL");
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
   // Data Fetching
@@ -63,15 +68,21 @@ export default function LogsPage() {
     enabled: mounted && !!user && isAdmin,
   });
 
+  const { data: plantsList = [] } = useQuery({
+    queryKey: ["master-plants"],
+    queryFn: () => masterApi.getPlants({ limit: 1000 }),
+    enabled: mounted && !!user && isAdmin,
+  });
+
   const { data: activityRes, isLoading: isActivityLoading, isFetching: isActivityFetching } = useQuery({
-    queryKey: ["logs-activity", page, searchQuery, userFilter],
-    queryFn: () => fetchActivityLogs(page, searchQuery, userFilter),
+    queryKey: ["logs-activity", page, searchQuery, userFilter, plantFilter],
+    queryFn: () => fetchActivityLogs(page, searchQuery, userFilter, plantFilter),
     enabled: mounted && !!user && isAdmin && activeTab === "activity",
   });
 
   const { data: loginRes, isLoading: isLoginLoading, isFetching: isLoginFetching } = useQuery({
-    queryKey: ["logs-login", page, userFilter],
-    queryFn: () => fetchLoginLogs(page, userFilter),
+    queryKey: ["logs-login", page, userFilter, plantFilter],
+    queryFn: () => fetchLoginLogs(page, userFilter, plantFilter),
     enabled: mounted && !!user && isAdmin && activeTab === "login",
   });
 
@@ -149,50 +160,59 @@ export default function LogsPage() {
       </div>
 
       {/* Toolbar */}
-      {activeTab === "activity" && (
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
-          <div style={{ position: "relative", flex: "1", maxWidth: "512px" }}>
-            <Search
-              style={{
-                position: "absolute",
-                left: "12px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: "16px",
-                height: "16px",
-                color: "var(--muted-foreground)",
-                pointerEvents: "none",
-                zIndex: 1,
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Cari aksi, keterangan, tabel, atau ID catatan..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              style={{
-                width: "100%",
-                height: "44px",
-                paddingLeft: "40px",
-                paddingRight: "16px",
-                borderRadius: "12px",
-                border: "1px solid var(--border)",
-                background: "var(--card)",
-                color: "var(--foreground)",
-                fontSize: "14px",
-                outline: "none",
-                boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
-              }}
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        {activeTab === "activity" && (
+          <div className="flex-1 flex gap-3 items-center">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Cari aksi, keterangan, tabel, atau ID..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                className="pl-9 h-10 rounded-xl"
+              />
+            </div>
+            <SearchLatencyBadge
+              searchQuery={searchQuery}
+              isFetching={isActivityLoading}
+              pageName="Riwayat Log (Activity)"
+              apiPath="/logs"
             />
           </div>
-          <SearchLatencyBadge
-            searchQuery={searchQuery}
-            isFetching={isActivityLoading}
-            pageName="Riwayat Log (Activity)"
-            apiPath="/logs"
-          />
+        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <div className="relative">
+            <select
+              className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10"
+              value={plantFilter}
+              onChange={(e) => { setPlantFilter(e.target.value); setPage(1); }}
+            >
+              <option value="ALL">Semua Plant</option>
+              <option value="GLOBAL">Global (SuperAdmin)</option>
+              {plantsList.map((p: any) => (
+                <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+
+          <div className="relative">
+            <select
+              className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 max-w-[200px] truncate"
+              value={userFilter}
+              onChange={(e) => { setUserFilter(e.target.value); setPage(1); }}
+            >
+              <option value="ALL">Semua User</option>
+              {usersList.map((u: any) => (
+                <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">

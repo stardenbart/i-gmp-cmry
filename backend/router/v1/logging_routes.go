@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler/logginghandler"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/loggingrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/loggingusecase"
@@ -16,6 +17,7 @@ import (
 func RegisterLoggingRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, jwtManager *jwt.Manager, log *logger.Logger) {
 	loginLogRepo := loggingrepo.NewLoginLogRepository(db)
 	actLogRepo := loggingrepo.NewActivityLogRepository(db)
+	userRepo := authrepo.NewUserRepository(db)
 
 	loginLogUC := loggingusecase.NewLoginLogUseCase(loginLogRepo)
 	actLogUC := loggingusecase.NewActivityLogUseCase(actLogRepo, producer)
@@ -24,7 +26,8 @@ func RegisterLoggingRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventPro
 	actLogH := logginghandler.NewActivityLogHandler(actLogUC)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
-	logs := rg.Group("/logs", authMW)
+	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
+	logs := rg.Group("/logs", authMW, plantScopeMW)
 	{
 		logs.Get("/login", loginLogH.GetAll)
 		logs.Get("/login/:id", loginLogH.GetByID)

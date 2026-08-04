@@ -43,7 +43,7 @@ type CreateActivityLogRequest struct {
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type ActivityLogRepository interface {
-	FindAll(page, limit int, userID, moduleID, action string) ([]ActivityLog, int64, error)
+	FindAll(page, limit int, userID, moduleID, action, plantID string) ([]ActivityLog, int64, error)
 	FindByID(id string) (*ActivityLog, error)
 	Create(a *ActivityLog) error
 }
@@ -51,7 +51,7 @@ type ActivityLogRepository interface {
 // ─── UseCase Interface ─────────────────────────────────────────────────────
 
 type ActivityLogUseCase interface {
-	GetAll(page, limit int, userID, moduleID, action string) ([]ActivityLog, int64, error)
+	GetAll(page, limit int, userID, moduleID, action, plantID string) ([]ActivityLog, int64, error)
 	GetByID(id string) (*ActivityLog, error)
 	Record(ctx context.Context, req *CreateActivityLogRequest) error
 }

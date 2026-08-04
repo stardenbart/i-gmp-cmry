@@ -13,15 +13,23 @@ func NewLoginLogRepository(db *gorm.DB) logdomain.LoginLogRepository {
 	return &loginLogRepository{db: db}
 }
 
-func (r *loginLogRepository) FindAll(page, limit int, userID string) ([]logdomain.LoginLog, int64, error) {
+func (r *loginLogRepository) FindAll(page, limit int, userID, plantID string) ([]logdomain.LoginLog, int64, error) {
 	var logs []logdomain.LoginLog
 	var total int64
 	q := r.db.Model(&logdomain.LoginLog{})
 	if userID != "" {
-		q = q.Where("\"UserID\" = ?", userID)
+		q = q.Where("\"Login_Log\".\"UserID\" = ?", userID)
+	}
+	if plantID != "" {
+		q = q.Joins("JOIN \"Users\" ON \"Login_Log\".\"UserID\" = \"Users\".\"UserID\"")
+		if plantID == "GLOBAL" || plantID == "NULL" {
+			q = q.Where("\"Users\".\"PlantID\" IS NULL OR \"Users\".\"PlantID\" = ''")
+		} else {
+			q = q.Where("\"Users\".\"PlantID\" = ?", plantID)
+		}
 	}
 	q.Count(&total)
-	err := q.Order("LoginAt DESC").Offset((page - 1) * limit).Limit(limit).Find(&logs).Error
+	err := q.Order("\"LoginAt\" DESC").Offset((page - 1) * limit).Limit(limit).Find(&logs).Error
 	return logs, total, err
 }
 

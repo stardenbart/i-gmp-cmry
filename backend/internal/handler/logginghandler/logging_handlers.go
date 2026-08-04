@@ -29,7 +29,13 @@ func NewLoginLogHandler(uc logdomain.LoginLogUseCase) *LoginLogHandler {
 // @Security BearerAuth
 func (h *LoginLogHandler) GetAll(c *fiber.Ctx) error {
 	p := pagination.FromQuery(c)
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"))
+	plantID := c.Query("plant_id")
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+	if !isSuperAdmin && userPlantID != "" {
+		plantID = userPlantID
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"), plantID)
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch login logs", err.Error())
 	}
@@ -82,7 +88,13 @@ func (h *ActivityLogHandler) GetAll(c *fiber.Ctx) error {
 	if search == "" {
 		search = c.Query("action")
 	}
-	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"), c.Query("module_id"), search)
+	plantID := c.Query("plant_id")
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+	if !isSuperAdmin && userPlantID != "" {
+		plantID = userPlantID
+	}
+	items, total, err := h.uc.GetAll(p.Page, p.Limit, c.Query("user_id"), c.Query("module_id"), search, plantID)
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch activity logs", err.Error())
 	}
