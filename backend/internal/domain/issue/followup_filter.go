@@ -87,7 +87,7 @@ func (f *FollowupFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 				JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"
 				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
 				JOIN "Area_Master" am ON ih."AreaID" = am."AreaID"
-				WHERE am."PlantID" = ?
+				WHERE am."PlantID" = ? OR am."PlantID" IS NULL OR am."PlantID" = ''
 			)`,
 			f.PlantID,
 		)

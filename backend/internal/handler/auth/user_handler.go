@@ -88,6 +88,13 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body", err.Error())
 	}
+
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+	if !isSuperAdmin && userPlantID != "" {
+		req.PlantID = &userPlantID
+	}
+
 	if errs := validator.Validate(&req); errs != nil {
 		return response.BadRequest(c, "validation failed", errs)
 	}
@@ -116,6 +123,13 @@ func (h *UserHandler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body", err.Error())
 	}
+
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
+	if !isSuperAdmin && userPlantID != "" {
+		req.PlantID = &userPlantID
+	}
+
 	if errs := validator.Validate(&req); errs != nil {
 		return response.BadRequest(c, "validation failed", errs)
 	}

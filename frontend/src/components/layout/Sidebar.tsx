@@ -49,15 +49,14 @@ export function Sidebar() {
     ...(hasPermission("PERM-WOWR-R")
       ? [{ href: `${basePath}/wowr`, label: "Perintah Kerja", icon: FileBox }]
       : []),
-    // Data Inspeksi (GMP)
-    ...(hasPermission("PERM-GMP-R")
-      ? [{ href: `${basePath}/gmp-data`, label: "Data Inspeksi (GMP)", icon: ClipboardList }]
-      : []),
   ];
 
   // Admin-only management menu - strictly restricted to SuperAdmin (ROLE-000) and Admin (ROLE-001)
   const ADMIN_MENU = isAdmin
     ? [
+        ...(hasPermission("PERM-GMP-R")
+          ? [{ href: `${basePath}/gmp-data`, label: "Data Inspeksi (GMP)", icon: ClipboardList }]
+          : []),
         ...(hasPermission("PERM-MSTR-R")
           ? [{ href: `${basePath}/master`, label: "Data Induk", icon: Database }]
           : []),

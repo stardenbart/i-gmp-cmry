@@ -53,7 +53,7 @@ const statusConfig: Record<
 };
 
 /* ── Issue Card ────────────────────────────────────────────────────────── */
-function IssueCard({ issue }: { issue: Issue }) {
+function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
   const displayStatus = issue.computed_status || issue.issue_status;
   const cfg = statusConfig[displayStatus] ?? statusConfig["Open"];
   const StatusIcon = cfg.icon;
@@ -66,8 +66,10 @@ function IssueCard({ issue }: { issue: Issue }) {
       issue.issue_status !== "Closed" &&
       issue.issue_status !== "Verified");
 
+  const href = targetUrl || `issues/${issue.issue_id}`;
+
   return (
-    <Link href={`./issues/${issue.issue_id}`}>
+    <Link href={href}>
       <div
         className={cn(
           "group relative flex items-stretch gap-0 rounded-2xl border bg-card/60 backdrop-blur-md",
@@ -171,12 +173,18 @@ function IssueSkeleton() {
   );
 }
 
+import { useParams } from "next/navigation";
+
 /* ── Page ──────────────────────────────────────────────────────────────── */
 export default function IssuesPage() {
+  const paramsNav = useParams() as { plantCode?: string; userId?: string };
   const user = useAuthStore((state) => state.user);
   const { hasPermission, isLoading: isPermLoading } = usePermissions();
   const isAuditor = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
   const canAccess = hasPermission("PERM-ISS-R") || isAuditor;
+
+  const plantCode = paramsNav?.plantCode || user?.plant_id || "global";
+  const userId = paramsNav?.userId || user?.id || "overview";
 
   usePolling();
 
@@ -361,7 +369,13 @@ export default function IssuesPage() {
             </div>
           </div>
         ) : (
-          issues.map((issue) => <IssueCard key={issue.issue_id} issue={issue} />)
+          issues.map((issue) => (
+            <IssueCard 
+              key={issue.issue_id} 
+              issue={issue} 
+              targetUrl={`/cimory/${plantCode}/dashboard/${userId}/issues/${issue.issue_id}`} 
+            />
+          ))
         )}
       </div>
 

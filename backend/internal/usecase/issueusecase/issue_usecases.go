@@ -251,8 +251,11 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	}
 
 	if req.IssueStatus != "" {
-		// Validation for closing/verifying if NeedsWOWR is true
-		if (req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified) && i.NeedsWOWR {
+		// Validation for closing/verifying or requesting validation if NeedsWOWR is true
+		if (req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified || req.IssueStatus == issue.IssueStatusPendingValidation) && i.NeedsWOWR {
+			if i.WOWRStatus != issue.WOWRStatusVerified {
+				return nil, errors.New("temuan ini menggunakan WO/WR. Harap tunggu konfirmasi (persetujuan) WO/WR oleh Auditor terlebih dahulu sebelum menyelesaikan temuan")
+			}
 			hasFollowUp := false
 			photosToCheck := i.Photos
 			if len(photosToCheck) == 0 && uc.photoRepo != nil {
@@ -386,10 +389,11 @@ type issuePhotoUseCase struct {
 	storage   *storage.MinioStorage
 	cryptoSvc *crypto.Service
 	rdb       *redis.Client
+	producer  kafka.EventProducer
 }
 
-func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssuePhotoUseCase {
-	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, rdb: rdb}
+func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, rdb *redis.Client, producer kafka.EventProducer) issue.IssuePhotoUseCase {
+	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, rdb: rdb, producer: producer}
 }
 
 func (uc *issuePhotoUseCase) GetByIssueID(issueID string) ([]issue.IssuePhoto, error) {
@@ -435,17 +439,36 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 	}
 	objectName := fmt.Sprintf("issues/%s/%d%s", req.IssueID, time.Now().UnixNano(), ext)
 
-	// Stream to MinIO
+	// 1. STEP KAFKA: Publish event to Kafka event topic
+	if uc.producer != nil {
+		event := events.IssueEvent{
+			BaseEvent: events.BaseEvent{
+				EventID:   uuid.New().String(),
+				EventType: events.EventTypeUpdated,
+				Timestamp: time.Now(),
+				ActorID:   req.PICUserID,
+			},
+			IssueID: req.IssueID,
+		}
+		_ = uc.producer.PublishEvent(ctx, events.TopicAuditIssues, req.IssueID, event)
+	}
+
+	// 2. STEP REDIS: Push real-time event notification to Redis SSE eventstore
+	if uc.rdb != nil {
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
+	}
+
+	// 3. STEP MINIO: Stream & store binary image file to MinIO object storage
 	publicURL := fmt.Sprintf("/uploads/%s", objectName)
 	if uc.storage != nil {
 		uploadedURL, err := uc.storage.UploadStream(ctx, objectName, fileReader, fileSize, contentType)
 		if err != nil {
-			return nil, fmt.Errorf("failed to upload image: %w", err)
+			return nil, fmt.Errorf("failed to upload image to MinIO: %w", err)
 		}
 		publicURL = uploadedURL
 	}
 
-	// Encrypt sensitive info
+	// Encrypt sensitive info before DB persistence
 	encPublicURL := publicURL
 	if enc, err := uc.cryptoSvc.Encrypt(publicURL); err == nil {
 		encPublicURL = enc
@@ -456,13 +479,15 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 		encObjectName = enc
 	}
 
+	// 4. STEP POSTGRESQL: Save record into PostgreSQL database
 	p := &issue.IssuePhoto{
 		IssuePhotoID:   idgen.GenerateRandom(idgen.PrefixIssuePhoto),
 		IssueID:        req.IssueID,
+		RefPhotoID:     req.RefPhotoID,
 		PICUserID:      req.PICUserID,
 		PhotoType:      req.PhotoType,
 		ImageUrl:       encPublicURL,
-		FileName:       encObjectName, // we store objectName here so we can delete it later
+		FileName:       encObjectName, // store encrypted objectName for secure deletion
 		Keterangan:     req.Keterangan,
 		FollowUpDate:   req.FollowUpDate,
 		JumlahFollowUp: req.JumlahFollowUp,
@@ -471,7 +496,6 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 	if err == nil {
 		p.ImageUrl = publicURL
 		p.FileName = objectName
-		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return p, err
 }

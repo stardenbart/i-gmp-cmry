@@ -21,6 +21,7 @@ const (
 type IssuePhoto struct {
 	IssuePhotoID   string     `gorm:"column:IssuePhotoID;primaryKey" json:"issue_photo_id"`
 	IssueID        string     `gorm:"column:IssueID;not null" json:"issue_id"`
+	RefPhotoID     *string    `gorm:"column:RefPhotoID;size:20" json:"ref_photo_id,omitempty"`
 	PICUserID      string     `gorm:"column:PICUserID;not null" json:"pic_user_id"`
 	PhotoType      PhotoType  `gorm:"column:PhotoType;size:20;not null" json:"photo_type"`
 	ImageUrl       string     `gorm:"column:ImageUrl;size:255" json:"image_url"`
@@ -30,6 +31,8 @@ type IssuePhoto struct {
 	JumlahFollowUp *int       `gorm:"column:JumlahFollowUp" json:"jumlah_follow_up,omitempty"`
 	PhotoCreatedAt time.Time  `gorm:"column:PhotoCreatedAt;autoCreateTime" json:"created_at"`
 	PhotoUpdatedAt time.Time  `gorm:"column:PhotoUpdatedAt;autoUpdateTime" json:"updated_at"`
+
+	UploaderName string `gorm:"column:UploaderName;->" json:"uploader_name,omitempty"`
 }
 
 func (IssuePhoto) TableName() string { return "Issue_Photo" }
@@ -38,6 +41,7 @@ func (IssuePhoto) TableName() string { return "Issue_Photo" }
 
 type UploadPhotoRequest struct {
 	IssueID        string     `json:"issue_id" validate:"required"`
+	RefPhotoID     *string    `json:"ref_photo_id,omitempty"`
 	PICUserID      string     `json:"pic_user_id" validate:"required"`
 	PhotoType      PhotoType  `json:"photo_type" validate:"required,oneof=Initial FollowUp WOWR"`
 	Keterangan     string     `json:"keterangan"`

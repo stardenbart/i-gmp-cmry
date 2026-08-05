@@ -40,7 +40,14 @@ func NewUploadUseCase(
 
 // UploadFile handles the complete upload flow for both DOCX and image files
 func (uc *UploadUseCase) UploadFile(ctx context.Context, fileHeader *multipart.FileHeader, req *upload.UploadRequest) (*upload.UploadResponse, error) {
-	// 1. Validate file type
+	// 1. Validate and normalize file type
+	ft := strings.ToLower(strings.TrimSpace(req.FileType))
+	if ft == "initial" || ft == "followup" || ft == "wowr" || ft == "photo" || ft == "img" || ft == "image" {
+		req.FileType = upload.FileTypeImage
+	} else if ft == "docx" || ft == "doc" {
+		req.FileType = upload.FileTypeDOCX
+	}
+
 	if req.FileType != upload.FileTypeDOCX && req.FileType != upload.FileTypeImage {
 		return nil, fmt.Errorf("invalid file type: %s", req.FileType)
 	}
@@ -212,7 +219,7 @@ func (uc *UploadUseCase) validateImage(header *multipart.FileHeader, content []b
 	contentType := header.Header.Get("Content-Type")
 	if contentType != "" {
 		validType := false
-		for _, allowed := range []string{upload.ContentTypeJPEG, upload.ContentTypePNG, upload.ContentTypeGIF} {
+		for _, allowed := range []string{upload.ContentTypeJPEG, upload.ContentTypePNG, upload.ContentTypeGIF, upload.ContentTypeWebP} {
 			if contentType == allowed {
 				validType = true
 				break
@@ -242,6 +249,10 @@ func (uc *UploadUseCase) detectContentType(content []byte) string {
 		return "application/octet-stream"
 	}
 
+	// WebP (starts with RIFF and has WEBP at byte 8)
+	if len(content) >= 12 && string(content[0:4]) == "RIFF" && string(content[8:12]) == "WEBP" {
+		return upload.ContentTypeWebP
+	}
 	// JPEG
 	if content[0] == 0xFF && content[1] == 0xD8 && content[2] == 0xFF {
 		return upload.ContentTypeJPEG

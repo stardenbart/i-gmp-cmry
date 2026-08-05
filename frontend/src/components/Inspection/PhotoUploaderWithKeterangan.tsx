@@ -121,14 +121,20 @@ export function PhotoUploaderWithKeterangan({
             >
               {/* Photo Thumbnail */}
               <div className="relative group shrink-0 w-full sm:w-28 h-28 rounded-md overflow-hidden bg-muted border border-border">
-                <img
-                  src={item.previewUrl}
-                  alt={`Bukti temuan ${index + 1}`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
-                />
+                {item.previewUrl ? (
+                  <img
+                    src={item.previewUrl}
+                    alt={`Bukti temuan ${index + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-muted text-[10px] italic">
+                    Memuat foto...
+                  </div>
+                )}
                 {!disabled && (
                   <button
                     type="button"

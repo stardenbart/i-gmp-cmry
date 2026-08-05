@@ -63,6 +63,9 @@ type Issue struct {
 	AreaName          string `gorm:"column:AreaName;->" json:"area_name,omitempty"`
 	KawasanName       string `gorm:"column:KawasanName;->" json:"kawasan_name,omitempty"`
 	DetailKawasanName string `gorm:"column:DetailKawasanName;->" json:"detail_kawasan_name,omitempty"`
+	AspekName         string `gorm:"column:AspekName;->" json:"aspek_name,omitempty"`
+	DetailAspekName   string `gorm:"column:DetailAspekName;->" json:"detail_aspek_name,omitempty"`
+	UraianText        string `gorm:"column:UraianText;->" json:"uraian_text,omitempty"`
 
 	// Relations
 	Photos         []IssuePhoto    `gorm:"foreignKey:IssueID" json:"photos,omitempty"`

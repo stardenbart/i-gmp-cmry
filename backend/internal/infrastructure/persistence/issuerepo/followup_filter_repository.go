@@ -20,11 +20,13 @@ func (r *followupFilterRepository) FindFiltered(f *issue.FollowupFilter) ([]issu
 	var items []issue.Issue
 	var total int64
 
-	base := r.db.Model(&issue.Issue{})
-	base = f.ApplyTo(base)
-	base.Count(&total)
+	countBase := f.ApplyTo(r.db.Model(&issue.Issue{}))
+	if err := countBase.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
-	err := f.ApplySort(base).
+	findQuery := f.ApplyTo(r.db.Model(&issue.Issue{}))
+	err := f.ApplySort(findQuery).
 		Preload("Photos").
 		Offset((f.Page - 1) * f.Limit).
 		Limit(f.Limit).

@@ -23,12 +23,12 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
   const [inputValue, setInputValue] = useState("");
 
   const wowrMutation = useMutation({
-    mutationFn: (data: { needs_wo_wr: boolean; wo_id: string; wr_id: string }) => 
+    mutationFn: (data: { needs_wo_wr: boolean; wo_id: string; wr_id: string; wowr_status?: WOWRStatus }) => 
       issueApi.update(issue.issue_id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["issue", issue.issue_id] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
-      toast.success("Data Maintenance WO/WR berhasil disimpan.");
+      toast.success("Data Maintenance WO/WR berhasil disimpan. Harap tunggu konfirmasi Auditor.");
     },
     onError: () => toast.error("Gagal menyimpan data WO/WR."),
   });
@@ -70,11 +70,12 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
       needs_wo_wr: type === "WOWR",
       wo_id: type === "WOWR" ? inputValue : "",
       wr_id: "", // Since we use 1 input, we can just save it into wo_id
+      wowr_status: type === "WOWR" ? "PendingValidation" : "None",
     });
   };
 
-  // Only Auditees (PIC) in "InProgress" status can edit. Auditors or Auditees not yet started are read-only.
-  const isReadOnly = canEdit !== undefined ? !canEdit : isAuditor;
+  // Read-only if explicitly disabled by canEdit or if issue is closed
+  const isReadOnly = canEdit !== undefined ? !canEdit : false;
 
   return (
     <Card className="p-6 bg-card/60 backdrop-blur-md lg:col-span-1 space-y-4 h-fit">
@@ -83,8 +84,8 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
           <Wrench className="h-4 w-4 text-muted-foreground" />
           <h3 className="font-semibold">Maintenance (WO / WR)</h3>
         </div>
-        {!isAuditor && !canEdit && (
-          <span className="text-[10px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full font-medium">
+        {isReadOnly && (
+          <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-medium border border-amber-500/20" title="WO/WR dapat diisi saat pengerjaan dimulai atau oleh Auditor">
             Terkunci
           </span>
         )}
@@ -153,32 +154,35 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
           </Button>
         )}
 
-        {/* Auditor Validation Actions - show when wowr_status is PendingValidation */}
-        {isAuditor && issue.wowr_status === "PendingValidation" && (
-          <div className="mt-4 pt-4 border-t border-border/50 animate-in fade-in zoom-in-95 duration-300">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase mb-3 tracking-wider">Validasi Bukti WO/WR</h4>
-            <div className="flex gap-2">
-              <Button 
-                variant="default" 
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" 
-                size="sm"
-                onClick={() => wowrValidationMutation.mutate("Verified")}
-                isLoading={wowrValidationMutation.isPending}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-1.5" /> Setujui
-              </Button>
-              <Button 
-                variant="destructive" 
-                className="flex-1" 
-                size="sm"
-                onClick={() => wowrValidationMutation.mutate("Rejected")}
-                isLoading={wowrValidationMutation.isPending}
-              >
-                <XCircle className="h-4 w-4 mr-1.5" /> Tolak
-              </Button>
+        {/* Auditor Validation Actions - show whenever WO/WR is active and not verified yet for Auditor */}
+        {isAuditor &&
+          (type === "WOWR" || issue.needs_wo_wr || issue.wo_id || issue.wr_id) &&
+          issue.wowr_status !== "Verified" &&
+          issue.issue_status !== "Closed" && (
+            <div className="mt-4 pt-4 border-t border-border/50 animate-in fade-in zoom-in-95 duration-300">
+              <h4 className="text-xs font-bold text-muted-foreground uppercase mb-3 tracking-wider">Validasi Bukti WO/WR</h4>
+              <div className="flex gap-2">
+                <Button 
+                  variant="default" 
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold" 
+                  size="sm"
+                  onClick={() => wowrValidationMutation.mutate("Verified")}
+                  isLoading={wowrValidationMutation.isPending}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" /> Setujui
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  className="flex-1 font-bold" 
+                  size="sm"
+                  onClick={() => wowrValidationMutation.mutate("Rejected")}
+                  isLoading={wowrValidationMutation.isPending}
+                >
+                  <XCircle className="h-4 w-4 mr-1.5" /> Tolak
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
         
         {/* WOWR Status Badge */}
         {issue.needs_wo_wr && issue.wowr_status && issue.wowr_status !== "None" && (

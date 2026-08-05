@@ -36,7 +36,9 @@ export interface Infrastructure {
 export interface IssuePhoto {
   issue_photo_id: string;
   issue_id: string;
+  ref_photo_id?: string;
   pic_user_id: string;
+  uploader_name?: string;
   photo_type: PhotoType;
   image_url: string;
   file_name: string;
@@ -74,6 +76,9 @@ export interface Issue {
   area_name?: string;
   kawasan_name?: string;
   detail_kawasan_name?: string;
+  aspek_name?: string;
+  detail_aspek_name?: string;
+  uraian_text?: string;
 }
 
 export const issueApi = {

@@ -27,6 +27,7 @@ func RegisterDistributedInspectionRoutes(app *fiber.App, rg fiber.Router, db *go
 	insp := rg.Group("/inspeksi", authMW)
 	{
 		insp.Get("/:kawasanId/status", inspeksiH.GetKawasanStatus)
+		insp.Get("/:kawasanId/drafts", inspeksiH.GetAllAspekDraftState)
 		insp.Get("/:kawasanId/:aspekId/state", inspeksiH.GetDraftState)
 
 		insp.Post("/:kawasanId/:aspekId/lock", inspeksiH.AcquireLock)

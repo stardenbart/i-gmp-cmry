@@ -162,7 +162,7 @@ export const DashboardPanelAuditor = () => {
         </div>
 
         {/* Card 4 - Pending Validation */}
-        <Link href={`/cimory/all/dashboard/${user?.id}/issues?status=PendingValidation`}>
+        <Link href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id || 'overview'}/issues?status=PendingValidation`}>
           <div className="bg-card rounded-xl p-4 border border-purple-500/30 shadow-sm hover:shadow-md hover:border-purple-500/60 transition-all relative overflow-hidden cursor-pointer group">
             <div className="absolute top-0 left-0 w-full h-1 bg-purple-500"></div>
             {pendingValidationCount > 0 && (
@@ -208,7 +208,7 @@ export const DashboardPanelAuditor = () => {
                 </p>
               </div>
             </div>
-            <Link href={`/cimory/all/dashboard/${user?.id}/issues?status=PendingValidation`}>
+            <Link href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id || 'overview'}/issues?status=PendingValidation`}>
               <span className="text-xs font-semibold text-purple-600 hover:text-purple-700 dark:text-purple-400 hover:underline">
                 Lihat Semua ({pendingValidationCount}) →
               </span>
@@ -217,7 +217,7 @@ export const DashboardPanelAuditor = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
             {pendingValidationList.slice(0, 3).map((issue: any) => (
-              <Link key={issue.issue_id} href={`/cimory/all/dashboard/${user?.id}/issues/${issue.issue_id}`}>
+              <Link key={issue.issue_id} href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id || 'overview'}/issues/${issue.issue_id}`}>
                 <div className="p-3.5 rounded-xl border border-purple-500/20 bg-card hover:border-purple-500/50 hover:shadow-md transition-all cursor-pointer space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold">

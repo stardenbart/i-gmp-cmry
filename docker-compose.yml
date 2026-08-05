@@ -127,6 +127,22 @@ services:
     networks:
       - audit_network
 
+  redis:
+    image: redis:7-alpine
+    container_name: monitoring_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - audit_network
+
   backend:
     build:
       context: ./backend
@@ -142,6 +158,8 @@ services:
         condition: service_healthy
       opensearch-node1:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -152,6 +170,8 @@ services:
       DB_USER: postgres
       DB_PASSWORD: secret
       DB_NAME: monitoring_audit
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
@@ -191,6 +211,7 @@ volumes:
   minio_data:
   kafka_data:
   opensearch_data:
+  redis_data:
   backend_uploads:
   backend_logs:
 

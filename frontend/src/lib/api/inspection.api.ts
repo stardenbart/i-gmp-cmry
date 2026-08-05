@@ -70,5 +70,50 @@ export const inspectionApi = {
   getAnalyticsTrend: async (context_id: string, year?: number) => {
     const res = await api.get("/analytics/inspections-trend", { params: { context_id, year } });
     return res.data;
+  },
+
+  // Distributed Inspection Redis APIs
+  acquireLock: async (kawasanId: string, aspekId: string) => {
+    const res = await api.post(`/inspeksi/${kawasanId}/${aspekId}/lock`);
+    return res.data;
+  },
+
+  releaseLock: async (kawasanId: string, aspekId: string, lockToken: string) => {
+    const res = await api.delete(`/inspeksi/${kawasanId}/${aspekId}/lock`, {
+      headers: { "X-Lock-Token": lockToken },
+    });
+    return res.data;
+  },
+
+  saveAspekDraft: async (
+    kawasanId: string,
+    aspekId: string,
+    lockToken: string,
+    payload: {
+      data: Record<string, any>;
+      skor?: number;
+      is_final?: boolean;
+      session_id?: string;
+    }
+  ) => {
+    const res = await api.put(`/inspeksi/${kawasanId}/${aspekId}`, payload, {
+      headers: { "X-Lock-Token": lockToken },
+    });
+    return res.data;
+  },
+
+  getDraftState: async (kawasanId: string, aspekId: string) => {
+    const res = await api.get(`/inspeksi/${kawasanId}/${aspekId}/state`);
+    return res.data;
+  },
+
+  getAllDrafts: async (kawasanId: string) => {
+    const res = await api.get(`/inspeksi/${kawasanId}/drafts`);
+    return res.data;
+  },
+
+  getKawasanStatus: async (kawasanId: string) => {
+    const res = await api.get(`/inspeksi/${kawasanId}/status`);
+    return res.data;
   }
 };

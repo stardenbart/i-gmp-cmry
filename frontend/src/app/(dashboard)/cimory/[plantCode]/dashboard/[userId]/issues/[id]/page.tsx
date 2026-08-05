@@ -46,8 +46,11 @@ const STATUS_TRANSITIONS: Record<IssueStatus, { label: string; next: IssueStatus
   ClosedOverdue: [],
 };
 
+import { useRouter } from "next/navigation";
+
 export default function IssueDetailPage() {
-  const { id } = useParams() as { id: string };
+  const { id, plantCode, userId } = useParams() as { id: string; plantCode?: string; userId?: string };
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
@@ -129,19 +132,24 @@ export default function IssueDetailPage() {
     transitions = [];
   }
 
-  // Hak akses edit untuk Auditee
-  const isWorkStarted = rawStatus === "InProgress";
-  const canAuditeeEdit = isPIC && isWorkStarted;
+  // Hak akses edit untuk WO/WR & Foto FollowUp
+  const isClosed = rawStatus === "Closed" || rawStatus === "Verified" || currentStatus === "Closed" || currentStatus === "Verified";
+  const isWorkStarted = rawStatus === "InProgress" || rawStatus === "PendingValidation";
   const canAuditeeUploadFollowUp = !isPIC || isWorkStarted;
+  const canEditWOWR = !isClosed && (isAuditor || isWorkStarted);
 
   const dueDate = issue.due_date ? new Date(issue.due_date) : null;
 
   const handleStatusTransition = (nextStatus: IssueStatus) => {
     // Validasi khusus untuk PIC/Auditee saat menyelesaikan temuan
-    if (isPIC && nextStatus === "Closed") {
-      if (issue.needs_wo_wr) {
+    if (isPIC && (nextStatus === "Closed" || nextStatus === "PendingValidation")) {
+      if (issue.needs_wo_wr || issue.wo_id || issue.wr_id) {
         if (!issue.wo_id && !issue.wr_id) {
           toast.error("Gagal: Anda harus menginput Nomor WO / WR dan menyimpannya terlebih dahulu.");
+          return;
+        }
+        if (issue.wowr_status !== "Verified") {
+          toast.error("Gagal: Temuan ini menggunakan WO/WR. Harap tunggu persetujuan (konfirmasi) WO/WR oleh Auditor terlebih dahulu.");
           return;
         }
         if (followUpPhotos.length === 0) {
@@ -255,7 +263,7 @@ export default function IssueDetailPage() {
           <InfoCard issue={issue} dueDate={dueDate} />
 
           {/* WO / WR Form Card */}
-          <WOWRCard issue={issue} isAuditor={isAuditor} canEdit={canAuditeeEdit} />
+          <WOWRCard issue={issue} isAuditor={isAuditor} canEdit={canEditWOWR} />
         </div>
 
         {/* Photos Card */}
@@ -265,6 +273,9 @@ export default function IssueDetailPage() {
           uploadMutation={uploadMutation}
           deleteMutation={deleteMutation}
           setSelectedImage={setSelectedImage}
+          onNavigateDetail={(photoId) =>
+            router.push(`/cimory/${plantCode || "all"}/dashboard/${userId || user?.id}/issues/${id}/photos/${photoId}`)
+          }
           uploadProgress={uploadProgress}
           isAuditor={isAuditor}
           canUploadFollowUp={canAuditeeUploadFollowUp}

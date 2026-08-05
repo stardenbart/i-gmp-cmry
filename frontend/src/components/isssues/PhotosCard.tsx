@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, ImageIcon, Eye, Trash2, Edit, Check, X, Loader2 } from "lucide-react";
+import { Upload, ImageIcon, Eye, Trash2, Edit, Check, X, Loader2, User, Calendar } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
@@ -14,12 +14,17 @@ interface PhotoItem {
   image_url: string;
   keterangan?: string;
   file_name?: string;
+  pic_user_id?: string;
+  uploader_name?: string;
+  created_at?: string;
+  follow_up_date?: string;
 }
 
 // 2. Props untuk komponen item foto satuan
 interface PhotoCardProps {
   photo: PhotoItem;
   onPreview: () => void;
+  onNavigateDetail?: () => void;
   onDelete: () => void;
   onUpdateSuccess?: () => void;
   isDeleting: boolean;
@@ -33,6 +38,7 @@ interface PhotoCardProps {
 const PhotoCard = ({
   photo,
   onPreview,
+  onNavigateDetail,
   onDelete,
   onUpdateSuccess,
   isDeleting,
@@ -45,8 +51,6 @@ const PhotoCard = ({
   const [keteranganText, setKeteranganText] = useState(photo.keterangan || "");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Auditee (non-auditor) cannot edit or delete initial photos created by Auditor.
-  // When issue status is Closed, NO photos can be edited or deleted by anyone.
   const canEditDescription = !isClosed && (!isInitialPhoto || isAuditor);
   const canDeletePhoto = !isClosed && (!isInitialPhoto || isAuditor) && canDelete;
 
@@ -68,10 +72,18 @@ const PhotoCard = ({
     }
   };
 
+  const handleImageClick = () => {
+    if (isInitialPhoto && onNavigateDetail) {
+      onNavigateDetail();
+    } else {
+      onPreview();
+    }
+  };
+
   return (
     <div className="group relative flex flex-col rounded-2xl border border-border bg-card overflow-hidden shadow-xs hover:border-primary/50 transition-all">
       {/* Thumbnail Container */}
-      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+      <div className="relative aspect-square w-full overflow-hidden bg-muted cursor-pointer" onClick={handleImageClick}>
         <img
           src={formatImageUrl(photo.image_url)}
           alt="Dokumentasi"
@@ -83,8 +95,11 @@ const PhotoCard = ({
             size="icon"
             variant="outline"
             className="h-8 w-8 bg-black/60 border-white/20 text-white hover:bg-white hover:text-black"
-            onClick={onPreview}
-            title="Lihat Foto Full"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleImageClick();
+            }}
+            title={isInitialPhoto ? "Lihat Detail Spesifikasi Foto" : "Lihat Foto Full"}
           >
             <Eye className="h-4 w-4" />
           </Button>
@@ -95,7 +110,10 @@ const PhotoCard = ({
               size="icon"
               variant="outline"
               className="h-8 w-8 bg-black/60 border-white/20 text-white hover:bg-primary hover:text-white"
-              onClick={() => setIsEditing(!isEditing)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditing(!isEditing);
+              }}
               title="Edit Keterangan Foto"
             >
               <Edit className="h-4 w-4" />
@@ -108,7 +126,10 @@ const PhotoCard = ({
               size="icon"
               variant="destructive"
               className="h-8 w-8 shadow-md"
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
               disabled={isDeleting}
               title="Hapus Foto Ini"
             >
@@ -118,8 +139,8 @@ const PhotoCard = ({
         </div>
       </div>
 
-      {/* Keterangan & Inline Edit Box */}
-      <div className="p-3 bg-card border-t border-border/60 text-xs">
+      {/* Keterangan, PIC Penginput & Tanggal Info */}
+      <div className="p-3 bg-card border-t border-border/60 text-xs flex flex-col justify-between grow space-y-2">
         {isEditing && canEditDescription ? (
           <div className="space-y-2">
             <Input
@@ -173,6 +194,23 @@ const PhotoCard = ({
             )}
           </div>
         )}
+
+        {/* Uploader PIC & Date Badge */}
+        <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+          <span className="font-semibold flex items-center gap-1 truncate max-w-[125px] text-foreground/80" title={photo.uploader_name || photo.pic_user_id || "Pengguna"}>
+            <User className="h-3 w-3 text-primary shrink-0" />
+            <span className="truncate">{photo.uploader_name || photo.pic_user_id || "Pengguna"}</span>
+          </span>
+          {(photo.created_at || photo.follow_up_date) && (
+            <span className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
+              <Calendar className="h-3 w-3 text-muted-foreground" />
+              {new Date(photo.created_at || photo.follow_up_date!).toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "short",
+              })}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -185,6 +223,7 @@ interface PhotoSectionProps {
   uploadMutation: { isPending: boolean; mutate: (data: { file: File; type: "Initial" | "FollowUp" }) => void };
   deleteMutation: { isPending: boolean; mutate: (id: string) => void };
   setSelectedImage: (url: string) => void;
+  onNavigateDetail?: (photoId: string) => void;
   uploadProgress?: number;
   isAuditor?: boolean;
   canUploadFollowUp?: boolean;
@@ -199,6 +238,7 @@ export const PhotoSection = ({
   uploadMutation,
   deleteMutation,
   setSelectedImage,
+  onNavigateDetail,
   uploadProgress = 0,
   isAuditor = true,
   canUploadFollowUp = true,
@@ -222,45 +262,7 @@ export const PhotoSection = ({
     <Card className="p-6 bg-card/60 backdrop-blur-md lg:col-span-2 space-y-5 shadow-sm border-border/80">
       <div className="flex items-center justify-between border-b border-border pb-3">
         <h3 className="font-bold text-base">Dokumentasi Bukti Foto & Keterangan</h3>
-        <div className="flex items-center gap-2">
-          {isAuditor && !isClosed && (
-            <select
-              value={photoType}
-              onChange={(e) => setPhotoType(e.target.value as "Initial" | "FollowUp")}
-              className="h-9 rounded-xl border border-border bg-card px-3 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-            >
-              <option value="Initial">Temuan Awal</option>
-              <option value="FollowUp">Follow-Up</option>
-            </select>
-          )}
 
-          {!isClosed && (
-            <Button
-              size="sm"
-              variant="outline"
-              isLoading={uploadMutation.isPending}
-              disabled={isUploadDisabled}
-              title={
-                !isAuditor && !canUploadFollowUp
-                  ? "Klik 'Mulai Kerjakan' terlebih dahulu untuk mengunggah foto follow-up"
-                  : undefined
-              }
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-xl"
-            >
-              <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload Foto Bukti
-            </Button>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileChange}
-            disabled={isUploadDisabled}
-          />
-        </div>
       </div>
 
       {/* Progress Bar */}
@@ -279,7 +281,7 @@ export const PhotoSection = ({
         <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
           <span>Foto Bukti Temuan Awal ({initialPhotos.length})</span>
           <span className="text-label-sm font-normal normal-case text-muted-foreground">
-            Foto bukti temuan lengkap dengan keterangan
+            Klik foto untuk melihat detail spesifikasi lokasi &amp; follow-up
           </span>
         </p>
 
@@ -294,6 +296,7 @@ export const PhotoSection = ({
                 key={photo.issue_photo_id}
                 photo={photo}
                 onPreview={() => setSelectedImage(formatImageUrl(photo.image_url))}
+                onNavigateDetail={() => onNavigateDetail?.(photo.issue_photo_id)}
                 onDelete={() => deleteMutation.mutate(photo.issue_photo_id)}
                 onUpdateSuccess={onRefresh}
                 isDeleting={deleteMutation.isPending}
@@ -306,35 +309,7 @@ export const PhotoSection = ({
         )}
       </div>
 
-      {/* Follow-Up Photos */}
-      <div className="space-y-3 pt-4 border-t border-border/60">
-        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-          <span>Foto Bukti Follow-Up Perbaikan ({followUpPhotos.length})</span>
-        </p>
 
-        {followUpPhotos.length === 0 ? (
-          <div className="flex items-center justify-center h-24 rounded-2xl border border-dashed border-border text-muted-foreground text-xs">
-            <ImageIcon className="mr-2 h-4 w-4" /> Belum ada foto bukti follow-up perbaikan
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {followUpPhotos.map((photo) => (
-              <PhotoCard
-                key={photo.issue_photo_id}
-                photo={photo}
-                onPreview={() => setSelectedImage(formatImageUrl(photo.image_url))}
-                onDelete={() => deleteMutation.mutate(photo.issue_photo_id)}
-                onUpdateSuccess={onRefresh}
-                isDeleting={deleteMutation.isPending}
-                isAuditor={isAuditor}
-                isInitialPhoto={false}
-                canDelete={isAuditor || canUploadFollowUp}
-                isClosed={isClosed}
-              />
-            ))}
-          </div>
-        )}
-      </div>
     </Card>
   );
 };

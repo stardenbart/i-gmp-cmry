@@ -21,11 +21,14 @@ func (r *inspectionFilterRepository) FindFiltered(f *inspection.InspectionFilter
 	var items []inspection.InspectionHeader
 	var total int64
 
-	base := r.db.Model(&inspection.InspectionHeader{})
-	base = f.ApplyTo(base)
-	base.Count(&total)
+	countBase := r.db.Model(&inspection.InspectionHeader{})
+	countBase = f.ApplyTo(countBase)
+	if err := countBase.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
-	err := f.ApplySort(base).
+	findQuery := f.ApplyTo(r.db.Model(&inspection.InspectionHeader{}))
+	err := f.ApplySort(findQuery).
 		Select(`"Inspection_Header".*, 
 			"Area_Master"."AreaName" AS "AreaName", 
 			"Kawasan_Master"."KawasanName" AS "KawasanName", 
@@ -139,8 +142,8 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 
 	// Date range (without date filter)
 	type dateResult struct {
-		Min *time.Time
-		Max *time.Time
+		Min *time.Time `gorm:"column:min"`
+		Max *time.Time `gorm:"column:max"`
 	}
 	var dr dateResult
 	if err := baseWithout(false, false, false, false, true).

@@ -256,7 +256,7 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 
 	photoTypeStr := c.FormValue("photo_type")
 	photoType := issue.PhotoType(photoTypeStr)
-	if photoType == "" || photoType == "undefined" {
+	if photoType != issue.PhotoTypeInitial && photoType != issue.PhotoTypeFollowUp && photoType != issue.PhotoTypeWOWR {
 		photoType = issue.PhotoTypeFollowUp
 	}
 
@@ -292,8 +292,14 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 		}
 	}
 
+	var refPhotoID *string
+	if refStr := c.FormValue("ref_photo_id"); refStr != "" {
+		refPhotoID = &refStr
+	}
+
 	req := &issue.UploadPhotoRequest{
 		IssueID:        issueID,
+		RefPhotoID:     refPhotoID,
 		PICUserID:      picUserID,
 		PhotoType:      photoType,
 		Keterangan:     c.FormValue("keterangan"),

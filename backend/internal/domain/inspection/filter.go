@@ -106,54 +106,54 @@ func escapeLike(q string) string {
 // ApplyTo builds a GORM query for the inspection filter (without pagination).
 // Call this method and then apply Offset/Limit separately.
 func (f *InspectionFilter) ApplyTo(q *gorm.DB) *gorm.DB {
-	// Plant scope enforcement: non-SuperAdmin users only see inspections from their plant's areas
+	// Plant scope enforcement: non-SuperAdmin users see inspections from their plant's areas or global areas
 	if f.PlantID != "" {
 		q = q.Where(
-			`"AreaID" IN (SELECT "AreaID" FROM "Area_Master" WHERE "PlantID" = ?)`,
+			`"Inspection_Header"."AreaID" IN (SELECT "AreaID" FROM "Area_Master" WHERE "PlantID" = ? OR "PlantID" IS NULL OR "PlantID" = '')`,
 			f.PlantID,
 		)
 	}
 
 	// Scope override: auditee can only see their own inspections
 	if f.ScopeInspectorID != "" {
-		q = q.Where(`"InspectorID" = ?`, f.ScopeInspectorID)
+		q = q.Where(`"Inspection_Header"."InspectorID" = ?`, f.ScopeInspectorID)
 	}
 
 	// Exact match filters
 	if len(f.StatusIn) > 0 {
-		q = q.Where(`"InspectionHeaderStatus" IN ?`, f.StatusIn)
+		q = q.Where(`"Inspection_Header"."InspectionHeaderStatus" IN ?`, f.StatusIn)
 	} else if f.Status != "" {
-		q = q.Where(`"InspectionHeaderStatus" = ?`, f.Status)
+		q = q.Where(`"Inspection_Header"."InspectionHeaderStatus" = ?`, f.Status)
 	}
 
 	if len(f.AreaIDIn) > 0 {
-		q = q.Where(`"AreaID" IN ?`, f.AreaIDIn)
+		q = q.Where(`"Inspection_Header"."AreaID" IN ?`, f.AreaIDIn)
 	} else if f.AreaID != "" {
-		q = q.Where(`"AreaID" = ?`, f.AreaID)
+		q = q.Where(`"Inspection_Header"."AreaID" = ?`, f.AreaID)
 	}
 
 	if len(f.KawasanIDIn) > 0 {
-		q = q.Where(`"KawasanID" IN ?`, f.KawasanIDIn)
+		q = q.Where(`"Inspection_Header"."KawasanID" IN ?`, f.KawasanIDIn)
 	} else if f.KawasanID != "" {
-		q = q.Where(`"KawasanID" = ?`, f.KawasanID)
+		q = q.Where(`"Inspection_Header"."KawasanID" = ?`, f.KawasanID)
 	}
 
 	if f.DetailKawasanID != "" {
-		q = q.Where(`"DetailKawasanID" = ?`, f.DetailKawasanID)
+		q = q.Where(`"Inspection_Header"."DetailKawasanID" = ?`, f.DetailKawasanID)
 	}
 
 	if len(f.InspectorIDIn) > 0 {
-		q = q.Where(`"InspectorID" IN ?`, f.InspectorIDIn)
+		q = q.Where(`"Inspection_Header"."InspectorID" IN ?`, f.InspectorIDIn)
 	} else if f.InspectorID != "" {
-		q = q.Where(`"InspectorID" = ?`, f.InspectorID)
+		q = q.Where(`"Inspection_Header"."InspectorID" = ?`, f.InspectorID)
 	}
 
 	// Date range
 	if f.DateFrom != nil {
-		q = q.Where(`"InspectionHeaderCreatedAt" >= ?`, f.DateFrom)
+		q = q.Where(`"Inspection_Header"."InspectionHeaderCreatedAt" >= ?`, f.DateFrom)
 	}
 	if f.DateTo != nil {
-		q = q.Where(`"InspectionHeaderCreatedAt" <= ?`, f.DateTo)
+		q = q.Where(`"Inspection_Header"."InspectionHeaderCreatedAt" <= ?`, f.DateTo)
 	}
 
 	// Free-text search on InspectionID, SessionID, AreaName, KawasanName, DetailKawasanName

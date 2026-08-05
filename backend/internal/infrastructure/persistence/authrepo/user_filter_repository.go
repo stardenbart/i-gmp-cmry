@@ -20,11 +20,13 @@ func (r *userFilterRepository) FindFiltered(f *authdomain.UserFilter) ([]authdom
 	var items []authdomain.User
 	var total int64
 
-	base := r.db.Model(&authdomain.User{})
-	base = f.ApplyTo(base)
-	base.Count(&total)
+	countBase := f.ApplyTo(r.db.Model(&authdomain.User{}))
+	if err := countBase.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
-	err := f.ApplySort(base).
+	findQuery := f.ApplyTo(r.db.Model(&authdomain.User{}))
+	err := f.ApplySort(findQuery).
 		Preload("Role").
 		Preload("PICMappings").
 		Offset((f.Page - 1) * f.Limit).

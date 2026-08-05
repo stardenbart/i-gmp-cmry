@@ -92,13 +92,19 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 			am."AreaName" AS "AreaName", 
 			km."KawasanName" AS "KawasanName", 
 			dkm."DetailKawasanName" AS "DetailKawasanName", 
-			u."FullName" AS "PICName"`).
+			u."FullName" AS "PICName",
+			asp."AspekName" AS "AspekName",
+			dm."DetailName" AS "DetailAspekName",
+			um."UraianText" AS "UraianText"`).
 		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
 		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
 		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue"."IssuePICUserID"`).
+		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
+		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
+		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
 		Preload("Photos").
 		Preload("Habit").
 		Preload("Equipment").
@@ -125,12 +131,18 @@ func (r *issueRepository) Delete(id string) error {
 type issuePhotoRepository struct{ db *gorm.DB }
 
 func NewIssuePhotoRepository(db *gorm.DB) issue.IssuePhotoRepository {
+	_ = db.AutoMigrate(&issue.IssuePhoto{})
 	return &issuePhotoRepository{db: db}
 }
 
 func (r *issuePhotoRepository) FindByIssueID(issueID string) ([]issue.IssuePhoto, error) {
 	var items []issue.IssuePhoto
-	err := r.db.Where("\"IssueID\" = ?", issueID).Order(`"PhotoCreatedAt" ASC`).Find(&items).Error
+	err := r.db.Model(&issue.IssuePhoto{}).
+		Select(`"Issue_Photo".*, COALESCE(u."FullName", "Issue_Photo"."PICUserID") AS "UploaderName"`).
+		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue_Photo"."PICUserID"`).
+		Where(`"Issue_Photo"."IssueID" = ?`, issueID).
+		Order(`"Issue_Photo"."PhotoCreatedAt" ASC`).
+		Find(&items).Error
 	return items, err
 }
 

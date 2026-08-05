@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Save, Loader2, Play } from "lucide-react";
 import Link from "next/link";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { inspectionApi } from "@/lib/api/inspection.api";
@@ -22,6 +23,7 @@ interface CreateFormValues {
 export default function CreateInspectionPage() {
   const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { userId, plantCode } = useParams() as { userId: string; plantCode?: string };
   const [isLoading, setIsLoading] = useState(false);
   const [isAreasLoading, setIsAreasLoading] = useState(true);
@@ -122,7 +124,9 @@ export default function CreateInspectionPage() {
       } else {
         toast.success("Inspeksi berhasil dibuat");
       }
-      router.push(`/cimory/${plantCode}/dashboard/${userId}/inspections/${inspectionData.inspection_id}`);
+      await queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
+      router.push(`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections/${inspectionData.inspection_id}`);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Gagal membuat inspeksi");
     } finally {

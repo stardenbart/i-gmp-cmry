@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -212,5 +214,41 @@ func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
 		"success":   true,
 		"draft":     draft,
 		"lock_info": lockInfo,
+	})
+}
+
+// GetAllAspekDraftState - GET /api/v1/inspeksi/:kawasanId/drafts
+func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
+	kawasanID := c.Params("kawasanId")
+
+	drafts := make(map[string]map[string]string)
+	if h.rdb != nil {
+		pattern := fmt.Sprintf("state:aspek:%s:*", kawasanID)
+		keys, err := h.rdb.Keys(c.Context(), pattern).Result()
+		if err == nil && len(keys) > 0 {
+			// Batch Pipeline to read all Redis hashes in a single round-trip chunk
+			pipe := h.rdb.Pipeline()
+			cmds := make(map[string]*redis.MapStringStringCmd)
+			for _, key := range keys {
+				parts := strings.Split(key, ":")
+				if len(parts) >= 4 {
+					aspekID := parts[3]
+					cmds[aspekID] = pipe.HGetAll(c.Context(), key)
+				}
+			}
+			_, _ = pipe.Exec(c.Context())
+
+			for aspekID, cmd := range cmds {
+				draft, err := cmd.Result()
+				if err == nil && len(draft) > 0 {
+					drafts[aspekID] = draft
+				}
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    drafts,
 	})
 }

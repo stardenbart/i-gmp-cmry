@@ -32,7 +32,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 
 	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient)
 	issueDelegateUC := issueusecase.NewIssueDelegateUseCase(issueDelegateRepo)
-	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, redisClient)
+	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, redisClient, producer)
 
 	// Filter usecases
 	issueFilterRepo := issuerepo.NewIssueFilterRepository(db)

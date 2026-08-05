@@ -108,6 +108,18 @@ export default function UsersPage() {
   const user = useAuthStore((state) => state.user);
   const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
   const mounted = useMounted();
+  const isSuperAdmin =
+    user?.role_id === "ROLE-000" ||
+    user?.role_id === "SUPERADMIN" ||
+    user?.role?.role_name === "Super Admin" ||
+    !user?.plant_id;
+
+  // Auto-set plantFilter to user's plant for non-SuperAdmin
+  useEffect(() => {
+    if (!isSuperAdmin && user?.plant_id) {
+      setPlantFilter(user.plant_id);
+    }
+  }, [isSuperAdmin, user?.plant_id]);
   const queryClient = useQueryClient();
 
   const [page, setPage] = useState(1);
@@ -260,6 +272,11 @@ export default function UsersPage() {
     data['pic_kawasan_ids'] = picKawasanIds;
     data['pic_kategori'] = picKategori;
 
+    // Enforce plant_id for non-SuperAdmin Admin users
+    if (!isSuperAdmin && user?.plant_id) {
+      data['plant_id'] = user.plant_id;
+    }
+
     if (editingItem) updateMutation.mutate(data);
     else createMutation.mutate(data);
   };
@@ -318,20 +335,22 @@ export default function UsersPage() {
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             </div>
-            <div className="relative">
-              <select
-                className="text-sm bg-background appearance-none border border-border rounded-md pl-3 pr-8 py-2 outline-none"
-                value={plantFilter}
-                onChange={(e) => { setPlantFilter(e.target.value); setPage(1); }}
-              >
-                <option value="ALL">Semua Plant</option>
-                <option value="GLOBAL">Global (SuperAdmin)</option>
-                {plantsList.map((p: any) => (
-                  <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            </div>
+            {isSuperAdmin && (
+              <div className="relative">
+                <select
+                  className="text-sm bg-background appearance-none border border-border rounded-md pl-3 pr-8 py-2 outline-none"
+                  value={plantFilter}
+                  onChange={(e) => { setPlantFilter(e.target.value); setPage(1); }}
+                >
+                  <option value="ALL">Semua Plant</option>
+                  <option value="GLOBAL">Global (SuperAdmin)</option>
+                  {plantsList.map((p: any) => (
+                    <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+            )}
             <div className="relative">
               <select
                 className="text-sm bg-background appearance-none border border-border rounded-md pl-3 pr-8 py-2 outline-none"
@@ -491,16 +510,20 @@ export default function UsersPage() {
                 </div>
               </div>
 
-              <div className="col-span-2 md:col-span-1">
-                <label className="text-sm font-medium mb-1 block">Plant (Pabrik)</label>
-                <div className="relative">
-                  <select name="plant_id" defaultValue={editingItem?.plant_id || ""} className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                    <option value="">Semua Plant (Global / SuperAdmin)</option>
-                    {plantsList.map((p: any) => <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              {isSuperAdmin ? (
+                <div className="col-span-2 md:col-span-1">
+                  <label className="text-sm font-medium mb-1 block">Plant (Pabrik)</label>
+                  <div className="relative">
+                    <select name="plant_id" defaultValue={editingItem?.plant_id || ""} className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                      <option value="">Semua Plant (Global / SuperAdmin)</option>
+                      {plantsList.map((p: any) => <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <input type="hidden" name="plant_id" value={editingItem?.plant_id || user?.plant_id || ""} />
+              )}
 
               {editingItem && (
                 <div className="col-span-2">

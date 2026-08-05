@@ -13,7 +13,7 @@ const (
 
 // Allowed extensions
 var AllowedDOCXExtensions = []string{".docx"}
-var AllowedImageExtensions = []string{".jpg", ".jpeg", ".png", ".gif"}
+var AllowedImageExtensions = []string{".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 // Max file sizes
 const (

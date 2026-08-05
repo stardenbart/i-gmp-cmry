@@ -1,18 +1,17 @@
-"use client";
-
 import { useState, useCallback, useDeferredValue } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import {
   Plus, Search, ClipboardCheck, ChevronLeft, ChevronRight,
-  X, PlayCircle, ArrowRight, Clock, CheckCircle2, AlertCircle, RotateCcw,
+  X, PlayCircle, ArrowRight, Clock, CheckCircle2, AlertCircle, RotateCcw, Trash2, Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { InspectionHeader } from "@/lib/api/inspection.api";
+import { inspectionApi, InspectionHeader } from "@/lib/api/inspection.api";
 import { filterApi, InspectionFilterParams, InspectionFacets } from "@/lib/api/filter.api";
 import { useAuditorGuard } from "@/lib/useAdminGuard";
 import { useAuthStore } from "@/stores/authStore";
@@ -53,7 +52,17 @@ function InspectionSkeleton() {
 }
 
 // ── My Task Card ──────────────────────────────────────────────────────────
-function MyTaskCard({ inspection, userId, plantCode }: { inspection: any; userId: string; plantCode?: string }) {
+function MyTaskCard({
+  inspection,
+  userId,
+  plantCode,
+  onDelete,
+}: {
+  inspection: any;
+  userId: string;
+  plantCode?: string;
+  onDelete?: (id: string, name: string) => void;
+}) {
   const elapsed = (() => {
     const diff = Date.now() - new Date(inspection.created_at).getTime();
     const h = Math.floor(diff / 3_600_000);
@@ -63,14 +72,14 @@ function MyTaskCard({ inspection, userId, plantCode }: { inspection: any; userId
   })();
 
   return (
-    <Link href={`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections/${inspection.inspection_id}`}>
-      <div className="group relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-card/60 to-orange-500/5 p-4 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300 cursor-pointer">
-        {/* Animated glow dot */}
-        <span className="absolute top-3.5 right-3.5 flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
-        </span>
+    <div className="group relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-card/60 to-orange-500/5 p-4 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300">
+      {/* Animated glow dot */}
+      <span className="absolute top-3.5 right-3.5 flex h-2.5 w-2.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+      </span>
 
+      <Link href={`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections/${inspection.inspection_id}`}>
         <div className="flex items-start gap-3">
           <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0 group-hover:bg-amber-500/25 transition-colors">
             <PlayCircle className="h-5 w-5 text-amber-500" />
@@ -90,21 +99,68 @@ function MyTaskCard({ inspection, userId, plantCode }: { inspection: any; userId
             </div>
           </div>
         </div>
+      </Link>
 
-        <div className="mt-3 pt-3 border-t border-amber-500/15 flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[70%]">
-            {inspection.inspection_id}
-          </span>
-          <span className="flex items-center gap-1 text-label-sm font-semibold text-amber-600 dark:text-amber-400 group-hover:gap-2 transition-all">
-            Lanjutkan <ArrowRight className="h-3 w-3" />
-          </span>
+      <div className="mt-3 pt-3 border-t border-amber-500/15 flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[55%]">
+          {inspection.inspection_id}
+        </span>
+        <div className="flex items-center gap-2">
+          {onDelete && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete(inspection.inspection_id, inspection.detail_kawasan_name || inspection.inspection_id);
+              }}
+              className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
+              title="Hapus Inspeksi"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Link href={`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections/${inspection.inspection_id}`}>
+            <span className="flex items-center gap-1 text-label-sm font-semibold text-amber-600 dark:text-amber-400 group-hover:gap-2 transition-all">
+              Lanjutkan <ArrowRight className="h-3 w-3" />
+            </span>
+          </Link>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────
+export default function InspectionsPage() {
+  const user = useAuthStore(state => state.user);
+  const { plantCode } = useParams() as { plantCode?: string };
+  const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
+  const queryClient = useQueryClient();
+
+  // Filter state
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const deferredQ = useDeferredValue(q);
+
+  // Delete modal state
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => inspectionApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
+      setDeleteTarget(null);
+      toast.success("Inspeksi berhasil dihapus");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || "Gagal menghapus inspeksi");
+    },
+  });�──────────────────────────────
 export default function InspectionsPage() {
   const user = useAuthStore(state => state.user);
   const { plantCode } = useParams() as { plantCode?: string };
@@ -116,9 +172,8 @@ export default function InspectionsPage() {
   const [page, setPage] = useState(1);
   const deferredQ = useDeferredValue(q);
 
-  // ── Query: My ongoing tasks ──────────────────────────────────────────────
+  // ── Query: My ongoing tasks (all ongoing inspections in user's plant) ──
   const myTasksParams: InspectionFilterParams = {
-    inspector_id: user?.id,
     status: "Ongoing",
     limit: 20,
     sort_by: "created_at",
@@ -129,7 +184,9 @@ export default function InspectionsPage() {
     queryKey: ["my-ongoing-inspections", user?.id],
     queryFn: () => filterApi.inspections(myTasksParams),
     enabled: !isGuardLoading && isAuditor && !!user?.id,
-    refetchInterval: 30_000, // refresh every 30s
+    refetchInterval: 15_000, // refresh every 15s
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const myTasks: any[] = myTasksData?.items ?? [];
@@ -148,6 +205,8 @@ export default function InspectionsPage() {
     queryKey: ["inspections-filter", params],
     queryFn: () => filterApi.inspections(params),
     enabled: !isGuardLoading && isAuditor,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const items: InspectionHeader[] = data?.items ?? [];
