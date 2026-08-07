@@ -17,6 +17,11 @@ export const store = configureStore({
     gmpFilter: gmpFilterReducer,
     settings: settingsReducer,
   },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+      immutableCheck: false,
+    }),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
