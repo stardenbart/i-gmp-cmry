@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ShieldAlert } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 import { useMounted } from "@/lib/useMounted";
@@ -38,11 +39,11 @@ export function MasterLayout() {
 
   const currentTab = MASTER_TABS.find((tab) => tab.id === activeTab)!;
 
-  // Main table query
+  // Main table query — only run when user has PERM-MSTR-R access
   const { data, isLoading } = useQuery({
     queryKey: ["master", activeTab, page, debouncedSearchQuery],
     queryFn: () => fetchItems(currentTab.endpoint, page, debouncedSearchQuery),
-    enabled: mounted && !!user,
+    enabled: mounted && !!user && !isGuardLoading && isAdmin,
   });
 
   const items = data?.items || [];
@@ -234,19 +235,18 @@ export function MasterLayout() {
 
   if (!isGuardLoading && !isAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-100 space-y-4">
-        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+      <div className="flex flex-col items-center justify-center min-h-[400px] py-12 px-4 space-y-4 text-center w-full max-w-lg mx-auto">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
           <ShieldAlert className="h-8 w-8 text-destructive" />
         </div>
-        <h2 className="text-xl font-semibold">Akses Ditolak</h2>
-        <p className="text-muted-foreground text-center max-w-md">
-          Anda tidak memiliki izin untuk mengakses halaman Master Data.
-          Hanya administrator yang dapat mengakses halaman ini.
+        <h2 className="text-xl font-semibold text-foreground">Akses Ditolak</h2>
+        <p className="text-sm text-muted-foreground text-center leading-relaxed w-full">
+          Anda tidak memiliki izin untuk mengakses halaman Master Data. Hanya administrator yang dapat mengakses halaman ini.
         </p>
         {mounted && user && (
-          <Button variant="outline" asChild>
-            <a href={`/cimory/${user.plant_id || 'global'}/dashboard/${user.id}`}>Kembali ke Dashboard</a>
-          </Button>
+          <Link href={`/cimory/${user.plant_id || 'global'}/dashboard/${user.id || (user as any).user_id}`}>
+            <Button variant="outline" className="rounded-xl px-6">Kembali ke Dashboard</Button>
+          </Link>
         )}
       </div>
     );

@@ -85,8 +85,9 @@ const PhotoCard = ({
       {/* Thumbnail Container */}
       <div className="relative aspect-square w-full overflow-hidden bg-muted cursor-pointer" onClick={handleImageClick}>
         <img
-          src={formatImageUrl(photo.image_url)}
+          src={formatImageUrl(photo.image_url) || "/placeholder.png"}
           alt="Dokumentasi"
+          onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
           className="h-full w-full object-cover transition-transform group-hover:scale-105"
         />
         {/* Overlay Menu Saat Hover */}

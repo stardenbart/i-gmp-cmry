@@ -356,5 +356,6 @@ function SearchLatencyModalPortaled({
     </div>
   );
 
+  if (!mounted || typeof window === "undefined") return null;
   return createPortal(modalContent, document.body);
 }

@@ -304,8 +304,9 @@ export default function IssueDetailPage() {
               <XCircle className="h-7 w-7" />
             </Button>
             <img
-              src={formatImageUrl(selectedImage)}
+              src={formatImageUrl(selectedImage) || "/placeholder.png"}
               alt="Preview"
+              onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
               className="rounded-2xl max-h-[80vh] w-full object-contain"
             />
           </div>
@@ -331,6 +332,7 @@ function PhotoCard({
       <img
         src={formatImageUrl(photo.image_url) || "/placeholder.png"}
         alt={photo.file_name}
+        onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
         className="h-full w-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
         onClick={onPreview}
       />

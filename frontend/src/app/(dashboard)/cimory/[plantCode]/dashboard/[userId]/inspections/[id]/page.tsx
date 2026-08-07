@@ -15,6 +15,9 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Info,
   Lock,
   Unlock,
   Layers,
@@ -80,6 +83,7 @@ export default function InspectionDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -719,42 +723,41 @@ export default function InspectionDetailPage() {
       : detailsList;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-16 sm:pb-12">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
           <Link href={`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections`}>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0 h-9 w-9">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold tracking-tight">Detail Inspeksi</h2>
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusClass}`}>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg sm:text-2xl font-bold tracking-tight">Detail Inspeksi</h2>
+              <span className={`text-[11px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0 ${statusClass}`}>
                 {isOngoing ? "● Ongoing" : inspection.status}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              ID: <span className="font-mono">{inspection.inspection_id}</span> · Dimulai oleh{" "}
-              <strong className="text-foreground">{inspection.inspector_name || inspection.inspector_id}</strong>
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 truncate">
+              ID: <span className="font-mono">{inspection.inspection_id}</span> · <strong className="text-foreground">{inspection.inspector_name || inspection.inspector_id}</strong>
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-1.5 sm:flex sm:items-center sm:gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full">
           {isCompleted && isAuditor && isSamePlant && (
             <Button
               onClick={handleReopenForEdit}
               disabled={isReopening}
               variant="outline"
-              className="col-span-2 sm:col-span-1 w-full sm:w-auto h-8 sm:h-9 px-2.5 sm:px-4 text-[11px] sm:text-xs border-primary text-primary hover:bg-primary/5 rounded-lg sm:rounded-full font-semibold"
+              className="flex-1 sm:flex-none h-9 px-3 sm:px-4 text-xs border-primary text-primary hover:bg-primary/5 rounded-xl font-semibold"
             >
               {isReopening ? (
-                <Loader2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin" />
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Edit className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                <Edit className="mr-1.5 h-3.5 w-3.5" />
               )}
               Edit Inspeksi
             </Button>
@@ -779,7 +782,7 @@ export default function InspectionDetailPage() {
                     }
                   }}
                   disabled={isSaving}
-                  className="w-full sm:w-auto h-8 sm:h-9 px-2.5 sm:px-4 text-[11px] sm:text-xs border-muted-foreground/40 text-muted-foreground hover:bg-muted rounded-lg sm:rounded-full font-medium"
+                  className="flex-1 sm:flex-none h-9 px-3 text-xs border-muted-foreground/40 text-muted-foreground hover:bg-muted rounded-xl font-medium"
                 >
                   Batal Edit
                 </Button>
@@ -788,24 +791,24 @@ export default function InspectionDetailPage() {
                   variant="destructive"
                   onClick={() => dispatch(setShowCancelDialog(true))}
                   disabled={isSaving || isCanceling}
-                  className="w-full sm:w-auto h-8 sm:h-9 px-2 sm:px-3 text-[11px] sm:text-xs bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg sm:rounded-full shadow-xs whitespace-nowrap"
+                  className="flex-1 sm:flex-none h-9 px-3 text-xs bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-xs whitespace-nowrap"
                 >
-                  <Trash2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" /> Batalkan Inspeksi
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5 shrink-0" /> Batalkan
                 </Button>
               )}
 
               <Button
                 onClick={handleSubmit(onFinalSubmit)}
                 disabled={isSaving || isCanceling}
-                className="w-full sm:w-auto h-8 sm:h-9 px-2 sm:px-3 text-[11px] sm:text-xs bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg sm:rounded-full shadow-xs whitespace-nowrap"
+                className="flex-1 sm:flex-none h-9 px-3 text-xs bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl shadow-xs whitespace-nowrap"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin shrink-0" /> Simpan...
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin shrink-0" /> Simpan...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" /> Selesaikan Audit
+                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5 shrink-0" /> Selesaikan Audit
                   </>
                 )}
               </Button>
@@ -844,45 +847,75 @@ export default function InspectionDetailPage() {
         />
       )}
 
-      {/* Grid Content */}
+      {/* Grid Content: Checklist first on mobile (order-1), Info Card second (order-2) */}
       <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
-        {/* Info Card */}
-        <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md md:col-span-1 h-fit md:sticky md:top-24 shadow-xs border-border/80 rounded-2xl sm:rounded-3xl">
-          <h3 className="font-bold text-xs sm:text-base mb-3 sm:mb-4 border-b border-border pb-2 flex items-center justify-between">
-            <span>Informasi Area</span>
-            <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">Audit Session</span>
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-1 gap-2.5 sm:gap-3.5 text-xs sm:text-sm">
+        {/* Info Card — Collapsible on mobile, sticky sidebar on desktop */}
+        <Card className="p-3.5 sm:p-5 bg-card/70 backdrop-blur-md md:col-span-1 h-fit md:sticky md:top-24 shadow-xs border-border/80 rounded-2xl order-2 md:order-1 transition-all">
+          {/* Header Bar with Collapsible Toggle for Mobile */}
+          <div className="flex items-center justify-between border-b border-border pb-2 md:pb-2.5">
+            <button
+              type="button"
+              onClick={() => setIsInfoOpen(!isInfoOpen)}
+              className="flex items-center gap-2 text-left w-full justify-between md:cursor-default"
+            >
+              <div className="flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-primary shrink-0" />
+                <h3 className="font-bold text-xs sm:text-sm text-foreground">Informasi Area</h3>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground font-normal hidden sm:inline">Audit Session</span>
+                <div className="md:hidden p-1 rounded-md hover:bg-muted text-muted-foreground">
+                  {isInfoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </div>
+              </div>
+            </button>
+          </div>
+
+          {/* Compact summary pill when collapsed on mobile */}
+          {!isInfoOpen && (
+            <div className="md:hidden pt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+              <span className="truncate max-w-[200px]">
+                <strong className="text-foreground">{inspection.area_name || inspection.area_id}</strong> · {inspection.kawasan_name || inspection.kawasan_id}
+              </span>
+              <span className="text-primary font-bold shrink-0">{overallProgress.percent}%</span>
+            </div>
+          )}
+
+          {/* Expanded Content Grid */}
+          <div className={cn(
+            "grid grid-cols-2 md:grid-cols-1 gap-2.5 sm:gap-3 text-xs pt-2.5 md:pt-3",
+            !isInfoOpen && "hidden md:grid"
+          )}>
             <div>
-              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Area</span>
-              <span className="font-semibold text-foreground truncate block">{inspection.area_name || inspection.area_id}</span>
+              <span className="text-muted-foreground block text-[10px] font-medium uppercase tracking-wide">Area</span>
+              <span className="font-semibold text-foreground text-xs sm:text-sm leading-snug break-words">{inspection.area_name || inspection.area_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Kawasan</span>
-              <span className="font-semibold text-foreground truncate block">{inspection.kawasan_name || inspection.kawasan_id}</span>
+              <span className="text-muted-foreground block text-[10px] font-medium uppercase tracking-wide">Kawasan</span>
+              <span className="font-semibold text-foreground text-xs sm:text-sm leading-snug break-words">{inspection.kawasan_name || inspection.kawasan_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Detail Kawasan</span>
-              <span className="font-semibold text-foreground truncate block">{inspection.detail_kawasan_name || inspection.detail_kawasan_id}</span>
+              <span className="text-muted-foreground block text-[10px] font-medium uppercase tracking-wide">Detail Kawasan</span>
+              <span className="font-semibold text-foreground text-xs sm:text-sm leading-snug break-words">{inspection.detail_kawasan_name || inspection.detail_kawasan_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Auditor Pelaksana</span>
-              <span className="font-semibold text-foreground truncate block">{inspection.inspector_name || inspection.inspector_id}</span>
+              <span className="text-muted-foreground block text-[10px] font-medium uppercase tracking-wide">Auditor</span>
+              <span className="font-semibold text-foreground text-xs sm:text-sm leading-snug break-words">{inspection.inspector_name || inspection.inspector_id}</span>
             </div>
             {inspection.score !== undefined && inspection.score !== null && (
-              <div className="col-span-2 sm:col-span-1 pt-2 border-t border-border">
-                <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Skor Hasil Inspeksi</span>
-                <span className={`text-base sm:text-lg font-bold ${inspection.score >= 80 ? "text-green-600" : "text-amber-600"}`}>
+              <div className="col-span-2 md:col-span-1 pt-2 border-t border-border">
+                <span className="text-muted-foreground block text-[10px] font-medium uppercase tracking-wide">Skor Inspeksi</span>
+                <span className={`text-lg font-bold ${inspection.score >= 80 ? "text-green-600" : "text-amber-600"}`}>
                   {inspection.score.toFixed(1)}%
                 </span>
               </div>
             )}
 
-            {/* Overall Inspection Completion Progress Bar */}
-            <div className="col-span-2 sm:col-span-1 pt-2 sm:pt-3 border-t border-border space-y-1 sm:space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] sm:text-xs">
+            {/* Overall Progress Bar */}
+            <div className="col-span-2 md:col-span-1 pt-2 border-t border-border space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground font-medium">Progres Penilaian</span>
-                <span className="font-bold text-primary">{overallProgress.answered} / {overallProgress.total} ({overallProgress.percent}%)</span>
+                <span className="font-bold text-primary">{overallProgress.answered}/{overallProgress.total} ({overallProgress.percent}%)</span>
               </div>
               <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                 <div
@@ -894,8 +927,8 @@ export default function InspectionDetailPage() {
           </div>
         </Card>
 
-        {/* Checklist Form with 3-Tier Navigation (Aspek -> Detail Aspek -> Uraian) */}
-        <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-xs border-border/80 space-y-4 sm:space-y-6 rounded-2xl sm:rounded-3xl">
+        {/* Checklist Form Card — First priority on mobile (order-1) */}
+        <Card className="p-3.5 sm:p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-xs border-border/80 space-y-4 sm:space-y-6 rounded-2xl sm:rounded-3xl order-1 md:order-2">
           {/* Header Title */}
           <div className="flex items-center justify-between border-b border-border pb-2.5 sm:pb-3">
             <div className="flex items-center gap-2">
@@ -912,59 +945,63 @@ export default function InspectionDetailPage() {
             </div>
           ) : (
             <form className="space-y-4 sm:space-y-6">
-              {/* LEVEL 1: Interactive Horizontal Aspek Tabs Bar */}
+              {/* LEVEL 1: Interactive Horizontal Aspek Tabs Bar with Scroll Hint */}
               <div className="space-y-1.5">
                 <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
                   Langkah 1: Pilih Aspek Audit
                 </span>
-                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 border-b border-border scrollbar-none">
-                  {aspeksList.map((aspek: any, idx: number) => {
-                    const isCurrent = idx === activeAspekIndex;
-                    const { answered, total, isComplete } = getAspekProgress(aspek);
+                <div className="relative">
+                  <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 border-b border-border scrollbar-none snap-x snap-mandatory">
+                    {aspeksList.map((aspek: any, idx: number) => {
+                      const isCurrent = idx === activeAspekIndex;
+                      const { answered, total, isComplete } = getAspekProgress(aspek);
 
-                    return (
-                      <button
-                        key={aspek.aspek_id || idx}
-                        type="button"
-                        onClick={() => {
-                          dispatch(setActiveAspekIndex(idx));
-                          dispatch(setActiveDetailIndex(0));
-                          updateUrlParams(aspek.aspek_id, null);
-                        }}
-                        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
-                          isCurrent
-                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                            : isComplete
-                            ? "bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20"
-                            : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-                        }`}
-                      >
-                        <span
-                          className={`h-4.5 w-4.5 sm:h-5 sm:w-5 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${
+                      return (
+                        <button
+                          key={aspek.aspek_id || idx}
+                          type="button"
+                          onClick={() => {
+                            dispatch(setActiveAspekIndex(idx));
+                            dispatch(setActiveDetailIndex(0));
+                            updateUrlParams(aspek.aspek_id, null);
+                          }}
+                          className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all shrink-0 snap-start min-h-[40px] ${
                             isCurrent
-                              ? "bg-primary-foreground text-primary"
+                              ? "bg-primary text-primary-foreground border-primary shadow-xs"
                               : isComplete
-                              ? "bg-green-600 text-white"
-                              : "bg-muted text-muted-foreground"
+                              ? "bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20"
+                              : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                           }`}
                         >
-                          {isComplete ? "✓" : idx + 1}
-                        </span>
-                        <span className="truncate max-w-[110px] sm:max-w-[140px]">{aspek.aspek_name}</span>
-                        <span
-                          className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                            isCurrent
-                              ? "bg-primary-foreground/20 text-primary-foreground font-bold"
-                              : isComplete
-                              ? "bg-green-500/20 text-green-700 font-bold"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {answered}/{total}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          <span
+                            className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                              isCurrent
+                                ? "bg-primary-foreground text-primary"
+                                : isComplete
+                                ? "bg-green-600 text-white"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {isComplete ? "✓" : idx + 1}
+                          </span>
+                          <span className="truncate max-w-[120px] sm:max-w-[150px]">{aspek.aspek_name}</span>
+                          <span
+                            className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                              isCurrent
+                                ? "bg-primary-foreground/20 text-primary-foreground font-bold"
+                                : isComplete
+                                ? "bg-green-500/20 text-green-700 font-bold"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {answered}/{total}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Visual gradient overlay hint for horizontal scroll on mobile */}
+                  <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-6 bg-gradient-to-l from-card to-transparent sm:hidden" />
                 </div>
               </div>
 
@@ -1038,7 +1075,7 @@ export default function InspectionDetailPage() {
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
+                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
                         {detailsList.map((detail: any, dIdx: number) => {
                           const isSelected = activeDetailIndex === dIdx;
                           const { answered, total, isComplete } = getDetailProgress(detail);
@@ -1048,7 +1085,7 @@ export default function InspectionDetailPage() {
                               key={detail.detail_id || dIdx}
                               type="button"
                               onClick={() => dispatch(setActiveDetailIndex(dIdx))}
-                              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
+                              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all shrink-0 snap-start min-h-[36px] ${
                                 isSelected
                                   ? "bg-primary/10 text-primary border-primary font-bold shadow-xs ring-1 ring-primary/30"
                                   : isComplete
@@ -1056,7 +1093,7 @@ export default function InspectionDetailPage() {
                                   : "bg-card text-muted-foreground border-border hover:bg-muted"
                               }`}
                             >
-                              <span className="truncate max-w-[130px] sm:max-w-[180px]">{detail.detail_name}</span>
+                              <span className="truncate max-w-[140px] sm:max-w-[180px]">{detail.detail_name}</span>
                               <span
                                 className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
                                   isComplete
@@ -1113,7 +1150,8 @@ export default function InspectionDetailPage() {
                                   : "border-border/60 hover:border-border"
                               )}
                             >
-                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-3">
+                              {/* Row: text + OK/NG — Touch-friendly min-h 44px buttons */}
+                              <div className="flex items-start justify-between gap-2.5">
                                 <div className="space-y-0.5 flex-1 min-w-0">
                                   <div className="flex items-start gap-1.5">
                                     <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground font-mono shrink-0 mt-0.5">
@@ -1124,20 +1162,20 @@ export default function InspectionDetailPage() {
                                     </h5>
                                   </div>
                                   {uraian.standard_score !== undefined && (
-                                    <span className="text-[10px] sm:text-[11px] text-muted-foreground block font-medium">
-                                      Bobot Standar: <strong className="text-foreground">{uraian.standard_score}</strong>
+                                    <span className="text-[10px] sm:text-[11px] text-muted-foreground block font-medium ml-4">
+                                      Bobot: <strong className="text-foreground">{uraian.standard_score}</strong>
                                     </span>
                                   )}
                                 </div>
 
-                                {/* Rating Radio Options */}
-                                <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-xl border border-border/50 shrink-0 self-end sm:self-start">
+                                {/* Rating Radio Options — Touch Target Minimum 44px height */}
+                                <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/60 shrink-0 self-start">
                                   <label
-                                    className={`flex items-center justify-center gap-1 px-3.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                                    className={`flex items-center justify-center min-h-[44px] min-w-[52px] px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                                       currentNilai === "2"
-                                        ? "bg-green-600 text-white shadow-xs"
+                                        ? "bg-green-600 text-white shadow-xs ring-1 ring-green-600/30"
                                         : "hover:bg-muted text-muted-foreground"
-                                    } ${formDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                                    } ${formDisabled ? "opacity-60 cursor-not-allowed" : "active:scale-95"}`}
                                   >
                                     <input
                                       type="radio"
@@ -1150,11 +1188,11 @@ export default function InspectionDetailPage() {
                                   </label>
 
                                   <label
-                                    className={`flex items-center justify-center gap-1 px-3.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                                    className={`flex items-center justify-center min-h-[44px] min-w-[52px] px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                                       currentNilai === "0"
-                                        ? "bg-red-600 text-white shadow-xs"
+                                        ? "bg-red-600 text-white shadow-xs ring-1 ring-red-600/30"
                                         : "hover:bg-muted text-muted-foreground"
-                                    } ${formDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                                    } ${formDisabled ? "opacity-60 cursor-not-allowed" : "active:scale-95"}`}
                                   >
                                     <input
                                       type="radio"
@@ -1171,12 +1209,12 @@ export default function InspectionDetailPage() {
                               {/* Photo Uploader for NG item */}
                               {isNG && (
                                 <div className="pt-3 border-t border-red-500/20 bg-red-500/5 p-3 rounded-xl space-y-2">
-                                  <div className="flex items-center justify-between">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                                     <span className="text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
                                       Foto Bukti Temuan NG & Keterangan
                                     </span>
                                     <span className="text-[10px] text-muted-foreground">
-                                      Wajib upload foto & Keterangan (Tersimpan di MinIO & Redis)
+                                      Wajib upload foto & Keterangan (Max 3 foto)
                                     </span>
                                   </div>
 
@@ -1195,8 +1233,8 @@ export default function InspectionDetailPage() {
                     </div>
                   ))}
 
-                  {/* Navigation Controls between Detail Aspeks or Aspeks */}
-                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                  {/* Navigation Controls */}
+                  <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -1208,9 +1246,10 @@ export default function InspectionDetailPage() {
                           scrollToTop();
                         }
                       }}
-                      className="text-xs"
+                      className="flex-1 sm:flex-none text-xs h-9"
                     >
-                      <ChevronLeft className="w-4 h-4 mr-1" /> Detail Sebelumnya
+                      <ChevronLeft className="w-3.5 h-3.5 mr-1" />
+                      <span className="hidden xs:inline">Detail </span>Sebelumnya
                     </Button>
 
                     <Button
@@ -1228,9 +1267,10 @@ export default function InspectionDetailPage() {
                           scrollToTop();
                         }
                       }}
-                      className="text-xs"
+                      className="flex-1 sm:flex-none text-xs h-9"
                     >
-                      Detail Berikutnya <ChevronRight className="w-4 h-4 ml-1" />
+                      <span className="hidden xs:inline">Detail </span>Berikutnya
+                      <ChevronRight className="w-3.5 h-3.5 ml-1" />
                     </Button>
                   </div>
                 </div>
@@ -1240,12 +1280,12 @@ export default function InspectionDetailPage() {
         </Card>
       </div>
 
-      {/* Floating Scroll-to-Top Button */}
+      {/* Floating Scroll-to-Top Button (positioned above mobile BottomNav) */}
       {showScrollTop && (
         <Button
           onClick={scrollToTop}
           size="icon"
-          className="fixed bottom-6 right-6 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground z-50 transition-all duration-300"
+          className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground z-50 transition-all duration-300 h-11 w-11 flex items-center justify-center"
         >
           <ArrowUp className="h-5 w-5" />
         </Button>
@@ -1254,9 +1294,9 @@ export default function InspectionDetailPage() {
       {/* Modal Dialog Confirm Batalkan Inspeksi */}
       {showCancelDialog && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-3.5 sm:p-6 overflow-y-auto">
-          <div className="bg-card text-card-foreground border border-border/80 rounded-2xl sm:rounded-3xl p-4.5 sm:p-7 w-full max-w-[480px] shadow-2xl space-y-4 sm:space-y-6 animate-in fade-in zoom-in-95 duration-200 overflow-hidden box-border shrink-0">
+          <div className="bg-card text-card-foreground border border-border/80 rounded-2xl sm:rounded-3xl p-4 sm:p-7 w-full max-w-[480px] shadow-2xl space-y-4 sm:space-y-6 animate-in fade-in zoom-in-95 duration-200 overflow-hidden box-border shrink-0">
             <div className="flex items-start gap-3 sm:gap-4">
-              <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 shrink-0 border border-red-500/20">
+              <div className="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 shrink-0 border border-red-500/20">
                 <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
               <div className="space-y-1 flex-1 min-w-0">

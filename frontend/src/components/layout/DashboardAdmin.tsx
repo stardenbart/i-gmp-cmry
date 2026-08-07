@@ -46,9 +46,15 @@ export const DashboardPanelAdmin = () => {
   const [selectedArea, setSelectedArea] = useState<string>("");
   const [trendPeriod, setTrendPeriod] = useState<"1m" | "3m" | "6m" | "1y">("6m");
 
-  const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN";
-  const activePlantSelection = selectedPlant === "all" ? "" : (selectedPlant || urlPlant);
-  const effectivePlant = isSuperAdmin ? activePlantSelection : (user?.plant_id || urlPlant);
+  const isSuperAdmin =
+    user?.role_id === "ROLE-000" ||
+    user?.role_id === "SUPERADMIN" ||
+    user?.role?.role_name === "Super Admin" ||
+    !user?.plant_id;
+
+  const effectivePlant = isSuperAdmin
+    ? (selectedPlant === "all" ? "" : selectedPlant)
+    : (user?.plant_id || urlPlant);
 
   const { data: plantsResponse } = useQuery({
     queryKey: ["plants-master-dashboard"],
@@ -105,7 +111,7 @@ export const DashboardPanelAdmin = () => {
           {/* Plant Selector Dropdown for SuperAdmin */}
           {isSuperAdmin ? (
             <select
-              value={selectedPlant || (urlPlant || "all")}
+              value={selectedPlant || "all"}
               onChange={(e) => {
                 setSelectedPlant(e.target.value);
                 setSelectedArea("");

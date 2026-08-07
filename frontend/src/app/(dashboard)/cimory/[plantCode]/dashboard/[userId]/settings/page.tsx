@@ -156,10 +156,15 @@ export default function SettingsPage() {
 
   if (!isGuardLoading && !isAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-100 space-y-4">
-        <ShieldAlert className="h-12 w-12 text-destructive" />
-        <h2 className="text-xl font-semibold">Akses Ditolak</h2>
-        <Button onClick={() => window.history.back()}>Kembali</Button>
+      <div className="flex flex-col items-center justify-center min-h-[400px] py-12 px-4 space-y-4 text-center w-full max-w-lg mx-auto">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+          <ShieldAlert className="h-8 w-8 text-destructive" />
+        </div>
+        <h2 className="text-xl font-semibold text-foreground">Akses Ditolak</h2>
+        <p className="text-sm text-muted-foreground text-center leading-relaxed w-full">
+          Anda tidak memiliki izin untuk mengelola Pengaturan Sistem. Halaman ini khusus untuk Administrator.
+        </p>
+        <Button variant="outline" onClick={() => window.history.back()} className="rounded-xl px-6">Kembali</Button>
       </div>
     );
   }

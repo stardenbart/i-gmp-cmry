@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { authApi } from "@/lib/api/auth.api";
-import { api } from "@/lib/api/axios";
+
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
@@ -50,26 +50,9 @@ export default function ProfilePage() {
 
   const currentUser = meData?.data || user;
 
-  const { data: roles } = useQuery({
-    queryKey: ["roles"],
-    queryFn: async () => {
-      const res = await api.get("/master/roles", { params: { limit: 100 } });
-      return res.data?.data?.items || [];
-    },
-    enabled: !!token,
-  });
-
-  const { data: departments } = useQuery({
-    queryKey: ["departments"],
-    queryFn: async () => {
-      const res = await api.get("/master/departments", { params: { limit: 100 } });
-      return res.data?.data?.items || [];
-    },
-    enabled: !!token,
-  });
-
-  const roleName = roles?.find((r: any) => r.role_id === currentUser?.role_id)?.role_name || currentUser?.role_id || "–";
-  const deptName = departments?.find((d: any) => d.department_id === currentUser?.department_id)?.department_name || currentUser?.department_id || "–";
+  // Use role and department info already embedded in user session — no admin-only API calls needed
+  const roleName = (currentUser as any)?.role?.role_name || (currentUser as any)?.role_name || currentUser?.role_id || "–";
+  const deptName = (currentUser as any)?.department?.department_name || (currentUser as any)?.department_name || currentUser?.department_id || "–";
 
   // Profile form
   const profileForm = useForm<ProfileFormValues>({

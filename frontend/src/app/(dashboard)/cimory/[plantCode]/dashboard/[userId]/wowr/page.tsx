@@ -150,7 +150,7 @@ function UploadProofModal({
     </div>
   );
 
-  if (!mounted) return null;
+  if (!mounted || typeof window === "undefined") return null;
   return createPortal(modalContent, document.body);
 }
 
@@ -379,8 +379,9 @@ function IssueRow({
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
-                              src={formatImageUrl(p.image_url)} 
+                              src={formatImageUrl(p.image_url) || "/placeholder.png"} 
                               alt="Initial" 
+                              onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                               className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                             />
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
@@ -416,8 +417,9 @@ function IssueRow({
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
-                              src={formatImageUrl(p.image_url)} 
+                              src={formatImageUrl(p.image_url) || "/placeholder.png"} 
                               alt="WOWR Evidence" 
+                              onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                               className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                             />
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
@@ -748,8 +750,9 @@ export default function WOWRPage() {
             <div className="relative bg-black flex items-center justify-center p-2 min-h-[300px] max-h-[65vh]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={formatImageUrl(previewPhoto.url)}
+                src={formatImageUrl(previewPhoto.url) || "/placeholder.png"}
                 alt="Preview Foto"
+                onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                 className="max-h-[60vh] w-auto max-w-full object-contain rounded-lg shadow-md"
               />
             </div>

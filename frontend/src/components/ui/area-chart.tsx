@@ -47,8 +47,7 @@ export function AreaChart({ data, xAxisKey, series, height = 300, unit = "" }: A
           stroke="#71717a"
           fontSize={12}
           tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => `${value}${unit}`}
+           tickFormatter={(value) => `${value}${unit}`}
         />
         <Tooltip
           contentStyle={{

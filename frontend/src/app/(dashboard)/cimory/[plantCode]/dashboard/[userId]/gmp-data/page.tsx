@@ -508,8 +508,9 @@ export default function GmpDataAdminPage() {
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
-                            src={formatImageUrl(row.image_url)} 
+                            src={formatImageUrl(row.image_url) || "/placeholder.png"} 
                             alt="Issue Photo" 
+                            onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                             className="h-full w-full object-cover transition-transform group-hover:scale-110" 
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
@@ -572,8 +573,9 @@ export default function GmpDataAdminPage() {
             </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img 
-              src={formatImageUrl(previewImage)} 
+              src={formatImageUrl(previewImage) || "/placeholder.png"} 
               alt="Visual Issue Large" 
+              onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
               className="max-h-[80vh] w-auto object-contain rounded-xl" 
             />
           </div>

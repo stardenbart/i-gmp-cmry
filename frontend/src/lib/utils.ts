@@ -38,6 +38,17 @@ export function formatTimeAgo(dateString: string): string {
 export function formatImageUrl(url: string | null | undefined): string {
   if (!url) return "";
   let formatted = url.trim();
+  if (!formatted) return "";
+
+  // Reject malformed paths that point to a directory/issue ID prefix instead of an actual image file
+  // E.g., /monitoring-audit-bucket/issues/ISS-26080 or issues/ISS-26080
+  const cleanPath = formatted.split('?')[0].split('#')[0];
+  const lastSegment = cleanPath.substring(cleanPath.lastIndexOf('/') + 1);
+  const isLikelyIssueFolder = /^ISS-[A-Za-z0-9_-]+$/i.test(lastSegment) || /^ISSUE-[A-Za-z0-9_-]+$/i.test(lastSegment);
+  
+  if (isLikelyIssueFolder && !cleanPath.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i)) {
+    return "";
+  }
 
   // If it's a MinIO image URL containing /monitoring-audit-bucket/, convert to relative path for Next.js proxying
   const bucketIndex = formatted.indexOf("/monitoring-audit-bucket/");
