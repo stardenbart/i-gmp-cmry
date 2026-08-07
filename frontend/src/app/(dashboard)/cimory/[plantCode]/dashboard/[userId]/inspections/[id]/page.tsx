@@ -723,7 +723,7 @@ export default function InspectionDetailPage() {
       : detailsList;
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-16 sm:pb-12">
+    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-36 sm:pb-12 overflow-x-hidden">
       {/* Header Bar */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
@@ -1057,7 +1057,7 @@ export default function InspectionDetailPage() {
 
                   {/* LEVEL 2: Interactive Detail Aspek Selection Sub-Tabs */}
                   {detailsList.length > 0 && (
-                    <div className="space-y-2 bg-muted/20 p-3 sm:p-3.5 rounded-2xl border border-border/80">
+                    <div className="space-y-2 bg-muted/20 p-3 sm:p-3.5 rounded-2xl border border-border/80 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                           <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" /> Langkah 2: Detail Aspek
@@ -1075,37 +1075,41 @@ export default function InspectionDetailPage() {
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
-                        {detailsList.map((detail: any, dIdx: number) => {
-                          const isSelected = activeDetailIndex === dIdx;
-                          const { answered, total, isComplete } = getDetailProgress(detail);
+                      <div className="relative">
+                        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
+                          {detailsList.map((detail: any, dIdx: number) => {
+                            const isSelected = activeDetailIndex === dIdx;
+                            const { answered, total, isComplete } = getDetailProgress(detail);
 
-                          return (
-                            <button
-                              key={detail.detail_id || dIdx}
-                              type="button"
-                              onClick={() => dispatch(setActiveDetailIndex(dIdx))}
-                              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all shrink-0 snap-start min-h-[36px] ${
-                                isSelected
-                                  ? "bg-primary/10 text-primary border-primary font-bold shadow-xs ring-1 ring-primary/30"
-                                  : isComplete
-                                  ? "bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20"
-                                  : "bg-card text-muted-foreground border-border hover:bg-muted"
-                              }`}
-                            >
-                              <span className="truncate max-w-[140px] sm:max-w-[180px]">{detail.detail_name}</span>
-                              <span
-                                className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-                                  isComplete
-                                    ? "bg-green-600 text-white"
-                                    : "bg-muted text-muted-foreground"
+                            return (
+                              <button
+                                key={detail.detail_id || dIdx}
+                                type="button"
+                                onClick={() => dispatch(setActiveDetailIndex(dIdx))}
+                                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all shrink-0 snap-start min-h-[36px] ${
+                                  isSelected
+                                    ? "bg-primary/10 text-primary border-primary font-bold shadow-xs ring-1 ring-primary/30"
+                                    : isComplete
+                                    ? "bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20"
+                                    : "bg-card text-muted-foreground border-border hover:bg-muted"
                                 }`}
                               >
-                                {answered}/{total}
-                              </span>
-                            </button>
-                          );
-                        })}
+                                <span className="truncate max-w-[140px] sm:max-w-[180px]">{detail.detail_name}</span>
+                                <span
+                                  className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                                    isComplete
+                                      ? "bg-green-600 text-white"
+                                      : "bg-muted text-muted-foreground"
+                                  }`}
+                                >
+                                  {answered}/{total}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* Visual gradient hint for horizontal scroll on mobile */}
+                        <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-6 bg-gradient-to-l from-muted/80 to-transparent sm:hidden" />
                       </div>
                     </div>
                   )}

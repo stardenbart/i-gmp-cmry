@@ -46,13 +46,16 @@ export function AspekStatusPanel({
   });
 
   return (
-    <div className="bg-card border border-border/80 rounded-2xl p-3.5 sm:p-4 mb-6 shadow-xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 mb-3 border-b border-border/50 pb-2.5">
-        <h4 className="text-xs sm:text-sm font-bold flex items-center gap-1.5 text-foreground tracking-tight">
-          Status Real-Time Aspek Audit (Distributed Lock)
-        </h4>
-        <span className="text-[10px] sm:text-xs text-muted-foreground">
-          Diperbarui otomatis via Event Store
+    <div className="bg-card border border-border/80 rounded-2xl p-3 sm:p-4 mb-3 sm:mb-6 shadow-xs">
+      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3 border-b border-border/50 pb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Lock className="w-3.5 h-3.5 text-primary shrink-0" />
+          <h4 className="text-xs sm:text-sm font-bold text-foreground tracking-tight truncate">
+            Status Lock Real-Time
+          </h4>
+        </div>
+        <span className="text-[10px] text-muted-foreground shrink-0">
+          Event Store
         </span>
       </div>
 
