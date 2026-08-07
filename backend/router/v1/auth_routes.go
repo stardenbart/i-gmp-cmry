@@ -46,8 +46,8 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	// ── Public routes ──────────────────────────────────────────────────
 	authGroup := rg.Group("/auth")
 	{
-		authGroup.Post("/login", authHandler.Login)
-		authGroup.Post("/forgot-password", userHandler.ForgotPassword)
+		authGroup.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
+		authGroup.Post("/forgot-password", middleware.AuthRateLimiter(), userHandler.ForgotPassword)
 	}
 
 	// ── Protected routes ───────────────────────────────────────────────

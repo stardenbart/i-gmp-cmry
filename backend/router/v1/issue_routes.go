@@ -26,11 +26,12 @@ import (
 func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
 	issueRepo := issuerepo.NewIssueRepository(db)
 	photoRepo := issuerepo.NewIssuePhotoRepository(db)
+	heiRepo := issuerepo.NewIssueHEIRepository(db)
 	userRepo := authrepo.NewUserRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
 	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
 
-	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, heiRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient)
 	issueDelegateUC := issueusecase.NewIssueDelegateUseCase(issueDelegateRepo)
 	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, redisClient, producer)
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -200,15 +201,24 @@ func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 
 // GetDraftState - GET /api/v1/inspeksi/:kawasanId/:aspekId/state
 func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
-	kawasanID := c.Params("kawasanId")
+	scopeID := c.Params("kawasanId")
 	aspekID := c.Params("aspekId")
 
-	draft, err := h.lockMgr.GetDraftState(c.Context(), kawasanID, aspekID)
-	if err != nil {
+	draft, err := h.lockMgr.GetDraftState(c.Context(), scopeID, aspekID)
+	if (err != nil || len(draft) == 0) && h.db != nil {
+		var header inspection.InspectionHeader
+		if dbErr := h.db.Where("InspectionID = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
+			legacyDraft, _ := h.lockMgr.GetDraftState(c.Context(), header.KawasanID, aspekID)
+			if len(legacyDraft) > 0 {
+				draft = legacyDraft
+			}
+		}
+	}
+	if err != nil && len(draft) == 0 {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	lockInfo, _ := h.lockMgr.GetLockInfo(c.Context(), kawasanID, aspekID)
+	lockInfo, _ := h.lockMgr.GetLockInfo(c.Context(), scopeID, aspekID)
 
 	return c.JSON(fiber.Map{
 		"success":   true,
@@ -219,13 +229,47 @@ func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
 
 // GetAllAspekDraftState - GET /api/v1/inspeksi/:kawasanId/drafts
 func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
-	kawasanID := c.Params("kawasanId")
+	scopeID := c.Params("kawasanId")
 
 	drafts := make(map[string]map[string]string)
 	if h.rdb != nil {
-		pattern := fmt.Sprintf("state:aspek:%s:*", kawasanID)
+		pattern := fmt.Sprintf("state:aspek:%s:*", scopeID)
 		keys, err := h.rdb.Keys(c.Context(), pattern).Result()
-		if err == nil && len(keys) > 0 {
+
+		// Fallback / Auto-Migration: If no keys found under scopeID (e.g. inspectionId),
+		// check if scopeID corresponds to an inspection header and migrate legacy keys from kawasanID.
+		if (err != nil || len(keys) == 0) && h.db != nil {
+			var header inspection.InspectionHeader
+			if dbErr := h.db.Where("InspectionID = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
+				legacyPattern := fmt.Sprintf("state:aspek:%s:*", header.KawasanID)
+				legacyKeys, _ := h.rdb.Keys(c.Context(), legacyPattern).Result()
+				if len(legacyKeys) > 0 {
+					for _, lKey := range legacyKeys {
+						parts := strings.Split(lKey, ":")
+						if len(parts) >= 4 {
+							aspekID := parts[3]
+							newKey := fmt.Sprintf("state:aspek:%s:%s", scopeID, aspekID)
+							// Retrieve legacy hash and write to new scope key
+							if legacyData, getErr := h.rdb.HGetAll(c.Context(), lKey).Result(); getErr == nil && len(legacyData) > 0 {
+								args := make([]interface{}, 0, len(legacyData)*2)
+								for k, v := range legacyData {
+									args = append(args, k, v)
+								}
+								if setErr := h.rdb.HSet(c.Context(), newKey, args...).Err(); setErr != nil {
+									h.log.Warn("Failed to copy legacy Redis draft key", logger.Error(setErr))
+								} else {
+									_ = h.rdb.Expire(c.Context(), newKey, 24*time.Hour)
+								}
+							}
+						}
+					}
+					// Re-query keys under new scopeID
+					keys, _ = h.rdb.Keys(c.Context(), pattern).Result()
+				}
+			}
+		}
+
+		if len(keys) > 0 {
 			// Batch Pipeline to read all Redis hashes in a single round-trip chunk
 			pipe := h.rdb.Pipeline()
 			cmds := make(map[string]*redis.MapStringStringCmd)

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils"
-import { FileText, User, Calendar, Clock } from "lucide-react"
+import { Activity, Wrench, Warehouse, FileText, User, Calendar, Clock } from "lucide-react"
 import { Card } from "../ui/card"
 
 interface InfoCardProps {
@@ -12,6 +12,11 @@ interface InfoCardProps {
     issue_status: string
     computed_status?: string
     follow_up_delay?: number
+    hei?: {
+      habit?: { habit_name: string; habit_code?: string }
+      equipment?: { equipment_name: string; equipment_code?: string }
+      infrastructure?: { infrastructure_name: string; infrastructure_code?: string }
+    }
   }
   dueDate?: Date | null
 }
@@ -34,6 +39,36 @@ export const InfoCard = ({ issue, dueDate }: InfoCardProps) => {
             <span className="font-semibold text-foreground">{issue.keterangan || "-"}</span>
           </div>
         </div>
+
+        {issue.hei?.habit && (
+          <div className="flex items-start gap-3">
+            <Activity className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+            <div>
+              <span className="text-xs text-muted-foreground block font-medium">Klasifikasi Habit</span>
+              <span className="font-semibold text-foreground">{issue.hei.habit.habit_name}</span>
+            </div>
+          </div>
+        )}
+
+        {issue.hei?.equipment && (
+          <div className="flex items-start gap-3">
+            <Wrench className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+            <div>
+              <span className="text-xs text-muted-foreground block font-medium">Klasifikasi Equipment</span>
+              <span className="font-semibold text-foreground">{issue.hei.equipment.equipment_name}</span>
+            </div>
+          </div>
+        )}
+
+        {issue.hei?.infrastructure && (
+          <div className="flex items-start gap-3">
+            <Warehouse className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+            <div>
+              <span className="text-xs text-muted-foreground block font-medium">Klasifikasi Infrastructure</span>
+              <span className="font-semibold text-foreground">{issue.hei.infrastructure.infrastructure_name}</span>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-start gap-3">
           <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />

@@ -51,7 +51,7 @@ func main() {
 			continue // Already applied
 		}
 
-		log.Printf("⏳ Applying migration: %s", file)
+		log.Printf("Applying migration: %s", file)
 		content, err := os.ReadFile(filepath.Join(migrationsDir, file))
 		if err != nil {
 			log.Fatalf("❌ Failed to read migration file %s: %v", file, err)

@@ -5,6 +5,8 @@ import { useState } from "react";
 import { ThemeProvider, useTheme } from "next-themes";
 import { Toaster } from "sonner";
 
+import { StoreProvider } from "@/store/provider";
+
 function ToasterWithTheme() {
   const { resolvedTheme } = useTheme();
   return <Toaster position="top-center" theme={(resolvedTheme as "light" | "dark" | "system") || "system"} />;
@@ -24,11 +26,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-        <ToasterWithTheme />
-      </QueryClientProvider>
-    </ThemeProvider>
+    <StoreProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
+        <QueryClientProvider client={queryClient}>
+          {children}
+          <ToasterWithTheme />
+        </QueryClientProvider>
+      </ThemeProvider>
+    </StoreProvider>
   );
 }

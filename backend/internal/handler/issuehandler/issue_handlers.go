@@ -14,14 +14,11 @@ import (
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
 	"github.com/monitoring-system/backend/pkg/validator"
-	"strings"
 )
 
-// Helper to check if a role is Auditor/Admin
+// Helper to check if a role is Auditor/Admin (strict RoleID match)
 func isAuditor(roleID string) bool {
-	r := strings.ToUpper(roleID)
-	return r == "ROLE-001" || r == "ADM" || r == "ADMIN" || r == "1" ||
-		r == "ROLE-002" || r == "AUDITOR" || r == "2"
+	return middleware.IsAuditorRole(roleID)
 }
 
 // ── Issue Handler ─────────────────────────────────────────────────────────

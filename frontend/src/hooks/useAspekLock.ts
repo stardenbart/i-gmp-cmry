@@ -6,12 +6,12 @@ import { inspectionApi } from "@/lib/api/inspection.api";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 
 interface UseAspekLockProps {
-  kawasanId: string;
+  scopeId: string;
   aspekId: string | null;
   enabled?: boolean;
 }
 
-export function useAspekLock({ kawasanId, aspekId, enabled = true }: UseAspekLockProps) {
+export function useAspekLock({ scopeId, aspekId, enabled = true }: UseAspekLockProps) {
   const [lockToken, setLockToken] = useState<string | null>(null);
   const [isLockedByMe, setIsLockedByMe] = useState(false);
   const [lockError, setLockError] = useState<string | null>(null);
@@ -28,12 +28,12 @@ export function useAspekLock({ kawasanId, aspekId, enabled = true }: UseAspekLoc
   // Acquire lock for an aspect
   const acquireLock = useCallback(
     async (targetAspekId: string) => {
-      if (!kawasanId || !targetAspekId || !enabled) return false;
+      if (!scopeId || !targetAspekId || !enabled) return false;
 
       // Release previous lock if switching aspect
       if (activeAspekRef.current && activeAspekRef.current !== targetAspekId && lockTokenRef.current) {
         try {
-          await inspectionApi.releaseLock(kawasanId, activeAspekRef.current, lockTokenRef.current);
+          await inspectionApi.releaseLock(scopeId, activeAspekRef.current, lockTokenRef.current);
         } catch {
           // Silent release
         }
@@ -45,7 +45,7 @@ export function useAspekLock({ kawasanId, aspekId, enabled = true }: UseAspekLoc
       setLockError(null);
 
       try {
-        const res = await inspectionApi.acquireLock(kawasanId, targetAspekId);
+        const res = await inspectionApi.acquireLock(scopeId, targetAspekId);
         if (res?.success && res?.data?.lock_token) {
           const newToken = res.data.lock_token;
           setLockToken(newToken);
@@ -64,14 +64,14 @@ export function useAspekLock({ kawasanId, aspekId, enabled = true }: UseAspekLoc
         return false;
       }
     },
-    [kawasanId, enabled]
+    [scopeId, enabled]
   );
 
   // Release lock
   const releaseLock = useCallback(async () => {
-    if (!kawasanId || !activeAspekRef.current || !lockTokenRef.current) return;
+    if (!scopeId || !activeAspekRef.current || !lockTokenRef.current) return;
     try {
-      await inspectionApi.releaseLock(kawasanId, activeAspekRef.current, lockTokenRef.current);
+      await inspectionApi.releaseLock(scopeId, activeAspekRef.current, lockTokenRef.current);
     } catch {
       // Silent release
     } finally {
@@ -80,7 +80,7 @@ export function useAspekLock({ kawasanId, aspekId, enabled = true }: UseAspekLoc
       activeAspekRef.current = null;
       lockTokenRef.current = null;
     }
-  }, [kawasanId]);
+  }, [scopeId]);
 
   // Handle lock expired notification from heartbeat
   const handleLockExpired = useCallback(() => {
@@ -92,7 +92,7 @@ export function useAspekLock({ kawasanId, aspekId, enabled = true }: UseAspekLoc
 
   // Maintain heartbeat every 10s via existing useHeartbeat hook
   useHeartbeat({
-    kawasanId,
+    kawasanId: scopeId,
     aspekId: activeAspekRef.current || aspekId || "",
     lockToken,
     enabled: enabled && isLockedByMe && !!activeAspekRef.current,
@@ -109,11 +109,11 @@ export function useAspekLock({ kawasanId, aspekId, enabled = true }: UseAspekLoc
   // Release lock on component unmount
   useEffect(() => {
     return () => {
-      if (kawasanId && activeAspekRef.current && lockTokenRef.current) {
-        inspectionApi.releaseLock(kawasanId, activeAspekRef.current, lockTokenRef.current).catch(() => {});
+      if (scopeId && activeAspekRef.current && lockTokenRef.current) {
+        inspectionApi.releaseLock(scopeId, activeAspekRef.current, lockTokenRef.current).catch(() => {});
       }
     };
-  }, [kawasanId]);
+  }, [scopeId]);
 
   return {
     lockToken,

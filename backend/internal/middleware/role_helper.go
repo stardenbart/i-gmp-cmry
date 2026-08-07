@@ -6,21 +6,18 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// IsAuditorRole returns true when roleID belongs to an Auditor or Admin role.
-// It is exported so that filter handlers (issuehandler, followup handler, etc.)
-// can reuse the same logic without duplicating it.
+// IsAuditorRole returns true when roleID belongs to SuperAdmin, Admin, or Auditor.
 func IsAuditorRole(roleID string) bool {
-	r := strings.ToUpper(roleID)
-	return r == "ROLE-001" || r == "ADM" || r == "ADMIN" || r == "1" ||
-		r == "ROLE-002" || r == "AUDITOR" || r == "2"
+	r := strings.ToUpper(strings.TrimSpace(roleID))
+	return r == "ROLE-000" || r == "ROLE-001" || r == "ROLE-002"
 }
 
-// RequireAdmin middleware checks if the authenticated user has Admin role (ROLE-001 / ADMIN).
+// RequireAdmin middleware checks if the authenticated user has SuperAdmin or Admin role.
 func RequireAdmin() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		roleID := GetRoleID(c)
-		r := strings.ToUpper(roleID)
-		if r == "ROLE-001" || r == "ADM" || r == "ADMIN" || r == "1" {
+		r := strings.ToUpper(strings.TrimSpace(roleID))
+		if r == "ROLE-000" || r == "ROLE-001" {
 			return c.Next()
 		}
 		return c.Status(403).JSON(fiber.Map{

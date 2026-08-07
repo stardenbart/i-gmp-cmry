@@ -32,7 +32,7 @@ import { inspectionApi } from "@/lib/api/inspection.api";
 import { issueApi } from "@/lib/api/issue.api";
 import { picApi } from "@/lib/api/pic.api";
 import { api } from "@/lib/api/axios";
-import { useAuditorGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { useAuthStore } from "@/stores/authStore";
 import {
   PhotoUploaderWithKeterangan,
@@ -42,9 +42,21 @@ import {
 import { useDistributedDraft } from "@/hooks/useDistributedDraft";
 import { useAspekLock } from "@/hooks/useAspekLock";
 import { AspekStatusPanel } from "@/components/Inspection/AspekStatusPanel";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  setActiveAspekIndex,
+  setActiveDetailIndex,
+  setHighlightedUraianId,
+  setNgPhotosMap,
+  updateItemPhotos,
+  setShowCancelDialog,
+  setShowScrollTop,
+  resetSession,
+} from "@/store/slices/inspectionSessionSlice";
 
 export default function InspectionDetailPage() {
-  const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAuditor = hasPermission("PERM-INSP-R");
   const user = useAuthStore((state) => state.user);
   const { id, userId, plantCode } = useParams() as { id: string; userId: string; plantCode?: string };
   const router = useRouter();
@@ -52,41 +64,48 @@ export default function InspectionDetailPage() {
   const pathname = usePathname();
   const queryClient = useQueryClient();
 
+  const dispatch = useAppDispatch();
+  const {
+    activeAspekIndex,
+    activeDetailIndex,
+    highlightedUraianId,
+    ngPhotosMap,
+    showCancelDialog,
+    showScrollTop,
+  } = useAppSelector((state) => state.inspectionSession);
+
   const targetAspekParam = searchParams.get("aspek") || searchParams.get("activeAspek");
   const targetUraianParam = searchParams.get("uraian") || searchParams.get("uraian_id");
-  const [highlightedUraianId, setHighlightedUraianId] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-
-  // 3-Tier Navigation State: Aspek (Level 1) -> Detail Aspek (Level 2) -> Uraian (Level 3)
-  const [activeAspekIndex, setActiveAspekIndex] = useState(0);
-  const [activeDetailIndex, setActiveDetailIndex] = useState<number | "all">(0);
 
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 300) {
-        setShowScrollTop(true);
+        dispatch(setShowScrollTop(true));
       } else {
-        setShowScrollTop(false);
+        dispatch(setShowScrollTop(false));
       }
     };
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [dispatch]);
+
+  // Cleanup Redux session state when switching inspections or unmounting
+  useEffect(() => {
+    return () => {
+      dispatch(resetSession());
+    };
+  }, [dispatch, id]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Per-uraian photo state for NG items: map of uraian_id => PhotoItem[]
-  const [ngPhotosMap, setNgPhotosMap] = useState<Record<string, PhotoItem[]>>({});
   const ngPhotosMapRef = useRef<Record<string, PhotoItem[]>>({});
-
   const isFormInitialized = useRef(false);
 
   // Data queries
@@ -104,7 +123,11 @@ export default function InspectionDetailPage() {
   const checklist = checklistRes?.data;
 
   // Distributed Redis draft state hook
-  const kawasanId = inspection?.kawasan_id;
+  // IMPORTANT: scope by inspection_id (not kawasan_id) to isolate each inspection's draft
+  // Multiple inspections under the same kawasan but different detail_kawasan share
+  // the same kawasan_id and uraian_ids, so using kawasan_id causes data bleeding.
+  const inspectionScopeId = inspection?.inspection_id;
+  const kawasanId = inspection?.kawasan_id; // kept for PIC query only
   const {
     draftsByAspek,
     mergedUraianValues,
@@ -112,7 +135,7 @@ export default function InspectionDetailPage() {
     isLoadingDrafts,
     fetchAllDrafts,
     saveAspekDraft,
-  } = useDistributedDraft(kawasanId);
+  } = useDistributedDraft(inspectionScopeId);
 
   const aspeksList = checklist?.aspeks || [];
   const currentAspek = aspeksList[activeAspekIndex] || aspeksList[0];
@@ -137,7 +160,7 @@ export default function InspectionDetailPage() {
     acquireLock,
     releaseLock,
   } = useAspekLock({
-    kawasanId: kawasanId || "",
+    scopeId: inspectionScopeId || "",
     aspekId: currentAspekId,
     enabled: canEditInspection,
   });
@@ -204,14 +227,14 @@ export default function InspectionDetailPage() {
     }
 
     if (foundAspekIndex !== -1 && foundAspekIndex !== activeAspekIndex) {
-      setActiveAspekIndex(foundAspekIndex);
+      dispatch(setActiveAspekIndex(foundAspekIndex));
       if (foundDetailIndex !== "all") {
-        setActiveDetailIndex(foundDetailIndex);
+        dispatch(setActiveDetailIndex(foundDetailIndex));
       }
     }
 
     if (targetUraianParam) {
-      setHighlightedUraianId(targetUraianParam);
+      dispatch(setHighlightedUraianId(targetUraianParam));
       const scrollTimer = setTimeout(() => {
         const el = document.getElementById(`uraian-${targetUraianParam}`);
         if (el) {
@@ -229,6 +252,11 @@ export default function InspectionDetailPage() {
     }
   }, [checklist, targetAspekParam, targetUraianParam]);
 
+  // Helper to generate scoped photo map keys (isolated per Detail Aspek and Uraian)
+  const getPhotoKey = useCallback((detailId: string | undefined | null, uraianId: string) => {
+    return detailId ? `${detailId}_${uraianId}` : uraianId;
+  }, []);
+
   // Helper to calculate completion progress for a single Aspek
   const getAspekProgress = useCallback(
     (aspek: any) => {
@@ -239,7 +267,8 @@ export default function InspectionDetailPage() {
       aspek?.details?.forEach((detail: any) => {
         detail?.uraians?.forEach((uraian: any) => {
           total++;
-          const val = formValues[`nilai_${uraian.uraian_id}`];
+          const pKey = getPhotoKey(detail.detail_id, uraian.uraian_id);
+          const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uraian.uraian_id}`];
           if (val !== undefined && val !== null && val !== "") {
             answered++;
           }
@@ -252,7 +281,7 @@ export default function InspectionDetailPage() {
         isComplete: total > 0 && answered === total,
       };
     },
-    [watch]
+    [watch, getPhotoKey]
   );
 
   // Helper to calculate completion progress for a single Detail Aspek
@@ -264,7 +293,8 @@ export default function InspectionDetailPage() {
 
       detail?.uraians?.forEach((uraian: any) => {
         total++;
-        const val = formValues[`nilai_${uraian.uraian_id}`];
+        const pKey = getPhotoKey(detail?.detail_id, uraian.uraian_id);
+        const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uraian.uraian_id}`];
         if (val !== undefined && val !== null && val !== "") {
           answered++;
         }
@@ -276,7 +306,7 @@ export default function InspectionDetailPage() {
         isComplete: total > 0 && answered === total,
       };
     },
-    [watch]
+    [watch, getPhotoKey]
   );
 
   // Helper to calculate total overall progress
@@ -289,7 +319,8 @@ export default function InspectionDetailPage() {
       aspek?.details?.forEach((detail: any) => {
         detail?.uraians?.forEach((uraian: any) => {
           total++;
-          const val = formValues[`nilai_${uraian.uraian_id}`];
+          const pKey = getPhotoKey(detail.detail_id, uraian.uraian_id);
+          const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uraian.uraian_id}`];
           if (val !== undefined && val !== null && val !== "") {
             answered++;
           }
@@ -302,12 +333,7 @@ export default function InspectionDetailPage() {
       answered,
       percent: total > 0 ? Math.round((answered / total) * 100) : 0,
     };
-  }, [checklist, watch]);
-
-  // Helper to generate scoped photo map keys (isolated per Detail Aspek and Uraian)
-  const getPhotoKey = useCallback((detailId: string | undefined | null, uraianId: string) => {
-    return detailId ? `${detailId}_${uraianId}` : uraianId;
-  }, []);
+  }, [checklist, watch, getPhotoKey]);
 
   // Populate form state when checklist and Redis drafts are loaded
   useEffect(() => {
@@ -324,21 +350,25 @@ export default function InspectionDetailPage() {
 
           // 1. Check existing server DB result first (PostgreSQL)
           if (uraian.result) {
-            defaultValues[`nilai_${uId}`] =
+            const serverVal =
               uraian.result.checking === "OK"
                 ? "2"
                 : uraian.result.checking === "NG"
                 ? "0"
                 : "";
+            defaultValues[`nilai_${pKey}`] = serverVal;
+            defaultValues[`nilai_${uId}`] = serverVal;
           }
 
           // 2. Redis draft override (shared across auditors)
-          const draftVal = mergedUraianValues[`nilai_${uId}`];
+          const draftVal = mergedUraianValues[`nilai_${pKey}`] ?? mergedUraianValues[`nilai_${uId}`];
           if (draftVal !== undefined && draftVal !== null && draftVal !== "") {
+            defaultValues[`nilai_${pKey}`] = draftVal;
             defaultValues[`nilai_${uId}`] = draftVal;
           }
 
-          const draftPhotos = mergedPhotosMap[pKey] || mergedPhotosMap[uId];
+          // 3. Photos (scoped pKey takes precedence; un-scoped uId only used if detail_id is not set)
+          const draftPhotos = mergedPhotosMap[pKey] || (!detail.detail_id ? mergedPhotosMap[uId] : undefined);
           if (draftPhotos && draftPhotos.length > 0) {
             photoStateMap[pKey] = draftPhotos;
           }
@@ -350,7 +380,7 @@ export default function InspectionDetailPage() {
     reset(defaultValues);
     if (Object.keys(photoStateMap).length > 0) {
       ngPhotosMapRef.current = photoStateMap;
-      setNgPhotosMap(photoStateMap);
+      dispatch(setNgPhotosMap(photoStateMap));
     }
     
     // Enable form sync after a micro-delay to prevent watch() from sending empty resets
@@ -378,12 +408,12 @@ export default function InspectionDetailPage() {
         detail.uraians?.forEach((uraian: any) => {
           const uId = uraian.uraian_id;
           const pKey = getPhotoKey(detail.detail_id, uId);
-          const val = formValues[`nilai_${uId}`];
-          const photos = ngPhotosMapRef.current[pKey] || ngPhotosMapRef.current[uId] || [];
+          const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uId}`];
+          const photos = ngPhotosMapRef.current[pKey] || (!detail.detail_id ? (ngPhotosMapRef.current[uId] || []) : []);
 
           if (val !== undefined && val !== null && val !== "") {
             const checking = val === "2" ? "OK" : "NG";
-            aspekPayload[uId] = {
+            aspekPayload[pKey] = {
               checking,
               nilai: checking === "OK" ? (uraian.standard_score || 100) : 0,
               keterangan: "",
@@ -443,7 +473,7 @@ export default function InspectionDetailPage() {
       ...ngPhotosMapRef.current,
       [key]: processedPhotos,
     };
-    setNgPhotosMap({ ...ngPhotosMapRef.current });
+    dispatch(updateItemPhotos({ pKey: key, photos: processedPhotos }));
 
     const currentFormValues = watch();
     syncCurrentAspekToRedis(currentFormValues);
@@ -464,9 +494,9 @@ export default function InspectionDetailPage() {
         detail.uraians?.forEach((uraian: any) => {
           const uId = uraian.uraian_id;
           const pKey = getPhotoKey(detail.detail_id, uId);
-          const val = formData[`nilai_${uId}`];
-          const ket = formData[`ket_${uId}`];
-          const photos = ngPhotosMap[pKey] || ngPhotosMap[uId] || [];
+          const val = formData[`nilai_${pKey}`] ?? formData[`nilai_${uId}`];
+          const ket = formData[`ket_${pKey}`] ?? formData[`ket_${uId}`];
+          const photos = ngPhotosMap[pKey] || (!detail.detail_id ? (ngPhotosMap[uId] || []) : []);
 
           if (!val) {
             unansweredCount++;
@@ -604,7 +634,7 @@ export default function InspectionDetailPage() {
       toast.error(err.response?.data?.message || "Gagal membatalkan inspeksi");
     } finally {
       setIsCanceling(false);
-      setShowCancelDialog(false);
+      dispatch(setShowCancelDialog(false));
     }
   };
 
@@ -713,18 +743,18 @@ export default function InspectionDetailPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-1.5 sm:flex sm:items-center sm:gap-2.5 w-full sm:w-auto">
           {isCompleted && isAuditor && isSamePlant && (
             <Button
               onClick={handleReopenForEdit}
               disabled={isReopening}
               variant="outline"
-              className="border-primary text-primary hover:bg-primary/5"
+              className="col-span-2 sm:col-span-1 w-full sm:w-auto h-8 sm:h-9 px-2.5 sm:px-4 text-[11px] sm:text-xs border-primary text-primary hover:bg-primary/5 rounded-lg sm:rounded-full font-semibold"
             >
               {isReopening ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin" />
               ) : (
-                <Edit className="mr-2 h-4 w-4" />
+                <Edit className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5" />
               )}
               Edit Inspeksi
             </Button>
@@ -749,33 +779,33 @@ export default function InspectionDetailPage() {
                     }
                   }}
                   disabled={isSaving}
-                  className="border-muted-foreground/40 text-muted-foreground hover:bg-muted"
+                  className="w-full sm:w-auto h-8 sm:h-9 px-2.5 sm:px-4 text-[11px] sm:text-xs border-muted-foreground/40 text-muted-foreground hover:bg-muted rounded-lg sm:rounded-full font-medium"
                 >
                   Batal Edit
                 </Button>
               ) : (
                 <Button
                   variant="destructive"
-                  onClick={() => setShowCancelDialog(true)}
+                  onClick={() => dispatch(setShowCancelDialog(true))}
                   disabled={isSaving || isCanceling}
-                  className="bg-red-600 hover:bg-red-700 text-white font-medium"
+                  className="w-full sm:w-auto h-8 sm:h-9 px-2 sm:px-3 text-[11px] sm:text-xs bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg sm:rounded-full shadow-xs whitespace-nowrap"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" /> Batalkan Inspeksi
+                  <Trash2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" /> Batalkan Inspeksi
                 </Button>
               )}
 
               <Button
                 onClick={handleSubmit(onFinalSubmit)}
                 disabled={isSaving || isCanceling}
-                className="bg-green-600 hover:bg-green-700 text-white font-semibold shadow-md px-5"
+                className="w-full sm:w-auto h-8 sm:h-9 px-2 sm:px-3 text-[11px] sm:text-xs bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg sm:rounded-full shadow-xs whitespace-nowrap"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menyimpan ke DB...
+                    <Loader2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin shrink-0" /> Simpan...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" /> Selesaikan Audit
+                    <CheckCircle2 className="mr-1 h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" /> Selesaikan Audit
                   </>
                 )}
               </Button>
@@ -815,42 +845,42 @@ export default function InspectionDetailPage() {
       )}
 
       {/* Grid Content */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
         {/* Info Card */}
-        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-1 h-fit sticky top-24 shadow-sm border-border/80">
-          <h3 className="font-bold text-base mb-4 border-b border-border pb-2 flex items-center justify-between">
+        <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md md:col-span-1 h-fit md:sticky md:top-24 shadow-xs border-border/80 rounded-2xl sm:rounded-3xl">
+          <h3 className="font-bold text-xs sm:text-base mb-3 sm:mb-4 border-b border-border pb-2 flex items-center justify-between">
             <span>Informasi Area</span>
-            <span className="text-xs text-muted-foreground font-normal">Audit Session</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">Audit Session</span>
           </h3>
-          <div className="space-y-3.5 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-1 gap-2.5 sm:gap-3.5 text-xs sm:text-sm">
             <div>
-              <span className="text-muted-foreground block text-xs font-medium">Area</span>
-              <span className="font-semibold text-foreground">{inspection.area_name || inspection.area_id}</span>
+              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Area</span>
+              <span className="font-semibold text-foreground truncate block">{inspection.area_name || inspection.area_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-xs font-medium">Kawasan</span>
-              <span className="font-semibold text-foreground">{inspection.kawasan_name || inspection.kawasan_id}</span>
+              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Kawasan</span>
+              <span className="font-semibold text-foreground truncate block">{inspection.kawasan_name || inspection.kawasan_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-xs font-medium">Detail Kawasan</span>
-              <span className="font-semibold text-foreground">{inspection.detail_kawasan_name || inspection.detail_kawasan_id}</span>
+              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Detail Kawasan</span>
+              <span className="font-semibold text-foreground truncate block">{inspection.detail_kawasan_name || inspection.detail_kawasan_id}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block text-xs font-medium">Auditor Pelaksana</span>
-              <span className="font-semibold text-foreground">{inspection.inspector_name || inspection.inspector_id}</span>
+              <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Auditor Pelaksana</span>
+              <span className="font-semibold text-foreground truncate block">{inspection.inspector_name || inspection.inspector_id}</span>
             </div>
             {inspection.score !== undefined && inspection.score !== null && (
-              <div className="pt-2 border-t border-border">
-                <span className="text-muted-foreground block text-xs font-medium">Skor Hasil Inspeksi</span>
-                <span className={`text-lg font-bold ${inspection.score >= 80 ? "text-green-600" : "text-amber-600"}`}>
+              <div className="col-span-2 sm:col-span-1 pt-2 border-t border-border">
+                <span className="text-muted-foreground block text-[10px] sm:text-xs font-medium">Skor Hasil Inspeksi</span>
+                <span className={`text-base sm:text-lg font-bold ${inspection.score >= 80 ? "text-green-600" : "text-amber-600"}`}>
                   {inspection.score.toFixed(1)}%
                 </span>
               </div>
             )}
 
             {/* Overall Inspection Completion Progress Bar */}
-            <div className="pt-3 border-t border-border space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
+            <div className="col-span-2 sm:col-span-1 pt-2 sm:pt-3 border-t border-border space-y-1 sm:space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] sm:text-xs">
                 <span className="text-muted-foreground font-medium">Progres Penilaian</span>
                 <span className="font-bold text-primary">{overallProgress.answered} / {overallProgress.total} ({overallProgress.percent}%)</span>
               </div>
@@ -865,29 +895,29 @@ export default function InspectionDetailPage() {
         </Card>
 
         {/* Checklist Form with 3-Tier Navigation (Aspek -> Detail Aspek -> Uraian) */}
-        <Card className="p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-sm border-border/80 space-y-6">
+        <Card className="p-4 sm:p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-xs border-border/80 space-y-4 sm:space-y-6 rounded-2xl sm:rounded-3xl">
           {/* Header Title */}
-          <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center justify-between border-b border-border pb-2.5 sm:pb-3">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-base">Checklist Penilaian Audit</h3>
+              <h3 className="font-bold text-sm sm:text-base">Checklist Penilaian Audit</h3>
             </div>
-            <span className="text-xs text-muted-foreground font-medium">
+            <span className="text-[11px] sm:text-xs text-muted-foreground font-medium">
               {aspeksList.length} Aspek Pengecekan
             </span>
           </div>
 
           {aspeksList.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground bg-muted/20 rounded-2xl border border-border">
+            <div className="p-6 sm:p-8 text-center text-xs sm:text-sm text-muted-foreground bg-muted/20 rounded-2xl border border-border">
               Belum ada Uraian (Checklist) yang diatur untuk Area ini.
             </div>
           ) : (
-            <form className="space-y-6">
+            <form className="space-y-4 sm:space-y-6">
               {/* LEVEL 1: Interactive Horizontal Aspek Tabs Bar */}
               <div className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
                   Langkah 1: Pilih Aspek Audit
                 </span>
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-border scrollbar-none">
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 border-b border-border scrollbar-none">
                   {aspeksList.map((aspek: any, idx: number) => {
                     const isCurrent = idx === activeAspekIndex;
                     const { answered, total, isComplete } = getAspekProgress(aspek);
@@ -897,20 +927,20 @@ export default function InspectionDetailPage() {
                         key={aspek.aspek_id || idx}
                         type="button"
                         onClick={() => {
-                          setActiveAspekIndex(idx);
-                          setActiveDetailIndex(0);
+                          dispatch(setActiveAspekIndex(idx));
+                          dispatch(setActiveDetailIndex(0));
                           updateUrlParams(aspek.aspek_id, null);
                         }}
-                        className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold whitespace-nowrap transition-all ${
+                        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
                           isCurrent
-                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
                             : isComplete
                             ? "bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20"
                             : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                         }`}
                       >
                         <span
-                          className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                          className={`h-4.5 w-4.5 sm:h-5 sm:w-5 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold shrink-0 ${
                             isCurrent
                               ? "bg-primary-foreground text-primary"
                               : isComplete
@@ -920,9 +950,9 @@ export default function InspectionDetailPage() {
                         >
                           {isComplete ? "✓" : idx + 1}
                         </span>
-                        <span className="truncate max-w-[140px]">{aspek.aspek_name}</span>
+                        <span className="truncate max-w-[110px] sm:max-w-[140px]">{aspek.aspek_name}</span>
                         <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                          className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
                             isCurrent
                               ? "bg-primary-foreground/20 text-primary-foreground font-bold"
                               : isComplete
@@ -940,28 +970,28 @@ export default function InspectionDetailPage() {
 
               {/* LEVEL 2 & 3: Current Active Aspek & Selected Detail Aspek */}
               {currentAspek && (
-                <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
                   {/* Active Aspek Lock & Info Banner */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 bg-muted/40 rounded-2xl border border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 sm:p-4 bg-muted/40 rounded-2xl border border-border">
                     <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-primary">
                         Aspek {activeAspekIndex + 1} dari {aspeksList.length}
                       </span>
-                      <h3 className="text-lg font-bold text-foreground mt-0.5 flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-bold text-foreground mt-0.5 flex flex-wrap items-center gap-2">
                         {currentAspek.aspek_name}
                         {isLockedByMe ? (
-                          <span className="text-xs font-normal text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[11px] sm:text-xs font-normal text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Lock className="w-3 h-3" /> Dikunci oleh Anda
                           </span>
                         ) : lockError ? (
-                          <span className="text-xs font-normal text-destructive bg-destructive/10 border border-destructive/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[11px] sm:text-xs font-normal text-destructive bg-destructive/10 border border-destructive/20 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Lock className="w-3 h-3" /> {lockError}
                           </span>
                         ) : null}
                       </h3>
                     </div>
                     <div className="text-left sm:text-right">
-                      <span className="text-xs text-muted-foreground block font-medium">Progres Aspek</span>
+                      <span className="text-[10px] sm:text-xs text-muted-foreground block font-medium">Progres Aspek</span>
                       <span className="text-xs font-bold text-foreground font-mono">
                         {getAspekProgress(currentAspek).answered} / {getAspekProgress(currentAspek).total} Uraian Terisi
                       </span>
@@ -970,7 +1000,7 @@ export default function InspectionDetailPage() {
 
                   {/* Lock error overlay if locked by another user */}
                   {!isLockedByMe && canEditInspection && (
-                    <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                    <div className="p-3 sm:p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                       <span className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
                         {lockError || "Klik tombol di samping untuk mengambil alih penguncian aspek ini."}
@@ -981,7 +1011,7 @@ export default function InspectionDetailPage() {
                         variant="outline"
                         onClick={() => acquireLock(currentAspekId!)}
                         disabled={isAcquiring}
-                        className="text-xs"
+                        className="text-xs self-end sm:self-auto"
                       >
                         {isAcquiring ? "Mengunci..." : "Kunci Aspek Ini"}
                       </Button>
@@ -990,25 +1020,25 @@ export default function InspectionDetailPage() {
 
                   {/* LEVEL 2: Interactive Detail Aspek Selection Sub-Tabs */}
                   {detailsList.length > 0 && (
-                    <div className="space-y-2 bg-muted/20 p-3.5 rounded-2xl border border-border/80">
+                    <div className="space-y-2 bg-muted/20 p-3 sm:p-3.5 rounded-2xl border border-border/80">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                          <Layers className="w-4 h-4 text-primary" /> Langkah 2: Pilih Detail Aspek
+                          <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" /> Langkah 2: Detail Aspek
                         </span>
                         <button
                           type="button"
-                          onClick={() => setActiveDetailIndex("all")}
-                          className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${
+                          onClick={() => dispatch(setActiveDetailIndex("all"))}
+                          className={`text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 sm:py-1 rounded-lg border transition-all ${
                             activeDetailIndex === "all"
                               ? "bg-primary text-primary-foreground border-primary shadow-xs"
                               : "bg-card text-muted-foreground hover:bg-muted"
                           }`}
                         >
-                          Tampilkan Semua ({detailsList.length} Detail)
+                          Semua ({detailsList.length})
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
                         {detailsList.map((detail: any, dIdx: number) => {
                           const isSelected = activeDetailIndex === dIdx;
                           const { answered, total, isComplete } = getDetailProgress(detail);
@@ -1017,8 +1047,8 @@ export default function InspectionDetailPage() {
                             <button
                               key={detail.detail_id || dIdx}
                               type="button"
-                              onClick={() => setActiveDetailIndex(dIdx)}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold whitespace-nowrap transition-all ${
+                              onClick={() => dispatch(setActiveDetailIndex(dIdx))}
+                              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
                                 isSelected
                                   ? "bg-primary/10 text-primary border-primary font-bold shadow-xs ring-1 ring-primary/30"
                                   : isComplete
@@ -1026,9 +1056,9 @@ export default function InspectionDetailPage() {
                                   : "bg-card text-muted-foreground border-border hover:bg-muted"
                               }`}
                             >
-                              <span className="truncate max-w-[180px]">{detail.detail_name}</span>
+                              <span className="truncate max-w-[130px] sm:max-w-[180px]">{detail.detail_name}</span>
                               <span
-                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                                className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
                                   isComplete
                                     ? "bg-green-600 text-white"
                                     : "bg-muted text-muted-foreground"
@@ -1047,24 +1077,25 @@ export default function InspectionDetailPage() {
                   {displayedDetails.map((detail: any, dIndex: number) => (
                     <div
                       key={detail.detail_id || dIndex}
-                      className="space-y-4 bg-card/40 p-4 sm:p-5 rounded-2xl border border-border/80 animate-in fade-in duration-150"
+                      className="space-y-3 sm:space-y-4 bg-card/40 p-3.5 sm:p-5 rounded-2xl border border-border/80 animate-in fade-in duration-150"
                     >
-                      <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2.5 w-2.5 rounded-full bg-primary shrink-0" />
-                          <h4 className="font-bold text-sm text-primary tracking-tight">
+                      <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                          <h4 className="font-bold text-xs sm:text-sm text-primary tracking-tight">
                             Detail Aspek: {detail.detail_name}
                           </h4>
                         </div>
-                        <span className="text-xs font-mono font-medium text-muted-foreground">
+                        <span className="text-[10px] sm:text-xs font-mono font-medium text-muted-foreground">
                           {getDetailProgress(detail).answered} / {getDetailProgress(detail).total} Uraian
                         </span>
                       </div>
 
-                      <div className="space-y-4">
+                      <div className="space-y-3 sm:space-y-4">
                         {detail.uraians?.map((uraian: any, uIndex: number) => {
                           const uId = uraian.uraian_id;
-                          const currentNilai = watch(`nilai_${uId}`);
+                          const pKey = getPhotoKey(detail.detail_id, uId);
+                          const currentNilai = watch(`nilai_${pKey}`) ?? watch(`nilai_${uId}`);
                           const isNG = currentNilai === "0";
                           const formDisabled =
                             isCompleted || (!isLockedByMe && canEditInspection) || !isSamePlant;
@@ -1076,33 +1107,33 @@ export default function InspectionDetailPage() {
                               id={`uraian-${uId}`}
                               onClick={() => updateUrlParams(currentAspekId, uId)}
                               className={cn(
-                                "p-4 rounded-xl border bg-card/70 space-y-3 transition-all duration-500 cursor-pointer",
+                                "p-3 sm:p-4 rounded-xl border bg-card/70 space-y-2.5 sm:space-y-3 transition-all duration-500 cursor-pointer",
                                 isHighlighted
                                   ? "border-primary ring-2 ring-primary/40 bg-primary/10 shadow-lg shadow-primary/10"
                                   : "border-border/60 hover:border-border"
                               )}
                             >
-                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                <div className="space-y-1 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold text-muted-foreground font-mono">
+                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-3">
+                                <div className="space-y-0.5 flex-1 min-w-0">
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground font-mono shrink-0 mt-0.5">
                                       #{uIndex + 1}
                                     </span>
-                                    <h5 className="font-semibold text-sm text-foreground">
+                                    <h5 className="font-semibold text-xs sm:text-sm text-foreground leading-snug">
                                       {uraian.uraian_text}
                                     </h5>
                                   </div>
                                   {uraian.standard_score !== undefined && (
-                                    <span className="text-[11px] text-muted-foreground block font-medium">
+                                    <span className="text-[10px] sm:text-[11px] text-muted-foreground block font-medium">
                                       Bobot Standar: <strong className="text-foreground">{uraian.standard_score}</strong>
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Rating Radio Options */}
-                                <div className="flex items-center gap-3 bg-muted/30 p-1.5 rounded-xl border border-border/50 shrink-0 self-start">
+                                <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-xl border border-border/50 shrink-0 self-end sm:self-start">
                                   <label
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                                    className={`flex items-center justify-center gap-1 px-3.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                                       currentNilai === "2"
                                         ? "bg-green-600 text-white shadow-xs"
                                         : "hover:bg-muted text-muted-foreground"
@@ -1112,14 +1143,14 @@ export default function InspectionDetailPage() {
                                       type="radio"
                                       value="2"
                                       disabled={formDisabled}
-                                      {...register(`nilai_${uId}`)}
+                                      {...register(`nilai_${pKey}`)}
                                       className="sr-only"
                                     />
                                     <span>OK</span>
                                   </label>
 
                                   <label
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                                    className={`flex items-center justify-center gap-1 px-3.5 sm:px-3 py-1.5 sm:py-1 rounded-lg text-xs font-bold cursor-pointer transition-all ${
                                       currentNilai === "0"
                                         ? "bg-red-600 text-white shadow-xs"
                                         : "hover:bg-muted text-muted-foreground"
@@ -1129,7 +1160,7 @@ export default function InspectionDetailPage() {
                                       type="radio"
                                       value="0"
                                       disabled={formDisabled}
-                                      {...register(`nilai_${uId}`)}
+                                      {...register(`nilai_${pKey}`)}
                                       className="sr-only"
                                     />
                                     <span>NG</span>
@@ -1150,8 +1181,8 @@ export default function InspectionDetailPage() {
                                   </div>
 
                                   <PhotoUploaderWithKeterangan
-                                    photos={ngPhotosMap[getPhotoKey(detail.detail_id, uId)] || ngPhotosMap[uId] || []}
-                                    onChange={(updatedPhotos) => handlePhotosChange(getPhotoKey(detail.detail_id, uId), updatedPhotos)}
+                                    photos={ngPhotosMap[pKey] || (!detail.detail_id ? (ngPhotosMap[uId] || []) : [])}
+                                    onChange={(updatedPhotos) => handlePhotosChange(pKey, updatedPhotos)}
                                     maxPhotos={3}
                                     disabled={formDisabled}
                                   />
@@ -1222,37 +1253,42 @@ export default function InspectionDetailPage() {
 
       {/* Modal Dialog Confirm Batalkan Inspeksi */}
       {showCancelDialog && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <Card className="max-w-md w-full p-6 space-y-4 shadow-xl border-border animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-2 rounded-full bg-red-100 dark:bg-red-950/50">
-                <AlertTriangle className="h-6 w-6" />
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-3.5 sm:p-6 overflow-y-auto">
+          <div className="bg-card text-card-foreground border border-border/80 rounded-2xl sm:rounded-3xl p-4.5 sm:p-7 w-full max-w-[480px] shadow-2xl space-y-4 sm:space-y-6 animate-in fade-in zoom-in-95 duration-200 overflow-hidden box-border shrink-0">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 shrink-0 border border-red-500/20">
+                <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
-              <h3 className="text-lg font-bold text-foreground">Batalkan Inspeksi Ini?</h3>
+              <div className="space-y-1 flex-1 min-w-0">
+                <h3 className="text-base sm:text-xl font-bold text-foreground tracking-tight">Batalkan Inspeksi Ini?</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                  Tindakan ini akan <strong className="text-foreground font-semibold">menghapus sesi inspeksi</strong> dari database, menghapus seluruh draf di Redis, dan <strong className="text-foreground font-semibold">melepas kunci penguncian lokasi</strong> sehingga kawasan ini dapat diinspeksi kembali.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Tindakan ini akan <strong className="text-foreground">menghapus sesi inspeksi</strong> dari database, menghapus seluruh draf di Redis, dan <strong className="text-foreground">melepas kunci penguncian lokasi</strong> sehingga kawasan ini dapat diinspeksi kembali.
-            </p>
-            <div className="flex justify-end gap-3 pt-2">
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 sm:pt-4 border-t border-border/60">
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => setShowCancelDialog(false)}
+                type="button"
+                onClick={() => dispatch(setShowCancelDialog(false))}
                 disabled={isCanceling}
+                className="flex-1 sm:flex-none h-9 sm:h-10 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl border-border/80 hover:bg-muted"
               >
                 Kembali
               </Button>
               <Button
                 variant="destructive"
-                size="sm"
+                type="button"
                 onClick={handleCancelInspection}
                 disabled={isCanceling}
-                className="bg-red-600 hover:bg-red-700"
+                className="flex-1 sm:flex-none h-9 sm:h-10 px-3.5 sm:px-5 text-xs sm:text-sm font-semibold rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-xs shrink-0 whitespace-nowrap"
               >
-                {isCanceling ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ya, Batalkan & Hapus Sesi"}
+                {isCanceling ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin mr-1.5" /> : null}
+                {isCanceling ? "Membatalkan..." : "Ya, Batalkan & Hapus Sesi"}
               </Button>
             </div>
-          </Card>
+          </div>
         </div>
       )}
     </div>

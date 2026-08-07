@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/stores/authStore";
-import { useAdminGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { api } from "@/lib/api/axios";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +28,8 @@ const fetchRolePermissions = async (roleId: string) => {
 
 export default function RolesPermissionsPage() {
   const user = useAuthStore((state) => state.user);
-  const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAdmin = hasPermission("PERM-MSTR-R");
   const mounted = useMounted();
   const queryClient = useQueryClient();
 

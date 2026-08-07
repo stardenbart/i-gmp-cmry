@@ -3,6 +3,7 @@
 import { useState, useDeferredValue, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   AlertTriangle,
   Search,
@@ -24,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
-import { isAuditorUser } from "@/lib/useAdminGuard";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
 import { usePolling } from "@/hooks/usePolling";
 
@@ -173,24 +173,28 @@ function IssueSkeleton() {
   );
 }
 
-import { useParams } from "next/navigation";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  setActiveStatus,
+  setSearch,
+  setPage,
+  resetFilters,
+} from "@/store/slices/issueFilterSlice";
 
 /* ── Page ──────────────────────────────────────────────────────────────── */
 export default function IssuesPage() {
   const paramsNav = useParams() as { plantCode?: string; userId?: string };
   const user = useAuthStore((state) => state.user);
   const { hasPermission, isLoading: isPermLoading } = usePermissions();
-  const isAuditor = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
-  const canAccess = hasPermission("PERM-ISS-R") || isAuditor;
+  const canAccess = hasPermission("PERM-ISS-R");
 
   const plantCode = paramsNav?.plantCode || user?.plant_id || "global";
   const userId = paramsNav?.userId || user?.id || "overview";
 
   usePolling();
 
-  const [activeStatus, setActiveStatus] = useState<IssueStatus | "all">("all");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const dispatch = useAppDispatch();
+  const { activeStatus, search, page } = useAppSelector((state) => state.issueFilter);
 
   // Debounce search via React 18 useDeferredValue
   const deferredSearch = useDeferredValue(search);
@@ -268,7 +272,7 @@ export default function IssuesPage() {
           <input
             type="search"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => dispatch(setSearch(e.target.value))}
             placeholder="Cari temuan (Label)..."
             className={cn(
               "w-full rounded-xl border border-border/60 bg-card/60 backdrop-blur-md",
@@ -301,7 +305,7 @@ export default function IssuesPage() {
           return (
             <button
               key={opt.value}
-              onClick={() => { setActiveStatus(opt.value); setPage(1); }}
+              onClick={() => dispatch(setActiveStatus(opt.value))}
               className={cn(
                 "shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold",
                 "transition-all duration-200 border",
@@ -359,7 +363,7 @@ export default function IssuesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => { setSearch(""); setActiveStatus("all"); setPage(1); }}
+                    onClick={() => dispatch(resetFilters())}
                     className="rounded-full px-5 h-9 text-xs font-semibold"
                   >
                     <X className="mr-1.5 h-3.5 w-3.5" /> Hapus Filter
@@ -385,14 +389,14 @@ export default function IssuesPage() {
           <p className="text-xs text-muted-foreground">Hal {page} dari {totalPages} ({total} total)</p>
           <div className="flex gap-2">
             <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
+              onClick={() => dispatch(setPage(Math.max(1, page - 1)))}
               disabled={page === 1}
               className="p-1.5 rounded-lg border border-border/60 disabled:opacity-40 hover:bg-muted transition-colors"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              onClick={() => dispatch(setPage(Math.min(totalPages, page + 1)))}
               disabled={page >= totalPages}
               className="p-1.5 rounded-lg border border-border/60 disabled:opacity-40 hover:bg-muted transition-colors"
             >

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
-import { isAdminUser } from "@/lib/useAdminGuard";
 import { Loader2 } from "lucide-react";
 
 export function ScopeGuard({ children }: { children: React.ReactNode }) {

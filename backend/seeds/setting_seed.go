@@ -5,7 +5,6 @@ import (
 
 	"github.com/monitoring-system/backend/internal/domain/master"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // SeedSettings populates initial system settings
@@ -59,12 +58,9 @@ func SeedSettings(db *gorm.DB) {
 	}
 
 	for _, setting := range settings {
-		err := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "SettingKey"}},
-			DoNothing: true,
-		}).Create(&setting).Error
+		err := db.Where(&master.Setting{SettingKey: setting.SettingKey}).FirstOrCreate(&setting).Error
 		if err != nil {
-			log.Fatalf("❌ Failed to seed setting %s: %v", setting.SettingKey, err)
+			log.Printf("⚠️ Failed to seed setting %s: %v", setting.SettingKey, err)
 		}
 	}
 

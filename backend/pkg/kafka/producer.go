@@ -48,7 +48,7 @@ func (p *producer) PublishEvent(ctx context.Context, topic string, key string, e
 
 	err = p.writer.WriteMessages(ctx, msg)
 	if err != nil {
-		return fmt.Errorf("failed to publish to topic %s: %w", err, topic)
+		return fmt.Errorf("failed to publish to topic %s: %w", topic, err)
 	}
 	return nil
 }

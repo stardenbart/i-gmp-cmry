@@ -8,44 +8,55 @@ import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
 import { Loader2, UserCheck, ShieldCheck, AlertTriangle, Building2, CheckCircle2 } from "lucide-react";
 
+import { useParams } from "next/navigation";
+
 // Fetch Auditor statistics directly from backend API
-const fetchAuditorDetail = async () => {
-  const res = await api.get("/dashboard/auditor-detail");
+const fetchAuditorDetail = async (plantId?: string) => {
+  const res = await api.get("/dashboard/auditor-detail", {
+    params: plantId && plantId !== "all" && plantId !== "global" ? { plant_id: plantId } : {}
+  });
   return res.data?.data?.items || [];
 };
 
 // Fetch PIC statistics directly from backend API
-const fetchPICDetail = async () => {
-  const res = await api.get("/dashboard/pic-detail");
+const fetchPICDetail = async (plantId?: string) => {
+  const res = await api.get("/dashboard/pic-detail", {
+    params: plantId && plantId !== "all" && plantId !== "global" ? { plant_id: plantId } : {}
+  });
   return res.data?.data?.items || [];
 };
 
 // Fetch overall dashboard stats
-const fetchDashboardStats = async () => {
-  const res = await api.get("/dashboard/stats");
+const fetchDashboardStats = async (plantId?: string) => {
+  const res = await api.get("/dashboard/stats", {
+    params: plantId && plantId !== "all" && plantId !== "global" ? { plant_id: plantId } : {}
+  });
   return res.data?.data;
 };
 
 export default function MonitoringPage() {
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
+  const params = useParams();
+  const plantCode = (params?.plantCode as string) || "";
+
   const [activeTab, setActiveTab] = useState<"audit" | "pic" | "auditee">("audit");
 
   const { data: auditors = [], isLoading: isAuditorLoading } = useQuery({
-    queryKey: ["monitoring-auditor-detail"],
-    queryFn: fetchAuditorDetail,
+    queryKey: ["monitoring-auditor-detail", plantCode],
+    queryFn: () => fetchAuditorDetail(plantCode),
     enabled: mounted && !!user,
   });
 
   const { data: pics = [], isLoading: isPICLoading } = useQuery({
-    queryKey: ["monitoring-pic-detail"],
-    queryFn: fetchPICDetail,
+    queryKey: ["monitoring-pic-detail", plantCode],
+    queryFn: () => fetchPICDetail(plantCode),
     enabled: mounted && !!user,
   });
 
   const { data: stats, isLoading: isStatsLoading } = useQuery({
-    queryKey: ["monitoring-global-stats"],
-    queryFn: fetchDashboardStats,
+    queryKey: ["monitoring-global-stats", plantCode],
+    queryFn: () => fetchDashboardStats(plantCode),
     enabled: mounted && !!user,
   });
 

@@ -27,14 +27,23 @@ const (
 	WOWRStatusRejected          WOWRStatus = "Rejected"
 )
 
-// IssueCategory defines HEI categories.
-type IssueCategory string
+// IssueHEI represents the Issue_HEI junction table (1-to-1 per Issue).
+type IssueHEI struct {
+	IssueHEIID       string          `gorm:"column:IssueHEIID;primaryKey" json:"issue_hei_id"`
+	IssueID          string          `gorm:"column:IssueID;unique;not null" json:"issue_id"`
+	HabitID          *string         `gorm:"column:HabitID" json:"habit_id,omitempty"`
+	EquipmentID      *string         `gorm:"column:EquipmentID" json:"equipment_id,omitempty"`
+	InfrastructureID *string         `gorm:"column:InfrastructureID" json:"infrastructure_id,omitempty"`
+	CreatedAt        time.Time       `gorm:"column:CreatedAt;autoCreateTime" json:"created_at"`
+	UpdatedAt        time.Time       `gorm:"column:UpdatedAt;autoUpdateTime" json:"updated_at"`
 
-const (
-	IssueCategoryHabit          IssueCategory = "Habit"
-	IssueCategoryEquipment      IssueCategory = "Equipment"
-	IssueCategoryInfrastructure IssueCategory = "Infrastructure"
-)
+	// Relations
+	Habit          *Habit          `gorm:"foreignKey:HabitID" json:"habit,omitempty"`
+	Equipment      *Equipment      `gorm:"foreignKey:EquipmentID" json:"equipment,omitempty"`
+	Infrastructure *Infrastructure `gorm:"foreignKey:InfrastructureID" json:"infrastructure,omitempty"`
+}
+
+func (IssueHEI) TableName() string { return "Issue_HEI" }
 
 // Issue represents the Issue table.
 type Issue struct {
@@ -50,28 +59,25 @@ type Issue struct {
 	WO_ID               string        `gorm:"column:WO_ID;size:100" json:"wo_id"`
 	WR_ID               string        `gorm:"column:WR_ID;size:100" json:"wr_id"`
 	WOWRStatus          WOWRStatus    `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
-	IssueCategory       *IssueCategory `gorm:"column:IssueCategory;type:issue_category_enum" json:"issue_category,omitempty"`
-	HabitID             *string       `gorm:"column:HabitID" json:"habit_id,omitempty"`
-	EquipmentID         *string       `gorm:"column:EquipmentID" json:"equipment_id,omitempty"`
-	InfrastructureID    *string       `gorm:"column:InfrastructureID" json:"infrastructure_id,omitempty"`
 	Keterangan          string        `gorm:"column:Keterangan;size:255" json:"keterangan"`
 	PICName             string        `gorm:"-" json:"pic_name"`
 	IssueCreatedAt      time.Time     `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
 	IssueUpdatedAt      time.Time     `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Joined Name Fields (not saved to DB)
-	AreaName          string `gorm:"column:AreaName;->" json:"area_name,omitempty"`
-	KawasanName       string `gorm:"column:KawasanName;->" json:"kawasan_name,omitempty"`
-	DetailKawasanName string `gorm:"column:DetailKawasanName;->" json:"detail_kawasan_name,omitempty"`
-	AspekName         string `gorm:"column:AspekName;->" json:"aspek_name,omitempty"`
-	DetailAspekName   string `gorm:"column:DetailAspekName;->" json:"detail_aspek_name,omitempty"`
-	UraianText        string `gorm:"column:UraianText;->" json:"uraian_text,omitempty"`
+	AreaName           string `gorm:"column:AreaName;->" json:"area_name,omitempty"`
+	KawasanName        string `gorm:"column:KawasanName;->" json:"kawasan_name,omitempty"`
+	DetailKawasanName  string `gorm:"column:DetailKawasanName;->" json:"detail_kawasan_name,omitempty"`
+	AspekName          string `gorm:"column:AspekName;->" json:"aspek_name,omitempty"`
+	DetailAspekName    string `gorm:"column:DetailAspekName;->" json:"detail_aspek_name,omitempty"`
+	UraianText         string `gorm:"column:UraianText;->" json:"uraian_text,omitempty"`
+	HabitName          string `gorm:"column:HabitName;->" json:"habit_name,omitempty"`
+	EquipmentName      string `gorm:"column:EquipmentName;->" json:"equipment_name,omitempty"`
+	InfrastructureName string `gorm:"column:InfrastructureName;->" json:"infrastructure_name,omitempty"`
 
 	// Relations
-	Photos         []IssuePhoto    `gorm:"foreignKey:IssueID" json:"photos,omitempty"`
-	Habit          *Habit          `gorm:"foreignKey:HabitID" json:"habit,omitempty"`
-	Equipment      *Equipment      `gorm:"foreignKey:EquipmentID" json:"equipment,omitempty"`
-	Infrastructure *Infrastructure `gorm:"foreignKey:InfrastructureID" json:"infrastructure,omitempty"`
+	Photos []IssuePhoto `gorm:"foreignKey:IssueID" json:"photos,omitempty"`
+	HEI    *IssueHEI    `gorm:"foreignKey:IssueID;references:IssueID" json:"hei,omitempty"`
 }
 
 func (Issue) TableName() string { return "Issue" }
@@ -97,38 +103,36 @@ func (i *Issue) ComputedStatus(now time.Time) IssueStatus {
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 
 type CreateIssueRequest struct {
-	ResultID         string        `json:"result_id" validate:"required"`
-	IssuePICUserID   string        `json:"issue_pic_user_id" validate:"required"`
-	DueDate          *time.Time    `json:"due_date"`
-	Label            string        `json:"label"`
-	NeedsWOWR        bool          `json:"needs_wo_wr"`
-	WO_ID            string        `json:"wo_id"`
-	WR_ID            string        `json:"wr_id"`
-	WOWRStatus       WOWRStatus    `json:"wowr_status"`
-	IssueCategory    *IssueCategory `json:"issue_category"`
-	HabitID          *string       `json:"habit_id"`
-	EquipmentID      *string       `json:"equipment_id"`
-	InfrastructureID *string       `json:"infrastructure_id"`
-	Keterangan       string        `json:"keterangan"`
+	ResultID         string     `json:"result_id" validate:"required"`
+	IssuePICUserID   string     `json:"issue_pic_user_id" validate:"required"`
+	DueDate          *time.Time `json:"due_date"`
+	Label            string     `json:"label"`
+	NeedsWOWR        bool       `json:"needs_wo_wr"`
+	WO_ID            string     `json:"wo_id"`
+	WR_ID            string     `json:"wr_id"`
+	WOWRStatus       WOWRStatus `json:"wowr_status"`
+	HabitID          *string    `json:"habit_id"`
+	EquipmentID      *string    `json:"equipment_id"`
+	InfrastructureID *string    `json:"infrastructure_id"`
+	Keterangan       string     `json:"keterangan"`
 }
 
 type UpdateIssueRequest struct {
-	IssuePICUserID   string        `json:"issue_pic_user_id"`
-	DueDate          *time.Time    `json:"due_date"`
-	IssueStatus      IssueStatus   `json:"issue_status" validate:"omitempty,oneof=Open InProgress PendingValidation Closed Verified"`
-	Label            string        `json:"label"`
-	NeedsWOWR        bool          `json:"needs_wo_wr"`
-	WO_ID            string        `json:"wo_id"`
-	WR_ID            string        `json:"wr_id"`
-	WOWRStatus       WOWRStatus    `json:"wowr_status" validate:"omitempty,oneof=None PendingValidation Verified Rejected"`
-	IssueCategory    *IssueCategory `json:"issue_category" validate:"omitempty,oneof=Habit Equipment Infrastructure"`
-	HabitID          *string       `json:"habit_id"`
-	EquipmentID      *string       `json:"equipment_id"`
-	InfrastructureID *string       `json:"infrastructure_id"`
-	Keterangan       string        `json:"keterangan"`
+	IssuePICUserID   string      `json:"issue_pic_user_id"`
+	DueDate          *time.Time  `json:"due_date"`
+	IssueStatus      IssueStatus `json:"issue_status" validate:"omitempty,oneof=Open InProgress PendingValidation Closed Verified"`
+	Label            string      `json:"label"`
+	NeedsWOWR        *bool       `json:"needs_wo_wr"`
+	WO_ID            string      `json:"wo_id"`
+	WR_ID            string      `json:"wr_id"`
+	WOWRStatus       WOWRStatus  `json:"wowr_status" validate:"omitempty,oneof=None PendingValidation Verified Rejected"`
+	HabitID          *string     `json:"habit_id"`
+	EquipmentID      *string     `json:"equipment_id"`
+	InfrastructureID *string     `json:"infrastructure_id"`
+	Keterangan       string      `json:"keterangan"`
 }
 
-// ─── Repository Interface ──────────────────────────────────────────────────
+// ─── Repository Interfaces ─────────────────────────────────────────────────
 
 type IssueRepository interface {
 	FindAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
@@ -137,6 +141,12 @@ type IssueRepository interface {
 	Create(i *Issue) error
 	Update(i *Issue) error
 	Delete(id string) error
+}
+
+type IssueHEIRepository interface {
+	UpsertByIssueID(issueID string, hei *IssueHEI) error
+	FindByIssueID(issueID string) (*IssueHEI, error)
+	DeleteByIssueID(issueID string) error
 }
 
 // ─── UseCase Interface ─────────────────────────────────────────────────────

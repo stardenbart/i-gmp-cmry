@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { Loader2 } from "lucide-react";
 
-import { isAdminUser, isAuditorUser } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 
 // Code splitting with lazy
 const DashboardPanelAdmin = lazy(() => 
@@ -21,6 +21,7 @@ const DashboardPanelAuditee = lazy(() =>
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
+  const { hasPermission, isLoading: isPermLoading } = usePermissions();
 
   const LoadingFallback = (
     <div className="h-[50vh] w-full flex items-center justify-center bg-background">
@@ -28,16 +29,16 @@ export default function DashboardPage() {
     </div>
   );
 
-  if (!mounted) return LoadingFallback;
+  if (!mounted || isPermLoading) return LoadingFallback;
 
-  const isAdmin = isAdminUser(user?.role_id);
-  const isAuditor = isAuditorUser(user?.role_id);
+  const canManageSystem = hasPermission("PERM-USR-R") || hasPermission("PERM-MSTR-R");
+  const canCreateInspection = hasPermission("PERM-INSP-C") || hasPermission("PERM-INSP-W");
 
   return (
     <Suspense fallback={LoadingFallback}>
-      {isAdmin ? (
+      {canManageSystem ? (
         <DashboardPanelAdmin />
-      ) : isAuditor ? (
+      ) : canCreateInspection ? (
         <DashboardPanelAuditor />
       ) : (
         <DashboardPanelAuditee />

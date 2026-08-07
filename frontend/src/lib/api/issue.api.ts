@@ -49,6 +49,19 @@ export interface IssuePhoto {
   updated_at: string;
 }
 
+export interface IssueHEI {
+  issue_hei_id: string;
+  issue_id: string;
+  habit_id?: string;
+  equipment_id?: string;
+  infrastructure_id?: string;
+  habit?: Habit;
+  equipment?: Equipment;
+  infrastructure?: Infrastructure;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Issue {
   issue_id: string;
   result_id: string;
@@ -63,13 +76,7 @@ export interface Issue {
   wo_id?: string;
   wr_id?: string;
   wowr_status?: WOWRStatus;
-  issue_category?: IssueCategory;
-  habit_id?: string;
-  equipment_id?: string;
-  infrastructure_id?: string;
-  habit?: Habit;
-  equipment?: Equipment;
-  infrastructure?: Infrastructure;
+  hei?: IssueHEI;
   created_at: string;
   updated_at: string;
   photos?: IssuePhoto[];
@@ -79,6 +86,9 @@ export interface Issue {
   aspek_name?: string;
   detail_aspek_name?: string;
   uraian_text?: string;
+  habit_name?: string;
+  equipment_name?: string;
+  infrastructure_name?: string;
 }
 
 export const issueApi = {
@@ -97,7 +107,22 @@ export const issueApi = {
     return res.data;
   },
 
-  update: async (id: string, data: { issue_pic_user_id?: string; due_date?: string; issue_status?: IssueStatus; wowr_status?: WOWRStatus; keterangan?: string; needs_wo_wr?: boolean; wo_id?: string; wr_id?: string }) => {
+  update: async (
+    id: string,
+    data: {
+      issue_pic_user_id?: string;
+      due_date?: string;
+      issue_status?: IssueStatus;
+      wowr_status?: WOWRStatus;
+      keterangan?: string;
+      needs_wo_wr?: boolean;
+      wo_id?: string;
+      wr_id?: string;
+      habit_id?: string;
+      equipment_id?: string;
+      infrastructure_id?: string;
+    }
+  ) => {
     const res = await api.put(`/issues/${id}`, data);
     return res.data;
   },
@@ -168,5 +193,10 @@ export const issueApi = {
   deletePhoto: async (issueId: string, photoId: string) => {
     const res = await api.delete(`/issues/photos/${photoId}`);
     return res.data;
+  },
+
+  getWOWRReport: async (params?: { area_id?: string; kawasan_id?: string; start_date?: string; end_date?: string; plant_id?: string }) => {
+    const res = await api.get("/dashboard/wowr-report", { params });
+    return res.data.data;
   },
 };

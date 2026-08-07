@@ -160,7 +160,7 @@ var defaultUsers = []SeedUserDef{
 		Password:     "auditee123",
 	},
 	{
-		UserID:       "USR-SUPERVISOR-CICURUG",
+		UserID:       "USR-SPV-CICURUG",
 		DepartmentID: "DEPT-001",
 		RoleID:       "ROLE-004", // Supervisor
 		PlantID:      strPtr("PLT-CICURUG"),
@@ -222,7 +222,7 @@ var defaultUsers = []SeedUserDef{
 		Password:     "auditee123",
 	},
 	{
-		UserID:       "USR-SUPERVISOR-PASURUAN",
+		UserID:       "USR-SPV-PASURUAN",
 		DepartmentID: "DEPT-001",
 		RoleID:       "ROLE-004", // Supervisor
 		PlantID:      strPtr("PLT-PASURUAN"),
@@ -257,7 +257,7 @@ var defaultUsers = []SeedUserDef{
 func SeedUsers(db *gorm.DB) {
 	for _, u := range defaultUsers {
 		var count int64
-		db.Model(&authdomain.User{}).Where("username = ?", u.Username).Count(&count)
+		db.Model(&authdomain.User{}).Where("\"Username\" = ?", u.Username).Count(&count)
 		if count == 0 {
 			hashed, err := password.Hash(u.Password)
 			if err != nil {
@@ -285,7 +285,7 @@ func SeedUsers(db *gorm.DB) {
 		} else {
 			// Update PlantID if missing on existing user
 			if u.PlantID != nil {
-				_ = db.Model(&authdomain.User{}).Where("username = ? AND (\"PlantID\" IS NULL OR \"PlantID\" = '')", u.Username).Update("PlantID", u.PlantID).Error
+				_ = db.Model(&authdomain.User{}).Where("\"Username\" = ? AND (\"PlantID\" IS NULL OR \"PlantID\" = '')", u.Username).Update("PlantID", u.PlantID).Error
 			}
 		}
 	}

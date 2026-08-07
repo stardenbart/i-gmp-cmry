@@ -46,17 +46,17 @@ export function AspekStatusPanel({
   });
 
   return (
-    <div className="bg-card border rounded-lg p-4 mb-6 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+    <div className="bg-card border border-border/80 rounded-2xl p-3.5 sm:p-4 mb-6 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 mb-3 border-b border-border/50 pb-2.5">
+        <h4 className="text-xs sm:text-sm font-bold flex items-center gap-1.5 text-foreground tracking-tight">
           Status Real-Time Aspek Audit (Distributed Lock)
         </h4>
-        <span className="text-xs text-muted-foreground">
-          Diperbarui secara otomatis via Event Store
+        <span className="text-[10px] sm:text-xs text-muted-foreground">
+          Diperbarui otomatis via Event Store
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5">
         {aspeks.map((aspek) => {
           const info = statusMap.get(aspek.aspek_id);
           const isLocked = info?.status === "LOCKED";
@@ -64,40 +64,35 @@ export function AspekStatusPanel({
           const isLockedByMe = isLocked && lockedBy === currentUserId;
           const isActiveTab = aspek.aspek_id === activeAspekId;
 
-          let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "outline";
           let badgeText = "FREE";
-        
 
           if (isLockedByMe) {
-            badgeVariant = "default";
-            badgeText = "Anda Sedang Mengedit";
+            badgeText = "Aktif Mengedit";
           } else if (isLocked) {
-            badgeVariant = "destructive";
-            badgeText = `Dikunci oleh ${lockedBy ? lockedBy.substring(0, 8) : "Auditor Lain"}`;
+            badgeText = `Dikunci (${lockedBy ? lockedBy.substring(0, 6) : "Lain"})`;
           }
 
           return (
             <button
               key={aspek.aspek_id}
               onClick={() => onSelectAspek?.(aspek.aspek_id)}
-              className={`flex items-start justify-between p-2.5 rounded-md border text-left transition-all ${
+              className={`flex items-start justify-between p-2 sm:p-2.5 rounded-xl border text-left transition-all ${
                 isActiveTab
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:bg-accent/50"
+                  ? "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-xs"
+                  : "border-border/70 hover:bg-accent/40"
               }`}
             >
-              <div className="min-w-0 flex-1 mr-2">
-                <p className="text-xs font-medium text-foreground truncate">{aspek.aspek_name}</p>
-                <div className="flex items-center gap-1 mt-1">
-                 
-                  <span className="text-[11px] font-mono text-muted-foreground truncate">
+              <div className="min-w-0 flex-1 mr-1">
+                <p className="text-[11px] sm:text-xs font-semibold text-foreground truncate">{aspek.aspek_name}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className={`text-[9px] sm:text-[10px] font-mono font-medium truncate ${isLockedByMe ? "text-emerald-600 dark:text-emerald-400 font-bold" : isLocked ? "text-red-500 font-bold" : "text-muted-foreground"}`}>
                     {badgeText}
                   </span>
                 </div>
               </div>
               {isLockedByMe && (
-                <span className="text-[10px] py-0.5 px-1.5 rounded bg-emerald-600 text-white font-medium shrink-0">
-                  Aktif
+                <span className="text-[9px] py-0.5 px-1.5 rounded-full bg-emerald-600 text-white font-bold shrink-0">
+                  ●
                 </span>
               )}
             </button>

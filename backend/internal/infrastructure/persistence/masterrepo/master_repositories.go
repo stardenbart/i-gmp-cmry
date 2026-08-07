@@ -135,7 +135,9 @@ func (r *detailKawasanRepository) FindAll(page, limit int, plantID, kawasanID, s
 	var items []master.DetailKawasan
 	var total int64
 	q := r.db.Model(&master.DetailKawasan{}).
-		Select(`"DetailKawasan_Master".*, COALESCE(ih."InspectionHeaderStatus", '') AS "ActiveInspectionStatus"`).
+		Select(`"DetailKawasan_Master".*, 
+			COALESCE(ih."InspectionHeaderStatus", '') AS "ActiveInspectionStatus",
+			(SELECT MAX("InspectionHeaderCreatedAt") FROM "Inspection_Header" WHERE "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID" AND "InspectionHeaderStatus" IN ('Completed', 'Approved')) AS "LastInspection"`).
 		Joins(`LEFT JOIN (
 			SELECT DISTINCT ON ("DetailKawasanID") "DetailKawasanID", "InspectionHeaderStatus"
 			FROM "Inspection_Header"

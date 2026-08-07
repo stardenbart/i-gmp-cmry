@@ -171,6 +171,35 @@ func (r *inspectionHeaderRepository) Update(h *inspection.InspectionHeader) erro
 	return r.db.Save(h).Error
 }
 func (r *inspectionHeaderRepository) Delete(id string) error {
+	var h inspection.InspectionHeader
+	if err := r.db.Where("\"InspectionID\" = ?", id).First(&h).Error; err == nil {
+		if err := r.db.Where("\"InspectionID\" = ?", id).Delete(&inspection.InspectionHeader{}).Error; err != nil {
+			return err
+		}
+		_ = r.db.Where("\"InspectionID\" = ?", id).Delete(&inspection.InspectionResult{})
+
+		// Sync / recalculate LastInspection on DetailKawasan_Master
+		_ = r.db.Exec(`
+			UPDATE "DetailKawasan_Master" 
+			SET "LastInspection" = (
+				SELECT MAX("InspectionHeaderCreatedAt") 
+				FROM "Inspection_Header" 
+				WHERE "DetailKawasanID" = ? AND "InspectionHeaderStatus" IN ('Completed', 'Approved')
+			) 
+			WHERE "DetailKawasanID" = ?`, h.DetailKawasanID, h.DetailKawasanID)
+
+		// Sync / recalculate LastInspection on Kawasan_Master
+		_ = r.db.Exec(`
+			UPDATE "Kawasan_Master" 
+			SET "LastInspection" = (
+				SELECT MAX("InspectionHeaderCreatedAt") 
+				FROM "Inspection_Header" 
+				WHERE "KawasanID" = ? AND "InspectionHeaderStatus" IN ('Completed', 'Approved')
+			) 
+			WHERE "KawasanID" = ?`, h.KawasanID, h.KawasanID)
+
+		return nil
+	}
 	return r.db.Where("\"InspectionID\" = ?", id).Delete(&inspection.InspectionHeader{}).Error
 }
 

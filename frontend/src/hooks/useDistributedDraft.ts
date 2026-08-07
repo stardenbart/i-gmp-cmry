@@ -21,7 +21,7 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
-export function useDistributedDraft(kawasanId: string | undefined, batchSize = 5) {
+export function useDistributedDraft(inspectionId: string | undefined, batchSize = 5) {
   const [draftsByAspek, setDraftsByAspek] = useState<Record<string, any>>({});
   const [mergedUraianValues, setMergedUraianValues] = useState<Record<string, any>>({});
   const [mergedPhotosMap, setMergedPhotosMap] = useState<Record<string, PhotoItem[]>>({});
@@ -31,10 +31,10 @@ export function useDistributedDraft(kawasanId: string | undefined, batchSize = 5
   // Fetch all draft states from Redis using Batching + Chunking
   const fetchAllDrafts = useCallback(
     async (aspekIds?: string[]) => {
-      if (!kawasanId) return;
+      if (!inspectionId) return;
       setIsLoadingDrafts(true);
       try {
-        const res = await inspectionApi.getAllDrafts(kawasanId);
+        const res = await inspectionApi.getAllDrafts(inspectionId);
         const rawDrafts: Record<string, any> = res?.data || {};
         setDraftsByAspek(rawDrafts);
 
@@ -68,20 +68,20 @@ export function useDistributedDraft(kawasanId: string | undefined, batchSize = 5
                     ? JSON.parse(aspekDraft.data)
                     : aspekDraft.data;
 
-                Object.entries(parsedData).forEach(([uId, val]: [string, any]) => {
+                Object.entries(parsedData).forEach(([key, val]: [string, any]) => {
                   if (val && typeof val === "object") {
                     if (val.checking === "OK") {
-                      formDefaults[`nilai_${uId}`] = "2";
+                      formDefaults[`nilai_${key}`] = "2";
                     } else if (val.checking === "NG") {
-                      formDefaults[`nilai_${uId}`] = "0";
+                      formDefaults[`nilai_${key}`] = "0";
                     } else if (val.nilai !== undefined && val.nilai !== null) {
-                      formDefaults[`nilai_${uId}`] = (val.nilai === 2 || val.nilai >= 80) ? "2" : "0";
+                      formDefaults[`nilai_${key}`] = (val.nilai === 2 || val.nilai >= 80) ? "2" : "0";
                     }
                     if (val.keterangan !== undefined) {
-                      formDefaults[`ket_${uId}`] = val.keterangan;
+                      formDefaults[`ket_${key}`] = val.keterangan;
                     }
                     if (Array.isArray(val.photos) && val.photos.length > 0) {
-                      photosMap[uId] = val.photos;
+                      photosMap[key] = val.photos;
                     }
                   }
                 });
@@ -103,7 +103,7 @@ export function useDistributedDraft(kawasanId: string | undefined, batchSize = 5
         setIsLoadingDrafts(false);
       }
     },
-    [kawasanId, batchSize]
+    [inspectionId, batchSize]
   );
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export function useDistributedDraft(kawasanId: string | undefined, batchSize = 5
       aspekDataPayload: Record<string, RedisDraftValue>,
       skor: number = 0
     ) => {
-      if (!kawasanId || !aspekId || !lockToken) return;
+      if (!inspectionId || !aspekId || !lockToken) return;
 
       // Clear existing debounce timer for this aspek
       if (debounceTimersRef.current[aspekId]) {
@@ -139,7 +139,7 @@ export function useDistributedDraft(kawasanId: string | undefined, batchSize = 5
       // Debounce call to Redis API (500ms)
       debounceTimersRef.current[aspekId] = setTimeout(async () => {
         try {
-          await inspectionApi.saveAspekDraft(kawasanId, aspekId, lockToken, {
+          await inspectionApi.saveAspekDraft(inspectionId, aspekId, lockToken, {
             data: aspekDataPayload,
             skor,
           });
@@ -148,7 +148,7 @@ export function useDistributedDraft(kawasanId: string | undefined, batchSize = 5
         }
       }, 500);
     },
-    [kawasanId]
+    [inspectionId]
   );
 
   return {

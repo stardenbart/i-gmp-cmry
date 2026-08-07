@@ -78,11 +78,20 @@ func NotFound(c *fiber.Ctx, message string) error {
 }
 
 func InternalServerError(c *fiber.Ctx, message string, err interface{}) error {
+	var errOutput interface{} = err
+	env := c.App().Config().AppName // or check env
+	if env == "production" || c.IP() != "" { // sanitize sensitive error details in standard responses
+		// If err is raw error string or error object, sanitize to prevent Information Disclosure
+		if errStr, ok := err.(string); ok && errStr != "" {
+			// keep user-friendly short message, conceal internal DB stack trace
+			errOutput = message
+		}
+	}
 	return c.Status(http.StatusInternalServerError).JSON(APIResponse{
 		Success:    false,
 		StatusCode: http.StatusInternalServerError,
 		Message:    message,
-		Error:      err,
+		Error:      errOutput,
 	})
 }
 

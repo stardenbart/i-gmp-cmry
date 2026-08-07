@@ -17,7 +17,6 @@ import { PhotoSection } from "@/components/isssues/PhotosCard";
 import { WOWRCard } from "@/components/isssues/WOWRCard";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
-import { isAuditorUser } from "@/lib/useAdminGuard";
 import { usePermissions } from "@/lib/usePermissions";
 
 const statusConfig: Record<IssueStatus, { label: string; icon: React.ElementType; color: string; bg: string }> = {
@@ -76,7 +75,10 @@ export default function IssueDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Status temuan diperbarui");
     },
-    onError: () => toast.error("Gagal memperbarui status"),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal memperbarui status";
+      toast.error(msg);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -85,7 +87,10 @@ export default function IssueDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["issue-photos", id] });
       toast.success("Foto dihapus");
     },
-    onError: () => toast.error("Gagal menghapus foto"),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal menghapus foto";
+      toast.error(msg);
+    },
   });
 
   const issue = data?.data;
@@ -103,9 +108,8 @@ export default function IssueDetailPage() {
 
   if (!issue) return <div className="text-center p-10 text-muted-foreground">Temuan tidak ditemukan.</div>;
 
-  // Role calculation AFTER issue is safely loaded
-  const isAuditorByRole = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
-  const isAuditor = isAuditorByRole || hasPermission("PERM-WOWR-U");
+  // Dynamic role calculation
+  const isAuditor = hasPermission("PERM-INSP-C") || hasPermission("PERM-WOWR-U");
   const isPIC = !isAuditor;
 
   // Status calculation

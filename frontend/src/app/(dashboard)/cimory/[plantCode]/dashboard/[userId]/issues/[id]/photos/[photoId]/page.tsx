@@ -6,30 +6,26 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
-  MapPin,
-  Layers,
-  FileText,
   Upload,
   Trash2,
   Edit,
   Check,
   X,
   Loader2,
-  User,
-  Calendar,
   Eye,
-  ImageIcon,
-  AlertTriangle,
+  Activity,
+  Wrench,
+  Warehouse,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { issueApi, IssuePhoto, IssueStatus } from "@/lib/api/issue.api";
+import { issueApi, IssuePhoto, IssueStatus, IssueCategory } from "@/lib/api/issue.api";
+import { fetchItems } from "@/components/master/master.api";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
-import { isAuditorUser } from "@/lib/useAdminGuard";
 import { usePermissions } from "@/lib/usePermissions";
 
 export default function InitialPhotoDetailPage() {
@@ -70,6 +66,37 @@ export default function InitialPhotoDetailPage() {
     onError: () => toast.error("Gagal menghapus foto"),
   });
 
+  // Fetch Master HEI data for dropdowns
+  const { data: habitData } = useQuery({
+    queryKey: ["master", "habits"],
+    queryFn: () => fetchItems("/master/habits", 1, "", 500),
+  });
+
+  const { data: equipmentData } = useQuery({
+    queryKey: ["master", "equipments"],
+    queryFn: () => fetchItems("/master/equipments", 1, "", 500),
+  });
+
+  const { data: infraData } = useQuery({
+    queryKey: ["master", "infrastructures"],
+    queryFn: () => fetchItems("/master/infrastructures", 1, "", 500),
+  });
+
+  const updateHeiMutation = useMutation({
+    mutationFn: (payload: {
+      issue_category?: IssueCategory;
+      habit_id?: string;
+      equipment_id?: string;
+      infrastructure_id?: string;
+    }) => issueApi.update(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["issue", id] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      toast.success("Klasifikasi temuan (HEI) berhasil diperbarui");
+    },
+    onError: () => toast.error("Gagal memperbarui klasifikasi temuan"),
+  });
+
   const issue = issueRes?.data;
   const allPhotos: IssuePhoto[] = photosRes?.data || [];
 
@@ -96,8 +123,7 @@ export default function InitialPhotoDetailPage() {
     return <div className="text-center p-12 text-muted-foreground">Temuan tidak ditemukan.</div>;
   }
 
-  const isAuditorByRole = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username);
-  const isAuditor = isAuditorByRole || hasPermission("PERM-WOWR-U");
+  const isAuditor = hasPermission("PERM-INSP-C") || hasPermission("PERM-WOWR-U");
   const isPIC = !isAuditor;
 
   const rawStatus = issue.issue_status as IssueStatus;
@@ -144,7 +170,6 @@ export default function InitialPhotoDetailPage() {
       {!isWorkStarted && !isClosed && (
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
             <span>
               Pengunggahan Foto Follow-Up perbaikan belum dapat dilakukan karena status temuan masih <strong>{rawStatus}</strong>. Silakan klik tombol <strong>&quot;Mulai Kerjakan&quot;</strong> di halaman utama detail temuan terlebih dahulu.
             </span>
@@ -164,7 +189,6 @@ export default function InitialPhotoDetailPage() {
           {/* Card 1: Lokasi Audit */}
           <Card className="p-6 bg-card/60 backdrop-blur-md shadow-sm border-border/80 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
-              <MapPin className="h-4 w-4 text-primary" />
               <span>Lokasi Audit Area</span>
             </div>
             <div className="grid grid-cols-3 gap-3 pt-1 text-xs">
@@ -186,7 +210,6 @@ export default function InitialPhotoDetailPage() {
           {/* Card 2: Detail Issue & Checklist */}
           <Card className="p-6 bg-card/60 backdrop-blur-md shadow-sm border-border/80 space-y-4">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
-              <Layers className="h-4 w-4 text-primary" />
               <span>Detail Issue &amp; Uraian Temuan</span>
             </div>
 
@@ -204,19 +227,103 @@ export default function InitialPhotoDetailPage() {
 
               <div>
                 <span className="text-muted-foreground block text-[11px] font-medium mb-1 flex items-center gap-1">
-                  <FileText className="h-3.5 w-3.5 text-primary" /> Uraian Checklist / Keterangan Temuan
+                  Uraian Checklist / Keterangan Temuan
                 </span>
                 <div className="bg-background/80 p-3 rounded-xl border border-border/80 font-medium text-foreground text-xs leading-relaxed">
                   {issue.uraian_text || issue.keterangan || "Tidak ada rincian keterangan"}
                 </div>
               </div>
 
+              {/* HEI Specification Classification Dropdowns */}
+              <div className="pt-3 border-t border-border/60 space-y-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Klasifikasi Spesifikasi Temuan (HEI)
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Habit Dropdown */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <Activity className="h-3 w-3 text-emerald-500" /> Habit
+                    </label>
+                    <select
+                      value={issue.hei?.habit_id || issue.habit_id || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateHeiMutation.mutate({
+                          habit_id: val,
+                        });
+                      }}
+                      disabled={updateHeiMutation.isPending || !isWorkStarted || isClosed}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <option value="">-- Pilih Habit --</option>
+                      {habitData?.items?.map((h: any) => (
+                        <option key={h.habit_id} value={h.habit_id}>
+                          {h.habit_name} {h.habit_code ? `(${h.habit_code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Equipment Dropdown */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <Wrench className="h-3 w-3 text-blue-500" /> Equipment
+                    </label>
+                    <select
+                      value={issue.hei?.equipment_id || issue.equipment_id || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateHeiMutation.mutate({
+                          equipment_id: val,
+                        });
+                      }}
+                      disabled={updateHeiMutation.isPending || !isWorkStarted || isClosed}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <option value="">-- Pilih Equipment --</option>
+                      {equipmentData?.items?.map((eq: any) => (
+                        <option key={eq.equipment_id} value={eq.equipment_id}>
+                          {eq.equipment_name} {eq.equipment_code ? `(${eq.equipment_code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Infrastructure Dropdown */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <Warehouse className="h-3 w-3 text-purple-500" /> Infrastructure
+                    </label>
+                    <select
+                      value={issue.hei?.infrastructure_id || issue.infrastructure_id || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateHeiMutation.mutate({
+                          infrastructure_id: val,
+                        });
+                      }}
+                      disabled={updateHeiMutation.isPending || !isWorkStarted || isClosed}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <option value="">-- Pilih Infrastructure --</option>
+                      {infraData?.items?.map((inf: any) => (
+                        <option key={inf.infrastructure_id} value={inf.infrastructure_id}>
+                          {inf.infrastructure_name} {inf.infrastructure_code ? `(${inf.infrastructure_code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between pt-2 border-t border-border/60 text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <User className="h-3.5 w-3.5 text-primary" /> PIC: <strong className="text-foreground">{issue.pic_name || issue.issue_pic_user_id}</strong>
+                  PIC: <strong className="text-foreground">{issue.pic_name || issue.issue_pic_user_id}</strong>
                 </span>
                 <span className="flex items-center gap-1 font-mono">
-                  <Calendar className="h-3.5 w-3.5" /> {new Date(issue.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                  {new Date(issue.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
                 </span>
               </div>
             </div>
@@ -227,7 +334,7 @@ export default function InitialPhotoDetailPage() {
         <Card className="p-6 bg-card/60 backdrop-blur-md shadow-sm border-border/80 space-y-4 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-border pb-2">
             <h3 className="font-bold text-base flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-primary" /> Foto Bukti Temuan Awal
+              Foto Bukti Temuan Awal
             </h3>
             <span className="text-xs font-mono text-muted-foreground">High Resolution</span>
           </div>
@@ -257,7 +364,6 @@ export default function InitialPhotoDetailPage() {
 
           {currentPhoto?.keterangan && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block text-[11px]">Keterangan Foto Audit:</span>
                 <span>{currentPhoto.keterangan}</span>
@@ -272,7 +378,7 @@ export default function InitialPhotoDetailPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <h3 className="font-bold text-lg flex items-center gap-2">
-              <Upload className="h-5 w-5 text-primary" /> Dokumentasi Foto Follow-Up Perbaikan
+              Dokumentasi Foto Follow-Up Perbaikan
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               Unggah bukti perbaikan fisik beserta keterangan lengkap oleh PIC penanggung jawab.
@@ -324,7 +430,6 @@ export default function InitialPhotoDetailPage() {
         {/* List Foto Follow-up */}
         {followUpPhotos.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground rounded-2xl border border-dashed border-border bg-muted/20 flex flex-col items-center gap-2">
-            <ImageIcon className="h-10 w-10 opacity-40 text-muted-foreground" />
             <p className="font-medium text-sm">Belum ada foto bukti follow-up perbaikan.</p>
             <p className="text-xs text-muted-foreground">Klik tombol di atas untuk mengunggah bukti perbaikan baru.</p>
           </div>
@@ -489,12 +594,10 @@ function FollowUpPhotoCard({
         {/* Meta Info: PIC Penginput & Tanggal */}
         <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
           <span className="font-semibold flex items-center gap-1 truncate max-w-[125px] text-foreground/80" title={photo.uploader_name || photo.pic_user_id}>
-            <User className="h-3 w-3 text-primary shrink-0" />
             <span className="truncate">{photo.uploader_name || photo.pic_user_id || "Pengguna"}</span>
           </span>
           {(photo.created_at || photo.follow_up_date) && (
             <span className="flex items-center gap-1 shrink-0 font-mono text-[10px]">
-              <Calendar className="h-3 w-3 text-muted-foreground" />
               {new Date(photo.created_at || photo.follow_up_date!).toLocaleDateString("id-ID", {
                 day: "numeric",
                 month: "short",

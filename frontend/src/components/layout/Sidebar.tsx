@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { usePermissions } from "@/lib/usePermissions";
-import { isAdminUser } from "@/lib/useAdminGuard";
 
 
 export function Sidebar() {
@@ -31,46 +30,40 @@ export function Sidebar() {
   const plantCode = (params?.plantCode as string) || user?.plant_id || "global";
   const basePath = `/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}`;
 
-
-
-  const isAdmin = isAdminUser(user?.role_id);
-
   const MAIN_MENU = [
     { href: `${basePath}`, label: "Dasbor", icon: Home },
-    // Inspeksi
+    // Inspeksi (PERM-INSP-R)
     ...(hasPermission("PERM-INSP-R")
       ? [{ href: `${basePath}/inspections`, label: "Inspections", icon: ClipboardCheck }]
       : []),
-    // Temuan Inspeksi (Issues)
+    // Temuan Inspeksi / Issues (PERM-ISS-R)
     ...(hasPermission("PERM-ISS-R")
       ? [{ href: `${basePath}/issues`, label: "Temuan Inspeksi", icon: AlertTriangle }]
       : []),
-    // Perintah Kerja (WO/WR)
+    // Perintah Kerja / WO/WR (PERM-WOWR-R)
     ...(hasPermission("PERM-WOWR-R")
       ? [{ href: `${basePath}/wowr`, label: "Perintah Kerja", icon: FileBox }]
       : []),
   ];
 
-  // Admin-only management menu - strictly restricted to SuperAdmin (ROLE-000) and Admin (ROLE-001)
-  const ADMIN_MENU = isAdmin
-    ? [
-        ...(hasPermission("PERM-GMP-R")
-          ? [{ href: `${basePath}/gmp-data`, label: "Data Inspeksi (GMP)", icon: ClipboardList }]
-          : []),
-        ...(hasPermission("PERM-MSTR-R")
-          ? [{ href: `${basePath}/master`, label: "Data Induk", icon: Database }]
-          : []),
-        ...(hasPermission("PERM-USR-R")
-          ? [{ href: `${basePath}/users`, label: "Manajemen Pengguna", icon: Users }]
-          : []),
-        ...(hasPermission("PERM-LOG-R")
-          ? [{ href: `${basePath}/logs`, label: "Riwayat Aktivitas", icon: History }]
-          : []),
-        ...(hasPermission("PERM-STNG-R")
-          ? [{ href: `${basePath}/settings`, label: "Pengaturan", icon: Settings }]
-          : []),
-      ]
-    : [];
+  // Management menu - dynamically controlled by Role_Permission & User_Permission in DB
+  const ADMIN_MENU = [
+    ...(hasPermission("PERM-GMP-R")
+      ? [{ href: `${basePath}/gmp-data`, label: "Data Inspeksi (GMP)", icon: ClipboardList }]
+      : []),
+    ...(hasPermission("PERM-MSTR-R")
+      ? [{ href: `${basePath}/master`, label: "Data Induk", icon: Database }]
+      : []),
+    ...(hasPermission("PERM-USR-R")
+      ? [{ href: `${basePath}/users`, label: "Manajemen Pengguna", icon: Users }]
+      : []),
+    ...(hasPermission("PERM-LOG-R")
+      ? [{ href: `${basePath}/logs`, label: "Riwayat Aktivitas", icon: History }]
+      : []),
+    ...(hasPermission("PERM-STNG-R")
+      ? [{ href: `${basePath}/settings`, label: "Pengaturan", icon: Settings }]
+      : []),
+  ];
 
   const renderLinks = (links: typeof MAIN_MENU) => {
     return links.map((item) => {

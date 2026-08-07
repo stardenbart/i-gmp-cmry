@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
-import { useAdminGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { ShieldAlert, Mail, Settings as SettingsIcon, PenSquare, Save, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 
 import { masterApi } from "@/lib/api/master.api";
 import { ChevronDown, Filter } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { setActiveTab, setPlantFilter } from "@/store/slices/settingsSlice";
 
 // The keys we care about for email templates
 const EMAIL_TEMPLATES = [
@@ -41,21 +43,22 @@ const GENERAL_SETTINGS = [
 
 export default function SettingsPage() {
   const user = useAuthStore((state) => state.user);
-  const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAdmin = hasPermission("PERM-MSTR-R");
   const mounted = useMounted();
   const queryClient = useQueryClient();
   const { showSearchLatencyButton, toggleSearchLatencyButton } = useSettingsStore();
 
   const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN" || user?.role?.role_name === "Super Admin";
 
-  const [activeTab, setActiveTab] = useState<"general" | "email" | "apikey">("general");
-  const [plantFilter, setPlantFilter] = useState("ALL");
+  const dispatch = useAppDispatch();
+  const { activeTab, plantFilter } = useAppSelector((state) => state.settings);
   
   useEffect(() => {
     if (!isSuperAdmin && user?.plant_id) {
-      setPlantFilter(user.plant_id);
+      dispatch(setPlantFilter(user.plant_id));
     }
-  }, [isSuperAdmin, user?.plant_id]);
+  }, [isSuperAdmin, user?.plant_id, dispatch]);
 
   // General Settings Form State
   const [generalValues, setGeneralValues] = useState<Record<string, string>>({});
@@ -178,7 +181,7 @@ export default function SettingsPage() {
               <select
                 className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 font-medium"
                 value={plantFilter}
-                onChange={(e) => setPlantFilter(e.target.value)}
+                onChange={(e) => dispatch(setPlantFilter(e.target.value))}
               >
                 <option value="ALL">Semua Plant / Default Global</option>
                 <option value="GLOBAL">Global Only (Default)</option>
@@ -196,21 +199,21 @@ export default function SettingsPage() {
         {/* Sidebar Tabs */}
         <div className="w-full md:w-64 shrink-0 space-y-2">
           <button
-            onClick={() => setActiveTab("general")}
+            onClick={() => dispatch(setActiveTab("general"))}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-left ${activeTab === "general" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
           >
             <SettingsIcon className="w-5 h-5" />
             Umum
           </button>
           <button
-            onClick={() => setActiveTab("email")}
+            onClick={() => dispatch(setActiveTab("email"))}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-left ${activeTab === "email" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
           >
             <Mail className="w-5 h-5" />
             Template Email
           </button>
           <button
-            onClick={() => setActiveTab("apikey")}
+            onClick={() => dispatch(setActiveTab("apikey"))}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-left ${activeTab === "apikey" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground"}`}
           >
             <Key className="w-5 h-5" />

@@ -20,12 +20,21 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/axios";
 import { filterApi, UserFilterParams } from "@/lib/api/filter.api";
 import { useMounted } from "@/lib/useMounted";
-import { useAdminGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/authStore";
 import { UserPermissionsTab } from "./UserPermissionsTab";
 import { masterApi } from "@/lib/api/master.api";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  setSearchQuery,
+  setRoleFilter,
+  setPlantFilter,
+  setStatusFilter,
+  setPage,
+} from "@/store/slices/userFilterSlice";
 
 // --- API Functions (CRUD only, filter uses filterApi) ---
 const fetchRoles = async () => {
@@ -106,7 +115,10 @@ function ActionModal({
 // --- Main Page ---
 export default function UsersPage() {
   const user = useAuthStore((state) => state.user);
-  const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAdmin = hasPermission("PERM-USR-R");
+  const canWrite = hasPermission("PERM-USR-C") || hasPermission("PERM-USR-U");
+  const canDelete = hasPermission("PERM-USR-D");
   const mounted = useMounted();
   const isSuperAdmin =
     user?.role_id === "ROLE-000" ||
@@ -114,19 +126,25 @@ export default function UsersPage() {
     user?.role?.role_name === "Super Admin" ||
     !user?.plant_id;
 
+  const dispatch = useAppDispatch();
+  const { searchQuery, roleFilter, plantFilter, statusFilter, page } = useAppSelector(
+    (state) => state.userFilter
+  );
+
+  const [searchInputValue, setSearchInputValue] = useState(searchQuery || "");
+  const debouncedSearchValue = useDebounce(searchInputValue, 400);
+
+  useEffect(() => {
+    dispatch(setSearchQuery(debouncedSearchValue));
+  }, [debouncedSearchValue, dispatch]);
+
   // Auto-set plantFilter to user's plant for non-SuperAdmin
   useEffect(() => {
     if (!isSuperAdmin && user?.plant_id) {
-      setPlantFilter(user.plant_id);
+      dispatch(setPlantFilter(user.plant_id));
     }
-  }, [isSuperAdmin, user?.plant_id]);
+  }, [isSuperAdmin, user?.plant_id, dispatch]);
   const queryClient = useQueryClient();
-
-  const [page, setPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("ALL");
-  const [plantFilter, setPlantFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -315,8 +333,8 @@ export default function UsersPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Cari nama, username..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+              value={searchInputValue}
+              onChange={(e) => setSearchInputValue(e.target.value)}
               className="pl-9 w-full"
             />
           </div>
@@ -326,7 +344,7 @@ export default function UsersPage() {
               <select
                 className="text-sm bg-background appearance-none border border-border rounded-md pl-3 pr-8 py-2 outline-none"
                 value={roleFilter}
-                onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+                onChange={(e) => dispatch(setRoleFilter(e.target.value))}
               >
                 <option value="ALL">Semua Role</option>
                 {rolesList.map((r: any) => (
@@ -340,7 +358,7 @@ export default function UsersPage() {
                 <select
                   className="text-sm bg-background appearance-none border border-border rounded-md pl-3 pr-8 py-2 outline-none"
                   value={plantFilter}
-                  onChange={(e) => { setPlantFilter(e.target.value); setPage(1); }}
+                  onChange={(e) => dispatch(setPlantFilter(e.target.value))}
                 >
                   <option value="ALL">Semua Plant</option>
                   <option value="GLOBAL">Global (SuperAdmin)</option>
@@ -355,7 +373,7 @@ export default function UsersPage() {
               <select
                 className="text-sm bg-background appearance-none border border-border rounded-md pl-3 pr-8 py-2 outline-none"
                 value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                onChange={(e) => dispatch(setStatusFilter(e.target.value))}
               >
                 <option value="ALL">Semua Status</option>
                 <option value="Active">Active</option>
@@ -366,7 +384,7 @@ export default function UsersPage() {
             </div>
           </div>
         </div>
-        <Button onClick={() => { setEditingItem(null); setActiveTab("profile"); setIsFormOpen(true); }} className="w-full md:w-auto">
+        <Button onClick={() => { setEditingItem(null); setActiveTab("profile"); setIsFormOpen(true); }} className="w-full md:w-auto" disabled={!canWrite}>
           <Plus className="h-4 w-4 mr-2" /> Tambah User
         </Button>
       </div>
@@ -419,13 +437,13 @@ export default function UsersPage() {
                     <td className="px-4 py-3 text-center">{getStatusBadge(u.user_status)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingItem(u); setActiveTab("profile"); setIsFormOpen(true); }} className="h-8 w-8 p-0" title="Edit">
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingItem(u); setActiveTab("profile"); setIsFormOpen(true); }} className="h-8 w-8 p-0" title="Edit" disabled={!canWrite}>
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setResetPassId(u.user_id)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-600" title="Reset Password">
+                        <Button variant="ghost" size="sm" onClick={() => setResetPassId(u.user_id)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-600" title="Reset Password" disabled={!canWrite}>
                           <KeyRound className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteItemId(u.user_id)} className="h-8 w-8 p-0 text-destructive hover:text-destructive" title="Hapus">
+                        <Button variant="ghost" size="sm" onClick={() => setDeleteItemId(u.user_id)} className="h-8 w-8 p-0 text-destructive hover:text-destructive" title="Hapus" disabled={!canDelete}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -442,8 +460,8 @@ export default function UsersPage() {
               Hal {page} dari {pagination.total_pages} ({pagination.total} total)
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(pagination.total_pages, p + 1))} disabled={page === pagination.total_pages}><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="outline" size="sm" onClick={() => dispatch(setPage(Math.max(1, page - 1)))} disabled={page === 1}><ChevronLeft className="h-4 w-4" /></Button>
+              <Button variant="outline" size="sm" onClick={() => dispatch(setPage(Math.min(pagination.total_pages, page + 1)))} disabled={page === pagination.total_pages}><ChevronRight className="h-4 w-4" /></Button>
             </div>
           </div>
         )}

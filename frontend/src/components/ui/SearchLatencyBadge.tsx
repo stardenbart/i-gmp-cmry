@@ -7,7 +7,7 @@ import { Button } from "./button";
 import { api } from "@/lib/api/axios";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useAuthStore } from "@/stores/authStore";
-import { isAdminUser } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 
 interface SearchLatencyBadgeProps {
   searchQuery: string;
@@ -28,6 +28,7 @@ export function SearchLatencyBadge({
   const startTimeRef = useRef<number | null>(null);
   const showSearchLatencyButton = useSettingsStore((state) => state.showSearchLatencyButton);
   const user = useAuthStore((state) => state.user);
+  const { hasPermission } = usePermissions();
 
   useEffect(() => {
     setMounted(true);
@@ -54,10 +55,10 @@ export function SearchLatencyBadge({
     return "bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400";
   };
 
-  const isAdmin = isAdminUser(user?.role_id) || user?.role?.role_name?.toLowerCase() === 'admin';
+  const canViewBadge = hasPermission("PERM-LOG-R") || hasPermission("PERM-MSTR-R") || hasPermission("PERM-USR-R");
 
-  // Completely hide badge and button if toggle is OFF, not mounted, or not Admin
-  if (!mounted || !showSearchLatencyButton || !isAdmin) {
+  // Completely hide badge and button if toggle is OFF, not mounted, or without management permissions
+  if (!mounted || !showSearchLatencyButton || !canViewBadge) {
     return null;
   }
 

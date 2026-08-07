@@ -3,6 +3,8 @@ package v1
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler/dashboardhandler"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
+	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/logger"
@@ -10,16 +12,19 @@ import (
 )
 
 func RegisterDashboardRoutes(rg fiber.Router, db *gorm.DB, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger) {
+	userRepo := authrepo.NewUserRepository(db)
 	handler := dashboardhandler.NewDashboardHandler(db, log, cryptoSvc)
 
-	dashboardGroup := rg.Group("/dashboard")
-	// For testing, let's allow without JWT first, or require it
-	// If you require JWT: dashboardGroup.Use(middleware.JWTMiddleware(jwtManager))
+	authMW := middleware.AuthMiddleware(jwtManager)
+	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
+
+	dashboardGroup := rg.Group("/dashboard", authMW, plantScopeMW)
 	
-	dashboardGroup.Get("/stats", handler.GetStats)
-	dashboardGroup.Get("/preview-export", handler.GetPreviewExport)
-	dashboardGroup.Get("/export", handler.ExportStats)
-	dashboardGroup.Post("/export/template", handler.UploadTemplate)
-	dashboardGroup.Get("/auditor-detail", handler.GetAuditorDetail)
-	dashboardGroup.Get("/pic-detail", handler.GetPICDetail)
+	dashboardGroup.Get("/stats", handler.GetStats, plantScopeMW)
+	dashboardGroup.Get("/wowr-report", handler.GetWOWRReport, plantScopeMW)
+	dashboardGroup.Get("/preview-export", handler.GetPreviewExport, plantScopeMW)
+	dashboardGroup.Get("/export", handler.ExportStats, plantScopeMW)
+	dashboardGroup.Post("/export/template", handler.UploadTemplate, plantScopeMW)
+	dashboardGroup.Get("/auditor-detail", handler.GetAuditorDetail, plantScopeMW)
+	dashboardGroup.Get("/pic-detail", handler.GetPICDetail, plantScopeMW)
 }

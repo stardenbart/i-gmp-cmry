@@ -23,6 +23,8 @@ import { StatsCards } from "../admin/StatCard";
 import { usePolling } from "@/hooks/usePolling";
 import { plantApi } from "@/types/api/master";
 
+import { useParams } from "next/navigation";
+
 // Fetch dashboard stats directly from backend API
 const fetchDashboardStats = async (areaId?: string, period: string = "6m", plantId?: string) => {
   const res = await api.get("/dashboard/stats", {
@@ -34,6 +36,9 @@ const fetchDashboardStats = async (areaId?: string, period: string = "6m", plant
 export const DashboardPanelAdmin = () => {
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
+  const params = useParams();
+  const urlPlantCode = (params?.plantCode as string) || "";
+  const urlPlant = (urlPlantCode && urlPlantCode !== "all" && urlPlantCode !== "global") ? urlPlantCode : "";
 
   usePolling();
 
@@ -42,6 +47,8 @@ export const DashboardPanelAdmin = () => {
   const [trendPeriod, setTrendPeriod] = useState<"1m" | "3m" | "6m" | "1y">("6m");
 
   const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN";
+  const activePlantSelection = selectedPlant === "all" ? "" : (selectedPlant || urlPlant);
+  const effectivePlant = isSuperAdmin ? activePlantSelection : (user?.plant_id || urlPlant);
 
   const { data: plantsResponse } = useQuery({
     queryKey: ["plants-master-dashboard"],
@@ -50,18 +57,24 @@ export const DashboardPanelAdmin = () => {
   });
 
   const { data: areasResponse } = useQuery({
-    queryKey: ["areas-master-dashboard", selectedPlant],
+    queryKey: ["areas-master-dashboard", effectivePlant],
     queryFn: () => areaApi.getAll(1, 100),
     enabled: mounted,
   });
+
+  // Filter area items based on plant
+  const filteredAreas = areasResponse?.data?.items?.filter((area: any) => {
+    if (!effectivePlant) return true;
+    return area.plant_id === effectivePlant;
+  }) || [];
 
   const {
     data: stats,
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ["dashboard-stats-stitch", selectedArea, trendPeriod, selectedPlant],
-    queryFn: () => fetchDashboardStats(selectedArea, trendPeriod, selectedPlant),
+    queryKey: ["dashboard-stats-stitch", selectedArea, trendPeriod, effectivePlant],
+    queryFn: () => fetchDashboardStats(selectedArea, trendPeriod, effectivePlant),
     enabled: mounted && !!user,
     staleTime: 10000,
   });
@@ -90,20 +103,28 @@ export const DashboardPanelAdmin = () => {
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           {/* Plant Selector Dropdown for SuperAdmin */}
-          {isSuperAdmin && (
+          {isSuperAdmin ? (
             <select
-              value={selectedPlant}
-              onChange={(e) => setSelectedPlant(e.target.value)}
+              value={selectedPlant || (urlPlant || "all")}
+              onChange={(e) => {
+                setSelectedPlant(e.target.value);
+                setSelectedArea("");
+              }}
               className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none"
             >
-              <option value="">Semua Plant</option>
+              <option value="all">Semua Plant</option>
               {plantsResponse?.data?.items?.map((plant: any) => (
                 <option key={plant.plant_id} value={plant.plant_id}>
                   {plant.plant_name}
                 </option>
               ))}
             </select>
-          )}
+          ) : user?.plant_id ? (
+            <div className="px-3 py-1.5 border border-primary/30 bg-primary/5 text-primary rounded-lg text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+              <Factory className="h-3.5 w-3.5" />
+              Plant: {user.plant_id}
+            </div>
+          ) : null}
 
           {/* Area Selector Dropdown */}
           <select 
@@ -112,7 +133,7 @@ export const DashboardPanelAdmin = () => {
             className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none"
           >
             <option value="">Semua Area</option>
-            {areasResponse?.data?.items?.map((area: any) => (
+            {filteredAreas.map((area: any) => (
               <option key={area.area_id} value={area.area_id}>
                 {area.area_name}
               </option>
@@ -191,58 +212,100 @@ export const DashboardPanelAdmin = () => {
             </div>
 
             {/* Aktivitas Penanggung Jawab (PIC) */}
-            <div className="bg-card rounded-xl p-5 border border-border shadow-sm flex flex-col justify-between">
+            {(() => {
+              const resolvedCount = (stats as any)?.issues_resolved ?? (stats as any)?.pic_followup_completed ?? 0;
+              const openCount = stats?.total_open_issues || 0;
+              const totalCount = openCount + resolvedCount;
+              const resolvedRate = totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0;
+              const overdueCount = stats?.issue_overdue ?? (stats as any)?.pic_followup_overdue ?? 0;
+              const overdueRate = totalCount > 0 ? Math.round((overdueCount / totalCount) * 100) : 0;
+
+              return (
+                <div className="bg-card rounded-xl p-5 border border-border shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+                      <h3 className="text-base font-semibold text-foreground">Aktivitas Penanggung Jawab (PIC)</h3>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">
+                        Total {totalCount} Temuan
+                      </span>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-xs font-medium mb-1.5">
+                          <span className="text-muted-foreground">Temuan Berhasil Diselesaikan</span>
+                          <span className="font-bold text-foreground">
+                            {resolvedCount} / {totalCount}
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-green-600 h-full rounded-full transition-all duration-1000" 
+                            style={{ width: `${resolvedRate}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs font-medium mb-1.5">
+                          <span className="text-muted-foreground">Temuan Jatuh Tempo (Overdue)</span>
+                          <span className="font-bold text-red-600">
+                            {overdueCount} / {totalCount}
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-red-500 h-full rounded-full transition-all duration-1000" 
+                            style={{ width: `${overdueRate}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <Link 
+                    href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id}/monitoring`}
+                    className="mt-6 text-xs font-semibold text-center text-muted-foreground hover:text-primary transition-colors block"
+                  >
+                    Lihat Detail PIC &rarr;
+                  </Link>
+                </div>
+              );
+            })()}
+
+            {/* Status Maintenance WO / WR */}
+            <div className="bg-card rounded-xl p-5 border border-border shadow-sm flex flex-col justify-between col-span-1 md:col-span-2">
               <div>
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-                  <h3 className="text-base font-semibold text-foreground">Aktivitas Penanggung Jawab (PIC)</h3>
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">
-                    Total {stats?.total_open_issues || 0} Temuan
+                  <h3 className="text-base font-semibold text-foreground">Status Maintenance (WO / WR)</h3>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-mono">
+                    Tingkat Verifikasi: {stats?.wowr_verified_rate || 0}%
                   </span>
                 </div>
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div className="flex justify-between text-xs font-medium mb-1.5">
-                      <span className="text-muted-foreground">Temuan Berhasil Diselesaikan</span>
-                      <span className="font-bold text-foreground">
-                        {((stats as any)?.issues_resolved || 0)} / {(stats?.total_open_issues || 0) + ((stats as any)?.issues_resolved || 0) || 1}
+                      <span className="text-muted-foreground">WO/WR Disetujui</span>
+                      <span className="font-bold text-emerald-600">
+                        {stats?.wowr_verified || 0} / {stats?.wowr_total || 0}
                       </span>
                     </div>
                     <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
                       <div 
-                        className="bg-green-600 h-full rounded-full transition-all duration-1000" 
-                        style={{ 
-                          width: `${(((stats?.total_open_issues || 0) + ((stats as any)?.issues_resolved || 0)) > 0)
-                            ? (((stats as any)?.issues_resolved || 0) / ((stats?.total_open_issues || 0) + ((stats as any)?.issues_resolved || 0)) * 100)
-                            : 0}%` 
-                        }}
+                        className="bg-emerald-500 h-full rounded-full transition-all duration-1000" 
+                        style={{ width: `${stats?.wowr_verified_rate || 0}%` }}
                       ></div>
                     </div>
                   </div>
-                  <div>
-                    <div className="flex justify-between text-xs font-medium mb-1.5">
-                      <span className="text-muted-foreground">Temuan Jatuh Tempo (Overdue)</span>
-                      <span className="font-bold text-red-600">
-                        {stats?.issue_overdue || 0} / {(stats?.total_open_issues || 1)}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-red-500 h-full rounded-full transition-all duration-1000" 
-                        style={{ 
-                          width: `${((stats?.total_open_issues || 0) > 0)
-                            ? ((stats?.issue_overdue || 0) / (stats?.total_open_issues || 1) * 100)
-                            : 0}%` 
-                        }}
-                      ></div>
-                    </div>
+                  <div className="flex items-center justify-between text-xs bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                    <span className="text-purple-600 font-semibold">Menunggu: {stats?.wowr_pending || 0}</span>
+                    <span className="text-red-600 font-semibold">Ditolak: {stats?.wowr_rejected || 0}</span>
+                    <span className="text-muted-foreground font-semibold">Belum Bukti: {stats?.wowr_awaiting || 0}</span>
                   </div>
                 </div>
               </div>
               <Link 
-                href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id}/monitoring`}
-                className="mt-6 text-xs font-semibold text-center text-muted-foreground hover:text-primary transition-colors block"
+                href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id}/monitoring/wowr`}
+                className="mt-4 text-xs font-semibold text-center text-primary hover:underline block"
               >
-                Lihat Detail PIC &rarr;
+                Lihat Laporan & Analytics WO/WR &rarr;
               </Link>
             </div>
 
@@ -295,59 +358,101 @@ export const DashboardPanelAdmin = () => {
       </div>
 
       {/* Chart Section */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Tren Tingkat Kepatuhan</h2>
-            <p className="text-xs font-medium text-muted-foreground">
-              Pergerakan tingkat kepatuhan berdasarkan rentang waktu yang dipilih
-            </p>
-          </div>
-          
-          {/* Period Selector Buttons */}
-          <div className="inline-flex items-center p-1 bg-muted rounded-lg border border-border/60 self-start sm:self-auto">
-            {(
-              [
-                { id: "1m", label: "1 Bulan" },
-                { id: "3m", label: "3 Bulan" },
-                { id: "6m", label: "6 Bulan" },
-                { id: "1y", label: "1 Tahun" },
-              ] as const
-            ).map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setTrendPeriod(p.id)}
-                className={cn(
-                  "px-3 py-1 text-xs font-semibold rounded-md transition-all",
-                  trendPeriod === p.id
-                    ? "bg-background text-foreground shadow-sm border border-border/80"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {(() => {
+        const rawTrend = stats?.compliance_trend || [];
+        const periodAvgNum = rawTrend.length > 0
+          ? Number((rawTrend.reduce((acc: number, curr: any) => acc + (Number(curr.rate) || 0), 0) / rawTrend.length).toFixed(1))
+          : 0;
+        const currentRateNum = stats?.compliance_rate != null
+          ? Number(Number(stats.compliance_rate).toFixed(1))
+          : (rawTrend.length > 0 ? Number(Number(rawTrend[rawTrend.length - 1].rate).toFixed(1)) : 0);
 
-        <div className="bg-card rounded-xl p-4 border border-border shadow-sm h-100 flex flex-col">
-          <div className="grow w-full">
-            {isLoading || isFetching ? (
-              <div className="w-full h-full flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        const periodAvg = periodAvgNum.toFixed(1);
+        const currentRate = currentRateNum.toFixed(1);
+
+        const totalInspectionsCount = (stats?.inspections_completed || 0) + (stats?.inspections_running || 0);
+
+        const chartFormattedData = rawTrend.map((item: any) => ({
+          ...item,
+          avg: periodAvgNum,
+          totalCount: totalInspectionsCount
+        }));
+
+        return (
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Tren Tingkat Kepatuhan</h2>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Pergerakan tingkat kepatuhan berdasarkan rentang waktu yang dipilih
+                </p>
               </div>
-            ) : (
-              <AreaChart
-                data={stats?.compliance_trend || []}
-                xAxisKey="month"
-                series={[
-                  { dataKey: "rate", name: "Tingkat Kepatuhan (%)", color: "var(--color-primary)" }
-                ]}
-              />
-            )}
+              
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Overall Summary Badges */}
+                <div className="flex items-center gap-2 bg-card border border-border/70 rounded-xl px-3 py-1.5 text-xs shadow-2xs">
+                  <span className="text-muted-foreground font-medium">Total Semua:</span>
+                  <span className="font-bold font-mono text-purple-600 dark:text-purple-400 text-sm">{totalInspectionsCount} Inspeksi</span>
+                </div>
+                <div className="flex items-center gap-2 bg-card border border-border/70 rounded-xl px-3 py-1.5 text-xs shadow-2xs">
+                  <span className="text-muted-foreground font-medium">Total Kepatuhan Keseluruhan:</span>
+                  <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400 text-sm">{currentRate}%</span>
+                </div>
+                <div className="flex items-center gap-2 bg-card border border-border/70 rounded-xl px-3 py-1.5 text-xs shadow-2xs">
+                  <span className="text-muted-foreground font-medium">Rata-Rata Periode:</span>
+                  <span className="font-bold font-mono text-primary text-sm">{periodAvg}%</span>
+                </div>
+
+                {/* Period Selector Buttons */}
+                <div className="inline-flex items-center p-1 bg-muted rounded-lg border border-border/60">
+                  {(
+                    [
+                      { id: "1m", label: "1 Bulan" },
+                      { id: "3m", label: "3 Bulan" },
+                      { id: "6m", label: "6 Bulan" },
+                      { id: "1y", label: "1 Tahun" },
+                    ] as const
+                  ).map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setTrendPeriod(p.id)}
+                      className={cn(
+                        "px-3 py-1 text-xs font-semibold rounded-md transition-all",
+                        trendPeriod === p.id
+                          ? "bg-background text-foreground shadow-2xs border border-border/80"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-card rounded-xl p-4 border border-border shadow-2xs h-100 flex flex-col">
+              <div className="grow w-full">
+                {isLoading || isFetching ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <AreaChart
+                    data={chartFormattedData}
+                    xAxisKey="month"
+                    unit="%"
+                    series={[
+                      { dataKey: "rate", name: "Tingkat Kepatuhan (%)", color: "var(--color-primary, #2563eb)", unit: "%" },
+                      { dataKey: "avg", name: "Rata-Rata Periode (%)", color: "#10b981", unit: "%" },
+                      { dataKey: "totalCount", name: "Total Semua Inspeksi", color: "#a855f7", unit: "" },
+                    ]}
+                  />
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 };

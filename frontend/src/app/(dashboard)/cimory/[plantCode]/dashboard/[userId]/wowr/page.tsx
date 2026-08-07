@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
   AlertTriangle,
   Search,
@@ -17,18 +18,20 @@ import {
   X,
   Eye,
   Filter,
-  History
+  History,
+  BarChart3,
+  Percent,
+  Clock
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { issueApi, Issue } from "@/lib/api/issue.api";
-import { useAuthStore } from "@/stores/authStore";
-import { isAuditorUser } from "@/lib/useAdminGuard";
 import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { usePolling } from "@/hooks/usePolling";
 import { cn, formatImageUrl } from "@/lib/utils";
+import { useAuthStore } from "@/stores/authStore";
 
 // Modal Component for Uploading Photo (For Auditee)
 function UploadProofModal({ 
@@ -156,12 +159,12 @@ function IssueRow({
   issue, 
   isAuditor,
   onUploadClick,
-  onPreviewImage
+  onPreviewPhoto
 }: { 
   issue: Issue; 
   isAuditor: boolean;
   onUploadClick: (issue: Issue) => void;
-  onPreviewImage: (url: string) => void;
+  onPreviewPhoto: (photo: { url: string; keterangan?: string; photoType?: string; uploaderName?: string }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const initialPhotos = issue.photos?.filter(p => p.photo_type === "Initial") || [];
@@ -286,40 +289,108 @@ function IssueRow({
             <div className="p-4 bg-muted/10 border-t border-border/50 animate-in slide-in-from-top-2 fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="font-semibold text-sm mb-3 border-b pb-1 border-border/50">Detail Temuan</h4>
-                  <div className="space-y-2 text-sm mb-4">
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground w-24">Due Date:</span>
-                      <span className="font-medium">{issue.due_date ? new Date(issue.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : "-"}</span>
+                  <h4 className="font-semibold text-sm mb-3 border-b pb-1 border-border/50">Detail Temuan & Spesifikasi</h4>
+                  <div className="space-y-2.5 text-xs mb-4 bg-background/60 p-3.5 rounded-xl border border-border/60">
+                    {/* Location & PIC */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-border/40 pb-2">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Area</span>
+                        <span className="font-semibold text-foreground">{issue.area_name || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Kawasan</span>
+                        <span className="font-semibold text-foreground">{issue.kawasan_name || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Detail Kawasan / PIC</span>
+                        <span className="font-semibold text-foreground">
+                          {issue.detail_kawasan_name || "-"} {issue.pic_name ? `(${issue.pic_name})` : ""}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground w-24">Deskripsi:</span>
-                      <span className="font-medium whitespace-pre-wrap">{issue.keterangan || "-"}</span>
+
+                    {/* Aspek & Detail Aspek */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Aspek Penilaian</span>
+                        <span className="font-semibold text-foreground">{issue.aspek_name || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Detail Aspek</span>
+                        <span className="font-semibold text-foreground">{issue.detail_aspek_name || "-"}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Uraian Checklist</span>
+                      <span className="font-medium text-foreground">{issue.uraian_text || "-"}</span>
+                    </div>
+
+                    {/* HEI Specifications */}
+                    <div className="pt-2 border-t border-border/40 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Habit</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                          {issue.habit_name || issue.hei?.habit?.habit_name || (issue.hei?.habit as any)?.habit_code || (issue as any).habit?.habit_name || "-"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Equipment</span>
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                          {issue.equipment_name || issue.hei?.equipment?.equipment_name || (issue.hei?.equipment as any)?.equipment_code || (issue as any).equipment?.equipment_name || "-"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Infrastructure</span>
+                        <span className="font-semibold text-purple-600 dark:text-purple-400">
+                          {issue.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name || (issue.hei?.infrastructure as any)?.infrastructure_code || (issue as any).infrastructure?.infrastructure_name || "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Target Penyelesaian (Due Date)</span>
+                        <span className="font-medium">{issue.due_date ? new Date(issue.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Keterangan Temuan</span>
+                        <span className="font-medium whitespace-pre-wrap">{issue.keterangan || "-"}</span>
+                      </div>
                     </div>
                   </div>
                   
                   <h5 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Foto Temuan Awal</h5>
                   {initialPhotos.length > 0 ? (
-                    <div className="flex gap-2 overflow-x-auto pb-2">
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
                       {initialPhotos.map(p => (
-                        <div 
-                          key={p.issue_photo_id} 
-                          className="relative group h-28 w-40 shrink-0 overflow-hidden rounded-xl border border-border/60 shadow-sm cursor-pointer bg-muted"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPreviewImage(p.image_url);
-                          }}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img 
-                            src={formatImageUrl(p.image_url)} 
-                            alt="Initial" 
-                            className="h-full w-full object-cover transition-transform group-hover:scale-105" 
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
-                            <Eye className="h-4 w-4" />
-                            <span>Lihat Foto</span>
+                        <div key={p.issue_photo_id} className="flex flex-col w-40 shrink-0">
+                          <div 
+                            className="relative group h-28 w-40 overflow-hidden rounded-xl border border-border/60 shadow-xs cursor-pointer bg-muted"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPreviewPhoto({
+                                url: p.image_url,
+                                keterangan: p.keterangan,
+                                photoType: "Foto Temuan Awal",
+                                uploaderName: (p as any).uploader_name
+                              });
+                            }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                              src={formatImageUrl(p.image_url)} 
+                              alt="Initial" 
+                              className="h-full w-full object-cover transition-transform group-hover:scale-105" 
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
+                              <Eye className="h-4 w-4" />
+                              <span>Lihat Foto</span>
+                            </div>
                           </div>
+                          <p className="text-[11px] font-medium text-foreground truncate mt-1.5 px-0.5" title={p.keterangan || "Tanpa keterangan"}>
+                            {p.keterangan ? p.keterangan : <span className="text-muted-foreground italic text-[10px]">(Tanpa keterangan)</span>}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -328,26 +399,35 @@ function IssueRow({
                 <div>
                   <h4 className="font-semibold text-sm mb-3 border-b pb-1 border-border/50">Bukti Penyelesaian WO/WR</h4>
                   {wowrPhotos.length > 0 ? (
-                    <div className="flex gap-2 overflow-x-auto pb-2">
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
                       {wowrPhotos.map(p => (
-                        <div 
-                          key={p.issue_photo_id} 
-                          className="relative group h-28 w-40 shrink-0 overflow-hidden rounded-xl border border-border/60 shadow-sm cursor-pointer bg-muted"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPreviewImage(p.image_url);
-                          }}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img 
-                            src={formatImageUrl(p.image_url)} 
-                            alt="WOWR Evidence" 
-                            className="h-full w-full object-cover transition-transform group-hover:scale-105" 
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
-                            <Eye className="h-4 w-4" />
-                            <span>Lihat Foto</span>
+                        <div key={p.issue_photo_id} className="flex flex-col w-40 shrink-0">
+                          <div 
+                            className="relative group h-28 w-40 overflow-hidden rounded-xl border border-border/60 shadow-xs cursor-pointer bg-muted"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPreviewPhoto({
+                                url: p.image_url,
+                                keterangan: p.keterangan,
+                                photoType: "Bukti Penyelesaian WO/WR",
+                                uploaderName: (p as any).uploader_name
+                              });
+                            }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                              src={formatImageUrl(p.image_url)} 
+                              alt="WOWR Evidence" 
+                              className="h-full w-full object-cover transition-transform group-hover:scale-105" 
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
+                              <Eye className="h-4 w-4" />
+                              <span>Lihat Foto</span>
+                            </div>
                           </div>
+                          <p className="text-[11px] font-medium text-foreground truncate mt-1.5 px-0.5" title={p.keterangan || "Tanpa keterangan"}>
+                            {p.keterangan ? p.keterangan : <span className="text-muted-foreground italic text-[10px]">(Tanpa keterangan)</span>}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -369,30 +449,52 @@ function IssueRow({
 
 /* ── Page ──────────────────────────────────────────────────────────────── */
 export default function WOWRPage() {
-  const { userId } = useParams() as { userId: string };
+  const { plantCode, userId } = useParams() as { plantCode: string; userId: string };
   const user = useAuthStore(state => state.user);
   const mounted = useMounted();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; keterangan?: string; photoType?: string; uploaderName?: string } | null>(null);
 
   usePolling();
 
   const { hasPermission } = usePermissions();
-  const isAuditor = isAuditorUser(user?.role_id, user?.role?.role_name, user?.username) || hasPermission("PERM-WOWR-U");
+  const isAuditor = hasPermission("PERM-WOWR-U") || hasPermission("PERM-ISS-U");
 
   const { data, isLoading } = useQuery({
     queryKey: ["wowr-issues", userId],
     queryFn: () => issueApi.getAll({ needs_wo_wr: true, limit: 1000 }),
-    enabled: mounted && !!user, // Fetch when user is available
+    enabled: mounted && !!user,
   });
 
   const allIssues: Issue[] = Array.isArray(data?.items) ? data.items : [];
 
+  // Summary statistics calculations
+  const totalCount = allIssues.length;
+  const verifiedCount = useMemo(() => allIssues.filter(i => i.wowr_status === "Verified").length, [allIssues]);
+  const pendingCount = useMemo(() => allIssues.filter(i => i.wowr_status === "PendingValidation").length, [allIssues]);
+  const rejectedCount = useMemo(() => allIssues.filter(i => i.wowr_status === "Rejected").length, [allIssues]);
+  const awaitingCount = useMemo(() => allIssues.filter(i => !i.wowr_status || i.wowr_status === "None").length, [allIssues]);
+
+  const verifiedRate = totalCount > 0 ? (verifiedCount / totalCount) * 100 : 0;
+  const pendingRate = totalCount > 0 ? (pendingCount / totalCount) * 100 : 0;
+  const rejectedRate = totalCount > 0 ? (rejectedCount / totalCount) * 100 : 0;
+
   const issues = useMemo(() => {
-    if (!search.trim()) return allIssues;
+    let filtered = allIssues;
+
+    if (statusFilter !== "ALL") {
+      if (statusFilter === "None") {
+        filtered = filtered.filter(i => !i.wowr_status || i.wowr_status === "None");
+      } else {
+        filtered = filtered.filter(i => i.wowr_status === statusFilter);
+      }
+    }
+
+    if (!search.trim()) return filtered;
     const q = search.toLowerCase();
-    return allIssues.filter(
+    return filtered.filter(
       (i) =>
         i.keterangan?.toLowerCase().includes(q) ||
         i.issue_id?.toLowerCase().includes(q) ||
@@ -403,7 +505,7 @@ export default function WOWRPage() {
         i.detail_kawasan_name?.toLowerCase().includes(q) ||
         i.pic_name?.toLowerCase().includes(q)
     );
-  }, [allIssues, search]);
+  }, [allIssues, statusFilter, search]);
 
   if (!mounted || !user) {
     return (
@@ -417,9 +519,9 @@ export default function WOWRPage() {
     <>
       <div className="space-y-6 pb-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* ── Page header ── */}
-        <div className="flex items-center justify-between bg-card p-5 rounded-2xl border shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-2xl border shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-inner">
               <FileBox className="h-6 w-6" />
             </div>
             <div>
@@ -431,18 +533,104 @@ export default function WOWRPage() {
               </p>
             </div>
           </div>
+          <Link href={`/cimory/${plantCode}/dashboard/${userId}/monitoring/wowr`}>
+            <Button className="rounded-xl gap-2 font-semibold shadow-sm hover:shadow transition-all">
+              <BarChart3 className="h-4 w-4" />
+              Laporan & Analytics WO/WR
+            </Button>
+          </Link>
         </div>
 
-        {/* ── Search ── */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari Nomor WO/WR atau keterangan..."
-            className="w-full rounded-xl border bg-card pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
-          />
+        {/* ── Summary Statistics Cards ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-card p-4 rounded-2xl border shadow-sm space-y-1">
+            <span className="text-xs text-muted-foreground font-medium">Total Temuan WO/WR</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-bold font-mono">{totalCount}</span>
+              <span className="text-xs text-muted-foreground font-semibold">100%</span>
+            </div>
+            <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden mt-2">
+              <div className="bg-primary h-1.5 rounded-full w-full" />
+            </div>
+          </div>
+
+          <div className="bg-card p-4 rounded-2xl border shadow-sm space-y-1">
+            <span className="text-xs text-muted-foreground font-medium">Terverifikasi</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{verifiedCount}</span>
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{verifiedRate.toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden mt-2">
+              <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${verifiedRate}%` }} />
+            </div>
+          </div>
+
+          <div className="bg-card p-4 rounded-2xl border shadow-sm space-y-1">
+            <span className="text-xs text-muted-foreground font-medium">Menunggu Validasi</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-bold font-mono text-purple-600 dark:text-purple-400">{pendingCount}</span>
+              <span className="text-xs font-bold text-purple-600 dark:text-purple-400">{pendingRate.toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden mt-2">
+              <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${pendingRate}%` }} />
+            </div>
+          </div>
+
+          <div className="bg-card p-4 rounded-2xl border shadow-sm space-y-1">
+            <span className="text-xs text-muted-foreground font-medium">Ditolak</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-bold font-mono text-red-600 dark:text-red-400">{rejectedCount}</span>
+              <span className="text-xs font-bold text-red-600 dark:text-red-400">{rejectedRate.toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden mt-2">
+              <div className="bg-red-500 h-1.5 rounded-full" style={{ width: `${rejectedRate}%` }} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Status Filter Tabs & Search ── */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+            {[
+              { id: "ALL", label: "Semua", count: totalCount },
+              { id: "PendingValidation", label: "Menunggu Validasi", count: pendingCount, color: "text-purple-500 bg-purple-500/10 border-purple-500/20" },
+              { id: "Verified", label: "Terverifikasi", count: verifiedCount, color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" },
+              { id: "Rejected", label: "Ditolak", count: rejectedCount, color: "text-red-500 bg-red-500/10 border-red-500/20" },
+              { id: "None", label: "Menunggu Bukti", count: awaitingCount },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={cn(
+                  "px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 border",
+                  statusFilter === tab.id
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-card hover:bg-muted text-muted-foreground border-border/60"
+                )}
+              >
+                <span>{tab.label}</span>
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold font-mono",
+                  statusFilter === tab.id
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : tab.color || "bg-muted text-muted-foreground"
+                )}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="relative min-w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari WO/WR, area, PIC..."
+              className="w-full rounded-xl border bg-card pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+            />
+          </div>
         </div>
 
         {/* ── Table / List ── */}
@@ -510,7 +698,7 @@ export default function WOWRPage() {
                       issue={issue} 
                       isAuditor={isAuditor}
                       onUploadClick={(iss) => setSelectedIssue(iss)} 
-                      onPreviewImage={(url) => setPreviewImage(url)}
+                      onPreviewPhoto={(photo) => setPreviewPhoto(photo)}
                     />
                   ))
                 )}
@@ -529,27 +717,50 @@ export default function WOWRPage() {
         />
       )}
 
-      {/* Image Lightbox Preview Modal */}
-      {previewImage && (
+      {/* Rich Image Lightbox Preview Modal with Caption */}
+      {previewPhoto && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewPhoto(null)}
         >
-          <div className="relative max-w-4xl w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setPreviewImage(null)}
-              className="absolute -top-12 right-0 text-white hover:text-zinc-300 rounded-full"
-            >
-              <X className="h-7 w-7" />
-            </Button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={formatImageUrl(previewImage)}
-              alt="Preview Bukti WO/WR"
-              className="rounded-2xl max-h-[85vh] w-full object-contain shadow-2xl border border-white/10"
-            />
+          <div className="relative max-w-3xl w-full bg-card border border-border/80 rounded-3xl overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border/60 bg-muted/40">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                  {previewPhoto.photoType || "Bukti Foto Temuan"}
+                </span>
+                {previewPhoto.uploaderName && (
+                  <span className="text-xs text-muted-foreground block">
+                    Diunggah oleh: <strong>{previewPhoto.uploaderName}</strong>
+                  </span>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setPreviewPhoto(null)}
+                className="rounded-full hover:bg-muted"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="relative bg-black flex items-center justify-center p-2 min-h-[300px] max-h-[65vh]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={formatImageUrl(previewPhoto.url)}
+                alt="Preview Foto"
+                className="max-h-[60vh] w-auto max-w-full object-contain rounded-lg shadow-md"
+              />
+            </div>
+
+            {/* Photo Caption Text Banner */}
+            <div className="p-4 bg-card border-t border-border/60 space-y-1">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">Keterangan Foto:</span>
+              <p className="text-sm font-medium text-foreground leading-relaxed whitespace-pre-wrap">
+                {previewPhoto.keterangan ? previewPhoto.keterangan : <span className="text-muted-foreground italic text-xs">Tidak ada keterangan tertulis untuk foto ini.</span>}
+              </p>
+            </div>
           </div>
         </div>
       )}

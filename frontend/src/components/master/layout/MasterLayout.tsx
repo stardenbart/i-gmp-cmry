@@ -7,8 +7,9 @@ import { ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import { useMounted } from "@/lib/useMounted";
-import { useAdminGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { useAuthStore } from "@/stores/authStore";
+import { useDebounce } from "@/hooks/useDebounce";
 
 import { MASTER_TABS } from "../master.types";
 import { fetchItems, createItem, updateItem, deleteItem } from "../master.api";
@@ -21,12 +22,14 @@ import { MasterFormModal, MasterDeleteModal } from "../fragments/MasterModals";
 
 export function MasterLayout() {
   const user = useAuthStore((state) => state.user);
-  const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAdmin = hasPermission("PERM-MSTR-R");
   const mounted = useMounted();
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<string>("departments");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const [page, setPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null);
@@ -37,8 +40,8 @@ export function MasterLayout() {
 
   // Main table query
   const { data, isLoading } = useQuery({
-    queryKey: ["master", activeTab, page, searchQuery],
-    queryFn: () => fetchItems(currentTab.endpoint, page, searchQuery),
+    queryKey: ["master", activeTab, page, debouncedSearchQuery],
+    queryFn: () => fetchItems(currentTab.endpoint, page, debouncedSearchQuery),
     enabled: mounted && !!user,
   });
 

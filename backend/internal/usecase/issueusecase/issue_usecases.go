@@ -28,6 +28,7 @@ import (
 type issueUseCase struct {
 	repo         issue.IssueRepository
 	photoRepo    issue.IssuePhotoRepository
+	heiRepo      issue.IssueHEIRepository
 	storage      *storage.MinioStorage
 	userRepo     authdomain.UserRepository // to fetch PIC email
 	delegateRepo issue.IssueDelegateRepository
@@ -38,8 +39,8 @@ type issueUseCase struct {
 	rdb          *redis.Client
 }
 
-func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssueUseCase {
-	return &issueUseCase{repo: repo, photoRepo: photoRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb}
+func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, heiRepo issue.IssueHEIRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssueUseCase {
+	return &issueUseCase{repo: repo, photoRepo: photoRepo, heiRepo: heiRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb}
 }
 
 func (uc *issueUseCase) GetAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
@@ -136,6 +137,18 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 	}
 	err := uc.repo.Create(i)
 	if err == nil {
+		// Save HEI (Habit, Equipment, Infrastructure) in Issue_HEI table if provided
+		if (req.HabitID != nil && *req.HabitID != "") || (req.EquipmentID != nil && *req.EquipmentID != "") || (req.InfrastructureID != nil && *req.InfrastructureID != "") {
+			heiItem := issue.IssueHEI{
+				IssueHEIID:       idgen.Generate("HEI"),
+				IssueID:          i.IssueID,
+				HabitID:          req.HabitID,
+				EquipmentID:      req.EquipmentID,
+				InfrastructureID: req.InfrastructureID,
+			}
+			_ = uc.heiRepo.UpsertByIssueID(i.IssueID, &heiItem)
+		}
+
 		event := events.IssueEvent{
 			BaseEvent: events.BaseEvent{
 				EventID:   uuid.New().String(),
@@ -199,7 +212,10 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 			if !isDel {
 				user, errUser := uc.userRepo.FindByID(actorID)
 				if errUser == nil && user != nil {
-					isAud := user.RoleID == "ROLE-001" || user.RoleID == "ROLE-002" || user.RoleID == "ADM" || user.RoleID == "ADMIN"
+					r := strings.ToUpper(user.RoleID)
+					// Strict check against valid system Role IDs:
+					// ROLE-000 (Super Admin), ROLE-001 (Admin), ROLE-002 (Auditor)
+					isAud := r == "ROLE-000" || r == "ROLE-001" || r == "ROLE-002"
 					if !isAud {
 						if len(user.PICMappings) == 0 {
 							return nil, errors.New("unauthorized: you are not the PIC or delegate for this issue")
@@ -292,18 +308,68 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	}
 
 	// Update WO / WR logic
-	if req.NeedsWOWR {
-		i.NeedsWOWR = true
-		i.WO_ID = strings.ToUpper(strings.TrimSpace(req.WO_ID))
-		i.WR_ID = strings.ToUpper(strings.TrimSpace(req.WR_ID))
-
-		if i.WO_ID == "" && i.WR_ID == "" {
-			return nil, errors.New("jika membutuhkan WO/WR, minimal satu ID (WO atau WR) harus diisi")
+	if req.NeedsWOWR != nil {
+		if *req.NeedsWOWR {
+			i.NeedsWOWR = true
+			if req.WO_ID != "" || req.WR_ID != "" {
+				i.WO_ID = strings.ToUpper(strings.TrimSpace(req.WO_ID))
+				i.WR_ID = strings.ToUpper(strings.TrimSpace(req.WR_ID))
+			}
+			if i.WO_ID == "" && i.WR_ID == "" {
+				return nil, errors.New("jika membutuhkan WO/WR, minimal satu ID (WO atau WR) harus diisi")
+			}
+		} else {
+			i.NeedsWOWR = false
+			i.WO_ID = ""
+			i.WR_ID = ""
+			i.WOWRStatus = issue.WOWRStatusNone
 		}
 	} else if req.WO_ID != "" || req.WR_ID != "" {
-		i.NeedsWOWR = req.NeedsWOWR
 		i.WO_ID = strings.ToUpper(strings.TrimSpace(req.WO_ID))
 		i.WR_ID = strings.ToUpper(strings.TrimSpace(req.WR_ID))
+	}
+
+	// Update HEI (Habit, Equipment, Infrastructure) in Issue_HEI table
+	if req.HabitID != nil || req.EquipmentID != nil || req.InfrastructureID != nil {
+		existingHEI, _ := uc.heiRepo.FindByIssueID(id)
+		var heiItem issue.IssueHEI
+		if existingHEI != nil {
+			heiItem = *existingHEI
+		} else {
+			heiItem = issue.IssueHEI{
+				IssueHEIID: idgen.Generate("HEI"),
+				IssueID:    id,
+			}
+		}
+
+		if req.HabitID != nil {
+			if *req.HabitID == "" {
+				heiItem.HabitID = nil
+			} else {
+				heiItem.HabitID = req.HabitID
+			}
+		}
+		if req.EquipmentID != nil {
+			if *req.EquipmentID == "" {
+				heiItem.EquipmentID = nil
+			} else {
+				heiItem.EquipmentID = req.EquipmentID
+			}
+		}
+		if req.InfrastructureID != nil {
+			if *req.InfrastructureID == "" {
+				heiItem.InfrastructureID = nil
+			} else {
+				heiItem.InfrastructureID = req.InfrastructureID
+			}
+		}
+
+		// Delete if all HEI fields are null, otherwise upsert
+		if heiItem.HabitID == nil && heiItem.EquipmentID == nil && heiItem.InfrastructureID == nil {
+			_ = uc.heiRepo.DeleteByIssueID(id)
+		} else {
+			_ = uc.heiRepo.UpsertByIssueID(id, &heiItem)
+		}
 	}
 
 	if req.Keterangan != "" {

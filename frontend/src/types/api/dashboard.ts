@@ -37,6 +37,7 @@ export const dashboardApi = {
     detail_kawasan_id?: string;
     start_date?: string;
     end_date?: string;
+    plant_id?: string;
   }) => {
     const res = await api.get("/dashboard/preview-export", {
       params: filters,

@@ -73,20 +73,20 @@ export const inspectionApi = {
   },
 
   // Distributed Inspection Redis APIs
-  acquireLock: async (kawasanId: string, aspekId: string) => {
-    const res = await api.post(`/inspeksi/${kawasanId}/${aspekId}/lock`);
+  acquireLock: async (scopeId: string, aspekId: string) => {
+    const res = await api.post(`/inspeksi/${scopeId}/${aspekId}/lock`);
     return res.data;
   },
 
-  releaseLock: async (kawasanId: string, aspekId: string, lockToken: string) => {
-    const res = await api.delete(`/inspeksi/${kawasanId}/${aspekId}/lock`, {
+  releaseLock: async (scopeId: string, aspekId: string, lockToken: string) => {
+    const res = await api.delete(`/inspeksi/${scopeId}/${aspekId}/lock`, {
       headers: { "X-Lock-Token": lockToken },
     });
     return res.data;
   },
 
   saveAspekDraft: async (
-    kawasanId: string,
+    scopeId: string,
     aspekId: string,
     lockToken: string,
     payload: {
@@ -96,24 +96,24 @@ export const inspectionApi = {
       session_id?: string;
     }
   ) => {
-    const res = await api.put(`/inspeksi/${kawasanId}/${aspekId}`, payload, {
+    const res = await api.put(`/inspeksi/${scopeId}/${aspekId}`, payload, {
       headers: { "X-Lock-Token": lockToken },
     });
     return res.data;
   },
 
-  getDraftState: async (kawasanId: string, aspekId: string) => {
-    const res = await api.get(`/inspeksi/${kawasanId}/${aspekId}/state`);
+  getDraftState: async (scopeId: string, aspekId: string) => {
+    const res = await api.get(`/inspeksi/${scopeId}/${aspekId}/state`);
     return res.data;
   },
 
-  getAllDrafts: async (kawasanId: string) => {
-    const res = await api.get(`/inspeksi/${kawasanId}/drafts`);
+  getAllDrafts: async (scopeId: string) => {
+    const res = await api.get(`/inspeksi/${scopeId}/drafts`);
     return res.data;
   },
 
-  getKawasanStatus: async (kawasanId: string) => {
-    const res = await api.get(`/inspeksi/${kawasanId}/status`);
+  getKawasanStatus: async (scopeId: string) => {
+    const res = await api.get(`/inspeksi/${scopeId}/status`);
     return res.data;
   }
 };

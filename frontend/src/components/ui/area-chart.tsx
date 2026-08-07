@@ -6,6 +6,7 @@ export interface AreaSeries {
   dataKey: string;
   name?: string;
   color: string;
+  unit?: string;
 }
 
 export interface AreaChartProps {
@@ -13,9 +14,16 @@ export interface AreaChartProps {
   xAxisKey: string;
   series: AreaSeries[];
   height?: number;
+  unit?: string;
 }
 
-export function AreaChart({ data, xAxisKey, series, height = 300 }: AreaChartProps) {
+export function AreaChart({ data, xAxisKey, series, height = 300, unit = "" }: AreaChartProps) {
+  // Map series key to custom unit
+  const seriesUnitMap: Record<string, string> = {};
+  series.forEach((s) => {
+    seriesUnitMap[s.dataKey] = s.unit !== undefined ? s.unit : unit;
+  });
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <RechartsAreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -40,7 +48,7 @@ export function AreaChart({ data, xAxisKey, series, height = 300 }: AreaChartPro
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value) => `${value}`}
+          tickFormatter={(value) => `${value}${unit}`}
         />
         <Tooltip
           contentStyle={{
@@ -49,6 +57,10 @@ export function AreaChart({ data, xAxisKey, series, height = 300 }: AreaChartPro
             borderRadius: "8px",
           }}
           itemStyle={{ color: "#fafafa" }}
+          formatter={(value: any, name: any, item: any) => {
+            const seriesUnit = seriesUnitMap[item?.dataKey] !== undefined ? seriesUnitMap[item?.dataKey] : unit;
+            return [`${value}${seriesUnit}`, name || "Nilai"];
+          }}
         />
         {series.map((s, idx) => (
           <Area

@@ -3,6 +3,7 @@ package issuerepo
 import (
 	"github.com/monitoring-system/backend/internal/domain/issue"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ── Issue Repository ──────────────────────────────────────────────────────
@@ -73,11 +74,32 @@ func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID st
 			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
 			  JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih2."DetailKawasanID"
 			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
-			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName"`).
+			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName",
+			(SELECT asp."AspekName" FROM "Inspection_Result" ir2
+			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+			  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
+			  JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "AspekName",
+			(SELECT dm."DetailName" FROM "Inspection_Result" ir2
+			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+			  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailAspekName",
+			(SELECT um."UraianText" FROM "Inspection_Result" ir2
+			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "UraianText",
+			(SELECT hm."HabitName" FROM "Issue_HEI" hei
+			  JOIN "Habit_Master" hm ON hm."HabitID" = hei."HabitID"
+			  WHERE hei."IssueID" = "Issue"."IssueID" LIMIT 1) AS "HabitName",
+			(SELECT em."EquipmentName" FROM "Issue_HEI" hei
+			  JOIN "Equipment_Master" em ON em."EquipmentID" = hei."EquipmentID"
+			  WHERE hei."IssueID" = "Issue"."IssueID" LIMIT 1) AS "EquipmentName",
+			(SELECT im."InfrastructureName" FROM "Issue_HEI" hei
+			  JOIN "Infrastructure_Master" im ON im."InfrastructureID" = hei."InfrastructureID"
+			  WHERE hei."IssueID" = "Issue"."IssueID" LIMIT 1) AS "InfrastructureName"`).
 		Preload("Photos").
-		Preload("Habit").
-		Preload("Equipment").
-		Preload("Infrastructure").
+		Preload("HEI.Habit").
+		Preload("HEI.Equipment").
+		Preload("HEI.Infrastructure").
 		Order(`"Issue"."IssueCreatedAt" DESC`).
 		Offset((page - 1) * limit).
 		Limit(limit).
@@ -95,7 +117,10 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 			u."FullName" AS "PICName",
 			asp."AspekName" AS "AspekName",
 			dm."DetailName" AS "DetailAspekName",
-			um."UraianText" AS "UraianText"`).
+			um."UraianText" AS "UraianText",
+			hm."HabitName" AS "HabitName",
+			em."EquipmentName" AS "EquipmentName",
+			im."InfrastructureName" AS "InfrastructureName"`).
 		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
 		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
 		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
@@ -105,10 +130,14 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
+		Joins(`LEFT JOIN "Issue_HEI" hei ON hei."IssueID" = "Issue"."IssueID"`).
+		Joins(`LEFT JOIN "Habit_Master" hm ON hm."HabitID" = hei."HabitID"`).
+		Joins(`LEFT JOIN "Equipment_Master" em ON em."EquipmentID" = hei."EquipmentID"`).
+		Joins(`LEFT JOIN "Infrastructure_Master" im ON im."InfrastructureID" = hei."InfrastructureID"`).
 		Preload("Photos").
-		Preload("Habit").
-		Preload("Equipment").
-		Preload("Infrastructure").
+		Preload("HEI.Habit").
+		Preload("HEI.Equipment").
+		Preload("HEI.Infrastructure").
 		Where(`"Issue"."IssueID" = ?`, id).
 		First(&item).Error
 	return &item, err
@@ -124,6 +153,40 @@ func (r *issueRepository) Create(i *issue.Issue) error { return r.db.Create(i).E
 func (r *issueRepository) Update(i *issue.Issue) error { return r.db.Save(i).Error }
 func (r *issueRepository) Delete(id string) error {
 	return r.db.Where("\"IssueID\" = ?", id).Delete(&issue.Issue{}).Error
+}
+
+// ── Issue HEI Repository ───────────────────────────────────────────────────
+
+type issueHEIRepository struct{ db *gorm.DB }
+
+func NewIssueHEIRepository(db *gorm.DB) issue.IssueHEIRepository {
+	_ = db.AutoMigrate(&issue.IssueHEI{})
+	return &issueHEIRepository{db: db}
+}
+
+func (r *issueHEIRepository) UpsertByIssueID(issueID string, hei *issue.IssueHEI) error {
+	hei.IssueID = issueID
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "IssueID"}},
+		DoUpdates: clause.AssignmentColumns([]string{"HabitID", "EquipmentID", "InfrastructureID", "UpdatedAt"}),
+	}).Create(hei).Error
+}
+
+func (r *issueHEIRepository) FindByIssueID(issueID string) (*issue.IssueHEI, error) {
+	var item issue.IssueHEI
+	err := r.db.Where(`"IssueID" = ?`, issueID).
+		Preload("Habit").
+		Preload("Equipment").
+		Preload("Infrastructure").
+		First(&item).Error
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *issueHEIRepository) DeleteByIssueID(issueID string) error {
+	return r.db.Where(`"IssueID" = ?`, issueID).Delete(&issue.IssueHEI{}).Error
 }
 
 // ── Issue Photo Repository ─────────────────────────────────────────────────

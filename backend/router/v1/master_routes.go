@@ -4,11 +4,14 @@ import (
 	"github.com/gofiber/fiber/v2"
 	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
 	"github.com/monitoring-system/backend/internal/handler/auth"
+	"github.com/monitoring-system/backend/internal/handler/issuehandler"
 	"github.com/monitoring-system/backend/internal/handler/masterhandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/issuerepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/authusecase"
+	"github.com/monitoring-system/backend/internal/usecase/issueusecase"
 	"github.com/monitoring-system/backend/internal/usecase/masterusecase"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"
@@ -31,6 +34,10 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	roleRepo := authrepo.NewRoleRepository(db)
 	moduleRepo := authrepo.NewModuleRepository(db)
 
+	habitRepo := issuerepo.NewHabitRepository(db)
+	equipRepo := issuerepo.NewEquipmentRepository(db)
+	infraRepo := issuerepo.NewInfrastructureRepository(db)
+
 	deptUC := masterusecase.NewDepartmentUseCase(deptRepo)
 	plantUC := masterusecase.NewPlantUseCase(plantRepo)
 	areaUC := masterusecase.NewAreaUseCase(areaRepo)
@@ -41,6 +48,10 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	uraianUC := masterusecase.NewUraianUseCase(uraianRepo)
 	roleUC := authusecase.NewRoleUseCase(roleRepo)
 	moduleUC := authusecase.NewModuleUseCase(moduleRepo)
+
+	habitUC := issueusecase.NewHabitUseCase(habitRepo)
+	equipUC := issueusecase.NewEquipmentUseCase(equipRepo)
+	infraUC := issueusecase.NewInfrastructureUseCase(infraRepo)
 
 	rolePermRepo := authrepo.NewRolePermissionRepository(db)
 	rolePermUC := authusecase.NewRolePermissionUseCase(rolePermRepo)
@@ -62,6 +73,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	roleH := auth.NewRoleHandler(roleUC)
 	rolePermH := auth.NewRolePermissionHandler(rolePermUC)
 	moduleH := auth.NewModuleHandler(moduleUC)
+	heiH := issuehandler.NewHEIHandler(habitUC, equipUC, infraUC)
 
 	userRepo := authrepo.NewUserRepository(db)
 	authMW := middleware.AuthMiddleware(jwtManager)
@@ -102,7 +114,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		roles.Put("/:id", permUpdateRole, roleH.Update)
 		roles.Delete("/:id", permUpdateRole, roleH.Delete)
 
-		roles.Get("/:id/permissions", permReadRole, rolePermH.GetByRoleID)
+		roles.Get("/:id/permissions", rolePermH.GetByRoleID)
 		roles.Put("/:id/permissions", permUpdateRole, rolePermH.SetPermissions)
 
 		// Modules (Features & Permissions list)
@@ -156,6 +168,30 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		uraian.Get("/:id", permReadMstr, uraianH.GetByID)
 		uraian.Put("/:id", permUpdateMstr, uraianH.Update)
 		uraian.Delete("/:id", permDeleteMstr, uraianH.Delete)
+
+		// Habits
+		habits := master.Group("/habits")
+		habits.Get("", permReadMstr, heiH.GetAllHabits)
+		habits.Post("", permCreateMstr, heiH.CreateHabit)
+		habits.Get("/:id", permReadMstr, heiH.GetHabitByID)
+		habits.Put("/:id", permUpdateMstr, heiH.UpdateHabit)
+		habits.Delete("/:id", permDeleteMstr, heiH.DeleteHabit)
+
+		// Equipments
+		equipments := master.Group("/equipments")
+		equipments.Get("", permReadMstr, heiH.GetAllEquipments)
+		equipments.Post("", permCreateMstr, heiH.CreateEquipment)
+		equipments.Get("/:id", permReadMstr, heiH.GetEquipmentByID)
+		equipments.Put("/:id", permUpdateMstr, heiH.UpdateEquipment)
+		equipments.Delete("/:id", permDeleteMstr, heiH.DeleteEquipment)
+
+		// Infrastructures
+		infrastructures := master.Group("/infrastructures")
+		infrastructures.Get("", permReadMstr, heiH.GetAllInfrastructures)
+		infrastructures.Post("", permCreateMstr, heiH.CreateInfrastructure)
+		infrastructures.Get("/:id", permReadMstr, heiH.GetInfrastructureByID)
+		infrastructures.Put("/:id", permUpdateMstr, heiH.UpdateInfrastructure)
+		infrastructures.Delete("/:id", permDeleteMstr, heiH.DeleteInfrastructure)
 
 		// System Settings
 		permReadStng := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-STNG", "READ")

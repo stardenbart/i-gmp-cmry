@@ -83,15 +83,15 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 
 	// Issue queries need join with Inspection_Header
 	qIssueBase := h.db.Table("\"Issue\" i").Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"")
-	qIssueOpen := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" != ?", "Closed")
+	qIssueOpen := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue')")
 	if allowedAreas != nil { qIssueOpen = qIssueOpen.Where("ih.\"AreaID\" IN ?", allowedAreas) }
 	qIssueOpen.Count(&totalOpenIssues)
 
-	qIssueClosed := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" = ?", "Closed")
+	qIssueClosed := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" IN ('Closed', 'Verified', 'ClosedOverdue')")
 	if allowedAreas != nil { qIssueClosed = qIssueClosed.Where("ih.\"AreaID\" IN ?", allowedAreas) }
 	qIssueClosed.Count(&picFollowupCompleted)
 
-	qIssueOverdue := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" != ? AND i.\"DueDate\" < NOW()", "Closed")
+	qIssueOverdue := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue') AND i.\"DueDate\" < NOW()")
 	if allowedAreas != nil { qIssueOverdue = qIssueOverdue.Where("ih.\"AreaID\" IN ?", allowedAreas) }
 	qIssueOverdue.Count(&picFollowupOverdue)
 
@@ -135,7 +135,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		queryStr += ` WHERE am."AreaID" IN ? `
 		args = append(args, allowedAreas)
 	}
-	queryStr += ` GROUP BY am."AreaID", am."AreaName" ORDER BY open_issues DESC LIMIT 5 `
+	queryStr += ` GROUP BY am."AreaID", am."AreaName" ORDER BY open_issues DESC `
 	h.db.Raw(queryStr, args...).Scan(&auditeeRows)
 
 	var auditeeStatusList []fiber.Map
@@ -196,7 +196,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 			}
 			qWeekOK.Count(&mTotalOK)
 
-			mRate := complianceRate
+			mRate := 0.0
 			if mTotalCheck > 0 {
 				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
 			}
@@ -231,7 +231,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 			}
 			qMonthOK.Count(&mTotalOK)
 
-			mRate := complianceRate
+			mRate := 0.0
 			if mTotalCheck > 0 {
 				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
 			}
@@ -266,7 +266,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 			}
 			qMonthOK.Count(&mTotalOK)
 
-			mRate := complianceRate
+			mRate := 0.0
 			if mTotalCheck > 0 {
 				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
 			}
@@ -301,7 +301,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 			}
 			qMonthOK.Count(&mTotalOK)
 
-			mRate := complianceRate
+			mRate := 0.0
 			if mTotalCheck > 0 {
 				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
 			}
@@ -321,6 +321,26 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		trendDiff = float64(int((currRate-prevRate)*10)) / 10.0
 	}
 
+	// Calculate WOWR Statistics
+	var wowrTotal, wowrVerified, wowrPending, wowrRejected, wowrAwaiting int64
+	qWOWRBase := h.db.Table("\"Issue\" i").
+		Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").
+		Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"").
+		Where("i.\"NeedsWOWR\" = true OR (i.\"WO_ID\" IS NOT NULL AND i.\"WO_ID\" != '') OR (i.\"WR_ID\" IS NOT NULL AND i.\"WR_ID\" != '')")
+	if allowedAreas != nil {
+		qWOWRBase = qWOWRBase.Where("ih.\"AreaID\" IN ?", allowedAreas)
+	}
+	qWOWRBase.Session(&gorm.Session{}).Count(&wowrTotal)
+	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ?", "Verified").Count(&wowrVerified)
+	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ?", "PendingValidation").Count(&wowrPending)
+	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ?", "Rejected").Count(&wowrRejected)
+	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ? OR i.\"WOWRStatus\" IS NULL", "None").Count(&wowrAwaiting)
+
+	wowrVerifiedRate := 0.0
+	if wowrTotal > 0 {
+		wowrVerifiedRate = float64(wowrVerified) / float64(wowrTotal) * 100
+	}
+
 	data := fiber.Map{
 		"total_inspections_running": totalInspectionsRunning,
 		"compliance_rate":           complianceRate,
@@ -331,9 +351,16 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		"inspections_completed":     inspectionsCompleted,
 		"inspections_running":       inspectionsRunning,
 		"pic_followup_completed":    picFollowupCompleted,
+		"issues_resolved":           picFollowupCompleted,
 		"pic_followup_overdue":      picFollowupOverdue,
 		"auditee_status":            auditeeStatusList,
 		"compliance_trend":          complianceTrend,
+		"wowr_total":                wowrTotal,
+		"wowr_verified":             wowrVerified,
+		"wowr_pending":              wowrPending,
+		"wowr_rejected":             wowrRejected,
+		"wowr_awaiting":             wowrAwaiting,
+		"wowr_verified_rate":        float64(int(wowrVerifiedRate*10)) / 10.0,
 	}
 
 	return c.JSON(fiber.Map{
@@ -888,37 +915,239 @@ func (h *DashboardHandler) GetPICDetail(c *fiber.Ctx) error {
 
 
 // getAllowedAreas returns a slice of AreaIDs the user is allowed to access.
-// If the user is Admin (ROLE-001), it returns nil (meaning no restrictions).
+// SuperAdmin can view all plants (nil) or filter by query parameter `plant_id`.
+// Non-SuperAdmin users (Admin Plant, Auditee) are strictly scoped to their assigned `userPlantID`.
 func (h *DashboardHandler) getAllowedAreas(c *fiber.Ctx) []string {
 	isSuperAdmin, _ := c.Locals("isSuperAdmin").(bool)
 	roleID := middleware.GetRoleID(c)
+	if roleID == "ROLE-000" || roleID == "SUPERADMIN" {
+		isSuperAdmin = true
+	}
 
 	queryPlantID := c.Query("plant_id")
 
-	if (isSuperAdmin || roleID == "ROLE-000" || roleID == "SUPERADMIN") && queryPlantID == "" {
-		return nil // SuperAdmin has unrestricted global access across all plants if no specific plant_id is requested
-	}
+	// Super Admin Access Logic
+	if isSuperAdmin {
+		if queryPlantID == "" || queryPlantID == "all" {
+			return nil // Unrestricted access to all areas across all plants
+		}
 
-	userPlantID := queryPlantID
-	if userPlantID == "" {
-		userPlantID, _ = c.Locals("userPlantID").(string)
-	}
-
-	var areaIDs []string
-
-	if userPlantID != "" {
-		// Non-SuperAdmin or SuperAdmin filtering: Scoped to areas belonging to PlantID
-		h.db.Table("\"Area_Master\"").Select("\"AreaID\"").Where("\"PlantID\" = ?", userPlantID).Scan(&areaIDs)
+		var areaIDs []string
+		if queryPlantID == "GLOBAL" || queryPlantID == "NULL" {
+			h.db.Table("\"Area_Master\"").Select("\"AreaID\"").Where("\"PlantID\" IS NULL OR \"PlantID\" = ''").Scan(&areaIDs)
+		} else {
+			h.db.Table("\"Area_Master\"").Select("\"AreaID\"").Where("\"PlantID\" = ?", queryPlantID).Scan(&areaIDs)
+		}
 		if len(areaIDs) == 0 {
 			return []string{"RESTRICTED_NONE"}
 		}
 		return areaIDs
 	}
 
-	// Fallback to PIC_Mapping for non-superadmin users without explicit plant assignment
+	// Non-SuperAdmin Access Logic (Admin Plant, Auditee, Auditor with plant restriction)
+	userPlantID, _ := c.Locals("userPlantID").(string)
+
+	if userPlantID != "" {
+		var areaIDs []string
+		if userPlantID == "GLOBAL" || userPlantID == "NULL" {
+			h.db.Table("\"Area_Master\"").Select("\"AreaID\"").Where("\"PlantID\" IS NULL OR \"PlantID\" = ''").Scan(&areaIDs)
+		} else {
+			h.db.Table("\"Area_Master\"").Select("\"AreaID\"").Where("\"PlantID\" = ?", userPlantID).Scan(&areaIDs)
+		}
+		if len(areaIDs) == 0 {
+			return []string{"RESTRICTED_NONE"}
+		}
+		return areaIDs
+	}
+
+	// For Auditor role without specific plant assignment, return nil (all areas)
+	if middleware.IsAuditorRole(roleID) {
+		return nil
+	}
+
+	// Fallback to PIC_Mapping for Auditees
+	var areaIDs []string
 	h.db.Table("\"PIC_Mapping\"").Select("\"AreaID\"").Where("\"UserID\" = ?", middleware.GetUserID(c)).Scan(&areaIDs)
 	if len(areaIDs) == 0 {
 		return []string{"RESTRICTED_NONE"}
 	}
 	return areaIDs
+}
+
+// GetWOWRReport returns detailed WOWR analytics summary, rates, area breakdown, and list items.
+// GET /api/v1/dashboard/wowr-report
+func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
+	areaID := c.Query("area_id")
+	kawasanID := c.Query("kawasan_id")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	allowedAreas := h.getAllowedAreas(c)
+
+	type WOWRReportItem struct {
+		IssueID           string     `json:"issue_id"`
+		WO_ID             string     `json:"wo_id"`
+		WR_ID             string     `json:"wr_id"`
+		NeedsWOWR         bool       `json:"needs_wo_wr"`
+		WOWRStatus        string     `json:"wowr_status"`
+		IssueStatus       string     `json:"issue_status"`
+		AreaID            string     `json:"area_id"`
+		AreaName          string     `json:"area_name"`
+		KawasanID         string     `json:"kawasan_id"`
+		KawasanName       string     `json:"kawasan_name"`
+		DetailKawasanID   string     `json:"detail_kawasan_id"`
+		DetailKawasanName string     `json:"detail_kawasan_name"`
+		PICName           string     `json:"pic_name"`
+		AspekName         string     `json:"aspek_name"`
+		DetailAspekName   string     `json:"detail_aspek_name"`
+		UraianText        string     `json:"uraian_text"`
+		HabitName         string     `json:"habit_name"`
+		EquipmentName     string     `json:"equipment_name"`
+		InfrastructureName string    `json:"infrastructure_name"`
+		Keterangan        string     `json:"keterangan"`
+		DueDate           *time.Time `json:"due_date"`
+		CreatedAt         time.Time  `json:"created_at"`
+	}
+
+	query := h.db.Table(`"Issue" i`).
+		Select(`i."IssueID" as issue_id,
+			COALESCE(i."WO_ID", '') as wo_id,
+			COALESCE(i."WR_ID", '') as wr_id,
+			i."NeedsWOWR" as needs_wo_wr,
+			COALESCE(NULLIF(i."WOWRStatus", ''), 'None') as wowr_status,
+			i."IssueStatus" as issue_status,
+			ih."AreaID" as area_id,
+			COALESCE(am_area."AreaName", ih."AreaID") as area_name,
+			ih."KawasanID" as kawasan_id,
+			COALESCE(km."KawasanName", ih."KawasanID") as kawasan_name,
+			ih."DetailKawasanID" as detail_kawasan_id,
+			COALESCE(dkm."DetailKawasanName", ih."DetailKawasanID") as detail_kawasan_name,
+			COALESCE(u_pic."FullName", i."IssuePICUserID") as pic_name,
+			COALESCE(asp."AspekName", '') as aspek_name,
+			COALESCE(dm."DetailName", '') as detail_aspek_name,
+			COALESCE(um."UraianText", '') as uraian_text,
+			COALESCE(hm."HabitName", '') as habit_name,
+			COALESCE(eq."EquipmentName", '') as equipment_name,
+			COALESCE(inf."InfrastructureName", '') as infrastructure_name,
+			i."Keterangan" as keterangan,
+			i."DueDate" as due_date,
+			i."IssueCreatedAt" as created_at`).
+		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
+		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
+		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
+		Joins(`LEFT JOIN "Issue_HEI" hei ON hei."IssueID" = i."IssueID"`).
+		Joins(`LEFT JOIN "Habit_Master" hm ON hm."HabitID" = hei."HabitID"`).
+		Joins(`LEFT JOIN "Equipment_Master" eq ON eq."EquipmentID" = hei."EquipmentID"`).
+		Joins(`LEFT JOIN "Infrastructure_Master" inf ON inf."InfrastructureID" = hei."InfrastructureID"`).
+		Joins(`LEFT JOIN "Area_Master" am_area ON am_area."AreaID" = ih."AreaID"`).
+		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
+		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
+		Joins(`LEFT JOIN "Users" u_pic ON u_pic."UserID" = i."IssuePICUserID"`).
+		Where(`i."NeedsWOWR" = true OR (i."WO_ID" IS NOT NULL AND i."WO_ID" != '') OR (i."WR_ID" IS NOT NULL AND i."WR_ID" != '')`)
+
+	if areaID != "" {
+		query = query.Where(`ih."AreaID" = ?`, areaID)
+	}
+	if kawasanID != "" {
+		query = query.Where(`ih."KawasanID" = ?`, kawasanID)
+	}
+	if startDate != "" {
+		query = query.Where(`i."IssueCreatedAt" >= ?`, startDate+" 00:00:00")
+	}
+	if endDate != "" {
+		query = query.Where(`i."IssueCreatedAt" <= ?`, endDate+" 23:59:59")
+	}
+	if allowedAreas != nil {
+		query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
+	}
+
+	var items []WOWRReportItem
+	if err := query.Order(`i."IssueCreatedAt" DESC`).Scan(&items).Error; err != nil {
+		h.log.Error("Failed to fetch WOWR report items", logger.Error(err))
+		return response.InternalServerError(c, "Failed to load WOWR report data", err.Error())
+	}
+
+	var total, verified, pending, rejected, awaiting int64
+	total = int64(len(items))
+
+	type AreaBreakdown struct {
+		AreaName string `json:"area_name"`
+		Total    int64  `json:"total"`
+		Verified int64  `json:"verified"`
+		Pending  int64  `json:"pending"`
+		Rejected int64  `json:"rejected"`
+		Awaiting int64  `json:"awaiting"`
+	}
+	areaMap := make(map[string]*AreaBreakdown)
+
+	for i := range items {
+		if h.cryptoSvc != nil && items[i].Keterangan != "" {
+			items[i].Keterangan = h.cryptoSvc.DecryptWithFallback(items[i].Keterangan)
+		}
+
+		st := items[i].WOWRStatus
+		if st == "Verified" {
+			verified++
+		} else if st == "PendingValidation" {
+			pending++
+		} else if st == "Rejected" {
+			rejected++
+		} else {
+			awaiting++
+		}
+
+		an := items[i].AreaName
+		if an == "" {
+			an = "Lainnya"
+		}
+		if _, ok := areaMap[an]; !ok {
+			areaMap[an] = &AreaBreakdown{AreaName: an}
+		}
+		ab := areaMap[an]
+		ab.Total++
+		if st == "Verified" {
+			ab.Verified++
+		} else if st == "PendingValidation" {
+			ab.Pending++
+		} else if st == "Rejected" {
+			ab.Rejected++
+		} else {
+			ab.Awaiting++
+		}
+	}
+
+	var byArea []AreaBreakdown
+	for _, ab := range areaMap {
+		byArea = append(byArea, *ab)
+	}
+
+	verifiedRate := 0.0
+	pendingRate := 0.0
+	rejectedRate := 0.0
+	awaitingRate := 0.0
+
+	if total > 0 {
+		verifiedRate = float64(verified) / float64(total) * 100
+		pendingRate = float64(pending) / float64(total) * 100
+		rejectedRate = float64(rejected) / float64(total) * 100
+		awaitingRate = float64(awaiting) / float64(total) * 100
+	}
+
+	return response.OK(c, "success", fiber.Map{
+		"summary": fiber.Map{
+			"total":         total,
+			"verified":      verified,
+			"pending":       pending,
+			"rejected":      rejected,
+			"awaiting":      awaiting,
+			"verified_rate": float64(int(verifiedRate*10)) / 10.0,
+			"pending_rate":  float64(int(pendingRate*10)) / 10.0,
+			"rejected_rate": float64(int(rejectedRate*10)) / 10.0,
+			"awaiting_rate": float64(int(awaitingRate*10)) / 10.0,
+		},
+		"by_area": byArea,
+		"items":   items,
+	})
 }

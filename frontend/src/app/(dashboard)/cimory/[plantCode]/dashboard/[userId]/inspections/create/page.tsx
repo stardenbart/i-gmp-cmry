@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { inspectionApi } from "@/lib/api/inspection.api";
 import { masterApi, Area, Kawasan, DetailKawasan } from "@/lib/api/master.api";
-import { useAuditorGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 
 interface CreateFormValues {
   area_id: string;
@@ -21,7 +21,8 @@ interface CreateFormValues {
 }
 
 export default function CreateInspectionPage() {
-  const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAuditor = hasPermission("PERM-INSP-C");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { userId, plantCode } = useParams() as { userId: string; plantCode?: string };

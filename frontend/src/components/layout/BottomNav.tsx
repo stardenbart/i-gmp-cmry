@@ -6,20 +6,21 @@ import { Home, ClipboardCheck, AlertTriangle, User, FileBox } from "lucide-react
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
-import { isAuditorUser } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 
 export function BottomNav() {
   const pathname = usePathname();
   const params = useParams();
   const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
+  const { hasPermission } = usePermissions();
 
   const plantCode = (params?.plantCode as string) || user?.plant_id || "global";
   const basePath = `/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}`;
 
   const NAV_ITEMS = [
     { href: `${basePath}`, label: "Home", icon: Home },
-    ...(mounted && isAuditorUser(user?.role_id)
+    ...(mounted && hasPermission("PERM-INSP-R")
       ? [{ href: `${basePath}/inspections`, label: "Inspeksi", icon: ClipboardCheck }]
       : []),
     { href: `${basePath}/issues`, label: "Temuan", icon: AlertTriangle },

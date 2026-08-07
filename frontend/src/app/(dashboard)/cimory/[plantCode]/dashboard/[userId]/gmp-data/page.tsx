@@ -1,39 +1,96 @@
 "use client";
 
-import { useState } from "react";
-import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, Filter, RotateCcw, Layers, ListChecks, AlertTriangle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, Filter, RotateCcw, Layers, ListChecks, AlertTriangle, Building2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import { dashboardApi } from "@/types/api/dashboard";
-import { areaApi } from "@/types/api/master";
+import { areaApi, plantApi } from "@/types/api/master";
 import { fetchItems } from "@/components/master/master.api";
-import { useAdminGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
+import { useAuthStore } from "@/stores/authStore";
+import { useDebounce } from "@/hooks/useDebounce";
+
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  setSelectedArea,
+  setSelectedKawasan,
+  setSelectedDetailKawasan,
+  setStartDate,
+  setEndDate,
+  setQ,
+  resetFilters,
+} from "@/store/slices/gmpFilterSlice";
+
+import { useParams } from "next/navigation";
 
 export default function GmpDataAdminPage() {
   const mounted = useMounted();
-  const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
+  const params = useParams();
+  const plantCode = (params?.plantCode as string) || "";
+  const effectivePlantId = (plantCode && plantCode !== "all" && plantCode !== "global") ? plantCode : undefined;
+
+  const user = useAuthStore((state) => state.user);
+  const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN" || user?.role?.role_name === "Super Admin";
+
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAdmin = hasPermission("PERM-MSTR-R");
   
-  const [selectedArea, setSelectedArea] = useState<string>("");
-  const [selectedKawasan, setSelectedKawasan] = useState<string>("");
-  const [selectedDetailKawasan, setSelectedDetailKawasan] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [q, setQ] = useState("");
+  const dispatch = useAppDispatch();
+  const {
+    selectedArea,
+    selectedKawasan,
+    selectedDetailKawasan,
+    startDate,
+    endDate,
+    q,
+  } = useAppSelector((state) => state.gmpFilter);
+
+  const [searchInputValue, setSearchInputValue] = useState(q || "");
+  const debouncedSearchValue = useDebounce(searchInputValue, 400);
+
+  useEffect(() => {
+    dispatch(setQ(debouncedSearchValue));
+  }, [debouncedSearchValue, dispatch]);
+
+  const [selectedPlant, setSelectedPlant] = useState<string>(effectivePlantId || "");
   const [isExporting, setIsExporting] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  const userPlantId = user?.plant_id;
+  const activePlantId = isSuperAdmin ? (selectedPlant || effectivePlantId) : (userPlantId || effectivePlantId);
+
   // Lookups
+  const { data: plantsResponse } = useQuery({
+    queryKey: ["plants-master-admin-gmp"],
+    queryFn: () => plantApi.getAll(1, 500),
+    enabled: mounted && isAdmin && isSuperAdmin,
+  });
+
+  const plantItems = Array.isArray(plantsResponse?.items)
+    ? plantsResponse.items
+    : Array.isArray(plantsResponse?.data?.items)
+    ? plantsResponse.data.items
+    : Array.isArray(plantsResponse)
+    ? plantsResponse
+    : [];
+
   const { data: areasResponse } = useQuery({
-    queryKey: ["areas-master-admin-gmp"],
+    queryKey: ["areas-master-admin-gmp", activePlantId],
     queryFn: () => areaApi.getAll(1, 100),
     enabled: mounted && isAdmin,
   });
+
+  const allAreaItems = areasResponse?.data?.items || (areasResponse as any)?.items || [];
+  const filteredAreaOptions = allAreaItems.filter((area: any) =>
+    !activePlantId || area.plant_id === activePlantId
+  );
 
   const { data: kawasanLookup } = useQuery({
     queryKey: ["kawasan-master-admin-gmp"],
@@ -58,38 +115,40 @@ export default function GmpDataAdminPage() {
 
   // Main data preview query
   const { data: previewData, isLoading: isPreviewLoading } = useQuery({
-    queryKey: ["dashboard-preview-export", selectedArea, selectedKawasan, selectedDetailKawasan, startDate, endDate],
+    queryKey: ["dashboard-preview-export", selectedArea, selectedKawasan, selectedDetailKawasan, startDate, endDate, activePlantId],
     queryFn: () => dashboardApi.getPreviewExport({
       area_id: selectedArea,
       kawasan_id: selectedKawasan,
       detail_kawasan_id: selectedDetailKawasan,
       start_date: startDate,
       end_date: endDate,
+      plant_id: activePlantId,
     }),
     enabled: mounted && isAdmin,
   });
 
+  const handlePlantChange = (val: string) => {
+    setSelectedPlant(val);
+    dispatch(setSelectedArea(""));
+    dispatch(setSelectedKawasan(""));
+    dispatch(setSelectedDetailKawasan(""));
+  };
+
   const handleAreaChange = (val: string) => {
-    setSelectedArea(val);
-    setSelectedKawasan("");
-    setSelectedDetailKawasan("");
+    dispatch(setSelectedArea(val));
   };
 
   const handleKawasanChange = (val: string) => {
-    setSelectedKawasan(val);
-    setSelectedDetailKawasan("");
+    dispatch(setSelectedKawasan(val));
   };
 
   const handleResetFilters = () => {
-    setSelectedArea("");
-    setSelectedKawasan("");
-    setSelectedDetailKawasan("");
-    setStartDate("");
-    setEndDate("");
-    setQ("");
+    setSelectedPlant("");
+    setSearchInputValue("");
+    dispatch(resetFilters());
   };
 
-  const hasActiveFilters = Boolean(selectedArea || selectedKawasan || selectedDetailKawasan || startDate || endDate || q);
+  const hasActiveFilters = Boolean(selectedPlant || selectedArea || selectedKawasan || selectedDetailKawasan || startDate || endDate || q);
 
   const handleExport = async () => {
     try {
@@ -101,6 +160,7 @@ export default function GmpDataAdminPage() {
           detail_kawasan_id: selectedDetailKawasan,
           start_date: startDate,
           end_date: endDate,
+          plant_id: activePlantId,
         },
         responseType: 'blob' 
       });
@@ -117,19 +177,13 @@ export default function GmpDataAdminPage() {
       link.click();
       link.parentNode?.removeChild(link);
     } catch (error) {
-      console.error("Failed to export report", error);
+      console.error("Export error:", error);
     } finally {
       setIsExporting(false);
     }
   };
 
-  if (isGuardLoading) {
-    return (
-      <div className="flex justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (!mounted || isGuardLoading) return <div className="h-64 flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
 
   if (!isAdmin) return null;
 
@@ -152,20 +206,23 @@ export default function GmpDataAdminPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Data Inspeksi (GMP)</h2>
-          <p className="text-muted-foreground text-sm">
-            {isPreviewLoading ? "Memuat..." : `${filteredData.length} data inspeksi temuan (results)`}
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <ClipboardCheck className="h-6 w-6 text-primary" /> Data Inspeksi (GMP)
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Laporan lengkap hasil inspeksi kebersihan & kelayakan pabrik
           </p>
         </div>
+        
         <Button 
-          onClick={handleExport}
-          disabled={isExporting}
-          className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-70"
+          onClick={handleExport} 
+          disabled={isExporting || isPreviewLoading}
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
-          {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
           {isExporting ? "Mengekspor..." : "Export Report"}
         </Button>
       </div>
@@ -178,8 +235,8 @@ export default function GmpDataAdminPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Cari Inspeksi ID, Aspek, Detail, Uraian ID, Area, Kawasan, PIC, Keterangan..."
-              value={q}
-              onChange={e => setQ(e.target.value)}
+              value={searchInputValue}
+              onChange={e => setSearchInputValue(e.target.value)}
               className="pl-9 bg-background/50"
             />
           </div>
@@ -193,7 +250,31 @@ export default function GmpDataAdminPage() {
         </div>
 
         {/* Multi-Filter Controls Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 pt-2 border-t border-border/40">
+        <div className={cn(
+          "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t border-border/40",
+          isSuperAdmin ? "xl:grid-cols-6" : "xl:grid-cols-5"
+        )}>
+          {/* Plant Filter (Super Admin Only) */}
+          {isSuperAdmin && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                <Building2 className="h-3 w-3 text-primary" /> Pabrik / Plant:
+              </label>
+              <select 
+                value={selectedPlant} 
+                onChange={(e) => handlePlantChange(e.target.value)}
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Semua Plant (Global)</option>
+                {plantItems.map((plant: any) => (
+                  <option key={plant.plant_id || plant.plant_code} value={plant.plant_id || plant.plant_code}>
+                    {plant.plant_name || plant.plant_code || plant.plant_id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Area Filter */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
@@ -205,7 +286,7 @@ export default function GmpDataAdminPage() {
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary"
             >
               <option value="">Semua Area</option>
-              {areasResponse?.data?.items?.map((area: any) => (
+              {filteredAreaOptions.map((area: any) => (
                 <option key={area.area_id} value={area.area_id}>
                   {area.area_name}
                 </option>
@@ -240,7 +321,7 @@ export default function GmpDataAdminPage() {
             </label>
             <select 
               value={selectedDetailKawasan} 
-              onChange={(e) => setSelectedDetailKawasan(e.target.value)}
+              onChange={(e) => dispatch(setSelectedDetailKawasan(e.target.value))}
               disabled={!selectedKawasan && detailKawasanOptions.length === 0}
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary disabled:opacity-50"
             >
@@ -261,7 +342,7 @@ export default function GmpDataAdminPage() {
             <Input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => dispatch(setStartDate(e.target.value))}
               className="h-9 text-xs bg-background"
             />
           </div>
@@ -275,7 +356,7 @@ export default function GmpDataAdminPage() {
               <Input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => dispatch(setEndDate(e.target.value))}
                 className="h-9 text-xs bg-background flex-1"
               />
               {hasActiveFilters && (

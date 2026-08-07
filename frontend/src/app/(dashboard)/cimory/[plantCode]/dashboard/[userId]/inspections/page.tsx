@@ -1,4 +1,5 @@
-import { useState, useCallback, useDeferredValue } from "react";
+'use client'
+import { useState, useCallback, useDeferredValue, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import {
@@ -13,10 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { inspectionApi, InspectionHeader } from "@/lib/api/inspection.api";
 import { filterApi, InspectionFilterParams, InspectionFacets } from "@/lib/api/filter.api";
-import { useAuditorGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
+import { useDebounce } from "@/hooks/useDebounce";
 
 // ── Status config ─────────────────────────────────────────────────────────
 const STATUS_OPTIONS = [
@@ -93,7 +95,7 @@ function MyTaskCard({
             </p>
             <div className="flex items-center gap-1.5 mt-2">
               <Clock className="h-3 w-3 text-amber-500/70" />
-              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              <span className="text-label-sm text-amber-600 dark:text-amber-400 font-medium">
                 Berjalan {elapsed}
               </span>
             </div>
@@ -133,43 +135,31 @@ function MyTaskCard({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────
+
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  setSearchQuery,
+  setStatusFilter,
+  setPage,
+  resetFilters,
+} from "@/store/slices/inspectionFilterSlice";
+
 export default function InspectionsPage() {
   const user = useAuthStore(state => state.user);
   const { plantCode } = useParams() as { plantCode?: string };
-  const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
-  const queryClient = useQueryClient();
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAuditor = hasPermission("PERM-INSP-R");
 
-  // Filter state
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [page, setPage] = useState(1);
-  const deferredQ = useDeferredValue(q);
+  const dispatch = useAppDispatch();
+  const { q, status, page } = useAppSelector((state) => state.inspectionFilter);
+  
+  const [searchInputValue, setSearchInputValue] = useState(q || "");
+  const debouncedSearchValue = useDebounce(searchInputValue, 400);
 
-  // Delete modal state
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    dispatch(setSearchQuery(debouncedSearchValue));
+  }, [debouncedSearchValue, dispatch]);
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => inspectionApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
-      queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
-      setDeleteTarget(null);
-      toast.success("Inspeksi berhasil dihapus");
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Gagal menghapus inspeksi");
-    },
-  });�──────────────────────────────
-export default function InspectionsPage() {
-  const user = useAuthStore(state => state.user);
-  const { plantCode } = useParams() as { plantCode?: string };
-  const { isAuditor, isLoading: isGuardLoading } = useAuditorGuard();
-
-  // Filter state
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [page, setPage] = useState(1);
   const deferredQ = useDeferredValue(q);
 
   // ── Query: My ongoing tasks (all ongoing inspections in user's plant) ──
@@ -183,7 +173,7 @@ export default function InspectionsPage() {
   const { data: myTasksData, isLoading: isMyTasksLoading } = useQuery({
     queryKey: ["my-ongoing-inspections", user?.id],
     queryFn: () => filterApi.inspections(myTasksParams),
-    enabled: !isGuardLoading && isAuditor && !!user?.id,
+    enabled: !isGuardLoading && !!user?.id,
     refetchInterval: 15_000, // refresh every 15s
     refetchOnMount: "always",
     staleTime: 0,
@@ -204,7 +194,7 @@ export default function InspectionsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["inspections-filter", params],
     queryFn: () => filterApi.inspections(params),
-    enabled: !isGuardLoading && isAuditor,
+    enabled: !isGuardLoading,
     refetchOnMount: "always",
     staleTime: 0,
   });
@@ -214,11 +204,10 @@ export default function InspectionsPage() {
   const totalPages = data?.total_pages ?? 1;
   const total = data?.total ?? 0;
 
-  const resetFilters = useCallback(() => {
-    setQ("");
-    setStatus("");
-    setPage(1);
-  }, []);
+  const handleResetFilters = useCallback(() => {
+    setSearchInputValue("");
+    dispatch(resetFilters());
+  }, [dispatch]);
 
   const hasActiveFilters = q || status;
 
@@ -230,7 +219,7 @@ export default function InspectionsPage() {
     );
   }
 
-  if (!isAuditor) return null;
+  if (!isGuardLoading && !isAuditor) return null;
 
   return (
     <div className="space-y-8">
@@ -310,8 +299,8 @@ export default function InspectionsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Cari berdasarkan Session ID..."
-              value={q}
-              onChange={e => { setQ(e.target.value); setPage(1); }}
+              value={searchInputValue}
+              onChange={e => setSearchInputValue(e.target.value)}
               className="pl-9 bg-background/50 border-border/50"
             />
           </div>
@@ -322,7 +311,7 @@ export default function InspectionsPage() {
             apiPath="/inspections"
           />
           {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={resetFilters} className="shrink-0">
+            <Button variant="ghost" size="sm" onClick={handleResetFilters} className="shrink-0">
               <X className="mr-1 h-3 w-3" /> Reset
             </Button>
           )}
@@ -337,7 +326,7 @@ export default function InspectionsPage() {
               return (
                 <Button
                   key={opt.value}
-                  onClick={() => { setStatus(opt.value); setPage(1); }}
+                  onClick={() => dispatch(setStatusFilter(opt.value))}
                   className={cn(
                     "shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold",
                     "transition-all duration-200 border",
@@ -410,7 +399,7 @@ export default function InspectionsPage() {
                   {hasActiveFilters && (
                     <Button
                       variant="outline"
-                      onClick={resetFilters}
+                      onClick={handleResetFilters}
                       className="rounded-full px-5 h-9 text-xs font-semibold hover:bg-muted"
                     >
                       <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset Filter
@@ -498,7 +487,7 @@ export default function InspectionsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => dispatch(setPage(Math.max(1, page - 1)))}
                 disabled={page === 1}
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -506,7 +495,7 @@ export default function InspectionsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => dispatch(setPage(Math.min(totalPages, page + 1)))}
                 disabled={page >= totalPages}
               >
                 <ChevronRight className="h-4 w-4" />

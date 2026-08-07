@@ -30,7 +30,10 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Data Maintenance WO/WR berhasil disimpan. Harap tunggu konfirmasi Auditor.");
     },
-    onError: () => toast.error("Gagal menyimpan data WO/WR."),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal menyimpan data WO/WR.";
+      toast.error(msg);
+    },
   });
 
   const wowrValidationMutation = useMutation({
@@ -49,7 +52,10 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
         toast.error("Bukti WO/WR ditolak. Foto bukti lama dibersihkan.");
       }
     },
-    onError: () => toast.error("Gagal memperbarui status validasi WO/WR."),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal memperbarui status validasi WO/WR.";
+      toast.error(msg);
+    },
   });
 
   useEffect(() => {

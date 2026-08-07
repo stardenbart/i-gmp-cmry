@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Activity,
   LogIn,
@@ -20,12 +20,22 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import { masterApi } from "@/lib/api/master.api";
 import { useMounted } from "@/lib/useMounted";
-import { useAdminGuard } from "@/lib/useAdminGuard";
+import { usePermissions } from "@/lib/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/authStore";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
 import { ChevronDown, Filter } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
+
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  setActiveTab,
+  setPage,
+  setSearchQuery,
+  setUserFilter,
+  setPlantFilter,
+} from "@/store/slices/logFilterSlice";
 
 const fetchActivityLogs = async (page = 1, search = "", userId = "", plantId = "") => {
   const params: Record<string, any> = { page, limit: 10 };
@@ -51,15 +61,27 @@ const fetchAllUsers = async () => {
 
 export default function LogsPage() {
   const user = useAuthStore((state) => state.user);
-  const { isAdmin, isLoading: isGuardLoading } = useAdminGuard();
+  const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN" || user?.role?.role_name === "Super Admin";
+  const userPlantId = user?.plant_id;
+
+  const { hasPermission, isLoading: isGuardLoading } = usePermissions();
+  const isAdmin = hasPermission("PERM-LOG-R");
   const mounted = useMounted();
 
-  const [activeTab, setActiveTab] = useState<"activity" | "login">("activity");
-  const [page, setPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [userFilter, setUserFilter] = useState("ALL");
-  const [plantFilter, setPlantFilter] = useState("ALL");
+  const dispatch = useAppDispatch();
+  const { activeTab, page, searchQuery, userFilter, plantFilter } = useAppSelector(
+    (state) => state.logFilter
+  );
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
+
+  const [searchInputValue, setSearchInputValue] = useState(searchQuery || "");
+  const debouncedSearchValue = useDebounce(searchInputValue, 400);
+
+  useEffect(() => {
+    dispatch(setSearchQuery(debouncedSearchValue));
+  }, [debouncedSearchValue, dispatch]);
+
+  const effectivePlantFilter = isSuperAdmin ? plantFilter : (userPlantId || plantFilter);
 
   // Data Fetching
   const { data: usersList = [] } = useQuery({
@@ -71,18 +93,18 @@ export default function LogsPage() {
   const { data: plantsList = [] } = useQuery({
     queryKey: ["master-plants"],
     queryFn: () => masterApi.getPlants({ limit: 1000 }),
-    enabled: mounted && !!user && isAdmin,
+    enabled: mounted && !!user && isAdmin && isSuperAdmin,
   });
 
   const { data: activityRes, isLoading: isActivityLoading, isFetching: isActivityFetching } = useQuery({
-    queryKey: ["logs-activity", page, searchQuery, userFilter, plantFilter],
-    queryFn: () => fetchActivityLogs(page, searchQuery, userFilter, plantFilter),
+    queryKey: ["logs-activity", page, searchQuery, userFilter, effectivePlantFilter],
+    queryFn: () => fetchActivityLogs(page, searchQuery, userFilter, effectivePlantFilter),
     enabled: mounted && !!user && isAdmin && activeTab === "activity",
   });
 
   const { data: loginRes, isLoading: isLoginLoading, isFetching: isLoginFetching } = useQuery({
-    queryKey: ["logs-login", page, userFilter, plantFilter],
-    queryFn: () => fetchLoginLogs(page, userFilter, plantFilter),
+    queryKey: ["logs-login", page, userFilter, effectivePlantFilter],
+    queryFn: () => fetchLoginLogs(page, userFilter, effectivePlantFilter),
     enabled: mounted && !!user && isAdmin && activeTab === "login",
   });
 
@@ -141,7 +163,7 @@ export default function LogsPage() {
       <div className="border-b border-border">
         <div className="flex gap-4">
           <button
-            onClick={() => { setActiveTab("activity"); setPage(1); }}
+            onClick={() => dispatch(setActiveTab("activity"))}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "activity" ? "border-primary text-primary font-semibold" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -149,7 +171,7 @@ export default function LogsPage() {
             <Activity className="h-4 w-4" /> Riwayat Aktivitas & Permintaan
           </button>
           <button
-            onClick={() => { setActiveTab("login"); setPage(1); }}
+            onClick={() => dispatch(setActiveTab("login"))}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "login" ? "border-primary text-primary font-semibold" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -160,16 +182,16 @@ export default function LogsPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
         {activeTab === "activity" && (
-          <div className="flex-1 flex gap-3 items-center">
-            <div className="relative flex-1 max-w-md">
+          <div className="flex-1 flex flex-wrap items-center gap-3 min-w-0">
+            <div className="relative min-w-[240px] sm:min-w-[320px] flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Cari aksi, keterangan, tabel, atau ID..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                className="pl-9 h-10 rounded-xl"
+                value={searchInputValue}
+                onChange={(e) => setSearchInputValue(e.target.value)}
+                className="pl-9 h-10 rounded-xl w-full"
               />
             </div>
             <SearchLatencyBadge
@@ -181,28 +203,30 @@ export default function LogsPage() {
           </div>
         )}
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <div className="relative">
-            <select
-              className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10"
-              value={plantFilter}
-              onChange={(e) => { setPlantFilter(e.target.value); setPage(1); }}
-            >
-              <option value="ALL">Semua Plant</option>
-              <option value="GLOBAL">Global (SuperAdmin)</option>
-              {plantsList.map((p: any) => (
-                <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          </div>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+          {isSuperAdmin && (
+            <div className="relative">
+              <select
+                className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 cursor-pointer"
+                value={plantFilter}
+                onChange={(e) => dispatch(setPlantFilter(e.target.value))}
+              >
+                <option value="ALL">Semua Plant</option>
+                <option value="GLOBAL">Global (SuperAdmin)</option>
+                {plantsList.map((p: any) => (
+                  <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+          )}
 
           <div className="relative">
             <select
-              className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 max-w-[200px] truncate"
+              className="text-sm bg-background appearance-none border border-border rounded-xl pl-3 pr-8 py-2 outline-none h-10 max-w-[200px] truncate cursor-pointer"
               value={userFilter}
-              onChange={(e) => { setUserFilter(e.target.value); setPage(1); }}
+              onChange={(e) => dispatch(setUserFilter(e.target.value))}
             >
               <option value="ALL">Semua User</option>
               {usersList.map((u: any) => (
@@ -314,8 +338,8 @@ export default function LogsPage() {
               Hal {page} dari {pagination.total_pages} ({pagination.total} total log)
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(pagination.total_pages, p + 1))} disabled={page === pagination.total_pages}><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="outline" size="sm" onClick={() => dispatch(setPage(Math.max(1, page - 1)))} disabled={page === 1}><ChevronLeft className="h-4 w-4" /></Button>
+              <Button variant="outline" size="sm" onClick={() => dispatch(setPage(Math.min(pagination.total_pages, page + 1)))} disabled={page === pagination.total_pages}><ChevronRight className="h-4 w-4" /></Button>
             </div>
           </div>
         )}
