@@ -317,9 +317,9 @@ export default function InspectionsPage() {
           )}
         </div>
 
-        {/* Status filter chips */}
-        <div className="-mx-4 sm:-mx-6 px-4 sm:px-6">
-          <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+        {/* Status filter chips with scroll hint */}
+        <div className="relative -mx-4 sm:-mx-6 px-4 sm:px-6">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
             {STATUS_OPTIONS.map(opt => {
               const count = opt.value ? (facets?.status?.[opt.value] ?? 0) : total;
               const isActive = status === opt.value;
@@ -328,7 +328,7 @@ export default function InspectionsPage() {
                   key={opt.value}
                   onClick={() => dispatch(setStatusFilter(opt.value))}
                   className={cn(
-                    "shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold",
+                    "shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold snap-start min-h-[36px]",
                     "transition-all duration-200 border",
                     isActive
                       ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
@@ -348,6 +348,7 @@ export default function InspectionsPage() {
               );
             })}
           </div>
+          <div className="pointer-events-none absolute right-4 sm:right-6 top-0 bottom-1 w-6 bg-gradient-to-l from-background to-transparent sm:hidden" />
         </div>
 
         {/* List */}
@@ -417,57 +418,64 @@ export default function InspectionsPage() {
             items.map((inspection) => (
               <Card
                 key={inspection.inspection_id}
-                className="p-4 hover:border-primary/40 transition-all duration-200 bg-card/60 backdrop-blur-md group"
+                className="p-3.5 sm:p-4 hover:border-primary/40 transition-all duration-200 bg-card/60 backdrop-blur-md group rounded-2xl border-border/80"
               >
-                <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center justify-between">
+                  <div className="flex items-start gap-3 min-w-0">
                     <div className={cn(
-                      "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                      "h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center shrink-0 transition-colors mt-0.5 sm:mt-0",
                       inspection.status === "Ongoing"
                         ? "bg-amber-500/10 group-hover:bg-amber-500/20"
                         : "bg-primary/10 group-hover:bg-primary/20"
                     )}>
                       <ClipboardCheck className={cn(
-                        "h-5 w-5",
+                        "h-4 w-4 sm:h-5 sm:w-5",
                         inspection.status === "Ongoing" ? "text-amber-500" : "text-primary"
                       )} />
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-sm leading-snug">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-semibold text-xs sm:text-sm leading-snug break-words">
                         {inspection.area_name || "—"}
                         <span className="text-muted-foreground font-normal"> · </span>
                         {inspection.kawasan_name || "—"}
                         <span className="text-muted-foreground font-normal"> · </span>
                         {(inspection as any).detail_kawasan_name || "—"}
                       </h4>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-                        {inspection.inspection_id}
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 font-mono truncate">
+                        ID: {inspection.inspection_id}
                       </p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-[10px] sm:text-[11px] text-muted-foreground">
                         {new Date(inspection.created_at).toLocaleDateString("id-ID", {
-                          day: "numeric", month: "long", year: "numeric",
+                          day: "numeric", month: "short", year: "numeric",
                           hour: "2-digit", minute: "2-digit",
                         })}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 sm:shrink-0">
-                    {(inspection.status === "Completed" || inspection.status === "Approved") && inspection.score != null && (
-                      <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
-                        Skor: {Number(inspection.score).toFixed(1)}%
+                  <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40 sm:shrink-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(inspection.status === "Completed" || inspection.status === "Approved") && inspection.score != null && (
+                        <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                          Skor: {Number(inspection.score).toFixed(1)}%
+                        </span>
+                      )}
+                      <span className={cn(
+                        "flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border",
+                        statusColor[inspection.status] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/30"
+                      )}>
+                        {statusIcon[inspection.status]}
+                        {inspection.status}
                       </span>
-                    )}
-                    <span className={cn(
-                      "flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border",
-                      statusColor[inspection.status] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/30"
-                    )}>
-                      {statusIcon[inspection.status]}
-                      {inspection.status}
-                    </span>
-                    <Link href={`/cimory/${plantCode || "all"}/dashboard/${user?.id}/inspections/${inspection.inspection_id}`}>
-                      <Button variant="outline" size="sm" className="rounded-xl text-xs">
+                    </div>
+
+                    <Link
+                      href={`/cimory/${plantCode || "all"}/dashboard/${user?.id}/inspections/${inspection.inspection_id}`}
+                      className="ml-auto sm:ml-0"
+                    >
+                      <Button variant="outline" size="sm" className="rounded-xl text-xs h-8 px-3">
                         {inspection.status === "Ongoing" ? "Lanjutkan" : "Detail"}
+                        <ArrowRight className="ml-1 h-3 w-3" />
                       </Button>
                     </Link>
                   </div>
