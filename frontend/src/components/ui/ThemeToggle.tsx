@@ -1,6 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/providers";
 import { useMounted } from "@/lib/useMounted";
 import { Sun, Moon, Laptop } from "lucide-react";
 import { cn } from "@/lib/utils";
