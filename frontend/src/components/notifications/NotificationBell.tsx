@@ -208,10 +208,11 @@ export function NotificationBell() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted transition-colors relative",
+          "flex h-9 w-9 min-h-[36px] min-w-[36px] items-center justify-center rounded-full hover:bg-muted transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
           isOpen && "bg-muted"
         )}
-        aria-label="Notifications"
+        aria-label={`Pusat Notifikasi${unreadCount > 0 ? `, ${unreadCount} belum dibaca` : ""}`}
+        title="Notifikasi"
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
@@ -229,16 +230,21 @@ export function NotificationBell() {
           origin-top sm:origin-top-right 
           rounded-xl bg-card border border-border shadow-2xl 
           animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200
-        ">
+        "
+        role="dialog"
+        aria-modal="true"
+        aria-label="Daftar Notifikasi"
+        >
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-border">
-            <h3 className="font-semibold">Notifikasi</h3>
+            <h3 className="font-semibold text-sm">Notifikasi</h3>
             <div className="flex items-center gap-1">
               {unreadCount > 0 && (
                 <button
                   onClick={() => markAllAsReadMutation.mutate()}
                   disabled={markAllAsReadMutation.isPending}
-                  className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-md transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-md transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary"
+                  aria-label="Tandai semua notifikasi sebagai dibaca"
                 >
                   {markAllAsReadMutation.isPending ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -250,7 +256,9 @@ export function NotificationBell() {
               )}
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-muted rounded-md transition-colors"
+                className="p-1 hover:bg-muted rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Tutup panel notifikasi"
+                title="Tutup"
               >
                 <X className="h-4 w-4" />
               </button>

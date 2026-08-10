@@ -86,26 +86,43 @@ const PhotoCard = ({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleImageClick();
+    }
+  };
+
   return (
-    <div className="group relative flex flex-col rounded-2xl border border-border bg-card overflow-hidden shadow-xs hover:border-primary/50 transition-all">
-      {/* Thumbnail Container */}
-      <div className="relative aspect-square w-full overflow-hidden bg-muted cursor-pointer" onClick={handleImageClick}>
+    <div className="group relative flex flex-col rounded-2xl border border-border bg-card overflow-hidden shadow-xs hover:border-primary/50 transition-all focus-within:ring-2 focus-within:ring-primary/40 [content-visibility:auto] [contain-intrinsic-size:1px_280px]">
+      {/* Thumbnail Container with Keyboard Access & Performance Props */}
+      <div
+        className="relative aspect-square w-full overflow-hidden bg-muted cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+        onClick={handleImageClick}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="button"
+        aria-label={isInitialPhoto ? `Foto temuan: ${photo.keterangan || "Detail Spesifikasi Foto"}` : `Foto follow-up: ${photo.keterangan || "Lihat Full"}`}
+      >
         <img
           src={formatImageUrl(photo.image_url) || "/placeholder.png"}
-          alt="Dokumentasi"
+          alt={photo.keterangan || "Foto bukti temuan audit"}
+          loading="lazy"
+          decoding="async"
           onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
           className="h-full w-full object-cover transition-transform group-hover:scale-105"
         />
-        {/* Overlay Menu Saat Hover */}
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+        {/* Overlay Menu Saat Hover / Focus */}
+        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <Button
             size="icon"
             variant="outline"
-            className="h-8 w-8 bg-black/60 border-white/20 text-white hover:bg-white hover:text-black"
+            className="h-9 w-9 min-h-[36px] min-w-[36px] bg-black/60 border-white/20 text-white hover:bg-white hover:text-black focus-visible:ring-2 focus-visible:ring-white"
             onClick={(e) => {
               e.stopPropagation();
               handleImageClick();
             }}
+            aria-label={isInitialPhoto ? "Lihat Detail Spesifikasi Foto" : "Lihat Foto Full"}
             title={isInitialPhoto ? "Lihat Detail Spesifikasi Foto" : "Lihat Foto Full"}
           >
             <Eye className="h-4 w-4" />
@@ -116,11 +133,12 @@ const PhotoCard = ({
             <Button
               size="icon"
               variant="outline"
-              className="h-8 w-8 bg-black/60 border-white/20 text-white hover:bg-primary hover:text-white"
+              className="h-9 w-9 min-h-[36px] min-w-[36px] bg-black/60 border-white/20 text-white hover:bg-primary hover:text-white focus-visible:ring-2 focus-visible:ring-white"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsEditing(!isEditing);
               }}
+              aria-label="Edit Keterangan Foto"
               title="Edit Keterangan Foto"
             >
               <Edit className="h-4 w-4" />
@@ -132,12 +150,13 @@ const PhotoCard = ({
             <Button
               size="icon"
               variant="destructive"
-              className="h-8 w-8 shadow-md"
+              className="h-9 w-9 min-h-[36px] min-w-[36px] shadow-md focus-visible:ring-2 focus-visible:ring-white"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
               }}
               disabled={isDeleting}
+              aria-label="Hapus Foto Ini"
               title="Hapus Foto Ini"
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

@@ -281,10 +281,12 @@ export default function InitialPhotoDetailPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Habit Dropdown */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <label htmlFor="select-hei-habit" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
                         <Activity className="h-3 w-3 text-emerald-500" /> Habit
                       </label>
                       <select
+                        id="select-hei-habit"
+                        aria-label="Pilih Klasifikasi Habit"
                         value={currentPhoto?.habit_id || currentPhoto?.habit?.habit_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -293,7 +295,7 @@ export default function InitialPhotoDetailPage() {
                           });
                         }}
                         disabled={updateHeiMutation.isPending || isClosed}
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="">-- Pilih Habit --</option>
                         {habitData?.items?.map((h: any) => (
@@ -306,10 +308,12 @@ export default function InitialPhotoDetailPage() {
 
                     {/* Equipment Dropdown */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <label htmlFor="select-hei-equipment" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
                         <Wrench className="h-3 w-3 text-blue-500" /> Equipment
                       </label>
                       <select
+                        id="select-hei-equipment"
+                        aria-label="Pilih Klasifikasi Equipment"
                         value={currentPhoto?.equipment_id || currentPhoto?.equipment?.equipment_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -318,7 +322,7 @@ export default function InitialPhotoDetailPage() {
                           });
                         }}
                         disabled={updateHeiMutation.isPending || isClosed}
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="">-- Pilih Equipment --</option>
                         {equipmentData?.items?.map((eq: any) => (
@@ -331,10 +335,12 @@ export default function InitialPhotoDetailPage() {
 
                     {/* Infrastructure Dropdown */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <label htmlFor="select-hei-infrastructure" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
                         <Warehouse className="h-3 w-3 text-purple-500" /> Infrastructure
                       </label>
                       <select
+                        id="select-hei-infrastructure"
+                        aria-label="Pilih Klasifikasi Infrastructure"
                         value={currentPhoto?.infrastructure_id || currentPhoto?.infrastructure?.infrastructure_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -343,7 +349,7 @@ export default function InitialPhotoDetailPage() {
                           });
                         }}
                         disabled={updateHeiMutation.isPending || isClosed}
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="">-- Pilih Infrastructure --</option>
                         {infraData?.items?.map((inf: any) => (
