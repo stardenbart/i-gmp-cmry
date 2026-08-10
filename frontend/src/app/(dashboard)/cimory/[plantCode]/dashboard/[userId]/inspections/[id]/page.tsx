@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { inspectionApi } from "@/lib/api/inspection.api";
-import { issueApi } from "@/lib/api/issue.api";
+import { issueApi, IssuePhoto } from "@/lib/api/issue.api";
 import { picApi } from "@/lib/api/pic.api";
 import { api } from "@/lib/api/axios";
 import { usePermissions } from "@/lib/usePermissions";
@@ -580,13 +580,35 @@ export default function InspectionDetailPage() {
             const createdIssueId = issueRes?.data?.issue_id;
 
             if (createdIssueId && task.photos.length > 0) {
+              let existingPhotos: IssuePhoto[] = [];
+              try {
+                const existingPhotosRes = await issueApi.getPhotos(createdIssueId);
+                existingPhotos = existingPhotosRes?.data || [];
+              } catch (e) {
+                console.warn("Failed to fetch existing photos for issue:", e);
+              }
+
               for (const photoItem of task.photos) {
                 let photoFile = photoItem.file;
                 if (!photoFile && photoItem.previewUrl) {
                   if (photoItem.previewUrl.startsWith("data:")) {
                     photoFile = dataURLtoFile(photoItem.previewUrl, `photo_${Date.now()}.jpg`);
                   } else {
-                    // Photo is already stored on server for this issue; skip re-uploading to prevent duplicates
+                    // Match existing photo stored on server and sync HEI & keterangan updates
+                    const matchedExistingPhoto = existingPhotos.find(
+                      (ep) => photoItem.previewUrl && ep.image_url && (ep.image_url.includes(photoItem.previewUrl) || photoItem.previewUrl.includes(ep.image_url))
+                    );
+                    if (matchedExistingPhoto) {
+                      if (photoItem.hei_id || photoItem.hei_category) {
+                        await issueApi.updatePhotoHEI(matchedExistingPhoto.issue_photo_id, {
+                          hei_id: photoItem.hei_id || "",
+                          hei_category: photoItem.hei_category || "",
+                        });
+                      }
+                      if (photoItem.keterangan && photoItem.keterangan !== matchedExistingPhoto.keterangan) {
+                        await issueApi.updatePhoto(matchedExistingPhoto.issue_photo_id, photoItem.keterangan);
+                      }
+                    }
                     continue;
                   }
                 }
@@ -616,6 +638,9 @@ export default function InspectionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["inspection_checklist", id] });
       await queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
       await queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
+      await queryClient.invalidateQueries({ queryKey: ["issues"] });
+      await queryClient.invalidateQueries({ queryKey: ["issue"] });
+      await queryClient.invalidateQueries({ queryKey: ["issue-photos"] });
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Gagal menyelesaikan inspeksi");
     } finally {

@@ -135,6 +135,21 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 			existing.Label = req.Label
 		}
 		if errUpdate := uc.repo.Update(existing); errUpdate == nil {
+			event := events.IssueEvent{
+				BaseEvent: events.BaseEvent{
+					EventID:   uuid.New().String(),
+					EventType: events.EventTypeUpdated,
+					Timestamp: time.Now(),
+					ActorID:   actorID,
+				},
+				IssueID:        existing.IssueID,
+				ResultID:       existing.ResultID,
+				IssuePICUserID: existing.IssuePICUserID,
+				Status:         string(existing.IssueStatus),
+				DueDate:        existing.DueDate,
+			}
+			_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, existing.IssueID, event)
+			eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 			return existing, nil
 		}
 	}
