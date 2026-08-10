@@ -123,6 +123,22 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 		}
 	}
 
+	// Check if an issue already exists for this ResultID to prevent duplicate creation on inspection edit
+	if existing, errExist := uc.repo.FindByResultID(req.ResultID); errExist == nil && existing != nil {
+		if req.IssuePICUserID != "" {
+			existing.IssuePICUserID = req.IssuePICUserID
+		}
+		if req.Keterangan != "" {
+			existing.Keterangan = keteranganEnc
+		}
+		if req.Label != "" {
+			existing.Label = req.Label
+		}
+		if errUpdate := uc.repo.Update(existing); errUpdate == nil {
+			return existing, nil
+		}
+	}
+
 	i := &issue.Issue{
 		IssueID:        idgen.Generate(idgen.PrefixIssue),
 		ResultID:       req.ResultID,

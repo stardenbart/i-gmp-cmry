@@ -586,13 +586,8 @@ export default function InspectionDetailPage() {
                   if (photoItem.previewUrl.startsWith("data:")) {
                     photoFile = dataURLtoFile(photoItem.previewUrl, `photo_${Date.now()}.jpg`);
                   } else {
-                    try {
-                      const resp = await fetch(photoItem.previewUrl);
-                      const blob = await resp.blob();
-                      photoFile = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
-                    } catch (e) {
-                      console.warn("Failed to convert photo previewUrl to File blob:", e);
-                    }
+                    // Photo is already stored on server for this issue; skip re-uploading to prevent duplicates
+                    continue;
                   }
                 }
                 if (photoFile && photoFile.size > 0) {
