@@ -211,7 +211,6 @@ export function MasterLayout() {
         { key: "category_name", label: "Kategori HEI" },
         { key: "hei_code", label: "Kode Item" },
         { key: "hei_name", label: "Nama Item HEI" },
-        { key: "description", label: "Deskripsi" },
       ],
     };
     return columns[activeTab] || [];

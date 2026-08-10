@@ -420,14 +420,6 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
             required
           />
         </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Deskripsi / Keterangan</label>
-          <Input
-            name="description"
-            defaultValue={editingItem?.description as string}
-            placeholder="Keterangan tambahan..."
-          />
-        </div>
       </>
     ),
   };
