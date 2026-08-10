@@ -847,10 +847,10 @@ export default function InspectionDetailPage() {
         />
       )}
 
-      {/* Grid Content: Checklist first on mobile (order-1), Info Card second (order-2) */}
+      {/* Grid Content: Info Card first (order-1), Checklist Card second (order-2) */}
       <div className="grid gap-4 sm:gap-6 md:grid-cols-3">
         {/* Info Card — Collapsible on mobile, sticky sidebar on desktop */}
-        <Card className="p-3.5 sm:p-5 bg-card/70 backdrop-blur-md md:col-span-1 h-fit md:sticky md:top-24 shadow-xs border-border/80 rounded-2xl order-2 md:order-1 transition-all">
+        <Card className="p-3.5 sm:p-5 bg-card/70 backdrop-blur-md md:col-span-1 h-fit md:sticky md:top-24 shadow-xs border-border/80 rounded-2xl order-1 md:order-1 transition-all">
           {/* Header Bar with Collapsible Toggle for Mobile */}
           <div className="flex items-center justify-between border-b border-border pb-2 md:pb-2.5">
             <button
@@ -927,8 +927,8 @@ export default function InspectionDetailPage() {
           </div>
         </Card>
 
-        {/* Checklist Form Card — First priority on mobile (order-1) */}
-        <Card className="p-3.5 sm:p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-xs border-border/80 space-y-4 sm:space-y-6 rounded-2xl sm:rounded-3xl order-1 md:order-2">
+        {/* Checklist Form Card — Second on mobile (order-2) */}
+        <Card className="p-3.5 sm:p-6 bg-card/60 backdrop-blur-md md:col-span-2 shadow-xs border-border/80 space-y-4 sm:space-y-6 rounded-2xl sm:rounded-3xl order-2 md:order-2">
           {/* Header Title */}
           <div className="flex items-center justify-between border-b border-border pb-2.5 sm:pb-3">
             <div className="flex items-center gap-2">
@@ -1132,6 +1132,13 @@ export default function InspectionDetailPage() {
                         </span>
                       </div>
 
+                      {/* Empty state fallback when detail has no uraians */}
+                      {(!detail.uraians || detail.uraians.length === 0) && (
+                        <div className="p-4 text-center text-xs text-muted-foreground bg-muted/20 rounded-xl border border-border/60">
+                          Belum ada Uraian Pengecekan di Detail Aspek ini.
+                        </div>
+                      )}
+
                       <div className="space-y-3 sm:space-y-4">
                         {detail.uraians?.map((uraian: any, uIndex: number) => {
                           const uId = uraian.uraian_id;
@@ -1238,7 +1245,7 @@ export default function InspectionDetailPage() {
                   ))}
 
                   {/* Navigation Controls */}
-                  <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border w-full">
                     <Button
                       type="button"
                       variant="outline"
@@ -1250,10 +1257,10 @@ export default function InspectionDetailPage() {
                           scrollToTop();
                         }
                       }}
-                      className="flex-1 sm:flex-none text-xs h-9"
+                      className="w-full text-xs h-9"
                     >
                       <ChevronLeft className="w-3.5 h-3.5 mr-1" />
-                      <span className="hidden xs:inline">Detail </span>Sebelumnya
+                      <span>Sebelumnya</span>
                     </Button>
 
                     <Button
@@ -1271,9 +1278,9 @@ export default function InspectionDetailPage() {
                           scrollToTop();
                         }
                       }}
-                      className="flex-1 sm:flex-none text-xs h-9"
+                      className="w-full text-xs h-9"
                     >
-                      <span className="hidden xs:inline">Detail </span>Berikutnya
+                      <span>Berikutnya</span>
                       <ChevronRight className="w-3.5 h-3.5 ml-1" />
                     </Button>
                   </div>
