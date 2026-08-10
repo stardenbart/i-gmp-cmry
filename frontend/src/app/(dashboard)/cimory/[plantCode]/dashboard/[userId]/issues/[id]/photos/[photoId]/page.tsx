@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { issueApi, IssuePhoto, IssueStatus, IssueCategory } from "@/lib/api/issue.api";
 import { fetchItems } from "@/components/master/master.api";
+import { useMasterHabits, useMasterEquipments, useMasterInfrastructures } from "@/hooks/useMasterData";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
@@ -66,21 +67,10 @@ export default function InitialPhotoDetailPage() {
     onError: () => toast.error("Gagal menghapus foto"),
   });
 
-  // Fetch Master HEI data for dropdowns
-  const { data: habitData } = useQuery({
-    queryKey: ["master", "habits"],
-    queryFn: () => fetchItems("/master/habits", 1, "", 500),
-  });
-
-  const { data: equipmentData } = useQuery({
-    queryKey: ["master", "equipments"],
-    queryFn: () => fetchItems("/master/equipments", 1, "", 500),
-  });
-
-  const { data: infraData } = useQuery({
-    queryKey: ["master", "infrastructures"],
-    queryFn: () => fetchItems("/master/infrastructures", 1, "", 500),
-  });
+  // Fetch Master HEI data for dropdowns (using central cached hooks to deduplicate network calls)
+  const { data: habitData } = useMasterHabits();
+  const { data: equipmentData } = useMasterEquipments();
+  const { data: infraData } = useMasterInfrastructures();
 
   const updateHeiMutation = useMutation({
     mutationFn: (payload: {
