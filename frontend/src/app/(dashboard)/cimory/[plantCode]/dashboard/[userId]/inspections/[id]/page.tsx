@@ -595,9 +595,19 @@ export default function InspectionDetailPage() {
                     photoFile = dataURLtoFile(photoItem.previewUrl, `photo_${Date.now()}.jpg`);
                   } else {
                     // Match existing photo stored on server and sync HEI & keterangan updates
-                    const matchedExistingPhoto = existingPhotos.find(
-                      (ep) => photoItem.previewUrl && ep.image_url && (ep.image_url.includes(photoItem.previewUrl) || photoItem.previewUrl.includes(ep.image_url))
+                    let matchedExistingPhoto = existingPhotos.find(
+                      (ep) => (photoItem.existingPhotoId && ep.issue_photo_id === photoItem.existingPhotoId) ||
+                              (photoItem.id && ep.issue_photo_id === photoItem.id) ||
+                              (photoItem.previewUrl && ep.image_url && (ep.image_url.includes(photoItem.previewUrl) || photoItem.previewUrl.includes(ep.image_url)))
                     );
+                    // Fallback: Match by index position if ID/URL inclusion doesn't match
+                    if (!matchedExistingPhoto && existingPhotos.length > 0) {
+                      const photoIdx = task.photos.indexOf(photoItem);
+                      if (photoIdx >= 0 && photoIdx < existingPhotos.length) {
+                        matchedExistingPhoto = existingPhotos[photoIdx];
+                      }
+                    }
+
                     if (matchedExistingPhoto) {
                       if (photoItem.hei_id || photoItem.hei_category) {
                         await issueApi.updatePhotoHEI(matchedExistingPhoto.issue_photo_id, {
@@ -605,7 +615,7 @@ export default function InspectionDetailPage() {
                           hei_category: photoItem.hei_category || "",
                         });
                       }
-                      if (photoItem.keterangan && photoItem.keterangan !== matchedExistingPhoto.keterangan) {
+                      if (photoItem.keterangan) {
                         await issueApi.updatePhoto(matchedExistingPhoto.issue_photo_id, photoItem.keterangan);
                       }
                     }

@@ -565,8 +565,8 @@ func (uc *issuePhotoUseCase) Update(ctx context.Context, photoID string, keteran
 		return nil, errors.New("photo not found")
 	}
 
-	// Check if issue is closed/locked
-	if uc.issueRepo != nil {
+	// Check if issue is closed/locked (allow Initial photo updates when re-submitting inspection)
+	if uc.issueRepo != nil && photo.PhotoType != "Initial" {
 		iss, errIss := uc.issueRepo.FindByID(photo.IssueID)
 		if errIss == nil && iss != nil {
 			if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
@@ -589,8 +589,8 @@ func (uc *issuePhotoUseCase) UpdateHEI(ctx context.Context, photoID string, req 
 		return nil, errors.New("photo not found")
 	}
 
-	// Check if issue is closed/locked
-	if uc.issueRepo != nil {
+	// Check if issue is closed/locked (allow Initial photo updates when re-submitting inspection)
+	if uc.issueRepo != nil && photo.PhotoType != "Initial" {
 		iss, errIss := uc.issueRepo.FindByID(photo.IssueID)
 		if errIss == nil && iss != nil {
 			if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
