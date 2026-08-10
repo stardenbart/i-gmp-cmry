@@ -202,17 +202,30 @@ export default function InitialPhotoDetailPage() {
               </div>
 
               {/* Output Kategori HEI (Hasil Inspeksi) */}
-              {(currentPhoto?.hei_category || currentPhoto?.hei_name || currentPhoto?.habit_name || currentPhoto?.equipment_name || currentPhoto?.infrastructure_name) && (
-                <div className="pt-3 border-t border-border/60 space-y-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                    <Tag className="h-3 w-3 text-primary" /> Kategori HEI (Hasil Inspeksi)
-                  </span>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
-                    {currentPhoto.hei_category ? `[${currentPhoto.hei_category}] ` : ""}
-                    {currentPhoto.hei_name || currentPhoto.habit_name || currentPhoto.equipment_name || currentPhoto.infrastructure_name}
-                  </div>
-                </div>
-              )}
+              <div className="pt-3 border-t border-border/60 space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Tag className="h-3 w-3 text-primary" /> Kategori HEI (Hasil Inspeksi)
+                </span>
+                {(() => {
+                  const heiCat = currentPhoto?.hei_category || issue?.hei_category;
+                  const heiName = currentPhoto?.hei_name || issue?.hei_name || currentPhoto?.habit_name || currentPhoto?.equipment_name || currentPhoto?.infrastructure_name || issue?.habit_name || issue?.equipment_name || issue?.infrastructure_name;
+                  
+                  if (heiCat || heiName) {
+                    return (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
+                        {heiCat ? `[${heiCat}] ` : ""}
+                        {heiName && heiName !== heiCat ? heiName : ""}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="text-xs text-muted-foreground italic bg-muted/20 px-3 py-1.5 rounded-xl border border-dashed border-border/60 w-fit">
+                      Tanpa Klasifikasi HEI (Tidak diisi saat inspeksi)
+                    </div>
+                  );
+                })()}
+              </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-border/60 text-muted-foreground">
                 <span className="flex items-center gap-1">
