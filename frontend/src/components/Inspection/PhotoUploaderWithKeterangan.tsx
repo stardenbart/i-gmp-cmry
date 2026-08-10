@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Camera, Trash2, Plus, Image as ImageIcon, AlertCircle } from "lucide-react";
+import { Camera, Trash2, Plus, Image as ImageIcon, AlertCircle, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useMasterHabits, useMasterEquipments, useMasterInfrastructures } from "@/hooks/useMasterData";
 
 export interface PhotoItem {
   id: string;
@@ -11,6 +12,10 @@ export interface PhotoItem {
   previewUrl: string;
   keterangan: string;
   existingPhotoId?: string; // If photo was already uploaded to server
+  hei_category?: "Habit" | "Equipment" | "Infrastructure" | "";
+  habit_id?: string;
+  equipment_id?: string;
+  infrastructure_id?: string;
 }
 
 interface PhotoUploaderWithKeteranganProps {
@@ -53,6 +58,15 @@ export function PhotoUploaderWithKeterangan({
 }: PhotoUploaderWithKeteranganProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch master data lookups for HEI selection
+  const { data: habitRes } = useMasterHabits();
+  const { data: equipRes } = useMasterEquipments();
+  const { data: infraRes } = useMasterInfrastructures();
+
+  const habits = habitRes?.items || [];
+  const equipments = equipRes?.items || [];
+  const infrastructures = infraRes?.items || [];
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -70,6 +84,10 @@ export function PhotoUploaderWithKeterangan({
           file,
           previewUrl: base64,
           keterangan: "",
+          hei_category: "",
+          habit_id: "",
+          equipment_id: "",
+          infrastructure_id: "",
         };
       })
     );
@@ -87,6 +105,38 @@ export function PhotoUploaderWithKeterangan({
     const updated = photos.map((item) =>
       item.id === id ? { ...item, keterangan: text } : item
     );
+    onChange(updated);
+  };
+
+  const handleHEICategoryChange = (id: string, category: "Habit" | "Equipment" | "Infrastructure" | "") => {
+    const updated = photos.map((item) => {
+      if (item.id === id) {
+        return {
+          ...item,
+          hei_category: category,
+          habit_id: category === "Habit" ? item.habit_id : "",
+          equipment_id: category === "Equipment" ? item.equipment_id : "",
+          infrastructure_id: category === "Infrastructure" ? item.infrastructure_id : "",
+        };
+      }
+      return item;
+    });
+    onChange(updated);
+  };
+
+  const handleHEIItemChange = (id: string, itemId: string) => {
+    const updated = photos.map((item) => {
+      if (item.id === id) {
+        const cat = item.hei_category || (item.habit_id ? "Habit" : item.equipment_id ? "Equipment" : item.infrastructure_id ? "Infrastructure" : "");
+        return {
+          ...item,
+          habit_id: cat === "Habit" ? itemId : "",
+          equipment_id: cat === "Equipment" ? itemId : "",
+          infrastructure_id: cat === "Infrastructure" ? itemId : "",
+        };
+      }
+      return item;
+    });
     onChange(updated);
   };
 
@@ -111,70 +161,171 @@ export function PhotoUploaderWithKeterangan({
         </span>
       </div>
 
-      {/* List of uploaded photos with individual keterangan */}
+      {/* List of uploaded photos with individual keterangan & HEI */}
       {photos.length > 0 && (
         <div className="space-y-3">
-          {photos.map((item, index) => (
-            <div
-              key={item.id}
-              className="flex flex-col sm:flex-row items-start gap-3 rounded-lg border border-border bg-card p-3 shadow-xs"
-            >
-              {/* Photo Thumbnail */}
-              <div className="relative group shrink-0 w-full sm:w-28 h-28 rounded-md overflow-hidden bg-muted border border-border">
-                {item.previewUrl ? (
-                  <img
-                    src={item.previewUrl}
-                    alt={`Bukti temuan ${index + 1}`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-muted text-[10px] italic">
-                    Memuat foto...
-                  </div>
-                )}
-                {!disabled && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(item.id)}
-                    className="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-white shadow-md hover:bg-destructive/90 transition-all"
-                    title="Hapus foto ini"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                  Foto #{index + 1}
-                </span>
-              </div>
+          {photos.map((item, index) => {
+            const activeCategory = item.hei_category || (item.habit_id ? "Habit" : item.equipment_id ? "Equipment" : item.infrastructure_id ? "Infrastructure" : "");
 
-              {/* Individual Keterangan Input */}
-              <div className="flex-1 w-full space-y-1.5">
-                <label htmlFor={`ket_${item.id}`} className="text-xs font-semibold flex items-center gap-1.5">
-                  <ImageIcon className="h-3.5 w-3.5 text-primary" />
-                  Keterangan Khusus Foto #{index + 1} <span className="text-destructive">*</span>
-                </label>
-                <Input
-                  id={`ket_${item.id}`}
-                  value={item.keterangan}
-                  onChange={(e) => handleKeteranganChange(item.id, e.target.value)}
-                  disabled={disabled}
-                  placeholder={`Contoh: Kerusakan pada selang bagian kanan #${index + 1}`}
-                  className={`text-xs ${
-                    !item.keterangan.trim() ? "border-amber-500/50 focus:border-amber-500" : ""
-                  }`}
-                />
-                {!item.keterangan.trim() && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                    Harap isi keterangan spesifik untuk foto bukti ini.
-                  </p>
-                )}
+            return (
+              <div
+                key={item.id}
+                className="flex flex-col sm:flex-row items-start gap-3 rounded-lg border border-border bg-card p-3 shadow-xs"
+              >
+                {/* Photo Thumbnail */}
+                <div className="relative group shrink-0 w-full sm:w-28 h-28 rounded-md overflow-hidden bg-muted border border-border">
+                  {item.previewUrl ? (
+                    <img
+                      src={item.previewUrl}
+                      alt={`Bukti temuan ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-muted text-[10px] italic">
+                      Memuat foto...
+                    </div>
+                  )}
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(item.id)}
+                      className="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-white shadow-md hover:bg-destructive/90 transition-all"
+                      title="Hapus foto ini"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    Foto #{index + 1}
+                  </span>
+                </div>
+
+                {/* Individual Keterangan & HEI Input */}
+                <div className="flex-1 w-full space-y-2.5">
+                  <div className="space-y-1">
+                    <label htmlFor={`ket_${item.id}`} className="text-xs font-semibold flex items-center gap-1.5">
+                      <ImageIcon className="h-3.5 w-3.5 text-primary" />
+                      Keterangan Khusus Foto #{index + 1} <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      id={`ket_${item.id}`}
+                      value={item.keterangan}
+                      onChange={(e) => handleKeteranganChange(item.id, e.target.value)}
+                      disabled={disabled}
+                      placeholder={`Contoh: Kerusakan pada selang bagian kanan #${index + 1}`}
+                      className={`text-xs ${
+                        !item.keterangan.trim() ? "border-amber-500/50 focus:border-amber-500" : ""
+                      }`}
+                    />
+                    {!item.keterangan.trim() && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3 shrink-0" />
+                        Harap isi keterangan spesifik untuk foto bukti ini.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* HEI Category & Item Selection (Single Select per Photo) */}
+                  <div className="pt-2 border-t border-border/60 space-y-1.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="w-full sm:w-1/2 space-y-1">
+                        <label htmlFor={`hei_cat_${item.id}`} className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                          <Tag className="h-3 w-3 text-primary" />
+                          Kategori HEI (Pilih 1)
+                        </label>
+                        <select
+                          id={`hei_cat_${item.id}`}
+                          aria-label={`Kategori HEI untuk foto #${index + 1}`}
+                          value={activeCategory}
+                          onChange={(e) => handleHEICategoryChange(item.id, e.target.value as any)}
+                          disabled={disabled}
+                          className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
+                        >
+                          <option value="">-- Tanpa HEI (Opsional) --</option>
+                          <option value="Habit">Habit (Kebiasaan)</option>
+                          <option value="Equipment">Equipment (Peralatan)</option>
+                          <option value="Infrastructure">Infrastructure (Fasilitas)</option>
+                        </select>
+                      </div>
+
+                      {/* Dynamic HEI Item Selector based on chosen category */}
+                      {activeCategory === "Habit" && (
+                        <div className="w-full sm:w-1/2 space-y-1">
+                          <label htmlFor={`hei_item_${item.id}`} className="text-[11px] font-semibold text-muted-foreground">
+                            Pilih Item Habit
+                          </label>
+                          <select
+                            id={`hei_item_${item.id}`}
+                            aria-label={`Item Habit untuk foto #${index + 1}`}
+                            value={item.habit_id || ""}
+                            onChange={(e) => handleHEIItemChange(item.id, e.target.value)}
+                            disabled={disabled}
+                            className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
+                          >
+                            <option value="">-- Pilih Habit --</option>
+                            {habits.map((h: any) => (
+                              <option key={h.habit_id} value={h.habit_id}>
+                                {h.habit_code ? `[${h.habit_code}] ` : ""}{h.habit_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {activeCategory === "Equipment" && (
+                        <div className="w-full sm:w-1/2 space-y-1">
+                          <label htmlFor={`hei_item_${item.id}`} className="text-[11px] font-semibold text-muted-foreground">
+                            Pilih Item Equipment
+                          </label>
+                          <select
+                            id={`hei_item_${item.id}`}
+                            aria-label={`Item Equipment untuk foto #${index + 1}`}
+                            value={item.equipment_id || ""}
+                            onChange={(e) => handleHEIItemChange(item.id, e.target.value)}
+                            disabled={disabled}
+                            className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
+                          >
+                            <option value="">-- Pilih Equipment --</option>
+                            {equipments.map((eq: any) => (
+                              <option key={eq.equipment_id} value={eq.equipment_id}>
+                                {eq.equipment_code ? `[${eq.equipment_code}] ` : ""}{eq.equipment_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {activeCategory === "Infrastructure" && (
+                        <div className="w-full sm:w-1/2 space-y-1">
+                          <label htmlFor={`hei_item_${item.id}`} className="text-[11px] font-semibold text-muted-foreground">
+                            Pilih Item Infrastructure
+                          </label>
+                          <select
+                            id={`hei_item_${item.id}`}
+                            aria-label={`Item Infrastructure untuk foto #${index + 1}`}
+                            value={item.infrastructure_id || ""}
+                            onChange={(e) => handleHEIItemChange(item.id, e.target.value)}
+                            disabled={disabled}
+                            className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
+                          >
+                            <option value="">-- Pilih Infrastructure --</option>
+                            {infrastructures.map((inf: any) => (
+                              <option key={inf.infrastructure_id} value={inf.infrastructure_id}>
+                                {inf.infrastructure_code ? `[${inf.infrastructure_code}] ` : ""}{inf.infrastructure_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -205,3 +356,4 @@ export function PhotoUploaderWithKeterangan({
     </div>
   );
 }
+

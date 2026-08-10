@@ -425,6 +425,10 @@ export default function InspectionDetailPage() {
                 id: p.id,
                 previewUrl: p.previewUrl?.startsWith("data:") ? "" : p.previewUrl,
                 keterangan: p.keterangan,
+                hei_category: p.hei_category,
+                habit_id: p.habit_id,
+                equipment_id: p.equipment_id,
+                infrastructure_id: p.infrastructure_id,
               })),
             };
           }
@@ -598,6 +602,9 @@ export default function InspectionDetailPage() {
                   fd.append("photo", photoFile);
                   fd.append("photo_type", "Initial");
                   fd.append("keterangan", photoItem.keterangan || "");
+                  if (photoItem.habit_id) fd.append("habit_id", photoItem.habit_id);
+                  if (photoItem.equipment_id) fd.append("equipment_id", photoItem.equipment_id);
+                  if (photoItem.infrastructure_id) fd.append("infrastructure_id", photoItem.infrastructure_id);
                   await issueApi.uploadPhoto(createdIssueId, fd);
                 }
               }
