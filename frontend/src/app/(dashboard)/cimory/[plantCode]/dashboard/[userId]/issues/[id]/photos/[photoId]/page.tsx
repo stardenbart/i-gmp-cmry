@@ -92,6 +92,7 @@ export default function InitialPhotoDetailPage() {
       return issueApi.updatePhotoHEI(targetPhotoId, payload);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["issue-photos", id] });
       queryClient.invalidateQueries({ queryKey: ["issue_photos", id] });
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
@@ -294,14 +295,14 @@ export default function InitialPhotoDetailPage() {
                         <Activity className="h-3 w-3 text-emerald-500" /> Habit
                       </label>
                       <select
-                        value={currentPhoto?.habit_id || currentPhoto?.habit?.habit_id || issue.hei?.habit_id || issue.hei?.habit?.habit_id || (issue as any).habit_id || ""}
+                        value={currentPhoto?.habit_id || currentPhoto?.habit?.habit_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateHeiMutation.mutate({
                             habit_id: val,
                           });
                         }}
-                        disabled={updateHeiMutation.isPending || !isWorkStarted}
+                        disabled={updateHeiMutation.isPending || isClosed}
                         className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="">-- Pilih Habit --</option>
@@ -319,14 +320,14 @@ export default function InitialPhotoDetailPage() {
                         <Wrench className="h-3 w-3 text-blue-500" /> Equipment
                       </label>
                       <select
-                        value={currentPhoto?.equipment_id || currentPhoto?.equipment?.equipment_id || issue.hei?.equipment_id || issue.hei?.equipment?.equipment_id || (issue as any).equipment_id || ""}
+                        value={currentPhoto?.equipment_id || currentPhoto?.equipment?.equipment_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateHeiMutation.mutate({
                             equipment_id: val,
                           });
                         }}
-                        disabled={updateHeiMutation.isPending || !isWorkStarted}
+                        disabled={updateHeiMutation.isPending || isClosed}
                         className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="">-- Pilih Equipment --</option>
@@ -344,14 +345,14 @@ export default function InitialPhotoDetailPage() {
                         <Warehouse className="h-3 w-3 text-purple-500" /> Infrastructure
                       </label>
                       <select
-                        value={currentPhoto?.infrastructure_id || currentPhoto?.infrastructure?.infrastructure_id || issue.hei?.infrastructure_id || issue.hei?.infrastructure?.infrastructure_id || (issue as any).infrastructure_id || ""}
+                        value={currentPhoto?.infrastructure_id || currentPhoto?.infrastructure?.infrastructure_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateHeiMutation.mutate({
                             infrastructure_id: val,
                           });
                         }}
-                        disabled={updateHeiMutation.isPending || !isWorkStarted}
+                        disabled={updateHeiMutation.isPending || isClosed}
                         className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="">-- Pilih Infrastructure --</option>
