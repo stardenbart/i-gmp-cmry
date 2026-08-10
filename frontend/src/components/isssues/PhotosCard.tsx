@@ -224,35 +224,15 @@ const PhotoCard = ({
           </div>
         )}
 
-        {/* Isolated HEI Badges per Photo */}
+        {/* Isolated HEI Badge per Photo */}
         {(photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name) && (
           <div className="flex flex-wrap gap-1 pt-1.5 border-t border-border/40">
-            {photo.hei_name && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={`HEI: ${photo.hei_name}`}>
-                <Tag className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate max-w-[140px]">
-                  {photo.hei_category ? `[${photo.hei_category}] ` : ""}{photo.hei_name}
-                </span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={`HEI: ${photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name}`}>
+              <Tag className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate max-w-[150px]">
+                {photo.hei_category ? `[${photo.hei_category}] ` : ""}{photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name}
               </span>
-            )}
-            {!photo.hei_name && photo.habit_name && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={`Habit: ${photo.habit_name}`}>
-                <Activity className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate max-w-[120px]">{photo.habit_name}</span>
-              </span>
-            )}
-            {!photo.hei_name && photo.equipment_name && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" title={`Equipment: ${photo.equipment_name}`}>
-                <Wrench className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate max-w-[120px]">{photo.equipment_name}</span>
-              </span>
-            )}
-            {!photo.hei_name && photo.infrastructure_name && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20" title={`Infrastructure: ${photo.infrastructure_name}`}>
-                <Warehouse className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate max-w-[120px]">{photo.infrastructure_name}</span>
-              </span>
-            )}
+            </span>
           </div>
         )}
 

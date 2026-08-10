@@ -14,9 +14,6 @@ export interface PhotoItem {
   existingPhotoId?: string; // If photo was already uploaded to server
   hei_id?: string;
   hei_category?: string;
-  habit_id?: string;
-  equipment_id?: string;
-  infrastructure_id?: string;
 }
 
 interface PhotoUploaderWithKeteranganProps {
@@ -112,9 +109,6 @@ export function PhotoUploaderWithKeterangan({
           ...item,
           hei_category: category,
           hei_id: "", // Reset item ID when category changes
-          habit_id: category === "Habit" ? item.habit_id : "",
-          equipment_id: category === "Equipment" ? item.equipment_id : "",
-          infrastructure_id: category === "Infrastructure" ? item.infrastructure_id : "",
         };
       }
       return item;
@@ -125,13 +119,9 @@ export function PhotoUploaderWithKeterangan({
   const handleHEIItemChange = (id: string, heiId: string) => {
     const updated = photos.map((item) => {
       if (item.id === id) {
-        const cat = item.hei_category || "";
         return {
           ...item,
           hei_id: heiId,
-          habit_id: cat === "Habit" ? heiId : "",
-          equipment_id: cat === "Equipment" ? heiId : "",
-          infrastructure_id: cat === "Infrastructure" ? heiId : "",
         };
       }
       return item;
@@ -261,7 +251,7 @@ export function PhotoUploaderWithKeterangan({
                           <select
                             id={`hei_item_${item.id}`}
                             aria-label={`Item ${activeCategory} untuk foto #${index + 1}`}
-                            value={item.hei_id || item.habit_id || item.equipment_id || item.infrastructure_id || ""}
+                            value={item.hei_id || ""}
                             onChange={(e) => handleHEIItemChange(item.id, e.target.value)}
                             disabled={disabled}
                             className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"

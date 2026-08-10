@@ -33,7 +33,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
   const { data: kawasanLookup } = useQuery({
     queryKey: ["master", "kawasan", "lookup"],
     queryFn: () => fetchItems("/master/kawasan", 1, "", 500),
-    enabled: activeTab === "detail-kawasans" || activeTab === "equipments" || activeTab === "infrastructures",
+    enabled: activeTab === "detail-kawasans",
   });
   const { data: aspekLookup } = useQuery({
     queryKey: ["master", "aspek", "lookup"],
