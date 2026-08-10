@@ -34,7 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <StoreProvider>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
         <QueryClientProvider client={queryClient}>
           {children}
           <ToasterWithTheme />
