@@ -563,6 +563,9 @@ func (uc *issuePhotoUseCase) UpdateHEI(ctx context.Context, photoID string, req 
 			photo.HEIID = req.HEIID
 		}
 	}
+	if req.HEICategory != nil {
+		photo.HEICategory = *req.HEICategory
+	}
 	if req.HabitID != nil {
 		if *req.HabitID == "" {
 			photo.HabitID = nil

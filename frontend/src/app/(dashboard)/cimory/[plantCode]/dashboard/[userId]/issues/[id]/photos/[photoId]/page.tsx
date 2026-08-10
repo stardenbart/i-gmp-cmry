@@ -20,8 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { issueApi, IssuePhoto, IssueStatus, IssueCategory } from "@/lib/api/issue.api";
-import { fetchItems } from "@/components/master/master.api";
-import { cn, formatImageUrl } from "@/lib/utils";
+import { useMasterHEI, useMasterHEICategories } from "@/hooks/useMasterData";
+import { formatImageUrl } from "@/lib/utils";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
@@ -62,6 +62,27 @@ export default function InitialPhotoDetailPage() {
       toast.success("Foto dihapus");
     },
     onError: () => toast.error("Gagal menghapus foto"),
+  });
+
+  // Master HEI Data & Update Mutation
+  const { data: heiMasterRes } = useMasterHEI("", 1000);
+  const { data: categoriesRes } = useMasterHEICategories();
+
+  const heiItems = heiMasterRes?.items || [];
+  const categories = categoriesRes || ["Habit", "Equipment", "Infrastructure"];
+
+  const updateHeiMutation = useMutation({
+    mutationFn: (payload: { hei_id?: string; hei_category?: string }) => {
+      const targetPhotoId = currentPhoto?.issue_photo_id || photoId;
+      return issueApi.updatePhotoHEI(targetPhotoId, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["issue-photos", id] });
+      queryClient.invalidateQueries({ queryKey: ["issue", id] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      toast.success("Klasifikasi HEI foto berhasil diperbarui");
+    },
+    onError: () => toast.error("Gagal memperbarui klasifikasi HEI"),
   });
 
   const issue = issueRes?.data;
@@ -201,34 +222,62 @@ export default function InitialPhotoDetailPage() {
                 </div>
               </div>
 
-              {/* Output Kategori HEI (Hasil Inspeksi) */}
-              <div className="pt-3 border-t border-border/60 space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Tag className="h-3 w-3 text-primary" /> Kategori HEI (Hasil Inspeksi)
-                </span>
-                {(() => {
-                  const heiCat = currentPhoto?.hei_category || issue?.hei_category;
-                  const heiName = currentPhoto?.hei_name || issue?.hei_name || currentPhoto?.habit_name || currentPhoto?.equipment_name || currentPhoto?.infrastructure_name || issue?.habit_name || issue?.equipment_name || issue?.infrastructure_name;
-                  
-                  if (heiCat || heiName) {
-                    const displayLabel = [
-                      heiCat ? `[${heiCat}]` : "",
-                      heiName && heiName.toLowerCase() !== heiCat?.toLowerCase() ? heiName : ""
-                    ].filter(Boolean).join(" ");
+              {/* Output & Editor Kategori HEI (Hasil Inspeksi) */}
+              <div className="pt-3 border-t border-border/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Tag className="h-3 w-3 text-primary" /> Kategori HEI (Hasil Inspeksi)
+                  </span>
+                  {updateHeiMutation.isPending && (
+                    <span className="text-[11px] text-primary flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Menyimpan...
+                    </span>
+                  )}
+                </div>
 
-                    return (
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
-                        {displayLabel || heiCat || heiName}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="text-xs text-muted-foreground italic bg-muted/20 px-3 py-1.5 rounded-xl border border-dashed border-border/60 w-fit">
-                      Tanpa Klasifikasi HEI (Tidak diisi saat inspeksi)
-                    </div>
-                  );
-                })()}
+                <div className="space-y-2">
+                  <select
+                    id="select-photo-hei"
+                    aria-label="Pilih Klasifikasi HEI"
+                    value={currentPhoto?.hei_id || currentPhoto?.hei_category || issue?.hei_category || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) {
+                        updateHeiMutation.mutate({ hei_id: "", hei_category: "" });
+                        return;
+                      }
+                      const matchedItem = heiItems.find((h: any) => h.hei_id === val || h.category_name === val);
+                      if (matchedItem) {
+                        updateHeiMutation.mutate({ hei_id: matchedItem.hei_id, hei_category: matchedItem.category_name });
+                      } else {
+                        updateHeiMutation.mutate({ hei_category: val, hei_id: "" });
+                      }
+                    }}
+                    disabled={updateHeiMutation.isPending || isClosed}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <option value="">-- Pilih Klasifikasi HEI --</option>
+                    {categories.map((cat) => {
+                      const itemsInCat = heiItems.filter((h: any) => h.category_name?.toLowerCase() === cat.toLowerCase());
+                      if (itemsInCat.length === 0) {
+                        return (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        );
+                      }
+                      return (
+                        <optgroup key={cat} label={`Kategori: ${cat}`}>
+                          {itemsInCat.map((h: any) => (
+                            <option key={h.hei_id} value={h.hei_id}>
+                              {h.hei_code ? `[${h.hei_code}] ` : ""}{h.hei_name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-border/60 text-muted-foreground">

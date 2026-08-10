@@ -204,7 +204,7 @@ export const issueApi = {
     return res.data;
   },
 
-  updatePhotoHEI: async (photoId: string, data: { habit_id?: string; equipment_id?: string; infrastructure_id?: string }) => {
+  updatePhotoHEI: async (photoId: string, data: { hei_id?: string; hei_category?: string; habit_id?: string; equipment_id?: string; infrastructure_id?: string }) => {
     const res = await api.put(`/issues/photos/${photoId}/hei`, data);
     return res.data;
   },

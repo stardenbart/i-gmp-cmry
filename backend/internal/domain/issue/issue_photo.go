@@ -64,10 +64,11 @@ type UploadPhotoRequest struct {
 }
 
 type UpdatePhotoHEIRequest struct {
-	HEIID            *string `json:"hei_id"`
-	HabitID          *string `json:"habit_id"`
-	EquipmentID      *string `json:"equipment_id"`
-	InfrastructureID *string `json:"infrastructure_id"`
+	HEIID            *string `json:"hei_id,omitempty"`
+	HEICategory      *string `json:"hei_category,omitempty"`
+	HabitID          *string `json:"habit_id,omitempty"`
+	EquipmentID      *string `json:"equipment_id,omitempty"`
+	InfrastructureID *string `json:"infrastructure_id,omitempty"`
 }
 
 // ─── Repository Interface ──────────────────────────────────────────────────
