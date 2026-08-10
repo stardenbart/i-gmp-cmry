@@ -75,6 +75,10 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	moduleH := auth.NewModuleHandler(moduleUC)
 	heiH := issuehandler.NewHEIHandler(habitUC, equipUC, infraUC)
 
+	heiMasterRepo := masterrepo.NewHEIRepository(db)
+	heiMasterUC := masterusecase.NewHEIUseCase(heiMasterRepo)
+	heiMasterH := masterhandler.NewHEIHandler(heiMasterUC)
+
 	userRepo := authrepo.NewUserRepository(db)
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
@@ -200,6 +204,15 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		infrastructures.Get("/:id", permReadMstr, heiH.GetInfrastructureByID)
 		infrastructures.Put("/:id", permUpdateMstr, heiH.UpdateInfrastructure)
 		infrastructures.Delete("/:id", permDeleteMstr, heiH.DeleteInfrastructure)
+
+		// Unified HEI Master Data & Dynamic Categories
+		heiGroup := master.Group("/hei")
+		heiGroup.Get("", heiMasterH.GetAll)
+		heiGroup.Get("/categories", heiMasterH.GetCategories)
+		heiGroup.Post("", permCreateMstr, heiMasterH.Create)
+		heiGroup.Get("/:id", heiMasterH.GetByID)
+		heiGroup.Put("/:id", permUpdateMstr, heiMasterH.Update)
+		heiGroup.Delete("/:id", permDeleteMstr, heiMasterH.Delete)
 
 		// System Settings
 		permReadStng := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-STNG", "READ")

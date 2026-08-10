@@ -392,6 +392,44 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
         />
       </>
     ),
+    hei: (
+      <>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kategori HEI</label>
+          <Input
+            name="category_name"
+            defaultValue={(editingItem?.category_name as string) || "Habit"}
+            placeholder="Contoh: Habit, Equipment, Infrastructure, atau Kategori Baru"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Kode Item HEI</label>
+          <Input
+            name="hei_code"
+            defaultValue={(editingItem?.hei_code as string) || (editingItem?.habit_code as string) || (editingItem?.equipment_code as string) || (editingItem?.infrastructure_code as string)}
+            placeholder="Contoh: HBT-01, EQP-01, INF-01"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Nama Item HEI</label>
+          <Input
+            name="hei_name"
+            defaultValue={(editingItem?.hei_name as string) || (editingItem?.habit_name as string) || (editingItem?.equipment_name as string) || (editingItem?.infrastructure_name as string)}
+            placeholder="Contoh: Penggunaan APD Lengkap"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Deskripsi / Keterangan</label>
+          <Input
+            name="description"
+            defaultValue={editingItem?.description as string}
+            placeholder="Keterangan tambahan..."
+          />
+        </div>
+      </>
+    ),
   };
 
   return <>{fields[activeTab] || null}</>;

@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { Camera, Trash2, Plus, Image as ImageIcon, AlertCircle, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useMasterHabits, useMasterEquipments, useMasterInfrastructures } from "@/hooks/useMasterData";
+import { useMasterHEI, useMasterHEICategories } from "@/hooks/useMasterData";
 
 export interface PhotoItem {
   id: string;
@@ -12,7 +12,8 @@ export interface PhotoItem {
   previewUrl: string;
   keterangan: string;
   existingPhotoId?: string; // If photo was already uploaded to server
-  hei_category?: "Habit" | "Equipment" | "Infrastructure" | "";
+  hei_id?: string;
+  hei_category?: string;
   habit_id?: string;
   equipment_id?: string;
   infrastructure_id?: string;
@@ -58,14 +59,12 @@ export function PhotoUploaderWithKeterangan({
 }: PhotoUploaderWithKeteranganProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch master data lookups for HEI selection
-  const { data: habitRes } = useMasterHabits();
-  const { data: equipRes } = useMasterEquipments();
-  const { data: infraRes } = useMasterInfrastructures();
+  // Fetch dynamic HEI categories and master items
+  const { data: categoriesRes } = useMasterHEICategories();
+  const { data: heiMasterRes } = useMasterHEI("", 1000);
 
-  const habits = habitRes?.items || [];
-  const equipments = equipRes?.items || [];
-  const infrastructures = infraRes?.items || [];
+  const categories = categoriesRes || ["Habit", "Equipment", "Infrastructure"];
+  const heiItems = heiMasterRes?.items || [];
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -84,10 +83,8 @@ export function PhotoUploaderWithKeterangan({
           file,
           previewUrl: base64,
           keterangan: "",
+          hei_id: "",
           hei_category: "",
-          habit_id: "",
-          equipment_id: "",
-          infrastructure_id: "",
         };
       })
     );
@@ -108,12 +105,13 @@ export function PhotoUploaderWithKeterangan({
     onChange(updated);
   };
 
-  const handleHEICategoryChange = (id: string, category: "Habit" | "Equipment" | "Infrastructure" | "") => {
+  const handleHEICategoryChange = (id: string, category: string) => {
     const updated = photos.map((item) => {
       if (item.id === id) {
         return {
           ...item,
           hei_category: category,
+          hei_id: "", // Reset item ID when category changes
           habit_id: category === "Habit" ? item.habit_id : "",
           equipment_id: category === "Equipment" ? item.equipment_id : "",
           infrastructure_id: category === "Infrastructure" ? item.infrastructure_id : "",
@@ -124,15 +122,16 @@ export function PhotoUploaderWithKeterangan({
     onChange(updated);
   };
 
-  const handleHEIItemChange = (id: string, itemId: string) => {
+  const handleHEIItemChange = (id: string, heiId: string) => {
     const updated = photos.map((item) => {
       if (item.id === id) {
-        const cat = item.hei_category || (item.habit_id ? "Habit" : item.equipment_id ? "Equipment" : item.infrastructure_id ? "Infrastructure" : "");
+        const cat = item.hei_category || "";
         return {
           ...item,
-          habit_id: cat === "Habit" ? itemId : "",
-          equipment_id: cat === "Equipment" ? itemId : "",
-          infrastructure_id: cat === "Infrastructure" ? itemId : "",
+          hei_id: heiId,
+          habit_id: cat === "Habit" ? heiId : "",
+          equipment_id: cat === "Equipment" ? heiId : "",
+          infrastructure_id: cat === "Infrastructure" ? heiId : "",
         };
       }
       return item;
@@ -165,7 +164,7 @@ export function PhotoUploaderWithKeterangan({
       {photos.length > 0 && (
         <div className="space-y-3">
           {photos.map((item, index) => {
-            const activeCategory = item.hei_category || (item.habit_id ? "Habit" : item.equipment_id ? "Equipment" : item.infrastructure_id ? "Infrastructure" : "");
+            const activeCategory = item.hei_category || "";
 
             return (
               <div
@@ -228,7 +227,7 @@ export function PhotoUploaderWithKeterangan({
                     )}
                   </div>
 
-                  {/* HEI Category & Item Selection (Single Select per Photo) */}
+                  {/* Dynamic HEI Category & Item Selection (Single Select per Photo) */}
                   <div className="pt-2 border-t border-border/60 space-y-1.5">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       <div className="w-full sm:w-1/2 space-y-1">
@@ -240,83 +239,41 @@ export function PhotoUploaderWithKeterangan({
                           id={`hei_cat_${item.id}`}
                           aria-label={`Kategori HEI untuk foto #${index + 1}`}
                           value={activeCategory}
-                          onChange={(e) => handleHEICategoryChange(item.id, e.target.value as any)}
+                          onChange={(e) => handleHEICategoryChange(item.id, e.target.value)}
                           disabled={disabled}
                           className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
                         >
                           <option value="">-- Tanpa HEI (Opsional) --</option>
-                          <option value="Habit">Habit (Kebiasaan)</option>
-                          <option value="Equipment">Equipment (Peralatan)</option>
-                          <option value="Infrastructure">Infrastructure (Fasilitas)</option>
+                          {categories.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
                       {/* Dynamic HEI Item Selector based on chosen category */}
-                      {activeCategory === "Habit" && (
+                      {activeCategory && (
                         <div className="w-full sm:w-1/2 space-y-1">
                           <label htmlFor={`hei_item_${item.id}`} className="text-[11px] font-semibold text-muted-foreground">
-                            Pilih Item Habit
+                            Pilih Item {activeCategory}
                           </label>
                           <select
                             id={`hei_item_${item.id}`}
-                            aria-label={`Item Habit untuk foto #${index + 1}`}
-                            value={item.habit_id || ""}
+                            aria-label={`Item ${activeCategory} untuk foto #${index + 1}`}
+                            value={item.hei_id || item.habit_id || item.equipment_id || item.infrastructure_id || ""}
                             onChange={(e) => handleHEIItemChange(item.id, e.target.value)}
                             disabled={disabled}
                             className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
                           >
-                            <option value="">-- Pilih Habit --</option>
-                            {habits.map((h: any) => (
-                              <option key={h.habit_id} value={h.habit_id}>
-                                {h.habit_code ? `[${h.habit_code}] ` : ""}{h.habit_name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {activeCategory === "Equipment" && (
-                        <div className="w-full sm:w-1/2 space-y-1">
-                          <label htmlFor={`hei_item_${item.id}`} className="text-[11px] font-semibold text-muted-foreground">
-                            Pilih Item Equipment
-                          </label>
-                          <select
-                            id={`hei_item_${item.id}`}
-                            aria-label={`Item Equipment untuk foto #${index + 1}`}
-                            value={item.equipment_id || ""}
-                            onChange={(e) => handleHEIItemChange(item.id, e.target.value)}
-                            disabled={disabled}
-                            className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
-                          >
-                            <option value="">-- Pilih Equipment --</option>
-                            {equipments.map((eq: any) => (
-                              <option key={eq.equipment_id} value={eq.equipment_id}>
-                                {eq.equipment_code ? `[${eq.equipment_code}] ` : ""}{eq.equipment_name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {activeCategory === "Infrastructure" && (
-                        <div className="w-full sm:w-1/2 space-y-1">
-                          <label htmlFor={`hei_item_${item.id}`} className="text-[11px] font-semibold text-muted-foreground">
-                            Pilih Item Infrastructure
-                          </label>
-                          <select
-                            id={`hei_item_${item.id}`}
-                            aria-label={`Item Infrastructure untuk foto #${index + 1}`}
-                            value={item.infrastructure_id || ""}
-                            onChange={(e) => handleHEIItemChange(item.id, e.target.value)}
-                            disabled={disabled}
-                            className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
-                          >
-                            <option value="">-- Pilih Infrastructure --</option>
-                            {infrastructures.map((inf: any) => (
-                              <option key={inf.infrastructure_id} value={inf.infrastructure_id}>
-                                {inf.infrastructure_code ? `[${inf.infrastructure_code}] ` : ""}{inf.infrastructure_name}
-                              </option>
-                            ))}
+                            <option value="">-- Pilih Item {activeCategory} --</option>
+                            {heiItems
+                              .filter((h: any) => !h.category_name || h.category_name.toLowerCase() === activeCategory.toLowerCase())
+                              .map((h: any) => (
+                                <option key={h.hei_id} value={h.hei_id}>
+                                  {h.hei_code ? `[${h.hei_code}] ` : ""}{h.hei_name}
+                                </option>
+                              ))}
                           </select>
                         </div>
                       )}
@@ -356,4 +313,5 @@ export function PhotoUploaderWithKeterangan({
     </div>
   );
 }
+
 

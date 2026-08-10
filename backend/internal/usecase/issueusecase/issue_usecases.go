@@ -555,6 +555,7 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 		ImageUrl:         encPublicURL,
 		FileName:         encObjectName, // store encrypted objectName for secure deletion
 		Keterangan:       req.Keterangan,
+		HEIID:            req.HEIID,
 		HabitID:          req.HabitID,
 		EquipmentID:      req.EquipmentID,
 		InfrastructureID: req.InfrastructureID,
@@ -609,6 +610,13 @@ func (uc *issuePhotoUseCase) UpdateHEI(ctx context.Context, photoID string, req 
 		}
 	}
 
+	if req.HEIID != nil {
+		if *req.HEIID == "" {
+			photo.HEIID = nil
+		} else {
+			photo.HEIID = req.HEIID
+		}
+	}
 	if req.HabitID != nil {
 		if *req.HabitID == "" {
 			photo.HabitID = nil

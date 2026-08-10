@@ -294,7 +294,10 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 		refPhotoID = &refStr
 	}
 
-	var habitID, equipID, infraID *string
+	var heiID, habitID, equipID, infraID *string
+	if val := c.FormValue("hei_id"); val != "" {
+		heiID = &val
+	}
 	if val := c.FormValue("habit_id"); val != "" {
 		habitID = &val
 	}
@@ -311,6 +314,7 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 		PICUserID:        picUserID,
 		PhotoType:        photoType,
 		Keterangan:       c.FormValue("keterangan"),
+		HEIID:            heiID,
 		HabitID:          habitID,
 		EquipmentID:      equipID,
 		InfrastructureID: infraID,

@@ -1,4 +1,4 @@
-import { LucideIcon } from "lucide-react";
+import { LucideIcon, Tag } from "lucide-react";
 import {
   Factory,
   Building2,
@@ -29,6 +29,7 @@ export const MASTER_TABS: MasterTabConfig[] = [
   { id: "aspeks",          label: "Aspek Audit",    icon: ClipboardList,endpoint: "/master/aspek" },
   { id: "details",         label: "Detail Audit",   icon: FileText,     endpoint: "/master/details" },
   { id: "urains",          label: "Uraian",         icon: CheckSquare,  endpoint: "/master/urain" },
+  { id: "hei",            label: "Klasifikasi HEI",icon: Tag,          endpoint: "/master/hei" },
   { id: "habits",          label: "Habit",          icon: Activity,     endpoint: "/master/habits" },
   { id: "equipments",      label: "Equipment",      icon: Wrench,       endpoint: "/master/equipments" },
   { id: "infrastructures",  label: "Infrastructure", icon: Warehouse,    endpoint: "/master/infrastructures" },
