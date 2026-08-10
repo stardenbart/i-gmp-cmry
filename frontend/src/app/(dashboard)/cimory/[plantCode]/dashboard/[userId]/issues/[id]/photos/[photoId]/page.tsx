@@ -211,10 +211,14 @@ export default function InitialPhotoDetailPage() {
                   const heiName = currentPhoto?.hei_name || issue?.hei_name || currentPhoto?.habit_name || currentPhoto?.equipment_name || currentPhoto?.infrastructure_name || issue?.habit_name || issue?.equipment_name || issue?.infrastructure_name;
                   
                   if (heiCat || heiName) {
+                    const displayLabel = [
+                      heiCat ? `[${heiCat}]` : "",
+                      heiName && heiName.toLowerCase() !== heiCat?.toLowerCase() ? heiName : ""
+                    ].filter(Boolean).join(" ");
+
                     return (
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
-                        {heiCat ? `[${heiCat}] ` : ""}
-                        {heiName && heiName !== heiCat ? heiName : ""}
+                        {displayLabel || heiCat || heiName}
                       </div>
                     );
                   }

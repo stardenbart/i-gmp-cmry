@@ -88,6 +88,8 @@ export interface Issue {
   wo_id?: string;
   wr_id?: string;
   wowr_status?: WOWRStatus;
+  hei_category?: string;
+  hei_name?: string;
   hei?: IssueHEI;
   created_at: string;
   updated_at: string;
