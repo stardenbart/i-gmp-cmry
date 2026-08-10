@@ -179,7 +179,7 @@ export function PhotoUploaderWithKeterangan({
       )}
 
       {/* Add Photo Button */}
-      {!disabled && photos.length && (
+      {!disabled && (
         <div>
           <input
             ref={fileInputRef}
