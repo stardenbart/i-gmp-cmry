@@ -22,7 +22,7 @@ import {
 import { Issue, IssueStatus } from "@/lib/api/issue.api";
 import { filterApi, IssueFilterParams } from "@/lib/api/filter.api";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatImageUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
@@ -67,29 +67,50 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
       issue.issue_status !== "Verified");
 
   const href = targetUrl || `issues/${issue.issue_id}`;
+  const firstPhoto = issue.photos && issue.photos.length > 0 ? issue.photos[0] : null;
 
   return (
     <Link href={href}>
       <div
         className={cn(
-          "group relative flex items-stretch gap-0 rounded-2xl border bg-card/60 backdrop-blur-md",
+          "group relative flex items-center gap-3 sm:gap-4 rounded-2xl border bg-card/60 backdrop-blur-md p-3 sm:p-4",
           "hover:border-primary/40 hover:bg-card/80 hover:shadow-lg hover:shadow-primary/5",
           "active:scale-[0.99] transition-all duration-200 overflow-hidden",
           isOverdue ? "border-red-500/40" : "border-border/60"
         )}
       >
         {/* Left accent bar */}
-        <div className={cn("w-1 shrink-0", cfg.color.replace("text-", "bg-"))} />
+        <div className={cn("absolute left-0 top-0 bottom-0 w-1.5", cfg.color.replace("text-", "bg-"))} />
+
+        {/* Thumbnail Image Preview */}
+        {firstPhoto ? (
+          <div className="relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-xl overflow-hidden bg-muted border border-border/80 ml-2">
+            <img
+              src={formatImageUrl(firstPhoto.image_url)}
+              alt="Foto Temuan"
+              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+            {(issue.photos?.length ?? 0) > 1 && (
+              <span className="absolute bottom-1 right-1 text-[9px] font-bold bg-black/80 text-white px-1.5 py-0.5 rounded-md backdrop-blur-xs">
+                +{(issue.photos?.length ?? 1) - 1}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-xl bg-muted/30 border border-dashed border-border/70 flex items-center justify-center text-muted-foreground/40 ml-2">
+            <ImageIcon className="h-6 w-6" />
+          </div>
+        )}
 
         {/* Main content */}
-        <div className="flex-1 min-w-0 p-4">
+        <div className="flex-1 min-w-0">
           {/* Top row: title + badge */}
-          <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-start justify-between gap-2 mb-1.5">
             <div>
-              <h4 className="font-semibold text-sm leading-snug text-foreground">
+              <h4 className="font-semibold text-xs sm:text-sm leading-snug text-foreground line-clamp-1">
                 {issue.area_name || "Tanpa Area"} · {issue.kawasan_name || "Tanpa Kawasan"} · {issue.detail_kawasan_name || "Tanpa Detail"}
               </h4>
-              <p className="text-xs text-muted-foreground mt-1 font-medium">
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium line-clamp-2">
                 {issue.keterangan || "Tanpa keterangan"}
               </p>
             </div>
@@ -106,12 +127,20 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
           </div>
 
           {/* Meta row */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 pt-2 border-t border-border/40">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-border/40">
             {/* Issue ID */}
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
               <StatusIcon className={cn("h-3 w-3 shrink-0", cfg.color)} />
               ID: {issue.issue_id}
             </span>
+
+            {/* HEI Category Badge */}
+            {(issue.hei_category || issue.hei_name) && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                {issue.hei_category ? `[${issue.hei_category}] ` : ""}
+                {issue.hei_name && issue.hei_name !== issue.hei_category ? issue.hei_name : ""}
+              </span>
+            )}
 
             {/* Due date */}
             {dueDate && (
@@ -137,19 +166,11 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
                 Terlambat {issue.follow_up_delay} hari
               </span>
             )}
-
-            {/* Photos */}
-            {issue.photos && issue.photos.length > 0 && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                <ImageIcon className="h-3 w-3 shrink-0" />
-                {issue.photos.length} foto
-              </span>
-            )}
           </div>
         </div>
 
         {/* Right chevron */}
-        <div className="flex items-center pr-3 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">
+        <div className="flex items-center pr-1 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">
           <ChevronRight className="h-4 w-4" />
         </div>
       </div>
