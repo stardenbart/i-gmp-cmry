@@ -285,7 +285,7 @@ func SeedUsers(db *gorm.DB) {
 		} else {
 			// Update PlantID if missing on existing user
 			if u.PlantID != nil {
-				_ = db.Model(&authdomain.User{}).Where("\"Username\" = ? AND (\"PlantID\" IS NULL OR \"PlantID\" = '')", u.Username).Update("PlantID", u.PlantID).Error
+				_ = db.Exec(`UPDATE "Users" SET "PlantID" = ? WHERE "Username" = ? AND ("PlantID" IS NULL OR "PlantID" = '')`, *u.PlantID, u.Username).Error
 			}
 		}
 	}
