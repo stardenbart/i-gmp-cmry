@@ -137,18 +137,6 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 	}
 	err := uc.repo.Create(i)
 	if err == nil {
-		// Save HEI (Habit, Equipment, Infrastructure) in Issue_HEI table if provided
-		if (req.HabitID != nil && *req.HabitID != "") || (req.EquipmentID != nil && *req.EquipmentID != "") || (req.InfrastructureID != nil && *req.InfrastructureID != "") {
-			heiItem := issue.IssueHEI{
-				IssueHEIID:       idgen.Generate("HEI"),
-				IssueID:          i.IssueID,
-				HabitID:          req.HabitID,
-				EquipmentID:      req.EquipmentID,
-				InfrastructureID: req.InfrastructureID,
-			}
-			_ = uc.heiRepo.UpsertByIssueID(i.IssueID, &heiItem)
-		}
-
 		event := events.IssueEvent{
 			BaseEvent: events.BaseEvent{
 				EventID:   uuid.New().String(),
@@ -327,49 +315,6 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	} else if req.WO_ID != "" || req.WR_ID != "" {
 		i.WO_ID = strings.ToUpper(strings.TrimSpace(req.WO_ID))
 		i.WR_ID = strings.ToUpper(strings.TrimSpace(req.WR_ID))
-	}
-
-	// Update HEI (Habit, Equipment, Infrastructure) in Issue_HEI table
-	if req.HabitID != nil || req.EquipmentID != nil || req.InfrastructureID != nil {
-		existingHEI, _ := uc.heiRepo.FindByIssueID(id)
-		var heiItem issue.IssueHEI
-		if existingHEI != nil {
-			heiItem = *existingHEI
-		} else {
-			heiItem = issue.IssueHEI{
-				IssueHEIID: idgen.Generate("HEI"),
-				IssueID:    id,
-			}
-		}
-
-		if req.HabitID != nil {
-			if *req.HabitID == "" {
-				heiItem.HabitID = nil
-			} else {
-				heiItem.HabitID = req.HabitID
-			}
-		}
-		if req.EquipmentID != nil {
-			if *req.EquipmentID == "" {
-				heiItem.EquipmentID = nil
-			} else {
-				heiItem.EquipmentID = req.EquipmentID
-			}
-		}
-		if req.InfrastructureID != nil {
-			if *req.InfrastructureID == "" {
-				heiItem.InfrastructureID = nil
-			} else {
-				heiItem.InfrastructureID = req.InfrastructureID
-			}
-		}
-
-		// Delete if all HEI fields are null, otherwise upsert
-		if heiItem.HabitID == nil && heiItem.EquipmentID == nil && heiItem.InfrastructureID == nil {
-			_ = uc.heiRepo.DeleteByIssueID(id)
-		} else {
-			_ = uc.heiRepo.UpsertByIssueID(id, &heiItem)
-		}
 	}
 
 	if req.Keterangan != "" {

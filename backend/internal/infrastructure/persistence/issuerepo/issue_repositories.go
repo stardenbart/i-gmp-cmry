@@ -203,13 +203,10 @@ func (r *issuePhotoRepository) FindByIssueID(issueID string) ([]issue.IssuePhoto
 	err := r.db.Model(&issue.IssuePhoto{}).
 		Select(`"Issue_Photo".*, 
 			COALESCE(u."FullName", "Issue_Photo"."PICUserID") AS "UploaderName",
-			hm."HabitName" AS "HabitName",
-			em."EquipmentName" AS "EquipmentName",
-			im."InfrastructureName" AS "InfrastructureName"`).
+			hei."HEIName" AS "HEIName",
+			hei."CategoryName" AS "HEICategory"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue_Photo"."PICUserID"`).
-		Joins(`LEFT JOIN "Habit_Master" hm ON hm."HabitID" = "Issue_Photo"."HabitID"`).
-		Joins(`LEFT JOIN "Equipment_Master" em ON em."EquipmentID" = "Issue_Photo"."EquipmentID"`).
-		Joins(`LEFT JOIN "Infrastructure_Master" im ON im."InfrastructureID" = "Issue_Photo"."InfrastructureID"`).
+		Joins(`LEFT JOIN "HEI_Master" hei ON hei."HEIID" = "Issue_Photo"."HEIID"`).
 		Where(`"Issue_Photo"."IssueID" = ?`, issueID).
 		Order(`"Issue_Photo"."PhotoCreatedAt" ASC`).
 		Find(&items).Error
@@ -221,13 +218,10 @@ func (r *issuePhotoRepository) FindByID(id string) (*issue.IssuePhoto, error) {
 	err := r.db.Model(&issue.IssuePhoto{}).
 		Select(`"Issue_Photo".*, 
 			COALESCE(u."FullName", "Issue_Photo"."PICUserID") AS "UploaderName",
-			hm."HabitName" AS "HabitName",
-			em."EquipmentName" AS "EquipmentName",
-			im."InfrastructureName" AS "InfrastructureName"`).
+			hei."HEIName" AS "HEIName",
+			hei."CategoryName" AS "HEICategory"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue_Photo"."PICUserID"`).
-		Joins(`LEFT JOIN "Habit_Master" hm ON hm."HabitID" = "Issue_Photo"."HabitID"`).
-		Joins(`LEFT JOIN "Equipment_Master" em ON em."EquipmentID" = "Issue_Photo"."EquipmentID"`).
-		Joins(`LEFT JOIN "Infrastructure_Master" im ON im."InfrastructureID" = "Issue_Photo"."InfrastructureID"`).
+		Joins(`LEFT JOIN "HEI_Master" hei ON hei."HEIID" = "Issue_Photo"."HEIID"`).
 		Where(`"Issue_Photo"."IssuePhotoID" = ?`, id).
 		First(&item).Error
 	return &item, err

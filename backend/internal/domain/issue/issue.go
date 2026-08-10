@@ -71,6 +71,8 @@ type Issue struct {
 	AspekName          string `gorm:"column:AspekName;->" json:"aspek_name,omitempty"`
 	DetailAspekName    string `gorm:"column:DetailAspekName;->" json:"detail_aspek_name,omitempty"`
 	UraianText         string `gorm:"column:UraianText;->" json:"uraian_text,omitempty"`
+	HEICategory        string `gorm:"column:HEICategory;->" json:"hei_category,omitempty"`
+	HEIName            string `gorm:"column:HEIName;->" json:"hei_name,omitempty"`
 	HabitName          string `gorm:"column:HabitName;->" json:"habit_name,omitempty"`
 	EquipmentName      string `gorm:"column:EquipmentName;->" json:"equipment_name,omitempty"`
 	InfrastructureName string `gorm:"column:InfrastructureName;->" json:"infrastructure_name,omitempty"`

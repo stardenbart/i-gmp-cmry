@@ -1026,9 +1026,8 @@ func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
 			COALESCE(asp."AspekName", '') as aspek_name,
 			COALESCE(dm."DetailName", '') as detail_aspek_name,
 			COALESCE(um."UraianText", '') as uraian_text,
-			COALESCE(hm."HabitName", '') as habit_name,
-			COALESCE(eq."EquipmentName", '') as equipment_name,
-			COALESCE(inf."InfrastructureName", '') as infrastructure_name,
+			COALESCE(hm."HEIName", '') as hei_name,
+			COALESCE(hm."CategoryName", '') as hei_category,
 			i."Keterangan" as keterangan,
 			i."DueDate" as due_date,
 			i."IssueCreatedAt" as created_at`).
@@ -1037,10 +1036,8 @@ func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
-		Joins(`LEFT JOIN "Issue_HEI" hei ON hei."IssueID" = i."IssueID"`).
-		Joins(`LEFT JOIN "Habit_Master" hm ON hm."HabitID" = hei."HabitID"`).
-		Joins(`LEFT JOIN "Equipment_Master" eq ON eq."EquipmentID" = hei."EquipmentID"`).
-		Joins(`LEFT JOIN "Infrastructure_Master" inf ON inf."InfrastructureID" = hei."InfrastructureID"`).
+		Joins(`LEFT JOIN "Issue_Photo" ip ON ip."IssueID" = i."IssueID" AND ip."HEIID" IS NOT NULL`).
+		Joins(`LEFT JOIN "HEI_Master" hm ON hm."HEIID" = ip."HEIID"`).
 		Joins(`LEFT JOIN "Area_Master" am_area ON am_area."AreaID" = ih."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
