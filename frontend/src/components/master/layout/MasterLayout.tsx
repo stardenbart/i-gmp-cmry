@@ -142,11 +142,9 @@ export function MasterLayout() {
       aspeks: "aspek_id",
       details: "detail_id",
       urains: "uraian_id",
-      habits: "habit_id",
-      equipments: "equipment_id",
-      infrastructures: "infrastructure_id",
+      hei: "hei_id",
     };
-    return idFields[activeTab] || "id";
+    return idFields[activeTab] || "hei_id";
   };
 
   const getNameField = () => {
@@ -159,11 +157,9 @@ export function MasterLayout() {
       aspeks: "aspek_name",
       details: "detail_name",
       urains: "uraian_name",
-      habits: "habit_name",
-      equipments: "equipment_name",
-      infrastructures: "infrastructure_name",
+      hei: "hei_name",
     };
-    return nameFields[activeTab] || "name";
+    return nameFields[activeTab] || "hei_name";
   };
 
   const getColumns = () => {
@@ -211,23 +207,11 @@ export function MasterLayout() {
         { key: "detail_name", label: "Detail Induk" },
         { key: "detail_aspek_name", label: "Aspek Induk" },
       ],
-      habits: [
-        { key: "habit_code", label: "Kode Habit" },
-        { key: "habit_name", label: "Nama Habit" },
-        { key: "habit_category", label: "Kategori" },
+      hei: [
+        { key: "category_name", label: "Kategori HEI" },
+        { key: "hei_code", label: "Kode Item" },
+        { key: "hei_name", label: "Nama Item HEI" },
         { key: "description", label: "Deskripsi" },
-      ],
-      equipments: [
-        { key: "equipment_code", label: "Kode Equipment" },
-        { key: "equipment_name", label: "Nama Equipment" },
-        { key: "equipment_type", label: "Tipe" },
-        { key: "kawasan_name", label: "Kawasan Induk" },
-      ],
-      infrastructures: [
-        { key: "infrastructure_code", label: "Kode Infrastructure" },
-        { key: "infrastructure_name", label: "Nama Infrastructure" },
-        { key: "infrastructure_type", label: "Tipe" },
-        { key: "kawasan_name", label: "Kawasan Induk" },
       ],
     };
     return columns[activeTab] || [];

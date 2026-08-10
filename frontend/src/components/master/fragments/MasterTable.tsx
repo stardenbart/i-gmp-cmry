@@ -76,8 +76,8 @@ export function MasterTable({
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
-                <tr key={item[idField] as string} className="hover:bg-muted/50 transition-colors">
+              items.map((item, index) => (
+                <tr key={(item[idField] as string) || (item.hei_id as string) || (item.id as string) || `row_${index}`} className="hover:bg-muted/50 transition-colors">
                   {columns.map((col) => (
                     <td key={col.key} className="px-4 py-3 text-sm">
                       {(() => {
