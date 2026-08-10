@@ -255,5 +255,5 @@ export const plantApi = {
     limit = 100,
     search = ""
   ): Promise<any> =>
-    fetchMasterData("/master/plant", page, limit, search),
+    fetchMasterData("/master/plants", page, limit, search),
 };

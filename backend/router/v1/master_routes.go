@@ -96,6 +96,11 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		plant.Put("/:id", requireSuperAdmin, plantH.Update)
 		plant.Delete("/:id", requireSuperAdmin, plantH.Delete)
 
+		// Alias /master/plant for legacy frontend queries
+		plantAlias := master.Group("/plant")
+		plantAlias.Get("", plantH.GetAll)
+		plantAlias.Get("/:id", plantH.GetByID)
+
 		// Department
 		dept := master.Group("/departments")
 		dept.Get("", permReadMstr, deptH.GetAll)
