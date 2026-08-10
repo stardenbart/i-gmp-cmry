@@ -152,7 +152,7 @@ export default function InitialPhotoDetailPage() {
             </Button>
           </Link>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Detail Spesifikasi Temuan Awal</h2>
+            <h2 className="text-base font-bold tracking-tight">Detail Spesifikasi Temuan Awal</h2>
             <p className="text-muted-foreground text-xs font-mono mt-0.5">
               Issue ID: <span className="font-semibold text-foreground">{id}</span> · Foto ID: {photoId}
             </p>
@@ -234,88 +234,117 @@ export default function InitialPhotoDetailPage() {
                 </div>
               </div>
 
-              {/* HEI Specification Classification Dropdowns */}
+              {/* HEI Specification Classification Dropdowns / Badges */}
               <div className="pt-3 border-t border-border/60 space-y-3">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
                   Klasifikasi Spesifikasi Temuan (HEI)
                 </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Habit Dropdown */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                      <Activity className="h-3 w-3 text-emerald-500" /> Habit
-                    </label>
-                    <select
-                      value={issue.hei?.habit_id || issue.habit_id || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        updateHeiMutation.mutate({
-                          habit_id: val,
-                        });
-                      }}
-                      disabled={updateHeiMutation.isPending || !isWorkStarted || isClosed}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      <option value="">-- Pilih Habit --</option>
-                      {habitData?.items?.map((h: any) => (
-                        <option key={h.habit_id} value={h.habit_id}>
-                          {h.habit_name} {h.habit_code ? `(${h.habit_code})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                {isClosed ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
+                      <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
+                        <Activity className="h-3.5 w-3.5 text-emerald-500" /> Habit
+                      </span>
+                      <span className="font-bold text-foreground text-xs mt-0.5 block">
+                        {issue.hei?.habit?.habit_name || issue.habit_name || "Tanpa Habit"}
+                      </span>
+                    </div>
+                    <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
+                      <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
+                        <Wrench className="h-3.5 w-3.5 text-blue-500" /> Equipment
+                      </span>
+                      <span className="font-bold text-foreground text-xs mt-0.5 block">
+                        {issue.hei?.equipment?.equipment_name || issue.equipment_name || "Tanpa Equipment"}
+                      </span>
+                    </div>
+                    <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
+                      <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
+                        <Warehouse className="h-3.5 w-3.5 text-purple-500" /> Infrastructure
+                      </span>
+                      <span className="font-bold text-foreground text-xs mt-0.5 block">
+                        {issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name || "Tanpa Infrastructure"}
+                      </span>
+                    </div>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Habit Dropdown */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <Activity className="h-3 w-3 text-emerald-500" /> Habit
+                      </label>
+                      <select
+                        value={issue.hei?.habit_id || issue.hei?.habit?.habit_id || (issue as any).habit_id || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateHeiMutation.mutate({
+                            habit_id: val,
+                          });
+                        }}
+                        disabled={updateHeiMutation.isPending || !isWorkStarted}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <option value="">-- Pilih Habit --</option>
+                        {habitData?.items?.map((h: any) => (
+                          <option key={h.habit_id} value={h.habit_id}>
+                            {h.habit_name} {h.habit_code ? `(${h.habit_code})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  {/* Equipment Dropdown */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                      <Wrench className="h-3 w-3 text-blue-500" /> Equipment
-                    </label>
-                    <select
-                      value={issue.hei?.equipment_id || issue.equipment_id || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        updateHeiMutation.mutate({
-                          equipment_id: val,
-                        });
-                      }}
-                      disabled={updateHeiMutation.isPending || !isWorkStarted || isClosed}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      <option value="">-- Pilih Equipment --</option>
-                      {equipmentData?.items?.map((eq: any) => (
-                        <option key={eq.equipment_id} value={eq.equipment_id}>
-                          {eq.equipment_name} {eq.equipment_code ? `(${eq.equipment_code})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    {/* Equipment Dropdown */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <Wrench className="h-3 w-3 text-blue-500" /> Equipment
+                      </label>
+                      <select
+                        value={issue.hei?.equipment_id || issue.hei?.equipment?.equipment_id || (issue as any).equipment_id || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateHeiMutation.mutate({
+                            equipment_id: val,
+                          });
+                        }}
+                        disabled={updateHeiMutation.isPending || !isWorkStarted}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <option value="">-- Pilih Equipment --</option>
+                        {equipmentData?.items?.map((eq: any) => (
+                          <option key={eq.equipment_id} value={eq.equipment_id}>
+                            {eq.equipment_name} {eq.equipment_code ? `(${eq.equipment_code})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  {/* Infrastructure Dropdown */}
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                      <Warehouse className="h-3 w-3 text-purple-500" /> Infrastructure
-                    </label>
-                    <select
-                      value={issue.hei?.infrastructure_id || issue.infrastructure_id || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        updateHeiMutation.mutate({
-                          infrastructure_id: val,
-                        });
-                      }}
-                      disabled={updateHeiMutation.isPending || !isWorkStarted || isClosed}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      <option value="">-- Pilih Infrastructure --</option>
-                      {infraData?.items?.map((inf: any) => (
-                        <option key={inf.infrastructure_id} value={inf.infrastructure_id}>
-                          {inf.infrastructure_name} {inf.infrastructure_code ? `(${inf.infrastructure_code})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    {/* Infrastructure Dropdown */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                        <Warehouse className="h-3 w-3 text-purple-500" /> Infrastructure
+                      </label>
+                      <select
+                        value={issue.hei?.infrastructure_id || issue.hei?.infrastructure?.infrastructure_id || (issue as any).infrastructure_id || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateHeiMutation.mutate({
+                            infrastructure_id: val,
+                          });
+                        }}
+                        disabled={updateHeiMutation.isPending || !isWorkStarted}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <option value="">-- Pilih Infrastructure --</option>
+                        {infraData?.items?.map((inf: any) => (
+                          <option key={inf.infrastructure_id} value={inf.infrastructure_id}>
+                            {inf.infrastructure_name} {inf.infrastructure_code ? `(${inf.infrastructure_code})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-border/60 text-muted-foreground">
