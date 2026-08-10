@@ -47,22 +47,26 @@ export default function CreateInspectionPage() {
   const selectedKawasanId = watch("kawasan_id");
   const selectedDetailKawasanId = watch("detail_kawasan_id");
 
-  // Fetch all areas on mount
+  // Fetch all areas when permissions are ready
   useEffect(() => {
+    if (isGuardLoading || !isAuditor) return;
+
     const fetchAreas = async () => {
       try {
         setIsAreasLoading(true);
         const data = await masterApi.getAreas({ limit: 100 });
         setAreas(data || []);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch areas:", error);
-        toast.error("Gagal memuat data area");
+        if (error?.response?.status !== 403) {
+          toast.error("Gagal memuat data area");
+        }
       } finally {
         setIsAreasLoading(false);
       }
     };
     fetchAreas();
-  }, []);
+  }, [isGuardLoading, isAuditor]);
 
   // Fetch kawasans when area changes
   useEffect(() => {
