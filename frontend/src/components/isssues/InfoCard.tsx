@@ -12,6 +12,9 @@ interface InfoCardProps {
     issue_status: string
     computed_status?: string
     follow_up_delay?: number
+    habit_name?: string
+    equipment_name?: string
+    infrastructure_name?: string
     hei?: {
       habit?: { habit_name: string; habit_code?: string }
       equipment?: { equipment_name: string; equipment_code?: string }
@@ -27,6 +30,10 @@ export const InfoCard = ({ issue, dueDate }: InfoCardProps) => {
     issue.computed_status === "ClosedOverdue" ||
     (dueDate && dueDate < new Date() && issue.issue_status !== "Closed" && issue.issue_status !== "Verified");
 
+  const habitName = issue.hei?.habit?.habit_name || issue.habit_name;
+  const equipmentName = issue.hei?.equipment?.equipment_name || issue.equipment_name;
+  const infrastructureName = issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name;
+
   return (
     <Card className="p-6 bg-card/60 backdrop-blur-md lg:col-span-1 space-y-4 h-fit border-border/80 shadow-sm">
       <h3 className="font-semibold border-b border-border pb-2 text-base">Informasi Temuan</h3>
@@ -40,32 +47,32 @@ export const InfoCard = ({ issue, dueDate }: InfoCardProps) => {
           </div>
         </div>
 
-        {issue.hei?.habit && (
+        {habitName && (
           <div className="flex items-start gap-3">
             <Activity className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
             <div>
               <span className="text-xs text-muted-foreground block font-medium">Klasifikasi Habit</span>
-              <span className="font-semibold text-foreground">{issue.hei.habit.habit_name}</span>
+              <span className="font-semibold text-foreground">{habitName}</span>
             </div>
           </div>
         )}
 
-        {issue.hei?.equipment && (
+        {equipmentName && (
           <div className="flex items-start gap-3">
             <Wrench className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
             <div>
               <span className="text-xs text-muted-foreground block font-medium">Klasifikasi Equipment</span>
-              <span className="font-semibold text-foreground">{issue.hei.equipment.equipment_name}</span>
+              <span className="font-semibold text-foreground">{equipmentName}</span>
             </div>
           </div>
         )}
 
-        {issue.hei?.infrastructure && (
+        {infrastructureName && (
           <div className="flex items-start gap-3">
             <Warehouse className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
             <div>
               <span className="text-xs text-muted-foreground block font-medium">Klasifikasi Infrastructure</span>
-              <span className="font-semibold text-foreground">{issue.hei.infrastructure.infrastructure_name}</span>
+              <span className="font-semibold text-foreground">{infrastructureName}</span>
             </div>
           </div>
         )}
