@@ -255,11 +255,9 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	}
 
 	if req.IssueStatus != "" {
-		// Validation for closing/verifying or requesting validation if NeedsWOWR is true
-		if (req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified || req.IssueStatus == issue.IssueStatusPendingValidation) && i.NeedsWOWR {
-			if i.WOWRStatus != issue.WOWRStatusVerified {
-				return nil, errors.New("temuan ini menggunakan WO/WR. Harap tunggu konfirmasi (persetujuan) WO/WR oleh Auditor terlebih dahulu sebelum menyelesaikan temuan")
-			}
+		// Validasi penyelesaian temuan (Closed, Verified, PendingValidation)
+		if req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified || req.IssueStatus == issue.IssueStatusPendingValidation {
+			// 1. Validasi Bukti Foto Follow-Up perbaikan (Wajib untuk seluruh temuan)
 			hasFollowUp := false
 			photosToCheck := i.Photos
 			if len(photosToCheck) == 0 && uc.photoRepo != nil {
@@ -274,7 +272,17 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 				}
 			}
 			if !hasFollowUp {
-				return nil, errors.New("issue ini membutuhkan WO/WR, wajib mengunggah foto FollowUp sebelum dapat diselesaikan")
+				return nil, errors.New("gagal menyelesaikan temuan: wajib mengunggah setidaknya 1 bukti foto Follow-Up perbaikan terlebih dahulu")
+			}
+
+			// 2. Validasi WO/WR jika temuan memerlukan WO/WR
+			if i.NeedsWOWR || i.WO_ID != "" || i.WR_ID != "" {
+				if i.WO_ID == "" && i.WR_ID == "" {
+					return nil, errors.New("gagal menyelesaikan temuan: Nomor WO/WR wajib diisi terlebih dahulu")
+				}
+				if i.WOWRStatus != issue.WOWRStatusVerified {
+					return nil, errors.New("gagal menyelesaikan temuan: temuan ini menggunakan WO/WR. Harap tunggu konfirmasi (persetujuan) WO/WR oleh Auditor terlebih dahulu")
+				}
 			}
 		}
 		i.IssueStatus = req.IssueStatus

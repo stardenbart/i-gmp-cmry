@@ -145,24 +145,20 @@ export default function IssueDetailPage() {
   const dueDate = issue.due_date ? new Date(issue.due_date) : null;
 
   const handleStatusTransition = (nextStatus: IssueStatus) => {
-    // Validasi khusus untuk PIC/Auditee saat menyelesaikan temuan
-    if (isPIC && (nextStatus === "Closed" || nextStatus === "PendingValidation")) {
+    // Validasi universal penyelesaian temuan (Closed, Verified, PendingValidation)
+    if (nextStatus === "Closed" || nextStatus === "PendingValidation" || nextStatus === "Verified") {
+      if (followUpPhotos.length === 0) {
+        toast.error("Gagal: Anda harus mengunggah setidaknya 1 bukti Foto Follow-Up perbaikan terlebih dahulu sebelum menyelesaikan temuan.");
+        return;
+      }
+
       if (issue.needs_wo_wr || issue.wo_id || issue.wr_id) {
         if (!issue.wo_id && !issue.wr_id) {
-          toast.error("Gagal: Anda harus menginput Nomor WO / WR dan menyimpannya terlebih dahulu.");
+          toast.error("Gagal: Temuan ini menggunakan WO/WR. Harap input Nomor WO atau WR dan simpan terlebih dahulu.");
           return;
         }
         if (issue.wowr_status !== "Verified") {
           toast.error("Gagal: Temuan ini menggunakan WO/WR. Harap tunggu persetujuan (konfirmasi) WO/WR oleh Auditor terlebih dahulu.");
-          return;
-        }
-        if (followUpPhotos.length === 0) {
-          toast.error("Gagal: Anda harus mengunggah setidaknya 1 bukti Foto Follow-Up perbaikan WO/WR terlebih dahulu.");
-          return;
-        }
-      } else {
-        if (followUpPhotos.length === 0) {
-          toast.error("Gagal: Anda harus mengunggah bukti Foto Follow-Up penyelesaian temuan terlebih dahulu.");
           return;
         }
       }
