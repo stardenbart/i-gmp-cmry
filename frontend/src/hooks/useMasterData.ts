@@ -39,3 +39,12 @@ export function useMasterAreas(limit = 500) {
     gcTime: MASTER_GC_TIME,
   });
 }
+
+export function useMasterPlants(limit = 500) {
+  return useQuery({
+    queryKey: ["master", "plants", limit],
+    queryFn: () => fetchItems("/master/plants", 1, "", limit),
+    staleTime: MASTER_STALE_TIME,
+    gcTime: MASTER_GC_TIME,
+  });
+}
