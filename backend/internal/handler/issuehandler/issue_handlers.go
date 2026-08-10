@@ -294,14 +294,28 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 		refPhotoID = &refStr
 	}
 
+	var habitID, equipID, infraID *string
+	if val := c.FormValue("habit_id"); val != "" {
+		habitID = &val
+	}
+	if val := c.FormValue("equipment_id"); val != "" {
+		equipID = &val
+	}
+	if val := c.FormValue("infrastructure_id"); val != "" {
+		infraID = &val
+	}
+
 	req := &issue.UploadPhotoRequest{
-		IssueID:        issueID,
-		RefPhotoID:     refPhotoID,
-		PICUserID:      picUserID,
-		PhotoType:      photoType,
-		Keterangan:     c.FormValue("keterangan"),
-		FollowUpDate:   followUpDate,
-		JumlahFollowUp: jumlahFollowUp,
+		IssueID:          issueID,
+		RefPhotoID:       refPhotoID,
+		PICUserID:        picUserID,
+		PhotoType:        photoType,
+		Keterangan:       c.FormValue("keterangan"),
+		HabitID:          habitID,
+		EquipmentID:      equipID,
+		InfrastructureID: infraID,
+		FollowUpDate:     followUpDate,
+		JumlahFollowUp:   jumlahFollowUp,
 	}
 
 	chunkIndexStr := c.FormValue("chunk_index")
@@ -366,6 +380,18 @@ func (h *IssuePhotoHandler) Update(c *fiber.Ctx) error {
 		return response.BadRequest(c, err.Error(), nil)
 	}
 	return response.OK(c, "photo updated", photo)
+}
+
+func (h *IssuePhotoHandler) UpdateHEI(c *fiber.Ctx) error {
+	var req issue.UpdatePhotoHEIRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
+	}
+	photo, err := h.uc.UpdateHEI(c.UserContext(), c.Params("photo_id"), &req)
+	if err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
+	return response.OK(c, "photo HEI updated", photo)
 }
 
 // @Summary Delete an issue photo

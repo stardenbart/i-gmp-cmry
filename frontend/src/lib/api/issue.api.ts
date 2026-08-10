@@ -43,6 +43,15 @@ export interface IssuePhoto {
   image_url: string;
   file_name: string;
   keterangan?: string;
+  habit_id?: string;
+  equipment_id?: string;
+  infrastructure_id?: string;
+  habit_name?: string;
+  equipment_name?: string;
+  infrastructure_name?: string;
+  habit?: Habit;
+  equipment?: Equipment;
+  infrastructure?: Infrastructure;
   follow_up_date?: string;
   jumlah_follow_up?: number;
   created_at: string;
@@ -187,6 +196,11 @@ export const issueApi = {
 
   updatePhoto: async (photoId: string, keterangan: string) => {
     const res = await api.put(`/issues/photos/${photoId}`, { keterangan });
+    return res.data;
+  },
+
+  updatePhotoHEI: async (photoId: string, data: { habit_id?: string; equipment_id?: string; infrastructure_id?: string }) => {
+    const res = await api.put(`/issues/photos/${photoId}/hei`, data);
     return res.data;
   },
 

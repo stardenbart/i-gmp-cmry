@@ -84,6 +84,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 		issues.Get("/:id/photos", permReadIss, photoH.GetByIssueID)
 		issues.Post("/:id/photos/upload", permUpdateIss, photoH.Upload)
 		issues.Put("/photos/:photo_id", permUpdateIss, photoH.Update)
+		issues.Put("/photos/:photo_id/hei", permUpdateIss, photoH.UpdateHEI)
 		issues.Delete("/photos/:photo_id", permUpdateIss, photoH.Delete)
 	}
 

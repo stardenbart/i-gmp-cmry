@@ -547,16 +547,19 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 
 	// 4. STEP POSTGRESQL: Save record into PostgreSQL database
 	p := &issue.IssuePhoto{
-		IssuePhotoID:   idgen.GenerateRandom(idgen.PrefixIssuePhoto),
-		IssueID:        req.IssueID,
-		RefPhotoID:     req.RefPhotoID,
-		PICUserID:      req.PICUserID,
-		PhotoType:      req.PhotoType,
-		ImageUrl:       encPublicURL,
-		FileName:       encObjectName, // store encrypted objectName for secure deletion
-		Keterangan:     req.Keterangan,
-		FollowUpDate:   req.FollowUpDate,
-		JumlahFollowUp: req.JumlahFollowUp,
+		IssuePhotoID:     idgen.GenerateRandom(idgen.PrefixIssuePhoto),
+		IssueID:          req.IssueID,
+		RefPhotoID:       req.RefPhotoID,
+		PICUserID:        req.PICUserID,
+		PhotoType:        req.PhotoType,
+		ImageUrl:         encPublicURL,
+		FileName:         encObjectName, // store encrypted objectName for secure deletion
+		Keterangan:       req.Keterangan,
+		HabitID:          req.HabitID,
+		EquipmentID:      req.EquipmentID,
+		InfrastructureID: req.InfrastructureID,
+		FollowUpDate:     req.FollowUpDate,
+		JumlahFollowUp:   req.JumlahFollowUp,
 	}
 	err := uc.repo.Create(p)
 	if err == nil {
@@ -585,6 +588,42 @@ func (uc *issuePhotoUseCase) Update(ctx context.Context, photoID string, keteran
 	photo.Keterangan = keterangan
 	err = uc.repo.Update(photo)
 	if err == nil {
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
+	}
+	return photo, err
+}
+
+func (uc *issuePhotoUseCase) UpdateHEI(ctx context.Context, photoID string, req *issue.UpdatePhotoHEIRequest) (*issue.IssuePhoto, error) {
+	photo, err := uc.repo.FindByID(photoID)
+	if err != nil {
+		return nil, errors.New("photo not found")
+	}
+
+	// Check if issue is closed/locked
+	if uc.issueRepo != nil {
+		iss, errIss := uc.issueRepo.FindByID(photo.IssueID)
+		if errIss == nil && iss != nil {
+			if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
+				return nil, errors.New("issue ini sudah ditutup (Closed) dan foto tidak dapat diubah")
+			}
+		}
+	}
+
+	if req.HabitID != nil {
+		photo.HabitID = req.HabitID
+	}
+	if req.EquipmentID != nil {
+		photo.EquipmentID = req.EquipmentID
+	}
+	if req.InfrastructureID != nil {
+		photo.InfrastructureID = req.InfrastructureID
+	}
+
+	err = uc.repo.Update(photo)
+	if err == nil {
+		if updated, errFind := uc.repo.FindByID(photoID); errFind == nil {
+			photo = updated
+		}
 		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 	}
 	return photo, err

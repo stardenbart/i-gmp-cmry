@@ -84,17 +84,20 @@ export default function InitialPhotoDetailPage() {
 
   const updateHeiMutation = useMutation({
     mutationFn: (payload: {
-      issue_category?: IssueCategory;
       habit_id?: string;
       equipment_id?: string;
       infrastructure_id?: string;
-    }) => issueApi.update(id, payload),
+    }) => {
+      const targetPhotoId = currentPhoto?.issue_photo_id || photoId;
+      return issueApi.updatePhotoHEI(targetPhotoId, payload);
+    },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["issue_photos", id] });
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
-      toast.success("Klasifikasi temuan (HEI) berhasil diperbarui");
+      toast.success("Klasifikasi temuan (HEI) spesifik foto berhasil diperbarui");
     },
-    onError: () => toast.error("Gagal memperbarui klasifikasi temuan"),
+    onError: () => toast.error("Gagal memperbarui klasifikasi temuan foto"),
   });
 
   const issue = issueRes?.data;
@@ -234,10 +237,10 @@ export default function InitialPhotoDetailPage() {
                 </div>
               </div>
 
-              {/* HEI Specification Classification Dropdowns / Badges */}
+              {/* HEI Specification Classification Dropdowns / Badges (Isolated per Photo) */}
               <div className="pt-3 border-t border-border/60 space-y-3">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
-                  Klasifikasi Spesifikasi Temuan (HEI)
+                  Klasifikasi Spesifikasi Foto Temuan (HEI)
                 </span>
 
                 {isClosed ? (
@@ -247,7 +250,7 @@ export default function InitialPhotoDetailPage() {
                         <Activity className="h-3.5 w-3.5 text-emerald-500" /> Habit
                       </span>
                       <span className="font-bold text-foreground text-xs mt-0.5 block">
-                        {issue.hei?.habit?.habit_name || issue.habit_name || "Tanpa Habit"}
+                        {currentPhoto?.habit_name || currentPhoto?.habit?.habit_name || issue.hei?.habit?.habit_name || issue.habit_name || "Tanpa Habit"}
                       </span>
                     </div>
                     <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
@@ -255,7 +258,7 @@ export default function InitialPhotoDetailPage() {
                         <Wrench className="h-3.5 w-3.5 text-blue-500" /> Equipment
                       </span>
                       <span className="font-bold text-foreground text-xs mt-0.5 block">
-                        {issue.hei?.equipment?.equipment_name || issue.equipment_name || "Tanpa Equipment"}
+                        {currentPhoto?.equipment_name || currentPhoto?.equipment?.equipment_name || issue.hei?.equipment?.equipment_name || issue.equipment_name || "Tanpa Equipment"}
                       </span>
                     </div>
                     <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
@@ -263,7 +266,7 @@ export default function InitialPhotoDetailPage() {
                         <Warehouse className="h-3.5 w-3.5 text-purple-500" /> Infrastructure
                       </span>
                       <span className="font-bold text-foreground text-xs mt-0.5 block">
-                        {issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name || "Tanpa Infrastructure"}
+                        {currentPhoto?.infrastructure_name || currentPhoto?.infrastructure?.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name || "Tanpa Infrastructure"}
                       </span>
                     </div>
                   </div>
@@ -275,7 +278,7 @@ export default function InitialPhotoDetailPage() {
                         <Activity className="h-3 w-3 text-emerald-500" /> Habit
                       </label>
                       <select
-                        value={issue.hei?.habit_id || issue.hei?.habit?.habit_id || (issue as any).habit_id || ""}
+                        value={currentPhoto?.habit_id || currentPhoto?.habit?.habit_id || issue.hei?.habit_id || issue.hei?.habit?.habit_id || (issue as any).habit_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateHeiMutation.mutate({
@@ -300,7 +303,7 @@ export default function InitialPhotoDetailPage() {
                         <Wrench className="h-3 w-3 text-blue-500" /> Equipment
                       </label>
                       <select
-                        value={issue.hei?.equipment_id || issue.hei?.equipment?.equipment_id || (issue as any).equipment_id || ""}
+                        value={currentPhoto?.equipment_id || currentPhoto?.equipment?.equipment_id || issue.hei?.equipment_id || issue.hei?.equipment?.equipment_id || (issue as any).equipment_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateHeiMutation.mutate({
@@ -325,7 +328,7 @@ export default function InitialPhotoDetailPage() {
                         <Warehouse className="h-3 w-3 text-purple-500" /> Infrastructure
                       </label>
                       <select
-                        value={issue.hei?.infrastructure_id || issue.hei?.infrastructure?.infrastructure_id || (issue as any).infrastructure_id || ""}
+                        value={currentPhoto?.infrastructure_id || currentPhoto?.infrastructure?.infrastructure_id || issue.hei?.infrastructure_id || issue.hei?.infrastructure?.infrastructure_id || (issue as any).infrastructure_id || ""}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateHeiMutation.mutate({
