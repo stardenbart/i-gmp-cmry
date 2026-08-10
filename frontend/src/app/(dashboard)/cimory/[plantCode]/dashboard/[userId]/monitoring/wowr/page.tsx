@@ -162,8 +162,8 @@ export default function WOWRReportPage() {
   return (
     <div className="space-y-6 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* ── Top Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-5 rounded-2xl border shadow-sm">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-card p-3.5 sm:p-5 rounded-2xl border shadow-sm min-w-0">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <Link href={`/cimory/${plantCode}/dashboard/${userId}/wowr`}>
             <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl">
               <ArrowLeft className="h-5 w-5" />
@@ -171,12 +171,12 @@ export default function WOWRReportPage() {
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold tracking-tight">Laporan & Analytics WO / WR</h2>
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight break-words">Laporan & Analytics WO / WR</h2>
               <span className="bg-primary/10 text-primary border border-primary/20 text-[10px] font-bold px-2 py-0.5 rounded-full">
                 Real-Time KPI
               </span>
             </div>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 break-words">
               Analisis tingkat verifikasi dan performa pengerjaan Maintenance Work Order & Work Request
             </p>
           </div>
@@ -184,7 +184,7 @@ export default function WOWRReportPage() {
 
         <Button 
           onClick={handleExportCSV}
-          className="rounded-xl gap-2 font-semibold shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="w-full sm:w-auto rounded-xl gap-2 font-semibold shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white h-10 sm:h-9 text-xs sm:text-sm"
         >
           <FileSpreadsheet className="h-4 w-4" />
           Export Laporan Excel (.csv)
@@ -192,29 +192,29 @@ export default function WOWRReportPage() {
       </div>
 
       {/* ── Summary Key Performance Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Card */}
-        <div className="bg-card p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden">
+        <div className="bg-card p-3 sm:p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Temuan WO/WR</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground font-semibold uppercase tracking-wider leading-tight">Total Temuan WO/WR</span>
           </div>
-          <div className="flex items-baseline justify-between pt-1">
-            <span className="text-3xl font-bold font-mono">{summary.total}</span>
-            <span className="text-xs font-semibold text-muted-foreground">100% Total</span>
+          <div className="flex items-end justify-between gap-2 pt-1">
+            <span className="text-2xl sm:text-3xl font-bold font-mono">{summary.total}</span>
+            <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground">100% Total</span>
           </div>
-          <p className="text-[11px] text-muted-foreground">Temuan aktif yang memerlukan Work Order / Work Request</p>
+          <p className="text-[10px] sm:text-[11px] text-muted-foreground line-clamp-2">Temuan aktif yang memerlukan Work Order / Work Request</p>
         </div>
 
         {/* Verified Rate Card */}
-        <div className="bg-card p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden">
+        <div className="bg-card p-3 sm:p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tingkat Verifikasi</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground font-semibold uppercase tracking-wider leading-tight">Tingkat Verifikasi</span>
           </div>
-          <div className="flex items-baseline justify-between pt-1">
-            <span className="text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+          <div className="flex items-end justify-between gap-2 pt-1">
+            <span className="text-2xl sm:text-3xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
               {summary.verified_rate}%
             </span>
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="text-[10px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400">
               {summary.verified} Disetujui
             </span>
           </div>
@@ -224,15 +224,15 @@ export default function WOWRReportPage() {
         </div>
 
         {/* Pending Rate Card */}
-        <div className="bg-card p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden">
+        <div className="bg-card p-3 sm:p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Menunggu Validasi</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground font-semibold uppercase tracking-wider leading-tight">Menunggu Validasi</span>
           </div>
-          <div className="flex items-baseline justify-between pt-1">
-            <span className="text-3xl font-bold font-mono text-purple-600 dark:text-purple-400">
+          <div className="flex items-end justify-between gap-2 pt-1">
+            <span className="text-2xl sm:text-3xl font-bold font-mono text-purple-600 dark:text-purple-400">
               {summary.pending_rate}%
             </span>
-            <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+            <span className="text-[10px] sm:text-xs font-bold text-purple-600 dark:text-purple-400">
               {summary.pending} Menunggu
             </span>
           </div>
@@ -242,15 +242,15 @@ export default function WOWRReportPage() {
         </div>
 
         {/* Rejected Rate Card */}
-        <div className="bg-card p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden">
+        <div className="bg-card p-3 sm:p-5 rounded-2xl border shadow-sm space-y-2 relative overflow-hidden min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tingkat Penolakan</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground font-semibold uppercase tracking-wider leading-tight">Tingkat Penolakan</span>
           </div>
-          <div className="flex items-baseline justify-between pt-1">
-            <span className="text-3xl font-bold font-mono text-red-600 dark:text-red-400">
+          <div className="flex items-end justify-between gap-2 pt-1">
+            <span className="text-2xl sm:text-3xl font-bold font-mono text-red-600 dark:text-red-400">
               {summary.rejected_rate}%
             </span>
-            <span className="text-xs font-bold text-red-600 dark:text-red-400">
+            <span className="text-[10px] sm:text-xs font-bold text-red-600 dark:text-red-400">
               {summary.rejected} Ditolak
             </span>
           </div>
@@ -261,10 +261,10 @@ export default function WOWRReportPage() {
       </div>
 
       {/* ── Area Breakdown Section ── */}
-      <div className="bg-card p-6 rounded-2xl border shadow-sm space-y-4">
+      <div className="bg-card p-3.5 sm:p-6 rounded-2xl border shadow-sm space-y-3 sm:space-y-4 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold tracking-tight">Breakdown Verifikasi per Area Operational</h3>
+            <h3 className="text-sm sm:text-base font-bold tracking-tight break-words">Breakdown Verifikasi per Area Operational</h3>
           </div>
           <span className="text-xs text-muted-foreground font-medium">Persentase Penyelesaian</span>
         </div>
@@ -272,11 +272,11 @@ export default function WOWRReportPage() {
         {byArea.length === 0 ? (
           <p className="text-xs text-muted-foreground italic text-center py-4">Belum ada data breakdown area.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pt-1 sm:pt-2">
             {byArea.map((area, idx) => {
               const rate = area.total > 0 ? (area.verified / area.total) * 100 : 0;
               return (
-                <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-2">
+                <div key={idx} className="p-3 sm:p-4 rounded-xl bg-muted/30 border border-border/50 space-y-2 min-w-0">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-semibold">{area.area_name}</span>
                     <span className="font-mono font-bold text-primary">{rate.toFixed(1)}%</span>
@@ -314,16 +314,16 @@ export default function WOWRReportPage() {
       </div>
 
       {/* ── Table Section ── */}
-      <div className="bg-card rounded-2xl border overflow-hidden shadow-sm space-y-4 p-5">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          <h3 className="text-base font-bold tracking-tight">Detail Daftar Temuan WO / WR</h3>
+      <div className="bg-card rounded-2xl border overflow-hidden shadow-sm space-y-3 sm:space-y-4 p-3.5 sm:p-5 min-w-0">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4">
+          <h3 className="text-sm sm:text-base font-bold tracking-tight break-words">Detail Daftar Temuan WO / WR</h3>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
             {/* Area Filter */}
             <select
               value={selectedArea}
               onChange={(e) => setSelectedArea(e.target.value)}
-              className="rounded-xl border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+              className="w-full sm:w-auto rounded-xl border bg-background px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
             >
               <option value="ALL">Semua Area</option>
               {byArea.map((a, i) => (
@@ -332,7 +332,7 @@ export default function WOWRReportPage() {
             </select>
 
             {/* Search */}
-            <div className="relative min-w-[220px] w-full sm:w-auto">
+            <div className="relative min-w-0 w-full sm:w-[220px] lg:w-[240px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
                 type="search"
@@ -345,8 +345,8 @@ export default function WOWRReportPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-xs text-left">
+        <div className="overflow-x-auto rounded-xl border max-w-full">
+          <table className="w-full min-w-[900px] text-xs text-left">
             <thead className="bg-muted/60 text-muted-foreground font-semibold uppercase">
               <tr>
                 <th className="px-4 py-3">No</th>
