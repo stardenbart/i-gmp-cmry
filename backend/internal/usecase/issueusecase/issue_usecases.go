@@ -610,13 +610,25 @@ func (uc *issuePhotoUseCase) UpdateHEI(ctx context.Context, photoID string, req 
 	}
 
 	if req.HabitID != nil {
-		photo.HabitID = req.HabitID
+		if *req.HabitID == "" {
+			photo.HabitID = nil
+		} else {
+			photo.HabitID = req.HabitID
+		}
 	}
 	if req.EquipmentID != nil {
-		photo.EquipmentID = req.EquipmentID
+		if *req.EquipmentID == "" {
+			photo.EquipmentID = nil
+		} else {
+			photo.EquipmentID = req.EquipmentID
+		}
 	}
 	if req.InfrastructureID != nil {
-		photo.InfrastructureID = req.InfrastructureID
+		if *req.InfrastructureID == "" {
+			photo.InfrastructureID = nil
+		} else {
+			photo.InfrastructureID = req.InfrastructureID
+		}
 	}
 
 	err = uc.repo.Update(photo)

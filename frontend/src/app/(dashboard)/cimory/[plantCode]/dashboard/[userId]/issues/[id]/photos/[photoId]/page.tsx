@@ -245,30 +245,46 @@ export default function InitialPhotoDetailPage() {
 
                 {isClosed ? (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                      <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
-                        <Activity className="h-3.5 w-3.5 text-emerald-500" /> Habit
-                      </span>
-                      <span className="font-bold text-foreground text-xs mt-0.5 block">
-                        {currentPhoto?.habit_name || currentPhoto?.habit?.habit_name || issue.hei?.habit?.habit_name || issue.habit_name || "Tanpa Habit"}
-                      </span>
-                    </div>
-                    <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                      <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
-                        <Wrench className="h-3.5 w-3.5 text-blue-500" /> Equipment
-                      </span>
-                      <span className="font-bold text-foreground text-xs mt-0.5 block">
-                        {currentPhoto?.equipment_name || currentPhoto?.equipment?.equipment_name || issue.hei?.equipment?.equipment_name || issue.equipment_name || "Tanpa Equipment"}
-                      </span>
-                    </div>
-                    <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                      <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
-                        <Warehouse className="h-3.5 w-3.5 text-purple-500" /> Infrastructure
-                      </span>
-                      <span className="font-bold text-foreground text-xs mt-0.5 block">
-                        {currentPhoto?.infrastructure_name || currentPhoto?.infrastructure?.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name || "Tanpa Infrastructure"}
-                      </span>
-                    </div>
+                    {(currentPhoto?.habit_name || currentPhoto?.habit?.habit_name) && (
+                      <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
+                        <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
+                          <Activity className="h-3.5 w-3.5 text-emerald-500" /> Habit
+                        </span>
+                        <span className="font-bold text-foreground text-xs mt-0.5 block">
+                          {currentPhoto.habit_name || currentPhoto.habit?.habit_name}
+                        </span>
+                      </div>
+                    )}
+
+                    {(currentPhoto?.equipment_name || currentPhoto?.equipment?.equipment_name) && (
+                      <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
+                        <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
+                          <Wrench className="h-3.5 w-3.5 text-blue-500" /> Equipment
+                        </span>
+                        <span className="font-bold text-foreground text-xs mt-0.5 block">
+                          {currentPhoto.equipment_name || currentPhoto.equipment?.equipment_name}
+                        </span>
+                      </div>
+                    )}
+
+                    {(currentPhoto?.infrastructure_name || currentPhoto?.infrastructure?.infrastructure_name) && (
+                      <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
+                        <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
+                          <Warehouse className="h-3.5 w-3.5 text-purple-500" /> Infrastructure
+                        </span>
+                        <span className="font-bold text-foreground text-xs mt-0.5 block">
+                          {currentPhoto.infrastructure_name || currentPhoto.infrastructure?.infrastructure_name}
+                        </span>
+                      </div>
+                    )}
+
+                    {!currentPhoto?.habit_name && !currentPhoto?.habit?.habit_name &&
+                     !currentPhoto?.equipment_name && !currentPhoto?.equipment?.equipment_name &&
+                     !currentPhoto?.infrastructure_name && !currentPhoto?.infrastructure?.infrastructure_name && (
+                      <div className="col-span-3 bg-muted/20 p-3 rounded-xl border border-dashed border-border/60 text-muted-foreground italic text-xs">
+                        Klasifikasi HEI tidak diisi untuk foto ini (Opsional)
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
