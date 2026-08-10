@@ -62,6 +62,8 @@ export function usePolling(options?: UsePollingOptions) {
             queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
             queryClient.invalidateQueries({ queryKey: ["issues"] });
             queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
+            queryClient.invalidateQueries({ queryKey: ["issue"] });
+            queryClient.invalidateQueries({ queryKey: ["issue-photos"] });
             queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
             queryClient.invalidateQueries({ queryKey: ["dashboard-stats-stitch"] });
             queryClient.invalidateQueries({ queryKey: ["auditor-inspections"] });

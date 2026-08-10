@@ -18,6 +18,7 @@ import { WOWRCard } from "@/components/isssues/WOWRCard";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
+import { usePolling } from "@/hooks/usePolling";
 
 const statusConfig: Record<IssueStatus, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   Open: { label: "Open", icon: CircleDashed, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -53,6 +54,8 @@ export default function IssueDetailPage() {
   const queryClient = useQueryClient();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
+  usePolling();
+
   const user = useAuthStore((state) => state.user);
   const { hasPermission } = usePermissions();
 
