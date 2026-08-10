@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Lock, Unlock } from "lucide-react";
 import { inspectionApi } from "@/lib/api/inspection.api";
-import { useKawasanPolling, AspekKawasanEvent } from "@/hooks/useKawasanPolling";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { useCallback } from "react";
 
 interface AspekStatusPanelProps {
@@ -25,17 +25,19 @@ export function AspekStatusPanel({
     queryKey: ["kawasan_status", kawasanId],
     queryFn: () => inspectionApi.getKawasanStatus(kawasanId),
     enabled: !!kawasanId,
-    refetchInterval: 5000, // Fallback poll every 5s
   });
 
-  const handleKawasanEvent = useCallback(
-    (_ev: AspekKawasanEvent) => {
+  const handleEvent = useCallback(
+    (_ev: any) => {
       refetch();
     },
     [refetch]
   );
 
-  useKawasanPolling(kawasanId, handleKawasanEvent, 3000);
+  const { isWebSocketActive } = useRealtimeSync({
+    kawasanId,
+    onEvent: handleEvent,
+  });
 
   const lockStatuses: Array<{ aspek_id: string; status: string; locked_by?: string }> =
     statusRes?.data || [];
@@ -54,8 +56,8 @@ export function AspekStatusPanel({
             Status Lock Real-Time
           </h4>
         </div>
-        <span className="text-[10px] text-muted-foreground shrink-0">
-          Event Store
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${isWebSocketActive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"}`}>
+          {isWebSocketActive ? "🟢 WebSocket Live" : "🟡 HTTP Sync"}
         </span>
       </div>
 

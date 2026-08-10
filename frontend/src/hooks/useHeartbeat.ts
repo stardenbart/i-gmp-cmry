@@ -22,6 +22,11 @@ export function useHeartbeat({ kawasanId, aspekId, lockToken, enabled, onLockExp
     }
 
     const sendHeartbeat = async () => {
+      // Skip heartbeat if tab is inactive
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+
       try {
         await api.put(
           `/inspeksi/${kawasanId}/${aspekId}/lock/heartbeat`,

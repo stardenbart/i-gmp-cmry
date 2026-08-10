@@ -78,6 +78,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             refetchOnWindowFocus: false,
+            refetchIntervalInBackground: false,
             retry: 1,
           },
         },

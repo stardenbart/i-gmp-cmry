@@ -34,6 +34,11 @@ export function useInspeksiNotifications(
     let isMounted = true;
 
     const poll = async () => {
+      // Pause polling if tab is inactive
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+
       try {
         const since = lastPollTimeRef.current;
         const res = await api.get<UserNotificationPollResponse>(

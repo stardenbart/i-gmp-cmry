@@ -3,6 +3,8 @@ package v1
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/handler"
+	"github.com/monitoring-system/backend/internal/handler/inspectionhandler"
+	"github.com/monitoring-system/backend/internal/handler/realtimehandler"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/lockusecase"
 	"github.com/monitoring-system/backend/pkg/jwt"
@@ -21,11 +23,18 @@ func RegisterDistributedInspectionRoutes(app *fiber.App, rg fiber.Router, db *go
 	lockMgr := lockusecase.NewLockManager(rClient, log.Logger)
 
 	inspeksiH := handler.NewInspeksiHandler(lockMgr, db, producer, log, rClient)
+	syncH := inspectionhandler.NewSyncHandler(lockMgr, rClient)
+	wsHub := realtimehandler.NewHub(rClient, jwtManager, log)
+
 	authMW := middleware.AuthMiddleware(jwtManager)
+
+	// WebSocket Endpoint under /ws
+	rg.Get("/ws", wsHub.UpgradeHandler(), wsHub.WSHandler())
 
 	// REST Endpoints under /inspeksi
 	insp := rg.Group("/inspeksi", authMW)
 	{
+		insp.Get("/sync", syncH.SyncConsolidated)
 		insp.Get("/:kawasanId/status", inspeksiH.GetKawasanStatus)
 		insp.Get("/:kawasanId/drafts", inspeksiH.GetAllAspekDraftState)
 		insp.Get("/:kawasanId/:aspekId/state", inspeksiH.GetDraftState)

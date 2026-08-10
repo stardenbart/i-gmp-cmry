@@ -33,6 +33,11 @@ export function usePolling(options?: UsePollingOptions) {
     let isMounted = true;
 
     const poll = async () => {
+      // Pause polling if document/tab is hidden/inactive
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+
       try {
         const since = lastPollTimeRef.current;
         const res = await api.get<PollResponse>(`/events/poll?since=${since}`);
