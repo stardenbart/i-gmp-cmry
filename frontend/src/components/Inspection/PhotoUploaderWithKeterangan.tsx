@@ -49,7 +49,7 @@ export function PhotoUploaderWithKeterangan({
   photos,
   onChange,
   disabled = false,
-  maxPhotos = 5,
+  // maxPhotos = 5,
 }: PhotoUploaderWithKeteranganProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -74,7 +74,7 @@ export function PhotoUploaderWithKeterangan({
       })
     );
 
-    const updated = [...photos, ...newItems].slice(0, maxPhotos);
+    const updated = [...photos, ...newItems].slice(0);
     onChange(updated);
 
     // Reset file input
@@ -103,11 +103,11 @@ export function PhotoUploaderWithKeterangan({
     <div className="space-y-3 mt-3 rounded-xl border border-destructive/20 bg-destructive/5 p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
-          <Camera className="h-4 w-4" />
-          <span>Foto Bukti Temuan (NG) & Keterangan per Foto</span>
+          <Camera className="h-6 w-6" />
+          <span className="text-xs">Foto Bukti Temuan (NG) & Keterangan per Foto</span>
         </div>
         <span className="text-xs text-muted-foreground font-medium">
-          {photos.length} / {maxPhotos} foto
+          {photos.length} foto
         </span>
       </div>
 
@@ -179,7 +179,7 @@ export function PhotoUploaderWithKeterangan({
       )}
 
       {/* Add Photo Button */}
-      {!disabled && photos.length < maxPhotos && (
+      {!disabled && photos.length && (
         <div>
           <input
             ref={fileInputRef}

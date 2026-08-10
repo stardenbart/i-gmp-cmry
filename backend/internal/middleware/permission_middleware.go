@@ -74,6 +74,17 @@ func PermissionMiddleware(
 				if err == nil && allowedUpdate {
 					return c.Next()
 				}
+
+				// Fallback for Master Data READ (MOD-MSTR READ): allow users who have Inspection or Issue permissions to read Master dropdowns
+				if moduleID == "MOD-MSTR" {
+					allowedInsp, _ := rpUseCase.CheckPermission(roleID, "MOD-INSP", "READ")
+					allowedInspC, _ := rpUseCase.CheckPermission(roleID, "MOD-INSP", "CREATE")
+					allowedIss, _ := rpUseCase.CheckPermission(roleID, "MOD-ISS", "READ")
+					allowedWowr, _ := rpUseCase.CheckPermission(roleID, "MOD-WOWR", "READ")
+					if allowedInsp || allowedInspC || allowedIss || allowedWowr {
+						return c.Next()
+					}
+				}
 			}
 
 			return response.Forbidden(c, "you do not have permission to perform this action")

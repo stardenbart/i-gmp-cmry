@@ -49,7 +49,7 @@ export default function CreateInspectionPage() {
 
   // Fetch all areas when permissions are ready
   useEffect(() => {
-    if (isGuardLoading || !isAuditor) return;
+    if (isGuardLoading) return;
 
     const fetchAreas = async () => {
       try {
@@ -66,7 +66,7 @@ export default function CreateInspectionPage() {
       }
     };
     fetchAreas();
-  }, [isGuardLoading, isAuditor]);
+  }, [isGuardLoading]);
 
   // Fetch kawasans when area changes
   useEffect(() => {
