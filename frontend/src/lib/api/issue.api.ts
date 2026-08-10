@@ -43,6 +43,9 @@ export interface IssuePhoto {
   image_url: string;
   file_name: string;
   keterangan?: string;
+  hei_id?: string;
+  hei_name?: string;
+  hei_category?: string;
   habit_id?: string;
   equipment_id?: string;
   infrastructure_id?: string;

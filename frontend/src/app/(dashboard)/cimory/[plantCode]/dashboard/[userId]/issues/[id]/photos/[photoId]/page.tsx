@@ -13,9 +13,7 @@ import {
   X,
   Loader2,
   Eye,
-  Activity,
-  Wrench,
-  Warehouse,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,7 +21,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { issueApi, IssuePhoto, IssueStatus, IssueCategory } from "@/lib/api/issue.api";
 import { fetchItems } from "@/components/master/master.api";
-import { useMasterHabits, useMasterEquipments, useMasterInfrastructures } from "@/hooks/useMasterData";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
@@ -65,30 +62,6 @@ export default function InitialPhotoDetailPage() {
       toast.success("Foto dihapus");
     },
     onError: () => toast.error("Gagal menghapus foto"),
-  });
-
-  // Fetch Master HEI data for dropdowns (using central cached hooks to deduplicate network calls)
-  const { data: habitData } = useMasterHabits();
-  const { data: equipmentData } = useMasterEquipments();
-  const { data: infraData } = useMasterInfrastructures();
-
-  const updateHeiMutation = useMutation({
-    mutationFn: (payload: {
-      habit_id?: string;
-      equipment_id?: string;
-      infrastructure_id?: string;
-    }) => {
-      const targetPhotoId = currentPhoto?.issue_photo_id || photoId;
-      return issueApi.updatePhotoHEI(targetPhotoId, payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issue-photos", id] });
-      queryClient.invalidateQueries({ queryKey: ["issue_photos", id] });
-      queryClient.invalidateQueries({ queryKey: ["issue", id] });
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      toast.success("Klasifikasi temuan (HEI) spesifik foto berhasil diperbarui");
-    },
-    onError: () => toast.error("Gagal memperbarui klasifikasi temuan foto"),
   });
 
   const issue = issueRes?.data;
@@ -228,140 +201,18 @@ export default function InitialPhotoDetailPage() {
                 </div>
               </div>
 
-              {/* HEI Specification Classification Dropdowns / Badges (Isolated per Photo) */}
-              <div className="pt-3 border-t border-border/60 space-y-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
-                  Klasifikasi Spesifikasi Foto Temuan (HEI)
-                </span>
-
-                {isClosed ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    {(currentPhoto?.habit_name || currentPhoto?.habit?.habit_name) && (
-                      <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                        <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
-                          <Activity className="h-3.5 w-3.5 text-emerald-500" /> Habit
-                        </span>
-                        <span className="font-bold text-foreground text-xs mt-0.5 block">
-                          {currentPhoto.habit_name || currentPhoto.habit?.habit_name}
-                        </span>
-                      </div>
-                    )}
-
-                    {(currentPhoto?.equipment_name || currentPhoto?.equipment?.equipment_name) && (
-                      <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                        <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
-                          <Wrench className="h-3.5 w-3.5 text-blue-500" /> Equipment
-                        </span>
-                        <span className="font-bold text-foreground text-xs mt-0.5 block">
-                          {currentPhoto.equipment_name || currentPhoto.equipment?.equipment_name}
-                        </span>
-                      </div>
-                    )}
-
-                    {(currentPhoto?.infrastructure_name || currentPhoto?.infrastructure?.infrastructure_name) && (
-                      <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                        <span className="text-muted-foreground block text-[11px] font-semibold flex items-center gap-1">
-                          <Warehouse className="h-3.5 w-3.5 text-purple-500" /> Infrastructure
-                        </span>
-                        <span className="font-bold text-foreground text-xs mt-0.5 block">
-                          {currentPhoto.infrastructure_name || currentPhoto.infrastructure?.infrastructure_name}
-                        </span>
-                      </div>
-                    )}
-
-                    {!currentPhoto?.habit_name && !currentPhoto?.habit?.habit_name &&
-                     !currentPhoto?.equipment_name && !currentPhoto?.equipment?.equipment_name &&
-                     !currentPhoto?.infrastructure_name && !currentPhoto?.infrastructure?.infrastructure_name && (
-                      <div className="col-span-3 bg-muted/20 p-3 rounded-xl border border-dashed border-border/60 text-muted-foreground italic text-xs">
-                        Klasifikasi HEI tidak diisi untuk foto ini (Opsional)
-                      </div>
-                    )}
+              {/* Output Kategori HEI (Hasil Inspeksi) */}
+              {(currentPhoto?.hei_category || currentPhoto?.hei_name || currentPhoto?.habit_name || currentPhoto?.equipment_name || currentPhoto?.infrastructure_name) && (
+                <div className="pt-3 border-t border-border/60 space-y-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Tag className="h-3 w-3 text-primary" /> Kategori HEI (Hasil Inspeksi)
+                  </span>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
+                    {currentPhoto.hei_category ? `[${currentPhoto.hei_category}] ` : ""}
+                    {currentPhoto.hei_name || currentPhoto.habit_name || currentPhoto.equipment_name || currentPhoto.infrastructure_name}
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Habit Dropdown */}
-                    <div className="space-y-1">
-                      <label htmlFor="select-hei-habit" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                        <Activity className="h-3 w-3 text-emerald-500" /> Habit
-                      </label>
-                      <select
-                        id="select-hei-habit"
-                        aria-label="Pilih Klasifikasi Habit"
-                        value={currentPhoto?.habit_id || currentPhoto?.habit?.habit_id || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateHeiMutation.mutate({
-                            habit_id: val,
-                          });
-                        }}
-                        disabled={updateHeiMutation.isPending || isClosed}
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <option value="">-- Pilih Habit --</option>
-                        {habitData?.items?.map((h: any) => (
-                          <option key={h.habit_id} value={h.habit_id}>
-                            {h.habit_name} {h.habit_code ? `(${h.habit_code})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Equipment Dropdown */}
-                    <div className="space-y-1">
-                      <label htmlFor="select-hei-equipment" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                        <Wrench className="h-3 w-3 text-blue-500" /> Equipment
-                      </label>
-                      <select
-                        id="select-hei-equipment"
-                        aria-label="Pilih Klasifikasi Equipment"
-                        value={currentPhoto?.equipment_id || currentPhoto?.equipment?.equipment_id || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateHeiMutation.mutate({
-                            equipment_id: val,
-                          });
-                        }}
-                        disabled={updateHeiMutation.isPending || isClosed}
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <option value="">-- Pilih Equipment --</option>
-                        {equipmentData?.items?.map((eq: any) => (
-                          <option key={eq.equipment_id} value={eq.equipment_id}>
-                            {eq.equipment_name} {eq.equipment_code ? `(${eq.equipment_code})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Infrastructure Dropdown */}
-                    <div className="space-y-1">
-                      <label htmlFor="select-hei-infrastructure" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                        <Warehouse className="h-3 w-3 text-purple-500" /> Infrastructure
-                      </label>
-                      <select
-                        id="select-hei-infrastructure"
-                        aria-label="Pilih Klasifikasi Infrastructure"
-                        value={currentPhoto?.infrastructure_id || currentPhoto?.infrastructure?.infrastructure_id || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateHeiMutation.mutate({
-                            infrastructure_id: val,
-                          });
-                        }}
-                        disabled={updateHeiMutation.isPending || isClosed}
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <option value="">-- Pilih Infrastructure --</option>
-                        {infraData?.items?.map((inf: any) => (
-                          <option key={inf.infrastructure_id} value={inf.infrastructure_id}>
-                            {inf.infrastructure_name} {inf.infrastructure_code ? `(${inf.infrastructure_code})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-between pt-2 border-t border-border/60 text-muted-foreground">
                 <span className="flex items-center gap-1">
