@@ -134,6 +134,10 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 		if req.Label != "" {
 			existing.Label = req.Label
 		}
+		// Re-open issue when inspection NG finding is edited or re-submitted
+		existing.IssueStatus = issue.IssueStatusOpen
+		existing.FollowUpDelay = nil
+
 		if errUpdate := uc.repo.Update(existing); errUpdate == nil {
 			event := events.IssueEvent{
 				BaseEvent: events.BaseEvent{

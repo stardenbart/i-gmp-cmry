@@ -84,18 +84,16 @@ func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID st
 			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
 			  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
 			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailAspekName",
-			(SELECT um."UraianText" FROM "Inspection_Result" ir2
-			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
-			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "UraianText",
-			(SELECT hm."HabitName" FROM "Issue_HEI" hei
-			  JOIN "Habit_Master" hm ON hm."HabitID" = hei."HabitID"
-			  WHERE hei."IssueID" = "Issue"."IssueID" LIMIT 1) AS "HabitName",
-			(SELECT em."EquipmentName" FROM "Issue_HEI" hei
-			  JOIN "Equipment_Master" em ON em."EquipmentID" = hei."EquipmentID"
-			  WHERE hei."IssueID" = "Issue"."IssueID" LIMIT 1) AS "EquipmentName",
-			(SELECT im."InfrastructureName" FROM "Issue_HEI" hei
-			  JOIN "Infrastructure_Master" im ON im."InfrastructureID" = hei."InfrastructureID"
-			  WHERE hei."IssueID" = "Issue"."IssueID" LIMIT 1) AS "InfrastructureName"`).
+			(SELECT COALESCE(NULLIF(hei."CategoryName", ''), ip."HEICategory") 
+			  FROM "Issue_Photo" ip 
+			  LEFT JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
+			  WHERE ip."IssueID" = "Issue"."IssueID" 
+			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEICategory",
+			(SELECT hei."HEIName" 
+			  FROM "Issue_Photo" ip 
+			  JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
+			  WHERE ip."IssueID" = "Issue"."IssueID" 
+			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName"`).
 		Preload("Photos").
 		Preload("HEI.Habit").
 		Preload("HEI.Equipment").
@@ -118,9 +116,16 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 			asp."AspekName" AS "AspekName",
 			dm."DetailName" AS "DetailAspekName",
 			um."UraianText" AS "UraianText",
-			hm."HabitName" AS "HabitName",
-			em."EquipmentName" AS "EquipmentName",
-			im."InfrastructureName" AS "InfrastructureName"`).
+			(SELECT COALESCE(NULLIF(hei."CategoryName", ''), ip."HEICategory") 
+			  FROM "Issue_Photo" ip 
+			  LEFT JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
+			  WHERE ip."IssueID" = "Issue"."IssueID" 
+			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEICategory",
+			(SELECT hei."HEIName" 
+			  FROM "Issue_Photo" ip 
+			  JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
+			  WHERE ip."IssueID" = "Issue"."IssueID" 
+			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName"`).
 		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
 		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
 		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
@@ -130,10 +135,6 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
-		Joins(`LEFT JOIN "Issue_HEI" hei ON hei."IssueID" = "Issue"."IssueID"`).
-		Joins(`LEFT JOIN "Habit_Master" hm ON hm."HabitID" = hei."HabitID"`).
-		Joins(`LEFT JOIN "Equipment_Master" em ON em."EquipmentID" = hei."EquipmentID"`).
-		Joins(`LEFT JOIN "Infrastructure_Master" im ON im."InfrastructureID" = hei."InfrastructureID"`).
 		Preload("Photos").
 		Preload("HEI.Habit").
 		Preload("HEI.Equipment").
