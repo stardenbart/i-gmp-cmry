@@ -204,7 +204,7 @@ func (r *issuePhotoRepository) FindByIssueID(issueID string) ([]issue.IssuePhoto
 		Select(`"Issue_Photo".*, 
 			COALESCE(u."FullName", "Issue_Photo"."PICUserID") AS "UploaderName",
 			hei."HEIName" AS "HEIName",
-			hei."CategoryName" AS "HEICategory"`).
+			COALESCE(NULLIF(hei."CategoryName", ''), "Issue_Photo"."HEICategory") AS "HEICategory"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue_Photo"."PICUserID"`).
 		Joins(`LEFT JOIN "HEI_Master" hei ON hei."HEIID" = "Issue_Photo"."HEIID"`).
 		Where(`"Issue_Photo"."IssueID" = ?`, issueID).
@@ -219,7 +219,7 @@ func (r *issuePhotoRepository) FindByID(id string) (*issue.IssuePhoto, error) {
 		Select(`"Issue_Photo".*, 
 			COALESCE(u."FullName", "Issue_Photo"."PICUserID") AS "UploaderName",
 			hei."HEIName" AS "HEIName",
-			hei."CategoryName" AS "HEICategory"`).
+			COALESCE(NULLIF(hei."CategoryName", ''), "Issue_Photo"."HEICategory") AS "HEICategory"`).
 		Joins(`LEFT JOIN "Users" u ON u."UserID" = "Issue_Photo"."PICUserID"`).
 		Joins(`LEFT JOIN "HEI_Master" hei ON hei."HEIID" = "Issue_Photo"."HEIID"`).
 		Where(`"Issue_Photo"."IssuePhotoID" = ?`, id).

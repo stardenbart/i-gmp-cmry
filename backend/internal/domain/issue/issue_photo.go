@@ -28,6 +28,7 @@ type IssuePhoto struct {
 	FileName         string     `gorm:"column:FileName;size:255" json:"file_name"`
 	Keterangan       string     `gorm:"column:Keterangan;size:255" json:"keterangan,omitempty"`
 	HEIID            *string    `gorm:"column:HEIID;size:50" json:"hei_id,omitempty"`
+	HEICategory      string     `gorm:"column:HEICategory;size:50" json:"hei_category,omitempty"`
 	HabitID          *string    `gorm:"column:HabitID;size:50" json:"habit_id,omitempty"`
 	EquipmentID      *string    `gorm:"column:EquipmentID;size:50" json:"equipment_id,omitempty"`
 	InfrastructureID *string    `gorm:"column:InfrastructureID;size:50" json:"infrastructure_id,omitempty"`
@@ -38,7 +39,6 @@ type IssuePhoto struct {
 
 	UploaderName       string `gorm:"column:UploaderName;->" json:"uploader_name,omitempty"`
 	HEIName            string `gorm:"column:HEIName;->" json:"hei_name,omitempty"`
-	HEICategory        string `gorm:"column:HEICategory;->" json:"hei_category,omitempty"`
 	HabitName          string `gorm:"column:HabitName;->" json:"habit_name,omitempty"`
 	EquipmentName      string `gorm:"column:EquipmentName;->" json:"equipment_name,omitempty"`
 	InfrastructureName string `gorm:"column:InfrastructureName;->" json:"infrastructure_name,omitempty"`
