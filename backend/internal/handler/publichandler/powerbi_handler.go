@@ -81,7 +81,7 @@ func (h *PowerBIHandler) GetAllData(c *fiber.Ctx) error {
 
 	var headers []InspectionHeaderDTO
 	headerQuery := h.db.Table(`"Inspection_Header" ih`).
-		Select(`ih."InspectionID" as inspection_id, ih."AreaID" as area_id, COALESCE(am."AreaName", ih."AreaID") as area_name, ih."KawasanID" as kawasan_id, COALESCE(km."KawasanName", ih."KawasanID") as kawasan_name, ih."DetailKawasanID" as detail_kawasan_id, COALESCE(dkm."DetailKawasanName", ih."DetailKawasanID") as detail_kawasan_name, ih."InspectorID" as inspector_id, COALESCE(u."FullName", ih."InspectorID") as inspector_name, ih."InspectionHeaderStatus" as status, ih."InspectionHeaderCreatedAt" as created_at, ih."InspectionheaderUpdatedAt" as updated_at`).
+		Select(`ih."InspectionID" as inspection_id, ih."AreaID" as area_id, COALESCE(am."AreaName", ih."AreaID") as area_name, ih."KawasanID" as kawasan_id, COALESCE(km."KawasanName", ih."KawasanID") as kawasan_name, ih."DetailKawasanID" as detail_kawasan_id, COALESCE(dkm."DetailKawasanName", ih."DetailKawasanID") as detail_kawasan_name, ih."InspectorID" as inspector_id, COALESCE(u."FullName", ih."InspectorID") as inspector_name, ih."InspectionHeaderStatus" as status, ih."InspectionHeaderCreatedAt" as created_at, ih."InspectionHeaderUpdatedAt" as updated_at`).
 		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
@@ -92,7 +92,7 @@ func (h *PowerBIHandler) GetAllData(c *fiber.Ctx) error {
 	}
 
 	if since != nil {
-		headerQuery = headerQuery.Where(`ih."InspectionheaderUpdatedAt" >= ? OR ih."InspectionHeaderCreatedAt" >= ?`, *since, *since)
+		headerQuery = headerQuery.Where(`ih."InspectionHeaderUpdatedAt" >= ? OR ih."InspectionHeaderCreatedAt" >= ?`, *since, *since)
 	}
 	_ = headerQuery.Order(`ih."InspectionHeaderCreatedAt" DESC`).Scan(&headers).Error
 

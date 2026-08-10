@@ -38,7 +38,7 @@ func main() {
 
 	var sqlFiles []string
 	for _, f := range files {
-		if !f.IsDir() && strings.HasSuffix(f.Name(), ".sql") {
+		if !f.IsDir() && strings.HasSuffix(f.Name(), ".sql") && !strings.HasSuffix(f.Name(), "_down.sql") {
 			sqlFiles = append(sqlFiles, f.Name())
 		}
 	}

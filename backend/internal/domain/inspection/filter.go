@@ -69,7 +69,7 @@ type InspectionFilter struct {
 
 var inspectionSortWhitelist = map[string]string{
 	"created_at": `"InspectionHeaderCreatedAt"`,
-	"updated_at": `"InspectionheaderUpdatedAt"`,
+	"updated_at": `"InspectionHeaderUpdatedAt"`,
 	"status":     `"InspectionHeaderStatus"`,
 }
 

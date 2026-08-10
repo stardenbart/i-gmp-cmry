@@ -91,7 +91,9 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		// Plants (CRUD modification exclusively accessible by SuperAdmin, GET list readable for plant filter dropdowns)
 		plant := master.Group("/plants")
 		plant.Get("", plantH.GetAll)
+		plant.Get("/", plantH.GetAll)
 		plant.Post("", requireSuperAdmin, plantH.Create)
+		plant.Post("/", requireSuperAdmin, plantH.Create)
 		plant.Get("/:id", plantH.GetByID)
 		plant.Put("/:id", requireSuperAdmin, plantH.Update)
 		plant.Delete("/:id", requireSuperAdmin, plantH.Delete)
@@ -99,6 +101,7 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		// Alias /master/plant for legacy frontend queries
 		plantAlias := master.Group("/plant")
 		plantAlias.Get("", plantH.GetAll)
+		plantAlias.Get("/", plantH.GetAll)
 		plantAlias.Get("/:id", plantH.GetByID)
 
 		// Department
