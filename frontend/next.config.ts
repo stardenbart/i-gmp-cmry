@@ -5,6 +5,19 @@ const withPWA = require("next-pwa")({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
+  runtimeCaching: [
+    {
+      urlPattern: /\.(?:css|js)$/,
+      handler: "NetworkFirst",
+      options: {
+        cacheName: "static-resources",
+        expiration: {
+          maxEntries: 64,
+          maxAgeSeconds: 24 * 60 * 60, // 24 jam fallback offline
+        },
+      },
+    },
+  ],
 });
 
 const nextConfig: NextConfig = {
