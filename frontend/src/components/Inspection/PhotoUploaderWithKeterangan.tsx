@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { Camera, Trash2, Plus, Image as ImageIcon, AlertCircle, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useMasterHEICategories } from "@/hooks/useMasterData";
+import { useMasterHEI, useMasterHEICategories } from "@/hooks/useMasterData";
 
 export interface PhotoItem {
   id: string;
@@ -56,8 +56,11 @@ export function PhotoUploaderWithKeterangan({
 }: PhotoUploaderWithKeteranganProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch dynamic HEI categories
+  // Fetch dynamic HEI items and categories
+  const { data: heiMasterRes } = useMasterHEI("", 1000);
   const { data: categoriesRes } = useMasterHEICategories();
+
+  const heiItems = heiMasterRes?.items || [];
   const categories = categoriesRes || ["Habit", "Equipment", "Infrastructure"];
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,12 +102,21 @@ export function PhotoUploaderWithKeterangan({
     onChange(updated);
   };
 
-  const handleHEICategoryChange = (id: string, category: string) => {
+  const handleHEISelect = (id: string, selectedValue: string) => {
     const updated = photos.map((item) => {
       if (item.id === id) {
+        const matchedItem = heiItems.find((h: any) => h.hei_id === selectedValue || h.category_name === selectedValue);
+        if (matchedItem) {
+          return {
+            ...item,
+            hei_id: matchedItem.hei_id,
+            hei_category: matchedItem.category_name,
+          };
+        }
         return {
           ...item,
-          hei_category: category,
+          hei_id: "",
+          hei_category: selectedValue,
         };
       }
       return item;
@@ -200,7 +212,7 @@ export function PhotoUploaderWithKeterangan({
                     )}
                   </div>
 
-                  {/* Dynamic HEI Category Selection (Single Select per Photo) */}
+                  {/* Dynamic HEI Selection (Single Select per Photo) */}
                   <div className="pt-2 border-t border-border/60 space-y-1.5">
                     <div className="w-full sm:w-1/2 space-y-1">
                       <label htmlFor={`hei_cat_${item.id}`} className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
@@ -210,17 +222,31 @@ export function PhotoUploaderWithKeterangan({
                       <select
                         id={`hei_cat_${item.id}`}
                         aria-label={`Kategori HEI untuk foto #${index + 1}`}
-                        value={activeCategory}
-                        onChange={(e) => handleHEICategoryChange(item.id, e.target.value)}
+                        value={item.hei_id || item.hei_category || ""}
+                        onChange={(e) => handleHEISelect(item.id, e.target.value)}
                         disabled={disabled}
                         className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
                       >
                         <option value="">-- Tanpa HEI (Opsional) --</option>
-                        {categories.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
+                        {categories.map((cat) => {
+                          const itemsInCat = heiItems.filter((h: any) => h.category_name?.toLowerCase() === cat.toLowerCase());
+                          if (itemsInCat.length === 0) {
+                            return (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            );
+                          }
+                          return (
+                            <optgroup key={cat} label={`Kategori: ${cat}`}>
+                              {itemsInCat.map((h: any) => (
+                                <option key={h.hei_id} value={h.hei_id}>
+                                  {h.hei_code ? `[${h.hei_code}] ` : ""}{h.hei_name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })}
                       </select>
                     </div>
                   </div>

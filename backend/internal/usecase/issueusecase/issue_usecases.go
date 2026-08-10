@@ -501,6 +501,7 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 		FileName:         encObjectName, // store encrypted objectName for secure deletion
 		Keterangan:       req.Keterangan,
 		HEIID:            req.HEIID,
+		HEICategory:      func() string { if req.HEICategory != nil { return *req.HEICategory }; return "" }(),
 		HabitID:          req.HabitID,
 		EquipmentID:      req.EquipmentID,
 		InfrastructureID: req.InfrastructureID,

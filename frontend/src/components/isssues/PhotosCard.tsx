@@ -225,12 +225,14 @@ const PhotoCard = ({
         )}
 
         {/* Isolated HEI Badge per Photo */}
-        {(photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name) && (
+        {(photo.hei_name || photo.hei_category || photo.habit_name || photo.equipment_name || photo.infrastructure_name) && (
           <div className="flex flex-wrap gap-1 pt-1.5 border-t border-border/40">
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={`HEI: ${photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name}`}>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={`HEI: ${photo.hei_category ? `[${photo.hei_category}] ` : ""}${photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name || ""}`}>
               <Tag className="h-2.5 w-2.5 shrink-0" />
               <span className="truncate max-w-[150px]">
-                {photo.hei_category ? `[${photo.hei_category}] ` : ""}{photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name}
+                {photo.hei_category && photo.hei_name
+                  ? `[${photo.hei_category}] ${photo.hei_name}`
+                  : photo.hei_category || photo.hei_name || photo.habit_name || photo.equipment_name || photo.infrastructure_name}
               </span>
             </span>
           </div>

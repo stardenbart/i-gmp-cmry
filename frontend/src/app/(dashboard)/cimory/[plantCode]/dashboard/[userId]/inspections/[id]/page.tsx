@@ -601,6 +601,7 @@ export default function InspectionDetailPage() {
                   fd.append("photo_type", "Initial");
                   fd.append("keterangan", photoItem.keterangan || "");
                   if (photoItem.hei_id) fd.append("hei_id", photoItem.hei_id);
+                  if (photoItem.hei_category) fd.append("hei_category", photoItem.hei_category);
                   await issueApi.uploadPhoto(createdIssueId, fd);
                 }
               }

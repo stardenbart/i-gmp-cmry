@@ -55,6 +55,7 @@ type UploadPhotoRequest struct {
 	PhotoType        PhotoType  `json:"photo_type" validate:"required,oneof=Initial FollowUp WOWR"`
 	Keterangan       string     `json:"keterangan"`
 	HEIID            *string    `json:"hei_id,omitempty"`
+	HEICategory      *string    `json:"hei_category,omitempty"`
 	HabitID          *string    `json:"habit_id,omitempty"`
 	EquipmentID      *string    `json:"equipment_id,omitempty"`
 	InfrastructureID *string    `json:"infrastructure_id,omitempty"`

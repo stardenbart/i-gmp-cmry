@@ -227,7 +227,15 @@ func (r *issuePhotoRepository) FindByID(id string) (*issue.IssuePhoto, error) {
 	return &item, err
 }
 
-func (r *issuePhotoRepository) Create(p *issue.IssuePhoto) error { return r.db.Create(p).Error }
+func (r *issuePhotoRepository) Create(p *issue.IssuePhoto) error {
+	if (p.HEIID == nil || *p.HEIID == "") && p.HEICategory != "" {
+		var heiItem struct{ HEIID string }
+		if err := r.db.Table("HEI_Master").Select(`"HEIID"`).Where(`LOWER("CategoryName") = LOWER(?) AND "Status" = 'Active'`, p.HEICategory).Order(`"CreatedAt" ASC`).First(&heiItem).Error; err == nil && heiItem.HEIID != "" {
+			p.HEIID = &heiItem.HEIID
+		}
+	}
+	return r.db.Create(p).Error
+}
 func (r *issuePhotoRepository) Update(p *issue.IssuePhoto) error { return r.db.Save(p).Error }
 func (r *issuePhotoRepository) Delete(id string) error {
 	return r.db.Where("\"IssuePhotoID\" = ?", id).Delete(&issue.IssuePhoto{}).Error
