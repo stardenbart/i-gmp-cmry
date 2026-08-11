@@ -676,9 +676,9 @@ export default function WOWRPage() {
       const initialPhotos = issue.photos?.filter((p) => p.photo_type === "Initial") || [];
       if (initialPhotos.length > 0) {
         initialPhotos.forEach((photo) => {
-          const followUpPhotos = issue.photos?.filter(
+          const specificWOWRPhotos = issue.photos?.filter(
             (p) =>
-              (p.photo_type === "WOWR" || p.photo_type === "FollowUp") &&
+              p.photo_type === "WOWR" &&
               (p.ref_photo_id === photo.issue_photo_id || (!p.ref_photo_id && initialPhotos.length <= 1))
           ) || [];
 
@@ -705,13 +705,13 @@ export default function WOWRPage() {
             equipment_name: photo.equipment_name || issue.equipment_name || issue.hei?.equipment?.equipment_name,
             infrastructure_name: photo.infrastructure_name || issue.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name,
             initial_photos: [photo],
-            wowr_photos: followUpPhotos,
+            wowr_photos: specificWOWRPhotos,
             raw_issue: issue,
           });
         });
       } else {
-        const followUpPhotos = issue.photos?.filter(
-          (p) => p.photo_type === "WOWR" || p.photo_type === "FollowUp"
+        const specificWOWRPhotos = issue.photos?.filter(
+          (p) => p.photo_type === "WOWR"
         ) || [];
 
         items.push({
@@ -735,7 +735,7 @@ export default function WOWRPage() {
           equipment_name: issue.equipment_name || issue.hei?.equipment?.equipment_name,
           infrastructure_name: issue.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name,
           initial_photos: [],
-          wowr_photos: followUpPhotos,
+          wowr_photos: specificWOWRPhotos,
           raw_issue: issue,
         });
       }
