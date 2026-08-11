@@ -21,7 +21,8 @@ import {
   History,
   BarChart3,
   Percent,
-  Clock
+  Clock,
+  Wrench
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ import { usePolling } from "@/hooks/usePolling";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 
-// Modal Component for Uploading Photo (For Auditee)
+// Modal Component for Uploading Photo & WO/WR Reference Number
 function UploadProofModal({ 
   issue, 
   onClose,
@@ -45,6 +46,9 @@ function UploadProofModal({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [woNumber, setWoNumber] = useState(issue.wo_id || issue.wr_id || "");
+  const [validationError, setValidationError] = useState("");
+
   const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: issue.issue_id });
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
@@ -55,16 +59,18 @@ function UploadProofModal({
 
   const updateStatusMutation = useMutation({
     mutationFn: () => issueApi.update(issue.issue_id, { 
+      wo_id: woNumber.trim().toUpperCase(),
+      needs_wo_wr: true,
       wowr_status: "PendingValidation"
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
-      toast.success("Bukti WO/WR berhasil diunggah. Menunggu validasi Auditor.");
+      toast.success("Bukti WO/WR & Nomor Referensi berhasil disimpan. Menunggu validasi Auditor.");
       onSuccess();
     },
-    onError: () => {
-      toast.error("Gagal memperbarui status menjadi Pending Validation.");
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Gagal memperbarui data WO/WR.");
     }
   });
 
@@ -75,8 +81,19 @@ function UploadProofModal({
   };
 
   const handleUpload = () => {
-    if (!selectedFile) return;
-    
+    if (!woNumber.trim()) {
+      setValidationError("Nomor referensi WO / WR wajib diisi.");
+      toast.error("Nomor referensi WO / WR wajib diisi.");
+      return;
+    }
+
+    if (!selectedFile) {
+      toast.error("Harap pilih foto bukti perbaikan.");
+      return;
+    }
+
+    setValidationError("");
+
     uploadMutation.mutate(
       { file: selectedFile, type: "WOWR" },
       {
@@ -94,31 +111,77 @@ function UploadProofModal({
 
   const modalContent = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-0">
-      <div className="w-[90vw] sm:w-[450px] bg-background rounded-2xl p-6 shadow-xl border border-border/50 animate-in fade-in zoom-in-95 duration-200 flex flex-col">
-        <h3 className="text-lg font-bold mb-1">Upload Bukti WO/WR</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          ID: <span className="font-mono text-foreground">{issue.issue_id}</span>
+      <div className="w-[90vw] sm:w-[480px] bg-background rounded-2xl p-6 shadow-xl border border-border/50 animate-in fade-in zoom-in-95 duration-200 flex flex-col space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h3 className="text-base font-bold flex items-center gap-2">
+            <Wrench className="h-5 w-5 text-amber-500" />
+            Upload Bukti &amp; Input Nomor WO/WR
+          </h3>
+          <Button variant="ghost" size="icon" onClick={onClose} disabled={isUploading} className="rounded-full h-8 w-8">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Temuan ID: <span className="font-mono text-foreground font-semibold">{issue.issue_id}</span>
         </p>
 
-        {selectedFile ? (
-          <div className="relative aspect-video w-full rounded-xl border overflow-hidden mb-4 bg-muted flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={URL.createObjectURL(selectedFile)} 
-              alt="Preview" 
-              className="object-cover max-h-full max-w-full"
-            />
-          </div>
-        ) : (
-          <div 
-            className="border-2 border-dashed border-border/60 rounded-xl p-8 mb-4 text-center cursor-pointer hover:bg-muted/50 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <UploadCloud className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm font-medium">Klik untuk memilih foto</p>
-            <p className="text-xs text-muted-foreground">Disarankan menggunakan kamera langsung</p>
-          </div>
-        )}
+        {/* Input Text Nomor Referensi WO / WR */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+            <span>Nomor Referensi WO / WR <span className="text-red-500">*</span></span>
+          </label>
+          <input
+            type="text"
+            value={woNumber}
+            onChange={(e) => {
+              const val = e.target.value.toUpperCase();
+              setWoNumber(val);
+              if (val.trim()) setValidationError("");
+            }}
+            disabled={isUploading}
+            placeholder="MASUKKAN NOMOR REFERENSI WO / WR..."
+            className={cn(
+              "w-full h-11 rounded-xl border border-border bg-card px-3 py-2 text-xs uppercase font-mono tracking-wider font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40",
+              validationError ? "border-red-500 focus:ring-red-500" : ""
+            )}
+          />
+          {validationError && (
+            <p className="text-red-500 text-xs font-medium pl-1">⚠️ {validationError}</p>
+          )}
+        </div>
+
+        {/* Upload Image Preview Box */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-foreground block">Foto Bukti Perbaikan <span className="text-red-500">*</span></label>
+          {selectedFile ? (
+            <div className="relative aspect-video w-full rounded-xl border border-border/80 overflow-hidden bg-muted flex items-center justify-center group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src={URL.createObjectURL(selectedFile)} 
+                alt="Preview" 
+                className="object-cover max-h-full max-w-full"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedFile(null)}
+                disabled={isUploading}
+                className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-full opacity-80 hover:opacity-100 transition-opacity shadow-md"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div 
+              className="border-2 border-dashed border-border/70 rounded-xl p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <UploadCloud className="h-9 w-9 text-muted-foreground mx-auto mb-2" />
+              <p className="text-xs font-semibold">Klik untuk memilih foto bukti</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Disarankan foto langsung dari lokasi perbaikan</p>
+            </div>
+          )}
+        </div>
 
         <input 
           type="file" 
@@ -129,21 +192,22 @@ function UploadProofModal({
         />
 
         {uploadProgress > 0 && uploadProgress < 100 && (
-          <div className="w-full bg-secondary rounded-full h-2 mb-4 overflow-hidden">
+          <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
             <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
           </div>
         )}
 
-        <div className="flex gap-3 justify-end mt-6">
-          <Button variant="outline" onClick={onClose} disabled={isUploading}>
+        <div className="flex gap-3 justify-end pt-2 border-t border-border">
+          <Button variant="outline" onClick={onClose} disabled={isUploading} className="rounded-xl text-xs">
             Batal
           </Button>
           <Button 
             onClick={handleUpload} 
-            disabled={!selectedFile || isUploading} 
+            disabled={!selectedFile || !woNumber.trim() || isUploading} 
             isLoading={isUploading}
+            className="rounded-xl text-xs bg-primary text-primary-foreground font-semibold"
           >
-            Upload & Selesaikan
+            Upload &amp; Selesaikan
           </Button>
         </div>
       </div>
@@ -157,16 +221,20 @@ function UploadProofModal({
 // Expandable Row Component
 function IssueRow({ 
   issue, 
-  isAuditor,
   onUploadClick,
   onPreviewPhoto
 }: { 
   issue: Issue; 
-  isAuditor: boolean;
   onUploadClick: (issue: Issue) => void;
   onPreviewPhoto: (photo: { url: string; keterangan?: string; photoType?: string; uploaderName?: string }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { hasPermission } = usePermissions();
+
+  // Dynamic permission controls (Database driven)
+  const canValidate = hasPermission("PERM-WOWR-U") || hasPermission("PERM-INSP-A");
+  const canUploadProof = hasPermission("PERM-ISS-U") || hasPermission("PERM-WOWR-R") || hasPermission("PERM-WOWR-U");
+
   const initialPhotos = issue.photos?.filter(p => p.photo_type === "Initial") || [];
   const wowrPhotos = issue.wowr_status === "Rejected"
     ? []
@@ -198,6 +266,8 @@ function IssueRow({
     onError: () => toast.error("Gagal menolak bukti.")
   });
 
+  const isClosed = issue.issue_status === "Closed" || issue.issue_status === "Verified";
+
   return (
     <>
       <tr 
@@ -208,25 +278,25 @@ function IssueRow({
         onClick={() => setExpanded(!expanded)}
       >
         <td className="px-4 py-3 font-mono text-xs">{issue.issue_id}</td>
-        <td className="px-4 py-3 font-semibold text-primary">
-          {issue.wo_id || issue.wr_id || <span className="text-muted-foreground text-xs font-normal italic">Belum diinput</span>}
+        <td className="px-4 py-3 font-semibold text-primary font-mono uppercase">
+          {issue.wo_id || issue.wr_id || <span className="text-muted-foreground text-xs font-normal italic font-sans">Belum diinput</span>}
         </td>
         <td className="px-4 py-3 truncate max-w-[200px]" title={issue.keterangan}>
           {issue.keterangan || "-"}
         </td>
         <td className="px-4 py-3">
           {(!issue.wowr_status || issue.wowr_status === "None") ? (
-            <span className="text-xs text-muted-foreground">Menunggu Bukti</span>
+            <span className="text-xs text-muted-foreground font-medium">Menunggu Bukti</span>
           ) : issue.wowr_status === "PendingValidation" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-500 border border-purple-500/20">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
               <Loader2 className="h-3 w-3 animate-spin" /> Menunggu Validasi Auditor
             </span>
           ) : issue.wowr_status === "Verified" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
               <CheckCircle2 className="h-3 w-3" /> Terverifikasi
             </span>
           ) : issue.wowr_status === "Rejected" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
               <XCircle className="h-3 w-3" /> Ditolak
             </span>
           ) : (
@@ -234,53 +304,55 @@ function IssueRow({
           )}
         </td>
         <td className="px-4 py-3 text-right">
-          {/* Actions for Auditor */}
-          {isAuditor && issue.wowr_status === "PendingValidation" && (
-            <div className="flex justify-end gap-2">
+          <div className="flex justify-end items-center gap-2">
+            {/* Actions for Auditor (Dynamic permission: PERM-WOWR-U) */}
+            {canValidate && issue.wowr_status === "PendingValidation" && (
+              <>
+                <Button 
+                  size="sm" 
+                  variant="default"
+                  className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                  disabled={approveMutation.isPending || rejectMutation.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    approveMutation.mutate();
+                  }}
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  Verifikasi
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  className="text-xs h-8 rounded-xl"
+                  disabled={approveMutation.isPending || rejectMutation.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    rejectMutation.mutate();
+                  }}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Tolak
+                </Button>
+              </>
+            )}
+
+            {/* Actions for Auditee / PIC (Dynamic permission: PERM-ISS-U or PERM-WOWR-R) */}
+            {canUploadProof && !isClosed && issue.wowr_status !== "Verified" && (
               <Button 
                 size="sm" 
                 variant="default"
-                className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700"
-                disabled={approveMutation.isPending || rejectMutation.isPending}
+                className="text-xs h-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-xs"
                 onClick={(e) => {
                   e.stopPropagation();
-                  approveMutation.mutate();
+                  onUploadClick(issue);
                 }}
               >
-                <Check className="h-3.5 w-3.5 mr-1" />
-                Verifikasi
+                <UploadCloud className="h-3.5 w-3.5 mr-1" />
+                {issue.wowr_status === "PendingValidation" ? "Re-upload Bukti" : "Upload Bukti"}
               </Button>
-              <Button 
-                size="sm" 
-                variant="destructive"
-                className="text-xs h-8"
-                disabled={approveMutation.isPending || rejectMutation.isPending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  rejectMutation.mutate();
-                }}
-              >
-                <X className="h-3.5 w-3.5 mr-1" />
-                Tolak
-              </Button>
-            </div>
-          )}
-
-          {/* Actions for Auditee */}
-          {!isAuditor && (!issue.wowr_status || issue.wowr_status === "None" || issue.wowr_status === "Rejected") && (
-            <Button 
-              size="sm" 
-              variant="default"
-              className="text-xs h-8"
-              onClick={(e) => {
-                e.stopPropagation();
-                onUploadClick(issue);
-              }}
-            >
-              <UploadCloud className="h-3.5 w-3.5 mr-1" />
-              Upload Bukti
-            </Button>
-          )}
+            )}
+          </div>
         </td>
       </tr>
       {expanded && (
@@ -289,7 +361,7 @@ function IssueRow({
             <div className="p-4 bg-muted/10 border-t border-border/50 animate-in slide-in-from-top-2 fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="font-semibold text-sm mb-3 border-b pb-1 border-border/50">Detail Temuan & Spesifikasi</h4>
+                  <h4 className="font-semibold text-sm mb-3 border-b pb-1 border-border/50">Detail Temuan &amp; Spesifikasi</h4>
                   <div className="space-y-2.5 text-xs mb-4 bg-background/60 p-3.5 rounded-xl border border-border/60">
                     {/* Location & PIC */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-border/40 pb-2">
@@ -461,9 +533,6 @@ export default function WOWRPage() {
 
   usePolling();
 
-  const { hasPermission } = usePermissions();
-  const isAuditor = hasPermission("PERM-WOWR-U") || hasPermission("PERM-ISS-U");
-
   const { data, isLoading } = useQuery({
     queryKey: ["wowr-issues", userId],
     queryFn: () => issueApi.getAll({ needs_wo_wr: true, limit: 1000 }),
@@ -529,16 +598,14 @@ export default function WOWRPage() {
             <div>
               <h2 className="text-xl font-bold tracking-tight">Manajemen WO / WR</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
-                {isAuditor 
-                  ? "Dashboard Auditor untuk memeriksa bukti penyelesaian WO/WR"
-                  : "Kelola dan unggah bukti penyelesaian Work Order & Work Request Anda"}
+                Kelola, unggah bukti perbaikan, dan verifikasi Work Order &amp; Work Request Anda
               </p>
             </div>
           </div>
           <Link href={`/cimory/${plantCode}/dashboard/${userId}/monitoring/wowr`}>
             <Button className="rounded-xl gap-2 font-semibold shadow-sm hover:shadow transition-all">
               <BarChart3 className="h-4 w-4" />
-              Laporan & Analytics WO/WR
+              Laporan &amp; Analytics WO/WR
             </Button>
           </Link>
         </div>
@@ -672,9 +739,7 @@ export default function WOWRPage() {
                           <p className="w-full text-sm text-muted-foreground leading-relaxed text-center block" style={{ wordBreak: "normal", overflowWrap: "break-word" }}>
                             {search
                               ? `Tidak ada data WO/WR yang cocok dengan kata kunci "${search}".`
-                              : isAuditor
-                              ? "Tidak ada data Work Order / Work Request yang memerlukan peninjauan Auditor saat ini."
-                              : "Belum ada data Work Order / Work Request yang perlu Anda tindak lanjuti."}
+                              : "Belum ada data Work Order / Work Request yang perlu ditindaklanjuti."}
                           </p>
 
                           {search && (
@@ -698,7 +763,6 @@ export default function WOWRPage() {
                     <IssueRow 
                       key={issue.issue_id} 
                       issue={issue} 
-                      isAuditor={isAuditor}
                       onUploadClick={(iss) => setSelectedIssue(iss)} 
                       onPreviewPhoto={(photo) => setPreviewPhoto(photo)}
                     />
