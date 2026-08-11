@@ -17,6 +17,9 @@ func NewIssueFilterRepository(db *gorm.DB) issue.IssueFilterRepository {
 }
 
 func (r *issueFilterRepository) FindFiltered(f *issue.IssueFilter) ([]issue.Issue, int64, error) {
+	// Consolidate duplicate active issues in real-time before querying
+	_ = NewIssueRepository(r.db).ConsolidateDuplicateActiveIssues()
+
 	var items []issue.Issue
 	var total int64
 

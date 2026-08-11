@@ -182,14 +182,14 @@ func (r *issueRepository) FindActiveByResultContext(resultID string) (*issue.Iss
 }
 
 type dupGroup struct {
-	UraianID        string
-	DetailKawasanID string
+	UraianID        string `gorm:"column:UraianID"`
+	DetailKawasanID string `gorm:"column:DetailKawasanID"`
 }
 
 func (r *issueRepository) ConsolidateDuplicateActiveIssues() error {
 	var groups []dupGroup
 	errGroup := r.db.Table(`"Issue" i`).
-		Select(`ir."UraianID", ih."DetailKawasanID"`).
+		Select(`ir."UraianID" AS "UraianID", ih."DetailKawasanID" AS "DetailKawasanID"`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
 		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
 		Where(`i."IssueStatus" NOT IN (?, ?)`, string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
