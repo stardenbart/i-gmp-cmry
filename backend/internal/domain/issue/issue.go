@@ -142,6 +142,7 @@ type IssueRepository interface {
 	FindByResultID(resultID string) (*Issue, error)
 	FindActiveByUraianAndDetailKawasan(uraianID, detailKawasanID string) (*Issue, error)
 	FindActiveByResultContext(resultID string) (*Issue, error)
+	ConsolidateDuplicateActiveIssues() error
 	Create(i *Issue) error
 	Update(i *Issue) error
 	Delete(id string) error
@@ -163,4 +164,5 @@ type IssueUseCase interface {
 	ExtendDueDate(id string, actorID string, newDueDate time.Time) (*Issue, error)
 	Delete(id string, actorID string) error
 	CloseByResultID(resultID string, actorID string) error
+	ConsolidateDuplicateActiveIssues() error
 }

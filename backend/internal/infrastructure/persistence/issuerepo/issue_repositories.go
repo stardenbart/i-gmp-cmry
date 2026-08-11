@@ -181,6 +181,61 @@ func (r *issueRepository) FindActiveByResultContext(resultID string) (*issue.Iss
 	return &item, err
 }
 
+type dupGroup struct {
+	UraianID        string
+	DetailKawasanID string
+}
+
+func (r *issueRepository) ConsolidateDuplicateActiveIssues() error {
+	var groups []dupGroup
+	errGroup := r.db.Table(`"Issue" i`).
+		Select(`ir."UraianID", ih."DetailKawasanID"`).
+		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Where(`i."IssueStatus" NOT IN (?, ?)`, string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
+		Group(`ir."UraianID", ih."DetailKawasanID"`).
+		Having(`COUNT(i."IssueID") > 1`).
+		Scan(&groups).Error
+
+	if errGroup != nil || len(groups) == 0 {
+		return errGroup
+	}
+
+	for _, g := range groups {
+		var activeList []issue.Issue
+		errFind := r.db.Model(&issue.Issue{}).
+			Select(`"Issue".*`).
+			Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
+			Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+			Where(`ir."UraianID" = ? AND ih."DetailKawasanID" = ? AND "Issue"."IssueStatus" NOT IN (?, ?)`,
+				g.UraianID, g.DetailKawasanID, string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
+			Order(`"Issue"."IssueCreatedAt" DESC`).
+			Find(&activeList).Error
+
+		if errFind != nil || len(activeList) <= 1 {
+			continue
+		}
+
+		primaryIssue := activeList[0]
+		for i := 1; i < len(activeList); i++ {
+			dup := activeList[i]
+			// Migrate any photos from duplicate issue to primary issue
+			_ = r.db.Model(&issue.IssuePhoto{}).
+				Where(`"IssueID" = ?`, dup.IssueID).
+				Update("IssueID", primaryIssue.IssueID).Error
+
+			// Migrate HEI record if primary does not have one
+			_ = r.db.Exec(`UPDATE "Issue_HEI" SET "IssueID" = ? WHERE "IssueID" = ? AND NOT EXISTS (SELECT 1 FROM "Issue_HEI" WHERE "IssueID" = ?)`,
+				primaryIssue.IssueID, dup.IssueID, primaryIssue.IssueID).Error
+
+			// Mark duplicate issue as Closed
+			dup.IssueStatus = issue.IssueStatusClosed
+			_ = r.db.Save(&dup).Error
+		}
+	}
+	return nil
+}
+
 func (r *issueRepository) Create(i *issue.Issue) error { return r.db.Create(i).Error }
 func (r *issueRepository) Update(i *issue.Issue) error { return r.db.Save(i).Error }
 func (r *issueRepository) Delete(id string) error {

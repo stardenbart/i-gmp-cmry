@@ -40,7 +40,12 @@ type issueUseCase struct {
 }
 
 func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, heiRepo issue.IssueHEIRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssueUseCase {
+	_ = repo.ConsolidateDuplicateActiveIssues()
 	return &issueUseCase{repo: repo, photoRepo: photoRepo, heiRepo: heiRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb}
+}
+
+func (uc *issueUseCase) ConsolidateDuplicateActiveIssues() error {
+	return uc.repo.ConsolidateDuplicateActiveIssues()
 }
 
 func (uc *issueUseCase) GetAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]issue.Issue, int64, error) {
@@ -122,6 +127,8 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 			return nil, errors.New("jika membutuhkan WO/WR, minimal satu ID (WO atau WR) harus diisi")
 		}
 	}
+
+	_ = uc.repo.ConsolidateDuplicateActiveIssues()
 
 	// Check if an issue already exists for this ResultID or if an active issue exists for the same Uraian & DetailKawasan to prevent duplicates
 	var existing *issue.Issue
