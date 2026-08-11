@@ -123,8 +123,16 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 		}
 	}
 
-	// Check if an issue already exists for this ResultID to prevent duplicate creation on inspection edit
-	if existing, errExist := uc.repo.FindByResultID(req.ResultID); errExist == nil && existing != nil {
+	// Check if an issue already exists for this ResultID or if an active issue exists for the same Uraian & DetailKawasan to prevent duplicates
+	var existing *issue.Issue
+	if item, errExist := uc.repo.FindByResultID(req.ResultID); errExist == nil && item != nil {
+		existing = item
+	} else if activeItem, errActive := uc.repo.FindActiveByResultContext(req.ResultID); errActive == nil && activeItem != nil {
+		existing = activeItem
+		existing.ResultID = req.ResultID
+	}
+
+	if existing != nil {
 		if req.IssuePICUserID != "" {
 			existing.IssuePICUserID = req.IssuePICUserID
 		}

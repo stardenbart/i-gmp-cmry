@@ -154,6 +154,33 @@ func (r *issueRepository) FindByResultID(resultID string) (*issue.Issue, error) 
 	return &item, err
 }
 
+func (r *issueRepository) FindActiveByUraianAndDetailKawasan(uraianID, detailKawasanID string) (*issue.Issue, error) {
+	var item issue.Issue
+	err := r.db.Model(&issue.Issue{}).
+		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Where(`ir."UraianID" = ? AND ih."DetailKawasanID" = ? AND "Issue"."IssueStatus" NOT IN (?, ?)`,
+			uraianID, detailKawasanID, string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
+		Order(`"Issue"."IssueCreatedAt" DESC`).
+		First(&item).Error
+	return &item, err
+}
+
+func (r *issueRepository) FindActiveByResultContext(resultID string) (*issue.Issue, error) {
+	var item issue.Issue
+	err := r.db.Model(&issue.Issue{}).
+		Select(`"Issue".*`).
+		Joins(`JOIN "Inspection_Result" ir_target ON ir_target."ResultID" = ?`, resultID).
+		Joins(`JOIN "Inspection_Header" ih_target ON ih_target."InspectionID" = ir_target."InspectionID"`).
+		Joins(`JOIN "Inspection_Result" ir_existing ON ir_existing."ResultID" = "Issue"."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih_existing ON ih_existing."InspectionID" = ir_existing."InspectionID"`).
+		Where(`ir_existing."UraianID" = ir_target."UraianID" AND ih_existing."DetailKawasanID" = ih_target."DetailKawasanID" AND "Issue"."IssueStatus" NOT IN (?, ?)`,
+			string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
+		Order(`"Issue"."IssueCreatedAt" DESC`).
+		First(&item).Error
+	return &item, err
+}
+
 func (r *issueRepository) Create(i *issue.Issue) error { return r.db.Create(i).Error }
 func (r *issueRepository) Update(i *issue.Issue) error { return r.db.Save(i).Error }
 func (r *issueRepository) Delete(id string) error {

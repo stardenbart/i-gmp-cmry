@@ -140,6 +140,8 @@ type IssueRepository interface {
 	FindAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
 	FindByID(id string) (*Issue, error)
 	FindByResultID(resultID string) (*Issue, error)
+	FindActiveByUraianAndDetailKawasan(uraianID, detailKawasanID string) (*Issue, error)
+	FindActiveByResultContext(resultID string) (*Issue, error)
 	Create(i *Issue) error
 	Update(i *Issue) error
 	Delete(id string) error
