@@ -159,7 +159,7 @@ export default function InitialPhotoDetailPage() {
             </div>
             <div className="grid grid-cols-3 gap-3 pt-1 text-xs">
               <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                <span className="text-muted-foreground block text-[11px] font-medium">Area</span>
+                <span className="text-muted-foreground block text-xs font-medium">Area</span>
                 <span className="font-bold text-foreground text-sm">{issue.area_name || "Tanpa Area"}</span>
               </div>
               <div className="bg-muted/40 p-3 rounded-xl border border-border/60">

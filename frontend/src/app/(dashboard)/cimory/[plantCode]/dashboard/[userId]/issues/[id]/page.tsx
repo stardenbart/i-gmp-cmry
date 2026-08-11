@@ -150,7 +150,22 @@ export default function IssueDetailPage() {
   const handleStatusTransition = (nextStatus: IssueStatus) => {
     // Validasi universal penyelesaian temuan (Closed, Verified, PendingValidation)
     if (nextStatus === "Closed" || nextStatus === "PendingValidation" || nextStatus === "Verified") {
-      if (followUpPhotos.length === 0) {
+      const initialCount = initialPhotos.length;
+      const followUpCount = followUpPhotos.length;
+
+      if (initialCount > 0) {
+        const initialPhotosWithFollowUp = initialPhotos.filter((initPhoto) =>
+          followUpPhotos.some((fu) => fu.ref_photo_id === initPhoto.issue_photo_id)
+        );
+        const missingFollowUpCount = initialCount - initialPhotosWithFollowUp.length;
+
+        if (followUpCount < initialCount || missingFollowUpCount > 0) {
+          toast.error(
+            `Gagal: Terdapat ${initialCount} foto bukti temuan awal, namun baru ${followUpCount} foto perbaikan (follow-up) yang diunggah. Seluruh ${initialCount} foto temuan awal wajib memiliki bukti foto follow-up perbaikan.`
+          );
+          return;
+        }
+      } else if (followUpCount === 0) {
         toast.error("Gagal: Anda harus mengunggah setidaknya 1 bukti Foto Follow-Up perbaikan terlebih dahulu sebelum menyelesaikan temuan.");
         return;
       }

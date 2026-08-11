@@ -292,21 +292,42 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	if req.IssueStatus != "" {
 		// Validasi penyelesaian temuan (Closed, Verified, PendingValidation)
 		if req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified || req.IssueStatus == issue.IssueStatusPendingValidation {
-			// 1. Validasi Bukti Foto Follow-Up perbaikan (Wajib untuk seluruh temuan)
-			hasFollowUp := false
+			// 1. Validasi Bukti Foto Follow-Up perbaikan (Wajib 1-banding-1 untuk seluruh foto temuan awal)
 			photosToCheck := i.Photos
 			if len(photosToCheck) == 0 && uc.photoRepo != nil {
 				if dbPhotos, errP := uc.photoRepo.FindByIssueID(i.IssueID); errP == nil {
 					photosToCheck = dbPhotos
 				}
 			}
+
+			initialCount := 0
+			followUpCount := 0
+			initialPhotosMap := make(map[string]bool)
+
 			for _, p := range photosToCheck {
-				if p.PhotoType == issue.PhotoTypeFollowUp || p.PhotoType == issue.PhotoTypeWOWR {
-					hasFollowUp = true
-					break
+				if p.PhotoType == issue.PhotoTypeInitial {
+					initialCount++
+					initialPhotosMap[p.IssuePhotoID] = false
+				} else if p.PhotoType == issue.PhotoTypeFollowUp || p.PhotoType == issue.PhotoTypeWOWR {
+					followUpCount++
+					if p.RefPhotoID != nil && *p.RefPhotoID != "" {
+						initialPhotosMap[*p.RefPhotoID] = true
+					}
 				}
 			}
-			if !hasFollowUp {
+
+			if initialCount > 0 {
+				missingFollowUpCount := 0
+				for _, isFollowedUp := range initialPhotosMap {
+					if !isFollowedUp {
+						missingFollowUpCount++
+					}
+				}
+
+				if followUpCount < initialCount || missingFollowUpCount > 0 {
+					return nil, fmt.Errorf("gagal menyelesaikan temuan: terdapat %d foto bukti temuan awal, namun baru %d foto perbaikan (follow-up) yang diunggah. Seluruh %d foto temuan awal wajib memiliki bukti foto follow-up perbaikan", initialCount, followUpCount, initialCount)
+				}
+			} else if followUpCount == 0 {
 				return nil, errors.New("gagal menyelesaikan temuan: wajib mengunggah setidaknya 1 bukti foto Follow-Up perbaikan terlebih dahulu")
 			}
 
