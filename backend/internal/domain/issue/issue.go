@@ -160,4 +160,5 @@ type IssueUseCase interface {
 	Update(id string, actorID string, req *UpdateIssueRequest) (*Issue, error)
 	ExtendDueDate(id string, actorID string, newDueDate time.Time) (*Issue, error)
 	Delete(id string, actorID string) error
+	CloseByResultID(resultID string, actorID string) error
 }

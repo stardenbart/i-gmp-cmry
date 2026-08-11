@@ -635,6 +635,16 @@ export default function InspectionDetailPage() {
             }
           }
         }
+        // Auto-close any existing issue for items changed from NG to OK
+        updatedChecklist?.aspeks?.forEach((a: any) => {
+          a.details?.forEach((d: any) => {
+            d.uraians?.forEach((u: any) => {
+              if ((u.checking === "OK" || u.nilai === "1") && u.result?.result_id) {
+                issueApi.closeByResultId(u.result.result_id).catch(() => {});
+              }
+            });
+          });
+        });
       }
 
       // 3. Update Inspection Status to Completed
@@ -649,6 +659,7 @@ export default function InspectionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
       await queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
       await queryClient.invalidateQueries({ queryKey: ["issues"] });
+      await queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
       await queryClient.invalidateQueries({ queryKey: ["issue"] });
       await queryClient.invalidateQueries({ queryKey: ["issue-photos"] });
     } catch (err: any) {

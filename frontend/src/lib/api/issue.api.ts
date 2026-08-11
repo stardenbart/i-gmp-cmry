@@ -121,6 +121,11 @@ export const issueApi = {
     return res.data;
   },
 
+  closeByResultId: async (result_id: string) => {
+    const res = await api.post("/issues/close-by-result", { result_id });
+    return res.data;
+  },
+
   update: async (
     id: string,
     data: {

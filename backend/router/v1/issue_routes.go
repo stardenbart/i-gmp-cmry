@@ -69,6 +69,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 		// Static filter routes MUST come before /:id
 		issues.Get("/filter", permReadIss, issueFilterH.GetFiltered)
 		issues.Get("/followup/filter", permReadIss, followupFilterH.GetFiltered)
+		issues.Post("/close-by-result", permUpdateIss, issueH.CloseByResult)
 
 		issues.Get("/:id", permReadIss, issueH.GetByID)
 		issues.Put("/:id", permUpdateIss, issueH.Update)

@@ -114,6 +114,25 @@ func (h *IssueHandler) Create(c *fiber.Ctx) error {
 	return response.Created(c, "issue created", item)
 }
 
+type CloseByResultRequest struct {
+	ResultID string `json:"result_id" validate:"required"`
+}
+
+func (h *IssueHandler) CloseByResult(c *fiber.Ctx) error {
+	var req CloseByResultRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
+	}
+	if req.ResultID == "" {
+		return response.BadRequest(c, "result_id is required", nil)
+	}
+	actorID := middleware.GetUserID(c)
+	if err := h.uc.CloseByResultID(req.ResultID, actorID); err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
+	return response.OK(c, "issue closed if existed", nil)
+}
+
 // @Summary Update an issue
 // @Description Update an existing issue by its ID
 // @Tags issues

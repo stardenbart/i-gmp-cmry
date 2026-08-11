@@ -221,6 +221,35 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 	return i, err
 }
 
+func (uc *issueUseCase) CloseByResultID(resultID string, actorID string) error {
+	existing, errExist := uc.repo.FindByResultID(resultID)
+	if errExist != nil || existing == nil {
+		return nil
+	}
+	if existing.IssueStatus == issue.IssueStatusClosed || existing.IssueStatus == issue.IssueStatusVerified {
+		return nil
+	}
+	existing.IssueStatus = issue.IssueStatusClosed
+	if errUpdate := uc.repo.Update(existing); errUpdate == nil {
+		event := events.IssueEvent{
+			BaseEvent: events.BaseEvent{
+				EventID:   uuid.New().String(),
+				EventType: events.EventTypeUpdated,
+				Timestamp: time.Now(),
+				ActorID:   actorID,
+			},
+			IssueID:        existing.IssueID,
+			ResultID:       existing.ResultID,
+			IssuePICUserID: existing.IssuePICUserID,
+			Status:         string(existing.IssueStatus),
+			DueDate:        existing.DueDate,
+		}
+		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, existing.IssueID, event)
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
+	}
+	return nil
+}
+
 func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssueRequest) (*issue.Issue, error) {
 	i, err := uc.repo.FindByID(id)
 	if err != nil {
