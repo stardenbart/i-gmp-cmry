@@ -679,7 +679,7 @@ export default function WOWRPage() {
           const followUpPhotos = issue.photos?.filter(
             (p) =>
               (p.photo_type === "WOWR" || p.photo_type === "FollowUp") &&
-              (p.ref_photo_id === photo.issue_photo_id || !p.ref_photo_id || initialPhotos.length <= 1)
+              (p.ref_photo_id === photo.issue_photo_id || (!p.ref_photo_id && initialPhotos.length <= 1))
           ) || [];
 
           items.push({

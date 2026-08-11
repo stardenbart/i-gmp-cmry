@@ -71,11 +71,11 @@ export default function InitialPhotoDetailPage() {
   const currentPhoto = allPhotos.find((p) => p.issue_photo_id === photoId) || allPhotos.find((p) => p.photo_type === "Initial");
   const initialPhotosCount = allPhotos.filter((p) => p.photo_type === "Initial").length;
 
-  // Filter follow-up photos specific to this initial photo (or photos without ref_photo_id)
+  // Filter follow-up & WOWR photos specific to this initial photo (or photos without ref_photo_id if only 1 initial photo exists)
   const followUpPhotos = allPhotos.filter(
     (p) =>
-      p.photo_type === "FollowUp" &&
-      (p.ref_photo_id === photoId || !p.ref_photo_id || initialPhotosCount <= 1)
+      (p.photo_type === "FollowUp" || p.photo_type === "WOWR") &&
+      (p.ref_photo_id === photoId || (!p.ref_photo_id && initialPhotosCount <= 1))
   );
 
   if (isIssueLoading || isPhotosLoading) {

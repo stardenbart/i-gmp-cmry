@@ -104,7 +104,7 @@ export default function IssueDetailPage() {
   const issue = data?.data;
   const photos: IssuePhoto[] = photosData?.data || [];
   const initialPhotos = photos.filter((p) => p.photo_type === "Initial");
-  const followUpPhotos = photos.filter((p) => p.photo_type === "FollowUp");
+  const followUpPhotos = photos.filter((p) => p.photo_type === "FollowUp" || p.photo_type === "WOWR");
 
   if (isLoading) {
     return (
