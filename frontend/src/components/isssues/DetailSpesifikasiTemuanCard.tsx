@@ -149,12 +149,14 @@ export const DetailSpesifikasiTemuanCard = ({
 
     setValidationError("");
 
+    const upperValue = inputValue.trim().toUpperCase();
+
     if (photo && photo.issue_photo_id) {
       photoWowrMutation.mutate({
         photoId: photo.issue_photo_id,
         data: {
           needs_wo_wr: type === "WOWR",
-          wo_id: type === "WOWR" ? inputValue.trim() : "",
+          wo_id: type === "WOWR" ? upperValue : "",
           wr_id: "",
           wowr_status: type === "WOWR" ? "PendingValidation" : "None",
         },
@@ -162,7 +164,7 @@ export const DetailSpesifikasiTemuanCard = ({
     } else {
       wowrMutation.mutate({
         needs_wo_wr: type === "WOWR",
-        wo_id: type === "WOWR" ? inputValue.trim() : "",
+        wo_id: type === "WOWR" ? upperValue : "",
         wr_id: "",
         wowr_status: type === "WOWR" ? "PendingValidation" : "None",
       });
@@ -376,13 +378,14 @@ export const DetailSpesifikasiTemuanCard = ({
             <Input
               value={inputValue}
               onChange={(e) => {
-                setInputValue(e.target.value);
-                if (e.target.value.trim()) setValidationError("");
+                const upperVal = e.target.value.toUpperCase();
+                setInputValue(upperVal);
+                if (upperVal.trim()) setValidationError("");
               }}
               disabled={isReadOnly}
-              placeholder="Masukkan nomor referensi WO / WR untuk foto ini..."
+              placeholder="MASUKKAN NOMOR REFERENSI WO / WR UNTUK FOTO INI..."
               className={cn(
-                "h-11 rounded-xl text-xs",
+                "h-11 rounded-xl text-xs uppercase font-mono tracking-wider font-semibold",
                 validationError ? "border-red-500 focus-visible:ring-red-500" : ""
               )}
             />
