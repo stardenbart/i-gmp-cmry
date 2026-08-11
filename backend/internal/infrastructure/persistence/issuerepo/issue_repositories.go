@@ -84,6 +84,9 @@ func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID st
 			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
 			  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
 			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailAspekName",
+			(SELECT um."UraianText" FROM "Inspection_Result" ir2
+			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "UraianText",
 			(SELECT COALESCE(NULLIF(hei."CategoryName", ''), ip."HEICategory") 
 			  FROM "Issue_Photo" ip 
 			  LEFT JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
@@ -93,7 +96,16 @@ func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID st
 			  FROM "Issue_Photo" ip 
 			  JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
 			  WHERE ip."IssueID" = "Issue"."IssueID" 
-			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName"`).
+			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName",
+			(SELECT hm."HabitName" FROM "Issue_Photo" ip
+			  JOIN "Habit_Master" hm ON hm."HabitID" = ip."HabitID"
+			  WHERE ip."IssueID" = "Issue"."IssueID" AND ip."HabitID" IS NOT NULL AND ip."HabitID" != '' LIMIT 1) AS "HabitName",
+			(SELECT em."EquipmentName" FROM "Issue_Photo" ip
+			  JOIN "Equipment_Master" em ON em."EquipmentID" = ip."EquipmentID"
+			  WHERE ip."IssueID" = "Issue"."IssueID" AND ip."EquipmentID" IS NOT NULL AND ip."EquipmentID" != '' LIMIT 1) AS "EquipmentName",
+			(SELECT im."InfrastructureName" FROM "Issue_Photo" ip
+			  JOIN "Infrastructure_Master" im ON im."InfrastructureID" = ip."InfrastructureID"
+			  WHERE ip."IssueID" = "Issue"."IssueID" AND ip."InfrastructureID" IS NOT NULL AND ip."InfrastructureID" != '' LIMIT 1) AS "InfrastructureName"`).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order(`"PhotoCreatedAt" ASC`)
 		}).

@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { issueApi, Issue } from "@/lib/api/issue.api";
+import { issueApi, Issue, IssuePhoto, WOWRStatus } from "@/lib/api/issue.api";
 import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
@@ -35,22 +35,50 @@ import { usePolling } from "@/hooks/usePolling";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 
+// Interface untuk item WOWR yang terisolasi per foto
+interface WOWRItem {
+  id: string; // photo.issue_photo_id atau issue.issue_id
+  issue_id: string;
+  photo_id?: string;
+  initial_photo?: IssuePhoto;
+  wo_id: string;
+  wr_id: string;
+  wowr_status: WOWRStatus;
+  needs_wo_wr: boolean;
+  keterangan: string;
+  uraian_text?: string;
+  area_name?: string;
+  kawasan_name?: string;
+  detail_kawasan_name?: string;
+  pic_name?: string;
+  aspek_name?: string;
+  detail_aspek_name?: string;
+  due_date?: string;
+  issue_status: string;
+  habit_name?: string;
+  equipment_name?: string;
+  infrastructure_name?: string;
+  initial_photos: IssuePhoto[];
+  wowr_photos: IssuePhoto[];
+  raw_issue: Issue;
+}
+
 // Modal Component for Uploading Photo & WO/WR Reference Number
 function UploadProofModal({ 
-  issue, 
+  item, 
   onClose,
   onSuccess 
 }: { 
-  issue: Issue; 
+  item: WOWRItem; 
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [woNumber, setWoNumber] = useState(issue.wo_id || issue.wr_id || "");
+  const [woNumber, setWoNumber] = useState(item.wo_id || item.wr_id || "");
   const [validationError, setValidationError] = useState("");
 
-  const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: issue.issue_id });
+  const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: item.issue_id });
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
 
@@ -59,11 +87,22 @@ function UploadProofModal({
   }, []);
 
   const updateStatusMutation = useMutation({
-    mutationFn: () => issueApi.update(issue.issue_id, { 
-      wo_id: woNumber.trim().toUpperCase(),
-      needs_wo_wr: true,
-      wowr_status: "PendingValidation"
-    }),
+    mutationFn: async () => {
+      const upperWo = woNumber.trim().toUpperCase();
+      if (item.photo_id) {
+        return issueApi.updatePhotoWOWR(item.photo_id, {
+          needs_wo_wr: true,
+          wo_id: upperWo,
+          wr_id: "",
+          wowr_status: "PendingValidation",
+        });
+      }
+      return issueApi.update(item.issue_id, { 
+        wo_id: upperWo,
+        needs_wo_wr: true,
+        wowr_status: "PendingValidation"
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
@@ -96,7 +135,7 @@ function UploadProofModal({
     setValidationError("");
 
     uploadMutation.mutate(
-      { file: selectedFile, type: "WOWR" },
+      { file: selectedFile, type: "WOWR", refPhotoId: item.photo_id },
       {
         onSuccess: () => {
           updateStatusMutation.mutate();
@@ -124,7 +163,7 @@ function UploadProofModal({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Temuan ID: <span className="font-mono text-foreground font-semibold">{issue.issue_id}</span>
+          Temuan ID: <span className="font-mono text-foreground font-semibold">{item.issue_id}</span> {item.photo_id ? `· Foto ID: ${item.photo_id}` : ""}
         </p>
 
         {/* Input Text Nomor Referensi WO / WR */}
@@ -219,14 +258,14 @@ function UploadProofModal({
   return createPortal(modalContent, document.body);
 }
 
-// Expandable Row Component
+// Expandable Row Component (Dynamic & Photo-Isolated)
 function IssueRow({ 
-  issue, 
+  item, 
   onUploadClick,
   onPreviewPhoto
 }: { 
-  issue: Issue; 
-  onUploadClick: (issue: Issue) => void;
+  item: WOWRItem; 
+  onUploadClick: (item: WOWRItem) => void;
   onPreviewPhoto: (photo: { url: string; keterangan?: string; photoType?: string; uploaderName?: string; photoId?: string; issueId?: string }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -236,18 +275,23 @@ function IssueRow({
   const canValidate = hasPermission("PERM-WOWR-U") || hasPermission("PERM-INSP-A");
   const canUploadProof = hasPermission("PERM-ISS-U") || hasPermission("PERM-WOWR-R") || hasPermission("PERM-WOWR-U");
 
-  const initialPhotos = issue.photos?.filter(p => p.photo_type === "Initial") || [];
-  const wowrPhotos = issue.wowr_status === "Rejected"
-    ? []
-    : issue.photos?.filter(p => p.photo_type === "WOWR" || p.photo_type === "FollowUp") || [];
-  
   const queryClient = useQueryClient();
   
   const approveMutation = useMutation({
-    mutationFn: () => issueApi.update(issue.issue_id, { 
-      wowr_status: "Verified",
-      issue_status: "Closed"
-    }),
+    mutationFn: async () => {
+      if (item.photo_id) {
+        return issueApi.updatePhotoWOWR(item.photo_id, {
+          needs_wo_wr: true,
+          wo_id: item.wo_id,
+          wr_id: item.wr_id,
+          wowr_status: "Verified"
+        });
+      }
+      return issueApi.update(item.issue_id, { 
+        wowr_status: "Verified",
+        issue_status: "Closed"
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
@@ -257,18 +301,27 @@ function IssueRow({
   });
 
   const rejectMutation = useMutation({
-    mutationFn: () => issueApi.update(issue.issue_id, { wowr_status: "Rejected" }),
+    mutationFn: async () => {
+      if (item.photo_id) {
+        return issueApi.updatePhotoWOWR(item.photo_id, {
+          needs_wo_wr: true,
+          wo_id: item.wo_id,
+          wr_id: item.wr_id,
+          wowr_status: "Rejected"
+        });
+      }
+      return issueApi.update(item.issue_id, { wowr_status: "Rejected" });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
-      queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
-      toast.error("Bukti WO/WR ditolak. Foto bukti lama dibersihkan agar Auditee mengunggah ulang.");
+      toast.error("Bukti WO/WR ditolak.");
     },
     onError: () => toast.error("Gagal menolak bukti.")
   });
 
   const deletePhotoMutation = useMutation({
-    mutationFn: (targetPhotoId: string) => issueApi.deletePhoto(issue.issue_id, targetPhotoId),
+    mutationFn: (targetPhotoId: string) => issueApi.deletePhoto(item.issue_id, targetPhotoId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
@@ -279,7 +332,7 @@ function IssueRow({
     },
   });
 
-  const isClosed = issue.issue_status === "Closed" || issue.issue_status === "Verified";
+  const isClosed = item.issue_status === "Closed" || item.issue_status === "Verified";
 
   return (
     <>
@@ -290,41 +343,44 @@ function IssueRow({
         )}
         onClick={() => setExpanded(!expanded)}
       >
-        <td className="px-4 py-3 font-mono text-xs">{issue.issue_id}</td>
-        <td className="px-4 py-3 font-semibold text-primary font-mono uppercase">
-          {issue.wo_id || issue.wr_id || <span className="text-muted-foreground text-xs font-normal italic font-sans">Belum diinput</span>}
+        <td className="px-4 py-3 font-mono text-xs">
+          <div>{item.issue_id}</div>
+          {item.photo_id && <div className="text-[10px] text-muted-foreground font-mono">Foto: {item.photo_id}</div>}
         </td>
-        <td className="px-4 py-3 truncate max-w-[200px]" title={issue.keterangan}>
-          {issue.keterangan || "-"}
+        <td className="px-4 py-3 font-semibold text-primary font-mono uppercase">
+          {item.wo_id || item.wr_id || <span className="text-muted-foreground text-xs font-normal italic font-sans">Belum diinput</span>}
+        </td>
+        <td className="px-4 py-3 truncate max-w-[200px]" title={item.keterangan}>
+          {item.keterangan || "-"}
         </td>
         <td className="px-4 py-3">
-          {(!issue.wowr_status || issue.wowr_status === "None") ? (
+          {(!item.wowr_status || item.wowr_status === "None") ? (
             <span className="text-xs text-muted-foreground font-medium">Menunggu Bukti</span>
-          ) : issue.wowr_status === "PendingValidation" ? (
+          ) : item.wowr_status === "PendingValidation" ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
               <Loader2 className="h-3 w-3 animate-spin" /> Menunggu Validasi Auditor
             </span>
-          ) : issue.wowr_status === "Verified" ? (
+          ) : item.wowr_status === "Verified" ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
               <CheckCircle2 className="h-3 w-3" /> Terverifikasi
             </span>
-          ) : issue.wowr_status === "Rejected" ? (
+          ) : item.wowr_status === "Rejected" ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
               <XCircle className="h-3 w-3" /> Ditolak
             </span>
           ) : (
-            <span className="text-xs text-muted-foreground">{issue.wowr_status}</span>
+            <span className="text-xs text-muted-foreground">{item.wowr_status}</span>
           )}
         </td>
         <td className="px-4 py-3 text-right">
           <div className="flex justify-end items-center gap-2">
             {/* Actions for Auditor (Dynamic permission: PERM-WOWR-U) */}
-            {canValidate && issue.wowr_status === "PendingValidation" && (
+            {canValidate && item.wowr_status === "PendingValidation" && (
               <>
                 <Button 
                   size="sm" 
                   variant="default"
-                  className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                  className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold"
                   disabled={approveMutation.isPending || rejectMutation.isPending}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -337,7 +393,7 @@ function IssueRow({
                 <Button 
                   size="sm" 
                   variant="destructive"
-                  className="text-xs h-8 rounded-xl"
+                  className="text-xs h-8 rounded-xl font-semibold"
                   disabled={approveMutation.isPending || rejectMutation.isPending}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -351,18 +407,18 @@ function IssueRow({
             )}
 
             {/* Actions for Auditee / PIC (Dynamic permission: PERM-ISS-U or PERM-WOWR-R) */}
-            {canUploadProof && !isClosed && issue.wowr_status !== "Verified" && (
+            {canUploadProof && !isClosed && item.wowr_status !== "Verified" && (
               <Button 
                 size="sm" 
                 variant="default"
                 className="text-xs h-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-xs"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onUploadClick(issue);
+                  onUploadClick(item);
                 }}
               >
                 <UploadCloud className="h-3.5 w-3.5 mr-1" />
-                {issue.wowr_status === "PendingValidation" ? "Re-upload Bukti" : "Upload Bukti"}
+                {item.wowr_status === "PendingValidation" ? "Re-upload Bukti" : "Upload Bukti"}
               </Button>
             )}
           </div>
@@ -380,16 +436,16 @@ function IssueRow({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-border/40 pb-2">
                       <div>
                         <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Area</span>
-                        <span className="font-semibold text-foreground">{issue.area_name || "-"}</span>
+                        <span className="font-semibold text-foreground">{item.area_name || "-"}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Kawasan</span>
-                        <span className="font-semibold text-foreground">{issue.kawasan_name || "-"}</span>
+                        <span className="font-semibold text-foreground">{item.kawasan_name || "-"}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Detail Kawasan / PIC</span>
                         <span className="font-semibold text-foreground">
-                          {issue.detail_kawasan_name || "-"} {issue.pic_name ? `(${issue.pic_name})` : ""}
+                          {item.detail_kawasan_name || "-"} {item.pic_name ? `(${item.pic_name})` : ""}
                         </span>
                       </div>
                     </div>
@@ -398,57 +454,66 @@ function IssueRow({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Aspek Penilaian</span>
-                        <span className="font-semibold text-foreground">{issue.aspek_name || "-"}</span>
+                        <span className="font-semibold text-foreground">{item.aspek_name || "-"}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Detail Aspek</span>
-                        <span className="font-semibold text-foreground">{issue.detail_aspek_name || "-"}</span>
+                        <span className="font-semibold text-foreground">{item.detail_aspek_name || "-"}</span>
                       </div>
                     </div>
 
+                    {/* Uraian Checklist */}
                     <div>
                       <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Uraian Checklist</span>
-                      <span className="font-medium text-foreground">{issue.uraian_text || "-"}</span>
+                      <span className="font-medium text-foreground">{item.uraian_text || item.keterangan || "-"}</span>
                     </div>
 
-                    {/* HEI Specifications */}
-                    <div className="pt-2 border-t border-border/40 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div>
-                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Habit</span>
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          {issue.habit_name || issue.hei?.habit?.habit_name || (issue.hei?.habit as any)?.habit_code || (issue as any).habit?.habit_name || "-"}
-                        </span>
+                    {/* HEI Specifications (Flexibel Optional - Render only if category is present) */}
+                    {(item.habit_name || item.equipment_name || item.infrastructure_name) && (
+                      <div className="pt-2 border-t border-border/40 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {item.habit_name && (
+                          <div>
+                            <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Habit</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                              {item.habit_name}
+                            </span>
+                          </div>
+                        )}
+                        {item.equipment_name && (
+                          <div>
+                            <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Equipment</span>
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                              {item.equipment_name}
+                            </span>
+                          </div>
+                        )}
+                        {item.infrastructure_name && (
+                          <div>
+                            <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Infrastructure</span>
+                            <span className="font-semibold text-purple-600 dark:text-purple-400">
+                              {item.infrastructure_name}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Equipment</span>
-                        <span className="font-semibold text-blue-600 dark:text-blue-400">
-                          {issue.equipment_name || issue.hei?.equipment?.equipment_name || (issue.hei?.equipment as any)?.equipment_code || (issue as any).equipment?.equipment_name || "-"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Infrastructure</span>
-                        <span className="font-semibold text-purple-600 dark:text-purple-400">
-                          {issue.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name || (issue.hei?.infrastructure as any)?.infrastructure_code || (issue as any).infrastructure?.infrastructure_name || "-"}
-                        </span>
-                      </div>
-                    </div>
+                    )}
 
                     <div className="pt-2 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Target Penyelesaian (Due Date)</span>
-                        <span className="font-medium">{issue.due_date ? new Date(issue.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : "-"}</span>
+                        <span className="font-medium">{item.due_date ? new Date(item.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : "-"}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Keterangan Temuan</span>
-                        <span className="font-medium whitespace-pre-wrap">{issue.keterangan || "-"}</span>
+                        <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Keterangan Foto / Temuan</span>
+                        <span className="font-medium whitespace-pre-wrap">{item.keterangan || "-"}</span>
                       </div>
                     </div>
                   </div>
                   
                   <h5 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Foto Temuan Awal</h5>
-                  {initialPhotos.length > 0 ? (
+                  {item.initial_photos.length > 0 ? (
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-                      {initialPhotos.map(p => (
+                      {item.initial_photos.map(p => (
                         <div key={p.issue_photo_id} className="flex flex-col w-40 shrink-0">
                           <div 
                             className="relative group h-28 w-40 overflow-hidden rounded-xl border border-border/60 shadow-xs cursor-pointer bg-muted"
@@ -460,7 +525,7 @@ function IssueRow({
                                 photoType: "Foto Temuan Awal",
                                 uploaderName: (p as any).uploader_name,
                                 photoId: p.issue_photo_id,
-                                issueId: issue.issue_id,
+                                issueId: item.issue_id,
                               });
                             }}
                           >
@@ -509,9 +574,9 @@ function IssueRow({
                 </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-3 border-b pb-1 border-border/50">Bukti Penyelesaian WO/WR</h4>
-                  {wowrPhotos.length > 0 ? (
+                  {item.wowr_photos.length > 0 ? (
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-                      {wowrPhotos.map(p => (
+                      {item.wowr_photos.map(p => (
                         <div key={p.issue_photo_id} className="flex flex-col w-40 shrink-0">
                           <div 
                             className="relative group h-28 w-40 overflow-hidden rounded-xl border border-border/60 shadow-xs cursor-pointer bg-muted"
@@ -523,7 +588,7 @@ function IssueRow({
                                 photoType: "Bukti Penyelesaian WO/WR",
                                 uploaderName: (p as any).uploader_name,
                                 photoId: p.issue_photo_id,
-                                issueId: issue.issue_id,
+                                issueId: item.issue_id,
                               });
                             }}
                           >
@@ -571,7 +636,7 @@ function IssueRow({
                   ) : (
                     <div className="h-28 flex flex-col items-center justify-center border-2 border-dashed border-border/60 rounded-xl text-center bg-muted/30">
                       <ImageIcon className="h-6 w-6 text-muted-foreground/50 mb-1" />
-                      <span className="text-xs text-muted-foreground italic">Belum ada foto bukti penyelesaian WO/WR dari Auditee.</span>
+                      <span className="text-xs text-muted-foreground italic">Belum ada foto bukti penyelesaian WO/WR.</span>
                     </div>
                   )}
                 </div>
@@ -591,7 +656,7 @@ export default function WOWRPage() {
   const mounted = useMounted();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [selectedItem, setSelectedItem] = useState<WOWRItem | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; keterangan?: string; photoType?: string; uploaderName?: string; photoId?: string; issueId?: string } | null>(null);
 
   usePolling();
@@ -604,42 +669,118 @@ export default function WOWRPage() {
 
   const allIssues: Issue[] = Array.isArray(data?.items) ? data.items : [];
 
-  // Summary statistics calculations
-  const totalCount = allIssues.length;
-  const verifiedCount = useMemo(() => allIssues.filter(i => i.wowr_status === "Verified").length, [allIssues]);
-  const pendingCount = useMemo(() => allIssues.filter(i => i.wowr_status === "PendingValidation").length, [allIssues]);
-  const rejectedCount = useMemo(() => allIssues.filter(i => i.wowr_status === "Rejected").length, [allIssues]);
-  const awaitingCount = useMemo(() => allIssues.filter(i => !i.wowr_status || i.wowr_status === "None").length, [allIssues]);
+  // Transform allIssues into WOWRItems isolated per initial photo (IssuePhoto)
+  const wowrItems = useMemo(() => {
+    const items: WOWRItem[] = [];
+    allIssues.forEach((issue) => {
+      const initialPhotos = issue.photos?.filter((p) => p.photo_type === "Initial") || [];
+      if (initialPhotos.length > 0) {
+        initialPhotos.forEach((photo) => {
+          const followUpPhotos = issue.photos?.filter(
+            (p) =>
+              (p.photo_type === "WOWR" || p.photo_type === "FollowUp") &&
+              (p.ref_photo_id === photo.issue_photo_id || !p.ref_photo_id || initialPhotos.length <= 1)
+          ) || [];
+
+          items.push({
+            id: photo.issue_photo_id,
+            issue_id: issue.issue_id,
+            photo_id: photo.issue_photo_id,
+            initial_photo: photo,
+            wo_id: photo.wo_id || issue.wo_id || "",
+            wr_id: photo.wr_id || issue.wr_id || "",
+            wowr_status: photo.wowr_status || issue.wowr_status || "None",
+            needs_wo_wr: photo.needs_wo_wr || issue.needs_wo_wr || false,
+            keterangan: photo.keterangan || issue.keterangan || "",
+            uraian_text: issue.uraian_text,
+            area_name: issue.area_name,
+            kawasan_name: issue.kawasan_name,
+            detail_kawasan_name: issue.detail_kawasan_name,
+            pic_name: issue.pic_name,
+            aspek_name: issue.aspek_name,
+            detail_aspek_name: issue.detail_aspek_name,
+            due_date: issue.due_date,
+            issue_status: issue.issue_status,
+            habit_name: photo.habit_name || issue.habit_name || issue.hei?.habit?.habit_name,
+            equipment_name: photo.equipment_name || issue.equipment_name || issue.hei?.equipment?.equipment_name,
+            infrastructure_name: photo.infrastructure_name || issue.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name,
+            initial_photos: [photo],
+            wowr_photos: followUpPhotos,
+            raw_issue: issue,
+          });
+        });
+      } else {
+        const followUpPhotos = issue.photos?.filter(
+          (p) => p.photo_type === "WOWR" || p.photo_type === "FollowUp"
+        ) || [];
+
+        items.push({
+          id: issue.issue_id,
+          issue_id: issue.issue_id,
+          wo_id: issue.wo_id || "",
+          wr_id: issue.wr_id || "",
+          wowr_status: issue.wowr_status || "None",
+          needs_wo_wr: issue.needs_wo_wr || false,
+          keterangan: issue.keterangan || "",
+          uraian_text: issue.uraian_text,
+          area_name: issue.area_name,
+          kawasan_name: issue.kawasan_name,
+          detail_kawasan_name: issue.detail_kawasan_name,
+          pic_name: issue.pic_name,
+          aspek_name: issue.aspek_name,
+          detail_aspek_name: issue.detail_aspek_name,
+          due_date: issue.due_date,
+          issue_status: issue.issue_status,
+          habit_name: issue.habit_name || issue.hei?.habit?.habit_name,
+          equipment_name: issue.equipment_name || issue.hei?.equipment?.equipment_name,
+          infrastructure_name: issue.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name,
+          initial_photos: [],
+          wowr_photos: followUpPhotos,
+          raw_issue: issue,
+        });
+      }
+    });
+    return items;
+  }, [allIssues]);
+
+  // Summary statistics calculations based on isolated WOWRItems
+  const totalCount = wowrItems.length;
+  const verifiedCount = useMemo(() => wowrItems.filter(i => i.wowr_status === "Verified").length, [wowrItems]);
+  const pendingCount = useMemo(() => wowrItems.filter(i => i.wowr_status === "PendingValidation").length, [wowrItems]);
+  const rejectedCount = useMemo(() => wowrItems.filter(i => i.wowr_status === "Rejected").length, [wowrItems]);
+  const awaitingCount = useMemo(() => wowrItems.filter(i => !i.wowr_status || i.wowr_status === "None").length, [wowrItems]);
 
   const verifiedRate = totalCount > 0 ? (verifiedCount / totalCount) * 100 : 0;
   const pendingRate = totalCount > 0 ? (pendingCount / totalCount) * 100 : 0;
   const rejectedRate = totalCount > 0 ? (rejectedCount / totalCount) * 100 : 0;
 
-  const issues = useMemo(() => {
-    let filtered = allIssues;
+  const filteredItems = useMemo(() => {
+    let result = wowrItems;
 
     if (statusFilter !== "ALL") {
       if (statusFilter === "None") {
-        filtered = filtered.filter(i => !i.wowr_status || i.wowr_status === "None");
+        result = result.filter(i => !i.wowr_status || i.wowr_status === "None");
       } else {
-        filtered = filtered.filter(i => i.wowr_status === statusFilter);
+        result = result.filter(i => i.wowr_status === statusFilter);
       }
     }
 
-    if (!search.trim()) return filtered;
+    if (!search.trim()) return result;
     const q = search.toLowerCase();
-    return filtered.filter(
+    return result.filter(
       (i) =>
         i.keterangan?.toLowerCase().includes(q) ||
         i.issue_id?.toLowerCase().includes(q) ||
+        i.photo_id?.toLowerCase().includes(q) ||
         i.wo_id?.toLowerCase().includes(q) ||
         i.wr_id?.toLowerCase().includes(q) ||
         i.area_name?.toLowerCase().includes(q) ||
         i.kawasan_name?.toLowerCase().includes(q) ||
         i.detail_kawasan_name?.toLowerCase().includes(q) ||
-        i.pic_name?.toLowerCase().includes(q)
+        i.pic_name?.toLowerCase().includes(q) ||
+        i.uraian_text?.toLowerCase().includes(q)
     );
-  }, [allIssues, statusFilter, search]);
+  }, [wowrItems, statusFilter, search]);
 
   if (!mounted || !user) {
     return (
@@ -661,7 +802,7 @@ export default function WOWRPage() {
             <div>
               <h2 className="text-xl font-bold tracking-tight">Manajemen WO / WR</h2>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Kelola, unggah bukti perbaikan, dan verifikasi Work Order &amp; Work Request Anda
+                Kelola, unggah bukti perbaikan, dan verifikasi Work Order &amp; Work Request per foto temuan
               </p>
             </div>
           </div>
@@ -676,7 +817,7 @@ export default function WOWRPage() {
         {/* ── Summary Statistics Cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-card p-4 rounded-2xl border shadow-sm space-y-1">
-            <span className="text-xs text-muted-foreground font-medium">Total Temuan WO/WR</span>
+            <span className="text-xs text-muted-foreground font-medium">Total Foto WO/WR</span>
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-bold font-mono">{totalCount}</span>
               <span className="text-xs text-muted-foreground font-semibold">100%</span>
@@ -771,9 +912,9 @@ export default function WOWRPage() {
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Issue ID</th>
+                  <th className="px-4 py-3 font-medium">Issue / Foto ID</th>
                   <th className="px-4 py-3 font-medium">Nomor WO / WR</th>
-                  <th className="px-4 py-3 font-medium max-w-xs">Keterangan</th>
+                  <th className="px-4 py-3 font-medium max-w-xs">Keterangan Foto</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium text-right">Aksi</th>
                 </tr>
@@ -786,7 +927,7 @@ export default function WOWRPage() {
                       <p className="text-xs text-muted-foreground mt-2">Memuat data WO/WR...</p>
                     </td>
                   </tr>
-                ) : issues.length === 0 ? (
+                ) : filteredItems.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-6 sm:p-10">
                       <div className="w-full rounded-3xl border border-dashed border-border/70 bg-gradient-to-b from-card/80 via-card/40 to-background p-8 sm:p-12 text-center shadow-sm">
@@ -822,11 +963,11 @@ export default function WOWRPage() {
                     </td>
                   </tr>
                 ) : (
-                  issues.map((issue) => (
+                  filteredItems.map((item) => (
                     <IssueRow 
-                      key={issue.issue_id} 
-                      issue={issue} 
-                      onUploadClick={(iss) => setSelectedIssue(iss)} 
+                      key={item.id} 
+                      item={item} 
+                      onUploadClick={(it) => setSelectedItem(it)} 
                       onPreviewPhoto={(photo) => setPreviewPhoto(photo)}
                     />
                   ))
@@ -838,11 +979,11 @@ export default function WOWRPage() {
       </div>
       
       {/* Upload Modal */}
-      {selectedIssue && (
+      {selectedItem && (
         <UploadProofModal 
-          issue={selectedIssue} 
-          onClose={() => setSelectedIssue(null)}
-          onSuccess={() => setSelectedIssue(null)}
+          item={selectedItem} 
+          onClose={() => setSelectedItem(null)}
+          onSuccess={() => setSelectedItem(null)}
         />
       )}
 
