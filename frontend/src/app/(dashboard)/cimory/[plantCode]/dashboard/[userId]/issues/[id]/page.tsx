@@ -104,7 +104,8 @@ export default function IssueDetailPage() {
   const issue = data?.data;
   const photos: IssuePhoto[] = photosData?.data || [];
   const initialPhotos = photos.filter((p) => p.photo_type === "Initial");
-  const followUpPhotos = photos.filter((p) => p.photo_type === "FollowUp" || p.photo_type === "WOWR");
+  const followUpPhotos = photos.filter((p) => p.photo_type === "FollowUp");
+  const wowrPhotos = photos.filter((p) => p.photo_type === "WOWR");
 
   if (isLoading) {
     return (
@@ -156,22 +157,23 @@ export default function IssueDetailPage() {
     // Validasi universal penyelesaian temuan (Closed, Verified, PendingValidation)
     if (nextStatus === "Closed" || nextStatus === "PendingValidation" || nextStatus === "Verified") {
       const initialCount = initialPhotos.length;
-      const followUpCount = followUpPhotos.length;
+      const allProofPhotos = [...followUpPhotos, ...wowrPhotos];
+      const proofCount = allProofPhotos.length;
 
       if (initialCount > 0) {
-        const initialPhotosWithFollowUp = initialPhotos.filter((initPhoto) =>
-          followUpPhotos.some((fu) => fu.ref_photo_id === initPhoto.issue_photo_id)
+        const initialPhotosWithProof = initialPhotos.filter((initPhoto) =>
+          allProofPhotos.some((fu) => fu.ref_photo_id === initPhoto.issue_photo_id)
         );
-        const missingFollowUpCount = initialCount - initialPhotosWithFollowUp.length;
+        const missingProofCount = initialCount - initialPhotosWithProof.length;
 
-        if (followUpCount < initialCount || missingFollowUpCount > 0) {
+        if (proofCount < initialCount || missingProofCount > 0) {
           toast.error(
-            `Gagal: Terdapat ${initialCount} foto bukti temuan awal, namun baru ${followUpCount} foto perbaikan (follow-up) yang diunggah. Seluruh ${initialCount} foto temuan awal wajib memiliki bukti foto follow-up perbaikan.`
+            `Gagal: Terdapat ${initialCount} foto bukti temuan awal, namun baru ${proofCount} foto perbaikan yang diunggah. Seluruh ${initialCount} foto temuan awal wajib memiliki bukti foto perbaikan (Follow-Up / WO-WR).`
           );
           return;
         }
-      } else if (followUpCount === 0) {
-        toast.error("Gagal: Anda harus mengunggah setidaknya 1 bukti Foto Follow-Up perbaikan terlebih dahulu sebelum menyelesaikan temuan.");
+      } else if (proofCount === 0) {
+        toast.error("Gagal: Anda harus mengunggah setidaknya 1 bukti Foto Perbaikan terlebih dahulu sebelum menyelesaikan temuan.");
         return;
       }
 
