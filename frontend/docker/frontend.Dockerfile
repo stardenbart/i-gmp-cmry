@@ -5,7 +5,9 @@ WORKDIR /app
 
 # Build argument – dipass dari docker-compose via build.args
 ARG INTERNAL_BACKEND_URL=http://backend:8080
+ARG MINIO_ENDPOINT=http://minio:9000
 ENV INTERNAL_BACKEND_URL=$INTERNAL_BACKEND_URL
+ENV MINIO_ENDPOINT=$MINIO_ENDPOINT
 
 # Install dependencies
 COPY package.json package-lock.json* ./
@@ -24,6 +26,7 @@ WORKDIR /app
 
 ENV NODE_ENV production
 ENV INTERNAL_BACKEND_URL=http://backend:8080
+ENV MINIO_ENDPOINT=http://minio:9000
 
 # Copy dari builder
 COPY --from=builder /app/package.json ./package.json
