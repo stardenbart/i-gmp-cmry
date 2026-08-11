@@ -181,19 +181,18 @@ func (r *issueRepository) FindActiveByResultContext(resultID string) (*issue.Iss
 	return &item, err
 }
 
-type dupGroup struct {
-	UraianID        string `gorm:"column:UraianID"`
+type dupKawasanGroup struct {
 	DetailKawasanID string `gorm:"column:DetailKawasanID"`
 }
 
 func (r *issueRepository) ConsolidateDuplicateActiveIssues() error {
-	var groups []dupGroup
+	var groups []dupKawasanGroup
 	errGroup := r.db.Table(`"Issue" i`).
-		Select(`ir."UraianID" AS "UraianID", ih."DetailKawasanID" AS "DetailKawasanID"`).
+		Select(`ih."DetailKawasanID" AS "DetailKawasanID"`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
 		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
 		Where(`i."IssueStatus" NOT IN (?, ?)`, string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
-		Group(`ir."UraianID", ih."DetailKawasanID"`).
+		Group(`ih."DetailKawasanID"`).
 		Having(`COUNT(i."IssueID") > 1`).
 		Scan(&groups).Error
 
@@ -202,13 +201,17 @@ func (r *issueRepository) ConsolidateDuplicateActiveIssues() error {
 	}
 
 	for _, g := range groups {
+		if g.DetailKawasanID == "" {
+			continue
+		}
+
 		var activeList []issue.Issue
 		errFind := r.db.Model(&issue.Issue{}).
 			Select(`"Issue".*`).
 			Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
 			Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-			Where(`ir."UraianID" = ? AND ih."DetailKawasanID" = ? AND "Issue"."IssueStatus" NOT IN (?, ?)`,
-				g.UraianID, g.DetailKawasanID, string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
+			Where(`ih."DetailKawasanID" = ? AND "Issue"."IssueStatus" NOT IN (?, ?)`,
+				g.DetailKawasanID, string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
 			Order(`"Issue"."IssueCreatedAt" DESC`).
 			Find(&activeList).Error
 
