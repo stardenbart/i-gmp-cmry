@@ -22,7 +22,8 @@ import {
   BarChart3,
   Percent,
   Clock,
-  Wrench
+  Wrench,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -226,7 +227,7 @@ function IssueRow({
 }: { 
   issue: Issue; 
   onUploadClick: (issue: Issue) => void;
-  onPreviewPhoto: (photo: { url: string; keterangan?: string; photoType?: string; uploaderName?: string }) => void;
+  onPreviewPhoto: (photo: { url: string; keterangan?: string; photoType?: string; uploaderName?: string; photoId?: string; issueId?: string }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { hasPermission } = usePermissions();
@@ -264,6 +265,18 @@ function IssueRow({
       toast.error("Bukti WO/WR ditolak. Foto bukti lama dibersihkan agar Auditee mengunggah ulang.");
     },
     onError: () => toast.error("Gagal menolak bukti.")
+  });
+
+  const deletePhotoMutation = useMutation({
+    mutationFn: (targetPhotoId: string) => issueApi.deletePhoto(issue.issue_id, targetPhotoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      toast.success("Foto berhasil dihapus");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Gagal menghapus foto");
+    },
   });
 
   const isClosed = issue.issue_status === "Closed" || issue.issue_status === "Verified";
@@ -445,7 +458,9 @@ function IssueRow({
                                 url: p.image_url,
                                 keterangan: p.keterangan,
                                 photoType: "Foto Temuan Awal",
-                                uploaderName: (p as any).uploader_name
+                                uploaderName: (p as any).uploader_name,
+                                photoId: p.issue_photo_id,
+                                issueId: issue.issue_id,
                               });
                             }}
                           >
@@ -456,9 +471,24 @@ function IssueRow({
                               onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                               className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                             />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
                               <Eye className="h-4 w-4" />
-                              <span>Lihat Foto</span>
+                              {!isClosed && canValidate && (
+                                <button
+                                  type="button"
+                                  disabled={deletePhotoMutation.isPending}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm("Apakah Anda yakin ingin menghapus foto awal ini?")) {
+                                      deletePhotoMutation.mutate(p.issue_photo_id);
+                                    }
+                                  }}
+                                  className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-md z-10"
+                                  title="Hapus Foto"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                           <p className="text-[11px] font-medium text-foreground truncate mt-1.5 px-0.5" title={p.keterangan || "Tanpa keterangan"}>
@@ -483,7 +513,9 @@ function IssueRow({
                                 url: p.image_url,
                                 keterangan: p.keterangan,
                                 photoType: "Bukti Penyelesaian WO/WR",
-                                uploaderName: (p as any).uploader_name
+                                uploaderName: (p as any).uploader_name,
+                                photoId: p.issue_photo_id,
+                                issueId: issue.issue_id,
                               });
                             }}
                           >
@@ -494,9 +526,24 @@ function IssueRow({
                               onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                               className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                             />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
                               <Eye className="h-4 w-4" />
-                              <span>Lihat Foto</span>
+                              {!isClosed && (canUploadProof || canValidate) && (
+                                <button
+                                  type="button"
+                                  disabled={deletePhotoMutation.isPending}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm("Apakah Anda yakin ingin menghapus foto bukti penyelesaian ini?")) {
+                                      deletePhotoMutation.mutate(p.issue_photo_id);
+                                    }
+                                  }}
+                                  className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-md z-10"
+                                  title="Hapus Foto"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                           <p className="text-[11px] font-medium text-foreground truncate mt-1.5 px-0.5" title={p.keterangan || "Tanpa keterangan"}>
@@ -529,7 +576,7 @@ export default function WOWRPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; keterangan?: string; photoType?: string; uploaderName?: string } | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; keterangan?: string; photoType?: string; uploaderName?: string; photoId?: string; issueId?: string } | null>(null);
 
   usePolling();
 
