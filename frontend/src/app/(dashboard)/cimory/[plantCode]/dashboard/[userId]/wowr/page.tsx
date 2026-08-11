@@ -479,9 +479,17 @@ function IssueRow({
                                   disabled={deletePhotoMutation.isPending}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (confirm("Apakah Anda yakin ingin menghapus foto awal ini?")) {
-                                      deletePhotoMutation.mutate(p.issue_photo_id);
-                                    }
+                                    toast.warning("Hapus foto temuan awal ini?", {
+                                      description: "Tindakan ini tidak dapat dibatalkan.",
+                                      action: {
+                                        label: "Hapus",
+                                        onClick: () => deletePhotoMutation.mutate(p.issue_photo_id),
+                                      },
+                                      cancel: {
+                                        label: "Batal",
+                                        onClick: () => {},
+                                      },
+                                    });
                                   }}
                                   className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-md z-10"
                                   title="Hapus Foto"
@@ -534,9 +542,17 @@ function IssueRow({
                                   disabled={deletePhotoMutation.isPending}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (confirm("Apakah Anda yakin ingin menghapus foto bukti penyelesaian ini?")) {
-                                      deletePhotoMutation.mutate(p.issue_photo_id);
-                                    }
+                                    toast.warning("Hapus foto bukti penyelesaian ini?", {
+                                      description: "Tindakan ini tidak dapat dibatalkan.",
+                                      action: {
+                                        label: "Hapus",
+                                        onClick: () => deletePhotoMutation.mutate(p.issue_photo_id),
+                                      },
+                                      cancel: {
+                                        label: "Batal",
+                                        onClick: () => {},
+                                      },
+                                    });
                                   }}
                                   className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-md z-10"
                                   title="Hapus Foto"
