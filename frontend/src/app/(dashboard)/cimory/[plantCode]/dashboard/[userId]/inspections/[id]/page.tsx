@@ -588,40 +588,56 @@ export default function InspectionDetailPage() {
                 console.warn("Failed to fetch existing photos for issue:", e);
               }
 
+              const matchedPhotoIdsSet = new Set<string>();
+
               for (const photoItem of task.photos) {
                 let photoFile = photoItem.file;
+
+                // 1. Match existing photo stored on server and sync HEI & keterangan updates
+                let matchedExistingPhoto = existingPhotos.find(
+                  (ep) =>
+                    (photoItem.existingPhotoId && ep.issue_photo_id === photoItem.existingPhotoId) ||
+                    (photoItem.id && ep.issue_photo_id === photoItem.id) ||
+                    (photoItem.previewUrl && ep.image_url && (ep.image_url.includes(photoItem.previewUrl) || photoItem.previewUrl.includes(ep.image_url)))
+                );
+
+                // Fallback: Match by index position if ID/URL inclusion doesn't match
+                if (!matchedExistingPhoto && existingPhotos.length > 0) {
+                  const photoIdx = task.photos.indexOf(photoItem);
+                  if (photoIdx >= 0 && photoIdx < existingPhotos.length) {
+                    matchedExistingPhoto = existingPhotos[photoIdx];
+                  }
+                }
+
+                if (matchedExistingPhoto) {
+                  matchedPhotoIdsSet.add(matchedExistingPhoto.issue_photo_id);
+                  if (photoItem.hei_id || photoItem.hei_category) {
+                    await issueApi.updatePhotoHEI(matchedExistingPhoto.issue_photo_id, {
+                      hei_id: photoItem.hei_id || "",
+                      hei_category: photoItem.hei_category || "",
+                    });
+                  }
+                  if (photoItem.keterangan) {
+                    await issueApi.updatePhoto(matchedExistingPhoto.issue_photo_id, photoItem.keterangan);
+                  }
+                  continue;
+                }
+
+                // 2. If photo is not matched in server photos, it's a NEW photo! Convert previewUrl if file is missing.
                 if (!photoFile && photoItem.previewUrl) {
                   if (photoItem.previewUrl.startsWith("data:")) {
                     photoFile = dataURLtoFile(photoItem.previewUrl, `photo_${Date.now()}.jpg`);
                   } else {
-                    // Match existing photo stored on server and sync HEI & keterangan updates
-                    let matchedExistingPhoto = existingPhotos.find(
-                      (ep) => (photoItem.existingPhotoId && ep.issue_photo_id === photoItem.existingPhotoId) ||
-                              (photoItem.id && ep.issue_photo_id === photoItem.id) ||
-                              (photoItem.previewUrl && ep.image_url && (ep.image_url.includes(photoItem.previewUrl) || photoItem.previewUrl.includes(ep.image_url)))
-                    );
-                    // Fallback: Match by index position if ID/URL inclusion doesn't match
-                    if (!matchedExistingPhoto && existingPhotos.length > 0) {
-                      const photoIdx = task.photos.indexOf(photoItem);
-                      if (photoIdx >= 0 && photoIdx < existingPhotos.length) {
-                        matchedExistingPhoto = existingPhotos[photoIdx];
-                      }
+                    try {
+                      const res = await fetch(photoItem.previewUrl);
+                      const blob = await res.blob();
+                      photoFile = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+                    } catch (e) {
+                      console.warn("Failed to fetch photo blob from previewUrl:", e);
                     }
-
-                    if (matchedExistingPhoto) {
-                      if (photoItem.hei_id || photoItem.hei_category) {
-                        await issueApi.updatePhotoHEI(matchedExistingPhoto.issue_photo_id, {
-                          hei_id: photoItem.hei_id || "",
-                          hei_category: photoItem.hei_category || "",
-                        });
-                      }
-                      if (photoItem.keterangan) {
-                        await issueApi.updatePhoto(matchedExistingPhoto.issue_photo_id, photoItem.keterangan);
-                      }
-                    }
-                    continue;
                   }
                 }
+
                 if (photoFile && photoFile.size > 0) {
                   const fd = new FormData();
                   fd.append("photo", photoFile);
@@ -630,6 +646,17 @@ export default function InspectionDetailPage() {
                   if (photoItem.hei_id) fd.append("hei_id", photoItem.hei_id);
                   if (photoItem.hei_category) fd.append("hei_category", photoItem.hei_category);
                   await issueApi.uploadPhoto(createdIssueId, fd);
+                }
+              }
+
+              // 3. Delete any initial photos from server that were removed by the auditor
+              for (const ep of existingPhotos) {
+                if (ep.photo_type === "Initial" && !matchedPhotoIdsSet.has(ep.issue_photo_id)) {
+                  try {
+                    await issueApi.deletePhoto(createdIssueId, ep.issue_photo_id);
+                  } catch (e) {
+                    console.warn("Failed to delete removed photo:", e);
+                  }
                 }
               }
             }
