@@ -13,7 +13,7 @@ func RegisterPollingRoutes(rg fiber.Router, rdb *redis.Client, jwtManager *jwt.M
 	authMW := middleware.AuthMiddleware(jwtManager)
 
 	// Global events poll endpoint (Issues, Dashboard, Inspections)
-	rg.Get("/events/poll", authMW, h.PollGlobalEvents)
+	rg.Get("/events/poll", h.PollGlobalEvents)
 
 	// Kawasan lock/sync poll endpoint
 	rg.Get("/inspeksi/kawasan/:kawasanId/poll", authMW, h.PollKawasanEvents)

@@ -41,7 +41,6 @@ export function formatImageUrl(url: string | null | undefined): string {
   if (!formatted) return "";
 
   // Reject malformed paths that point to a directory/issue ID prefix instead of an actual image file
-  // E.g., /monitoring-audit-bucket/issues/ISS-26080 or issues/ISS-26080
   const cleanPath = formatted.split('?')[0].split('#')[0];
   const lastSegment = cleanPath.substring(cleanPath.lastIndexOf('/') + 1);
   const isLikelyIssueFolder = /^ISS-[A-Za-z0-9_-]+$/i.test(lastSegment) || /^ISSUE-[A-Za-z0-9_-]+$/i.test(lastSegment);
@@ -59,13 +58,14 @@ export function formatImageUrl(url: string | null | undefined): string {
   // Fallback if port 9000 is included in full URL
   const portIndex = formatted.indexOf(":9000/");
   if (portIndex !== -1) {
-    return formatted.substring(portIndex + 5);
+    const rawPath = formatted.substring(portIndex + 5).replace(/^\/+/, '');
+    return rawPath.startsWith("monitoring-audit-bucket/") ? `/${rawPath}` : `/monitoring-audit-bucket/${rawPath}`;
   }
 
-  // If minio internal hostname is used, replace with window hostname or localhost
+  // If minio internal hostname is used
   if (formatted.includes("minio:9000")) {
-    const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
-    formatted = formatted.replace("minio:9000", `${host}:9000`);
+    const minioPath = formatted.substring(formatted.indexOf("minio:9000") + 10).replace(/^\/+/, '');
+    return minioPath.startsWith("monitoring-audit-bucket/") ? `/${minioPath}` : `/monitoring-audit-bucket/${minioPath}`;
   }
 
   // Ensure full HTTP/HTTPS URLs are preserved for external browser image loading
@@ -73,10 +73,17 @@ export function formatImageUrl(url: string | null | undefined): string {
     return formatted;
   }
 
-  // Relative path fallback
-  if (!formatted.startsWith("/")) {
-    return `/${formatted}`;
+  // Local uploads folder
+  if (formatted.startsWith("/uploads/") || formatted.startsWith("uploads/")) {
+    return formatted.startsWith("/") ? formatted : `/${formatted}`;
   }
 
-  return formatted;
+  // If already prefixed with /monitoring-audit-bucket/
+  if (formatted.startsWith("/monitoring-audit-bucket/")) {
+    return formatted;
+  }
+
+  // Default object key / encrypted key -> prefix with /monitoring-audit-bucket/
+  const key = formatted.replace(/^\/+/, '');
+  return `/monitoring-audit-bucket/${key}`;
 }

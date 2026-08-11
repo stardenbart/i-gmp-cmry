@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
   turbopack: {},
   allowedDevOrigins: [
     "localhost:3000",
+    "localhost:9000",
+    "localhost:8080",
     "pug-widow-rewind.ngrok-free.dev",
     "*.ngrok-free.dev",
     "*.ngrok.io",
