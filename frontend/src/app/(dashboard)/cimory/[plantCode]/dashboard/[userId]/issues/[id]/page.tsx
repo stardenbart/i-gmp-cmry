@@ -96,6 +96,22 @@ export default function IssueDetailPage() {
     },
   });
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const deleteIssueMutation = useMutation({
+    mutationFn: () => issueApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      toast.success("Temuan berhasil dihapus");
+      router.push(`../issues`);
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal menghapus temuan";
+      toast.error(msg);
+    },
+  });
+
   const issue = data?.data;
   const photos: IssuePhoto[] = photosData?.data || [];
   const initialPhotos = photos.filter((p) => p.photo_type === "Initial");
@@ -207,21 +223,26 @@ export default function IssueDetailPage() {
           </div>
         </div>
 
-        {/* Status Action Buttons */}
-        {transitions.length > 0 && (
-          <div className="flex gap-2">
-            {transitions.map((t: { label: string; next: IssueStatus; color: string }) => (
-              <Button
-                key={t.next}
-                className={cn("text-white font-medium shadow-sm", t.color)}
-                isLoading={updateMutation.isPending}
-                onClick={() => handleStatusTransition(t.next)}
-              >
-                {t.label}
-              </Button>
-            ))}
-          </div>
-        )}
+        {/* Status Action Buttons & Delete Button */}
+        <div className="flex flex-wrap items-center gap-2">
+          {transitions.map((t: { label: string; next: IssueStatus; color: string }) => (
+            <Button
+              key={t.next}
+              className={cn("text-white font-medium shadow-sm", t.color)}
+              isLoading={updateMutation.isPending}
+              onClick={() => handleStatusTransition(t.next)}
+            >
+              {t.label}
+            </Button>
+          ))}
+          <Button
+            variant="outline"
+            onClick={() => setShowDeleteModal(true)}
+            className="text-red-400 border-red-500/30 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 font-medium"
+          >
+            <Trash2 className="mr-1.5 h-4 w-4 text-red-500" /> Hapus Temuan
+          </Button>
+        </div>
       </div>
 
       {/* ── Auditor: Pending Validation Banner ─────────────────────────── */}
@@ -323,6 +344,56 @@ export default function IssueDetailPage() {
               onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
               className="rounded-2xl max-h-[80vh] w-full object-contain"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Temuan */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-foreground">Hapus Temuan</h3>
+                <p className="text-xs text-muted-foreground font-mono">ID: {id}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Apakah Anda yakin ingin menghapus temuan <strong className="text-foreground">{issue.area_name || "Tanpa Area"} · {issue.kawasan_name || "Tanpa Kawasan"} · {issue.detail_kawasan_name || "Tanpa Detail"}</strong>? Data yang dihapus tidak dapat dikembalikan.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={deleteIssueMutation.isPending}
+                onClick={() => setShowDeleteModal(false)}
+                className="rounded-xl px-4 text-xs font-semibold"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deleteIssueMutation.isPending}
+                onClick={() => deleteIssueMutation.mutate()}
+                className="rounded-xl px-4 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleteIssueMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Menghapus...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Ya, Hapus
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}
