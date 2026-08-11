@@ -119,7 +119,7 @@ func Load() *Config {
 		MinioUseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 		MinioAllowedIPs: getEnv("MINIO_ALLOWED_IPS", "127.0.0.1/32,10.0.0.0/8,192.168.0.0/16"),
 
-		SettingEncryptionKey: getEnv("SETTING_ENCRYPTION_KEY", ""),
+		SettingEncryptionKey: getEnv("SETTING_ENCRYPTION_KEY", "sCb2UdNCSu3RBEYLF6IG/18C6VAVuYftUhFB1lzRoyw="),
 
 		KafkaBrokers:       getEnv("KAFKA_BROKERS", "localhost:9092"),
 		KafkaConsumerGroup: getEnv("KAFKA_CONSUMER_GROUP", "monitoring-audit-group"),

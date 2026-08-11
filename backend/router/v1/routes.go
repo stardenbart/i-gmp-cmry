@@ -33,7 +33,7 @@ func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.C
 	// matches ALL paths. Registering public routes first ensures Fiber matches them first.
 	RegisterAPIKeyRoutes(rg, db, apiKeyUC, jwtManager, log)
 	RegisterPowerBIRoutes(rg, db, apiKeyUC, cryptoSvc, log)
-	RegisterPollingRoutes(rg, redisClient, jwtManager)
+	RegisterPollingRoutes(app, rg, redisClient, jwtManager)
 
 	RegisterAuthRoutes(rg, db, mailer, jwtManager, log, actLogUC)
 	RegisterMasterRoutes(rg, db, minioStorage, cryptoSvc, jwtManager, log, actLogUC)

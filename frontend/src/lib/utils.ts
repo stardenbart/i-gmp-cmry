@@ -83,7 +83,13 @@ export function formatImageUrl(url: string | null | undefined): string {
     return formatted;
   }
 
-  // Default object key / encrypted key -> prefix with /monitoring-audit-bucket/
+  // If string appears to be an encrypted base64 ciphertext (e.g. gORJRqZ6G7XL+kPZT... containing + or ending with == without file extension)
+  const isLikelyEncryptedBase64 = (formatted.endsWith("==") || formatted.includes("+")) && !formatted.includes("/") && !formatted.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i);
+  if (isLikelyEncryptedBase64) {
+    return "";
+  }
+
+  // Default object key -> prefix with /monitoring-audit-bucket/
   const key = formatted.replace(/^\/+/, '');
   return `/monitoring-audit-bucket/${key}`;
 }

@@ -8,11 +8,12 @@ import (
 	redis "github.com/redis/go-redis/v9"
 )
 
-func RegisterPollingRoutes(rg fiber.Router, rdb *redis.Client, jwtManager *jwt.Manager) {
+func RegisterPollingRoutes(app *fiber.App, rg fiber.Router, rdb *redis.Client, jwtManager *jwt.Manager) {
 	h := pollinghandler.NewPollingHandler(rdb)
 	authMW := middleware.AuthMiddleware(jwtManager)
 
-	// Global events poll endpoint (Issues, Dashboard, Inspections)
+	// Global events poll endpoint - registered directly on app and router group for 100% guarantee
+	app.Get("/api/v1/events/poll", h.PollGlobalEvents)
 	rg.Get("/events/poll", h.PollGlobalEvents)
 
 	// Kawasan lock/sync poll endpoint
