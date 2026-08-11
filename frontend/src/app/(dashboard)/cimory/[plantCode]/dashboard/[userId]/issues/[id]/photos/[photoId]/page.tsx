@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { issueApi, IssuePhoto, IssueStatus, IssueCategory } from "@/lib/api/issue.api";
+import { DetailSpesifikasiTemuanCard } from "@/components/isssues/DetailSpesifikasiTemuanCard";
 import { formatImageUrl } from "@/lib/utils";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
@@ -150,96 +151,18 @@ export default function InitialPhotoDetailPage() {
 
       {/* Grid Content */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Left Column: Location & Issue Specification Info Cards */}
+        {/* Left Column: Detail Spesifikasi Temuan Awal (Integrated Info & Maintenance WO/WR) */}
         <div className="space-y-6">
-          {/* Card 1: Lokasi Audit */}
-          <Card className="p-6 bg-card/60 backdrop-blur-md shadow-sm border-border/80 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
-              <span>Lokasi Audit Area</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3 pt-1 text-xs">
-              <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                <span className="text-muted-foreground block text-sm font-bold">Area</span>
-                <span className="font-bold text-foreground text-xs">{issue.area_name || "Tanpa Area"}</span>
-              </div>
-              <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                <span className="text-muted-foreground block text-sm font-bold">Kawasan</span>
-                <span className="font-bold text-foreground text-xs">{issue.kawasan_name || "Tanpa Kawasan"}</span>
-              </div>
-              <div className="bg-muted/40 p-2 rounded-xl border border-border/60">
-                <span className="text-muted-foreground block text-xs font-bold">Detail Kawasan</span>
-                <span className="font-bold text-foreground text-xs">{issue.detail_kawasan_name || "Tanpa Detail Kawasan"}</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Card 2: Detail Issue & Checklist */}
-          <Card className="p-6 bg-card/60 backdrop-blur-md shadow-sm border-border/80 space-y-4">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
-              <span>Detail Issue &amp; Uraian Temuan</span>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                  <span className="text-muted-foreground block text-[11px] font-medium">Aspek</span>
-                  <span className="font-semibold text-foreground">{issue.aspek_name || "Tanpa Aspek"}</span>
-                </div>
-                <div className="bg-muted/40 p-3 rounded-xl border border-border/60">
-                  <span className="text-muted-foreground block text-[11px] font-medium">Detail Aspek</span>
-                  <span className="font-semibold text-foreground">{issue.detail_aspek_name || "Tanpa Detail Aspek"}</span>
-                </div>
-              </div>
-
-              <div>
-                <span className="text-muted-foreground block text-[11px] font-medium mb-1 flex items-center gap-1">
-                  Uraian Checklist / Keterangan Temuan
-                </span>
-                <div className="bg-background/80 p-3 rounded-xl border border-border/80 font-medium text-foreground text-xs leading-relaxed">
-                  {issue.uraian_text || issue.keterangan || "Tidak ada rincian keterangan"}
-                </div>
-              </div>
-
-              {/* Output Kategori HEI (Hasil Inspeksi) */}
-              <div className="pt-3 border-t border-border/60 space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Tag className="h-3 w-3 text-primary" /> Kategori HEI (Hasil Inspeksi)
-                </span>
-                {(() => {
-                  const heiCat = currentPhoto?.hei_category || issue?.hei_category;
-                  const heiName = currentPhoto?.hei_name || issue?.hei_name || currentPhoto?.habit_name || currentPhoto?.equipment_name || currentPhoto?.infrastructure_name || issue?.habit_name || issue?.equipment_name || issue?.infrastructure_name;
-                  
-                  if (heiCat || heiName) {
-                    const displayLabel = [
-                      heiCat ? `[${heiCat}]` : "",
-                      heiName && heiName.toLowerCase() !== heiCat?.toLowerCase() ? heiName : ""
-                    ].filter(Boolean).join(" ");
-
-                    return (
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
-                        {displayLabel || heiCat || heiName}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="text-xs text-muted-foreground italic bg-muted/20 px-3 py-1.5 rounded-xl border border-dashed border-border/60 w-fit">
-                      Tanpa Klasifikasi HEI (Hasil Inspeksi)
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-border/60 text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  PIC: <strong className="text-foreground">{issue.pic_name || issue.issue_pic_user_id}</strong>
-                </span>
-                <span className="flex items-center gap-1 font-mono">
-                  {new Date(issue.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                </span>
-              </div>
-            </div>
-          </Card>
+          <DetailSpesifikasiTemuanCard
+            issue={issue}
+            dueDate={issue.due_date ? new Date(issue.due_date) : null}
+            isAuditor={isAuditor}
+            canEditWOWR={!isClosed && (isAuditor || isWorkStarted)}
+            onRefresh={() => {
+              queryClient.invalidateQueries({ queryKey: ["issue", id] });
+              queryClient.invalidateQueries({ queryKey: ["issue-photos", id] });
+            }}
+          />
         </div>
 
         {/* Right Column: Large Photo Preview */}
