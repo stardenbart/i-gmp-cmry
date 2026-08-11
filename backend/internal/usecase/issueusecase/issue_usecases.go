@@ -596,26 +596,15 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 		publicURL = uploadedURL
 	}
 
-	// Encrypt sensitive info before DB persistence
-	encPublicURL := publicURL
-	if enc, err := uc.cryptoSvc.Encrypt(publicURL); err == nil {
-		encPublicURL = enc
-	}
-
-	encObjectName := objectName
-	if enc, err := uc.cryptoSvc.Encrypt(objectName); err == nil {
-		encObjectName = enc
-	}
-
-	// 4. STEP POSTGRESQL: Save record into PostgreSQL database
+	// 4. STEP POSTGRESQL: Save record into PostgreSQL database (store clean public URL and object name)
 	p := &issue.IssuePhoto{
 		IssuePhotoID:     idgen.GenerateRandom(idgen.PrefixIssuePhoto),
 		IssueID:          req.IssueID,
 		RefPhotoID:       req.RefPhotoID,
 		PICUserID:        req.PICUserID,
 		PhotoType:        req.PhotoType,
-		ImageUrl:         encPublicURL,
-		FileName:         encObjectName, // store encrypted objectName for secure deletion
+		ImageUrl:         publicURL,
+		FileName:         objectName,
 		Keterangan:       req.Keterangan,
 		HEIID:            req.HEIID,
 		HEICategory:      func() string { if req.HEICategory != nil { return *req.HEICategory }; return "" }(),
