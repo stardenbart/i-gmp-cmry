@@ -544,15 +544,15 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 	if uc.issueRepo != nil {
 		iss, errIss := uc.issueRepo.FindByID(req.IssueID)
 		if errIss == nil && iss != nil {
-			// If uploading WOWR proof for an issue that requires WO/WR and isn't verified yet,
-			// allow uploading and reopen status to InProgress if it was prematurely Closed.
-			if (req.PhotoType == issue.PhotoTypeWOWR || iss.NeedsWOWR) && iss.WOWRStatus != issue.WOWRStatusVerified {
-				if iss.IssueStatus == issue.IssueStatusClosed {
+			if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
+				return nil, errors.New("issue ini sudah ditutup (Closed) dan foto tidak dapat diunggah")
+			}
+			// Auto-transition Open/Overdue issue to InProgress upon first follow-up/WOWR photo upload
+			if req.PhotoType == issue.PhotoTypeFollowUp || req.PhotoType == issue.PhotoTypeWOWR || req.RefPhotoID != nil {
+				if iss.IssueStatus == issue.IssueStatusOpen || iss.IssueStatus == issue.IssueStatusOpenOverdue {
 					iss.IssueStatus = issue.IssueStatusInProgress
 					_ = uc.issueRepo.Update(iss)
 				}
-			} else if iss.IssueStatus == issue.IssueStatusClosed || iss.IssueStatus == issue.IssueStatusVerified {
-				return nil, errors.New("issue ini sudah ditutup (Closed) dan foto tidak dapat diunggah")
 			}
 		}
 	}

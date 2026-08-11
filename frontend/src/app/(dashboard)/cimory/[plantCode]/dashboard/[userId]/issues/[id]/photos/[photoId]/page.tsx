@@ -96,11 +96,29 @@ export default function InitialPhotoDetailPage() {
   const rawStatus = issue.issue_status as IssueStatus;
   const isClosed = rawStatus === "Closed" || rawStatus === "Verified";
   const isWorkStarted = rawStatus === "InProgress" || rawStatus === "PendingValidation";
-  const canUploadFollowUp = !isClosed && isWorkStarted;
+  const canUploadFollowUp = !isClosed;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStartWork = async () => {
+    try {
+      await issueApi.update(id, { issue_status: "InProgress" });
+      await queryClient.invalidateQueries({ queryKey: ["issue", id] });
+      toast.success("Status temuan diubah menjadi In Progress (Sedang Dikerjakan)");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Gagal mengubah status temuan");
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!isWorkStarted) {
+        try {
+          await issueApi.update(id, { issue_status: "InProgress" });
+          await queryClient.invalidateQueries({ queryKey: ["issue", id] });
+        } catch (err) {
+          console.warn("Failed to auto-start work on photo upload:", err);
+        }
+      }
       uploadMutation.mutate({ file, type: "FollowUp", refPhotoId: photoId });
       e.target.value = "";
     }
@@ -133,19 +151,24 @@ export default function InitialPhotoDetailPage() {
         </Link>
       </div>
 
-      {/* Warning Banner if work has not been started */}
+      {/* Info Banner if work has not been started yet */}
       {!isWorkStarted && !isClosed && (
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2">
             <span>
-              Pengunggahan Foto Follow-Up perbaikan belum dapat dilakukan karena status temuan masih <strong>{rawStatus}</strong>. Silakan klik tombol <strong>&quot;Mulai Kerjakan&quot;</strong> di halaman utama detail temuan terlebih dahulu.
+              Status temuan saat ini masih <strong>{rawStatus}</strong>. Anda dapat langsung mengunggah foto perbaikan di bawah atau klik <strong>&quot;Mulai Kerjakan&quot;</strong>.
             </span>
           </div>
-          <Link href={backUrl} className="shrink-0">
-            <Button size="sm" variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-xl">
-              Ke Halaman Utama Temuan
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" onClick={handleStartWork} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl text-xs">
+              🚀 Mulai Kerjakan Sekarang
             </Button>
-          </Link>
+            <Link href={backUrl}>
+              <Button size="sm" variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-xl text-xs">
+                Ke Halaman Utama
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
 
