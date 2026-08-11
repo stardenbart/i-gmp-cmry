@@ -34,6 +34,10 @@ type IssuePhoto struct {
 	InfrastructureID *string    `gorm:"column:InfrastructureID;size:50" json:"infrastructure_id,omitempty"`
 	FollowUpDate     *time.Time `gorm:"column:FollowUpDate" json:"follow_up_date,omitempty"`
 	JumlahFollowUp   *int       `gorm:"column:JumlahFollowUp" json:"jumlah_follow_up,omitempty"`
+	NeedsWOWR        bool       `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
+	WO_ID            string     `gorm:"column:WO_ID;size:100" json:"wo_id,omitempty"`
+	WR_ID            string     `gorm:"column:WR_ID;size:100" json:"wr_id,omitempty"`
+	WOWRStatus       WOWRStatus `gorm:"column:WOWRStatus;default:None" json:"wowr_status,omitempty"`
 	PhotoCreatedAt   time.Time  `gorm:"column:PhotoCreatedAt;autoCreateTime" json:"created_at"`
 	PhotoUpdatedAt   time.Time  `gorm:"column:PhotoUpdatedAt;autoUpdateTime" json:"updated_at"`
 
@@ -71,6 +75,13 @@ type UpdatePhotoHEIRequest struct {
 	InfrastructureID *string `json:"infrastructure_id,omitempty"`
 }
 
+type UpdatePhotoWOWRRequest struct {
+	NeedsWOWR  *bool      `json:"needs_wo_wr"`
+	WO_ID      string     `json:"wo_id"`
+	WR_ID      string     `json:"wr_id"`
+	WOWRStatus WOWRStatus `json:"wowr_status"`
+}
+
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type IssuePhotoRepository interface {
@@ -88,5 +99,6 @@ type IssuePhotoUseCase interface {
 	Upload(ctx context.Context, req *UploadPhotoRequest, fileReader io.Reader, fileSize int64, originalFileName, contentType string) (*IssuePhoto, error)
 	Update(ctx context.Context, photoID string, keterangan string) (*IssuePhoto, error)
 	UpdateHEI(ctx context.Context, photoID string, req *UpdatePhotoHEIRequest) (*IssuePhoto, error)
+	UpdateWOWR(ctx context.Context, photoID string, req *UpdatePhotoWOWRRequest) (*IssuePhoto, error)
 	Delete(ctx context.Context, id string) error
 }

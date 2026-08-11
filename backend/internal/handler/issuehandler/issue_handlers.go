@@ -421,6 +421,18 @@ func (h *IssuePhotoHandler) UpdateHEI(c *fiber.Ctx) error {
 	return response.OK(c, "photo HEI updated", photo)
 }
 
+func (h *IssuePhotoHandler) UpdateWOWR(c *fiber.Ctx) error {
+	var req issue.UpdatePhotoWOWRRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid body", err.Error())
+	}
+	photo, err := h.uc.UpdateWOWR(c.UserContext(), c.Params("photo_id"), &req)
+	if err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
+	return response.OK(c, "photo WOWR updated", photo)
+}
+
 // @Summary Delete an issue photo
 // @Description Delete a specific issue photo by its ID
 // @Tags issue-photos

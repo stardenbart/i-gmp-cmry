@@ -155,6 +155,7 @@ export default function InitialPhotoDetailPage() {
         <div className="space-y-6">
           <DetailSpesifikasiTemuanCard
             issue={issue}
+            photo={currentPhoto}
             dueDate={issue.due_date ? new Date(issue.due_date) : null}
             isAuditor={isAuditor}
             canEditWOWR={!isClosed && (isAuditor || isWorkStarted)}

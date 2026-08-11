@@ -715,6 +715,35 @@ func (uc *issuePhotoUseCase) UpdateHEI(ctx context.Context, photoID string, req 
 	return photo, err
 }
 
+func (uc *issuePhotoUseCase) UpdateWOWR(ctx context.Context, photoID string, req *issue.UpdatePhotoWOWRRequest) (*issue.IssuePhoto, error) {
+	photo, err := uc.repo.FindByID(photoID)
+	if err != nil {
+		return nil, errors.New("photo not found")
+	}
+
+	if req.NeedsWOWR != nil {
+		photo.NeedsWOWR = *req.NeedsWOWR
+	}
+	photo.WO_ID = req.WO_ID
+	photo.WR_ID = req.WR_ID
+	if req.WOWRStatus != "" {
+		photo.WOWRStatus = req.WOWRStatus
+	} else if photo.NeedsWOWR {
+		photo.WOWRStatus = issue.WOWRStatusPendingValidation
+	} else {
+		photo.WOWRStatus = issue.WOWRStatusNone
+	}
+
+	err = uc.repo.Update(photo)
+	if err == nil {
+		if updated, errFind := uc.repo.FindByID(photoID); errFind == nil {
+			photo = updated
+		}
+		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
+	}
+	return photo, err
+}
+
 func (uc *issuePhotoUseCase) Delete(ctx context.Context, id string) error {
 	photo, err := uc.repo.FindByID(id)
 	if err != nil {

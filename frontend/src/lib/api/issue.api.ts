@@ -43,6 +43,10 @@ export interface IssuePhoto {
   image_url: string;
   file_name: string;
   keterangan?: string;
+  needs_wo_wr?: boolean;
+  wo_id?: string;
+  wr_id?: string;
+  wowr_status?: WOWRStatus;
   hei_id?: string;
   hei_name?: string;
   hei_category?: string;
@@ -211,6 +215,11 @@ export const issueApi = {
 
   updatePhotoHEI: async (photoId: string, data: { hei_id?: string; hei_category?: string; habit_id?: string; equipment_id?: string; infrastructure_id?: string }) => {
     const res = await api.put(`/issues/photos/${photoId}/hei`, data);
+    return res.data;
+  },
+
+  updatePhotoWOWR: async (photoId: string, data: { needs_wo_wr: boolean; wo_id: string; wr_id: string; wowr_status?: WOWRStatus }) => {
+    const res = await api.put(`/issues/photos/${photoId}/wowr`, data);
     return res.data;
   },
 
