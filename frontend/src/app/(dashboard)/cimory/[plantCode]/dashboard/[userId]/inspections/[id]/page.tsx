@@ -502,7 +502,12 @@ export default function InspectionDetailPage() {
           const pKey = getPhotoKey(detail.detail_id, uId);
           const val = formData[`nilai_${pKey}`] ?? formData[`nilai_${uId}`];
           const ket = formData[`ket_${pKey}`] ?? formData[`ket_${uId}`];
-          const photos = ngPhotosMap[pKey] || (!detail.detail_id ? (ngPhotosMap[uId] || []) : []);
+          const photos =
+            (ngPhotosMapRef.current && ngPhotosMapRef.current[pKey]) ||
+            ngPhotosMap[pKey] ||
+            (!detail.detail_id
+              ? (ngPhotosMapRef.current && ngPhotosMapRef.current[uId]) || ngPhotosMap[uId] || []
+              : []);
 
           if (!val) {
             unansweredCount++;
@@ -629,11 +634,18 @@ export default function InspectionDetailPage() {
                     photoFile = dataURLtoFile(photoItem.previewUrl, `photo_${Date.now()}.jpg`);
                   } else {
                     try {
-                      const res = await fetch(photoItem.previewUrl);
-                      const blob = await res.blob();
-                      photoFile = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+                      const fetchUrl = photoItem.previewUrl.startsWith("http")
+                        ? photoItem.previewUrl
+                        : photoItem.previewUrl.startsWith("/")
+                        ? photoItem.previewUrl
+                        : `/${photoItem.previewUrl}`;
+                      const res = await api.get(fetchUrl, { responseType: "blob" });
+                      const blob = res.data;
+                      if (blob && blob.size > 0 && !blob.type?.includes("html")) {
+                        photoFile = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+                      }
                     } catch (e) {
-                      console.warn("Failed to fetch photo blob from previewUrl:", e);
+                      console.warn("Failed to fetch photo blob via api.get from previewUrl:", e);
                     }
                   }
                 }
