@@ -237,6 +237,9 @@ export default function IssuesPage() {
     queryKey: ["issues-filter", params],
     queryFn: () => filterApi.issues(params),
     enabled: canAccess,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
   });
 
   const rawItems: Issue[] = data?.items ?? [];

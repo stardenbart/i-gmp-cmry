@@ -64,11 +64,17 @@ export default function IssueDetailPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["issue", id],
     queryFn: () => issueApi.getById(id),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
   });
 
   const { data: photosData } = useQuery({
     queryKey: ["issue-photos", id],
     queryFn: () => issueApi.getPhotos(id),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
   });
 
   const updateMutation = useMutation({

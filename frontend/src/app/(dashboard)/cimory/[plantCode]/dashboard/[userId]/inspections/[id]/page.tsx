@@ -552,7 +552,7 @@ export default function InspectionDetailPage() {
 
               ngUraianTasks.push({
                 uraian,
-                keterangan: photos[0]?.keterangan || ket || "Temuan NG pada inspeksi",
+                keterangan: ket || photos[0]?.keterangan || "Temuan NG pada inspeksi",
                 photos,
               });
             }
