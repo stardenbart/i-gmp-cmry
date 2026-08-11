@@ -34,6 +34,14 @@ func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStor
 	r.Use(middleware.CORSMiddleware(cfg.CORSAllowedOrigins))
 	r.Use(middleware.LoggerMiddleware(log))
 
+	// Disable HTTP caching for all API responses to prevent browser cache stale data
+	r.Use(func(c *fiber.Ctx) error {
+		c.Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+		c.Set("Pragma", "no-cache")
+		c.Set("Expires", "0")
+		return c.Next()
+	})
+
 	// ── JWT Manager ────────────────────────────────────────────────────
 	jwtManager := jwt.New(cfg.JWTSecret, cfg.JWTExpiredHours)
 

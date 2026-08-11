@@ -396,6 +396,15 @@ export default function InspectionDetailPage() {
           const draftPhotos = mergedPhotosMap[pKey] || (!detail.detail_id ? mergedPhotosMap[uId] : undefined);
           if (draftPhotos && draftPhotos.length > 0) {
             photoStateMap[pKey] = draftPhotos;
+          } else if (uraian.result?.photos && uraian.result.photos.length > 0) {
+            photoStateMap[pKey] = uraian.result.photos.map((p: any) => ({
+              id: p.issue_photo_id,
+              existingPhotoId: p.issue_photo_id,
+              previewUrl: p.image_url,
+              keterangan: p.keterangan || "",
+              hei_id: p.hei_id || "",
+              hei_category: p.hei_category || "",
+            }));
           }
         });
       });
@@ -584,6 +593,15 @@ export default function InspectionDetailPage() {
         const updatedChecklistRes = await inspectionApi.getChecklist(id);
         const updatedChecklist = updatedChecklistRes?.data;
 
+        // Collect all photo IDs present in all tasks of this inspection session
+        const allSessionPhotoIdsSet = new Set<string>();
+        for (const t of ngUraianTasks) {
+          for (const p of t.photos) {
+            if (p.existingPhotoId) allSessionPhotoIdsSet.add(p.existingPhotoId);
+            if (p.id) allSessionPhotoIdsSet.add(p.id);
+          }
+        }
+
         for (const task of ngUraianTasks) {
           let savedResultId = "";
           updatedChecklist?.aspeks?.forEach((a: any) => {
@@ -626,14 +644,6 @@ export default function InspectionDetailPage() {
                     (photoItem.id && ep.issue_photo_id === photoItem.id) ||
                     (photoItem.previewUrl && ep.image_url && (ep.image_url.includes(photoItem.previewUrl) || photoItem.previewUrl.includes(ep.image_url)))
                 );
-
-                // Fallback: Match by index position if ID/URL inclusion doesn't match
-                if (!matchedExistingPhoto && existingPhotos.length > 0) {
-                  const photoIdx = task.photos.indexOf(photoItem);
-                  if (photoIdx >= 0 && photoIdx < existingPhotos.length) {
-                    matchedExistingPhoto = existingPhotos[photoIdx];
-                  }
-                }
 
                 if (matchedExistingPhoto) {
                   matchedPhotoIdsSet.add(matchedExistingPhoto.issue_photo_id);
@@ -683,8 +693,9 @@ export default function InspectionDetailPage() {
               }
 
               // 3. Delete any initial photos from server that were removed by the auditor
+              // ONLY delete if photo is NOT present in ANY task in the current inspection session
               for (const ep of existingPhotos) {
-                if (ep.photo_type === "Initial" && !matchedPhotoIdsSet.has(ep.issue_photo_id)) {
+                if (ep.photo_type === "Initial" && !allSessionPhotoIdsSet.has(ep.issue_photo_id) && !matchedPhotoIdsSet.has(ep.issue_photo_id)) {
                   try {
                     await issueApi.deletePhoto(createdIssueId, ep.issue_photo_id);
                   } catch (e) {
@@ -738,7 +749,7 @@ export default function InspectionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
       await queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
       toast.success("Inspeksi telah dibatalkan dan kunci lokasi dilepas.");
-      router.push(`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections`);
+      router.push(`/cimory/${plantCode || "all"|| "global"}/dashboard/${userId}/inspections`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Gagal membatalkan inspeksi");
     } finally {
