@@ -58,6 +58,12 @@ func (uc *inspectionHeaderUseCase) GetTrend(contextID string, year int) ([]inspe
 func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.CreateInspectionRequest) (*inspection.InspectionHeader, error) {
 	now := time.Now()
 
+	// 0. Cek apakah detail kawasan sudah pernah diinspeksi (Selesai/Approved) di bulan yang sama
+	completedCount, err := uc.repo.CountCompletedThisMonthByDetailKawasan(req.DetailKawasanID, now.Year(), int(now.Month()))
+	if err == nil && completedCount > 0 {
+		return nil, errors.New("detail kawasan ini sudah selesai diinspeksi pada bulan ini, anda baru bisa melakukan inspeksi lagi bulan depan")
+	}
+
 	// 1. Cek apakah ada inspeksi aktif (Draft/Ongoing) di detail kawasan ini (oleh siapapun)
 	activeInDK, err := uc.repo.FindActiveByDetailKawasan(req.DetailKawasanID)
 	if err == nil && len(activeInDK) > 0 {

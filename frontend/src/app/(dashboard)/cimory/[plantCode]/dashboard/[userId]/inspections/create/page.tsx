@@ -265,6 +265,7 @@ export default function CreateInspectionPage() {
                       <option 
                         key={dk.detail_kawasan_id} 
                         value={dk.detail_kawasan_id}
+                        disabled={isCompletedThisMonth}
                       >
                         {dk.detail_kawasan_name}{statusText}
                       </option>
