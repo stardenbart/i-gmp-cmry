@@ -173,10 +173,38 @@ func (r *inspectionHeaderRepository) Update(h *inspection.InspectionHeader) erro
 func (r *inspectionHeaderRepository) Delete(id string) error {
 	var h inspection.InspectionHeader
 	if err := r.db.Where("\"InspectionID\" = ?", id).First(&h).Error; err == nil {
+		// 1. Delete associated Issue_Photo records
+		_ = r.db.Exec(`
+			DELETE FROM "Issue_Photo" 
+			WHERE "IssueID" IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"
+				WHERE ir."InspectionID" = ?
+			)`, id)
+
+		// 2. Delete associated Issue_HEI records
+		_ = r.db.Exec(`
+			DELETE FROM "Issue_HEI" 
+			WHERE "IssueID" IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"
+				WHERE ir."InspectionID" = ?
+			)`, id)
+
+		// 3. Delete associated Issue records
+		_ = r.db.Exec(`
+			DELETE FROM "Issue" 
+			WHERE "ResultID" IN (
+				SELECT "ResultID" FROM "Inspection_Result" WHERE "InspectionID" = ?
+			)`, id)
+
+		// 4. Delete associated Inspection_Result records
+		_ = r.db.Where("\"InspectionID\" = ?", id).Delete(&inspection.InspectionResult{})
+
+		// 5. Delete Inspection_Header
 		if err := r.db.Where("\"InspectionID\" = ?", id).Delete(&inspection.InspectionHeader{}).Error; err != nil {
 			return err
 		}
-		_ = r.db.Where("\"InspectionID\" = ?", id).Delete(&inspection.InspectionResult{})
 
 		// Sync / recalculate LastInspection on DetailKawasan_Master
 		_ = r.db.Exec(`

@@ -55,15 +55,7 @@ const statusConfig: Record<
 };
 
 /* ── Issue Card ────────────────────────────────────────────────────────── */
-function IssueCard({
-  issue,
-  targetUrl,
-  onDelete,
-}: {
-  issue: Issue;
-  targetUrl?: string;
-  onDelete?: (issue: Issue) => void;
-}) {
+function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
   const displayStatus = issue.computed_status || issue.issue_status;
   const cfg = statusConfig[displayStatus] ?? statusConfig["Open"];
   const StatusIcon = cfg.icon;
@@ -181,25 +173,9 @@ function IssueCard({
           </div>
         </div>
 
-        {/* Actions: Delete button & Right chevron */}
-        <div className="flex items-center gap-1.5 pr-1">
-          {onDelete && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete(issue);
-              }}
-              title="Hapus Temuan"
-              className="p-2 rounded-xl text-muted-foreground/50 hover:text-red-400 hover:bg-red-500/10 transition-colors z-10"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-          <div className="text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">
-            <ChevronRight className="h-4 w-4" />
-          </div>
+        {/* Right chevron */}
+        <div className="flex items-center pr-1 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">
+          <ChevronRight className="h-4 w-4" />
         </div>
       </div>
     </Link>
@@ -242,28 +218,8 @@ export default function IssuesPage() {
 
   usePolling();
 
-  const queryClient = useQueryClient();
   const dispatch = useAppDispatch();
   const { activeStatus, search, page } = useAppSelector((state) => state.issueFilter);
-
-  const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleConfirmDelete = async () => {
-    if (!issueToDelete) return;
-    setIsDeleting(true);
-    try {
-      await issueApi.delete(issueToDelete.issue_id);
-      toast.success(`Temuan ${issueToDelete.issue_id} berhasil dihapus`);
-      queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      setIssueToDelete(null);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Gagal menghapus temuan");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   // Debounce search via React 18 useDeferredValue
   const deferredSearch = useDeferredValue(search);
@@ -447,66 +403,10 @@ export default function IssuesPage() {
               key={issue.issue_id} 
               issue={issue} 
               targetUrl={`/cimory/${plantCode}/dashboard/${userId}/issues/${issue.issue_id}`} 
-              onDelete={(item) => setIssueToDelete(item)}
             />
           ))
         )}
       </div>
-
-      {/* ── Modal Konfirmasi Hapus ── */}
-      {issueToDelete && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIssueToDelete(null);
-          }}
-        >
-          <div className="relative w-[92vw] max-w-[420px] shrink-0 rounded-2xl border border-red-500/30 bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-red-400">
-              <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                <Trash2 className="h-5 w-5 text-red-500" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-base text-foreground truncate">Hapus Temuan</h3>
-                <p className="text-xs text-muted-foreground font-mono truncate">ID: {issueToDelete.issue_id}</p>
-              </div>
-            </div>
-
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Apakah Anda yakin ingin menghapus temuan <strong className="text-foreground">{issueToDelete.area_name || "Tanpa Area"} · {issueToDelete.kawasan_name || "Tanpa Kawasan"} · {issueToDelete.detail_kawasan_name || "Tanpa Detail"}</strong>? Data yang dihapus tidak dapat dikembalikan.
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isDeleting}
-                onClick={() => setIssueToDelete(null)}
-                className="rounded-xl px-4 text-xs font-semibold"
-              >
-                Batal
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={isDeleting}
-                onClick={handleConfirmDelete}
-                className="rounded-xl px-4 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Menghapus...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Ya, Hapus
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Pagination (server-driven) ── */}
       {totalPages > 1 && (

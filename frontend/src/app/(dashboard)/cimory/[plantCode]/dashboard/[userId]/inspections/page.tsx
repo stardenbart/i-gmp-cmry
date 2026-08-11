@@ -150,9 +150,31 @@ export default function InspectionsPage() {
   const { hasPermission, isLoading: isGuardLoading } = usePermissions();
   const isAuditor = hasPermission("PERM-INSP-R");
 
+  const queryClient = useQueryClient();
   const dispatch = useAppDispatch();
   const { q, status, page } = useAppSelector((state) => state.inspectionFilter);
   
+  const [inspectionToDelete, setInspectionToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDeleteInspection = async () => {
+    if (!inspectionToDelete) return;
+    setIsDeleting(true);
+    try {
+      await inspectionApi.delete(inspectionToDelete.id);
+      toast.success(`Inspeksi ${inspectionToDelete.id} dan temuan terkait berhasil dihapus`);
+      queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
+      queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      setInspectionToDelete(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || "Gagal menghapus inspeksi");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const [searchInputValue, setSearchInputValue] = useState(q || "");
   const debouncedSearchValue = useDebounce(searchInputValue, 400);
 
@@ -267,7 +289,13 @@ export default function InspectionsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {myTasks.map(t => (
-              <MyTaskCard key={t.inspection_id} inspection={t} userId={user?.id ?? ""} plantCode={plantCode} />
+              <MyTaskCard 
+                key={t.inspection_id} 
+                inspection={t} 
+                userId={user?.id ?? ""} 
+                plantCode={plantCode} 
+                onDelete={(id, name) => setInspectionToDelete({ id, name })}
+              />
             ))}
           </div>
         )}
@@ -469,21 +497,95 @@ export default function InspectionsPage() {
                       </span>
                     </div>
 
-                    <Link
-                      href={`/cimory/${plantCode || "all"}/dashboard/${user?.id}/inspections/${inspection.inspection_id}`}
-                      className="ml-auto sm:ml-0"
-                    >
-                      <Button variant="outline" size="sm" className="rounded-xl text-xs h-8 px-3">
-                        {inspection.status === "Ongoing" ? "Lanjutkan" : "Detail"}
-                        <ArrowRight className="ml-1 h-3 w-3" />
+                    <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setInspectionToDelete({
+                            id: inspection.inspection_id,
+                            name: (inspection as any).detail_kawasan_name || inspection.inspection_id,
+                          });
+                        }}
+                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
+                        title="Hapus Inspeksi"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
-                    </Link>
+
+                      <Link
+                        href={`/cimory/${plantCode || "all"}/dashboard/${user?.id}/inspections/${inspection.inspection_id}`}
+                      >
+                        <Button variant="outline" size="sm" className="rounded-xl text-xs h-8 px-3">
+                          {inspection.status === "Ongoing" ? "Lanjutkan" : "Detail"}
+                          <ArrowRight className="ml-1 h-3 w-3" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </Card>
             ))
           )}
         </div>
+
+        {/* ── Modal Konfirmasi Hapus Inspeksi ── */}
+        {inspectionToDelete && (
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setInspectionToDelete(null);
+            }}
+          >
+            <div className="relative w-[92vw] max-w-[420px] shrink-0 rounded-2xl border border-red-500/30 bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-3 text-red-400">
+                <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="h-5 w-5 text-red-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-base text-foreground truncate">Hapus Inspeksi</h3>
+                  <p className="text-xs text-muted-foreground font-mono truncate">ID: {inspectionToDelete.id}</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Apakah Anda yakin ingin menghapus inspeksi <strong className="text-foreground">{inspectionToDelete.name}</strong>? Seluruh hasil poin dan temuan (issues) terkait akan ikut terhapus otomatis dari sistem.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isDeleting}
+                  onClick={() => setInspectionToDelete(null)}
+                  className="rounded-xl px-4 text-xs font-semibold"
+                >
+                  Batal
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDeleteInspection}
+                  className="rounded-xl px-4 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Menghapus...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Ya, Hapus
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Pagination */}
         {totalPages > 1 && (

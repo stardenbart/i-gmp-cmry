@@ -112,6 +112,27 @@ export default function InspectionDetailPage() {
   const ngPhotosMapRef = useRef<Record<string, PhotoItem[]>>({});
   const isFormInitialized = useRef(false);
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingInspection, setIsDeletingInspection] = useState(false);
+
+  const handleDeleteInspection = async () => {
+    setIsDeletingInspection(true);
+    try {
+      await inspectionApi.delete(id);
+      toast.success("Inspeksi dan temuan terkait berhasil dihapus");
+      queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
+      queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      router.push(`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || "Gagal menghapus inspeksi");
+    } finally {
+      setIsDeletingInspection(false);
+      setShowDeleteModal(false);
+    }
+  };
+
   // Data queries
   const { data: inspectionRes, isLoading: isInspectionLoading } = useQuery({
     queryKey: ["inspection", id],
@@ -831,6 +852,16 @@ export default function InspectionDetailPage() {
 
         {/* Action Buttons */}
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2 w-full">
+          {isAuditor && isSamePlant && (
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(true)}
+              className="w-full sm:w-auto sm:flex-none h-10 sm:h-9 px-2.5 sm:px-4 text-xs border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 rounded-xl font-semibold"
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5 text-red-500" />
+              Hapus Inspeksi
+            </Button>
+          )}
           {isCompleted && isAuditor && isSamePlant && (
             <Button
               onClick={handleReopenForEdit}
@@ -1421,6 +1452,61 @@ export default function InspectionDetailPage() {
               >
                 {isCanceling ? <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin mr-1.5" /> : null}
                 {isCanceling ? "Membatalkan..." : "Ya, Batalkan & Hapus Sesi"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Konfirmasi Hapus Inspeksi ── */}
+      {showDeleteModal && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowDeleteModal(false);
+          }}
+        >
+          <div className="relative w-[92vw] max-w-[420px] shrink-0 rounded-2xl border border-red-500/30 bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-base text-foreground truncate">Hapus Inspeksi</h3>
+                <p className="text-xs text-muted-foreground font-mono truncate">ID: {id}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Apakah Anda yakin ingin menghapus inspeksi <strong className="text-foreground">{inspection.detail_kawasan_name || inspection.kawasan_name || id}</strong>? Seluruh hasil poin dan temuan (issues) terkait akan ikut terhapus otomatis dari sistem.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isDeletingInspection}
+                onClick={() => setShowDeleteModal(false)}
+                className="rounded-xl px-4 text-xs font-semibold"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isDeletingInspection}
+                onClick={handleDeleteInspection}
+                className="rounded-xl px-4 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isDeletingInspection ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Menghapus...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Ya, Hapus
+                  </>
+                )}
               </Button>
             </div>
           </div>
