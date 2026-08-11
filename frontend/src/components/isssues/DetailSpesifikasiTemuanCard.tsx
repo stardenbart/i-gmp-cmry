@@ -189,7 +189,6 @@ export const DetailSpesifikasiTemuanCard = ({
       {/* Header Card */}
       <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-primary" />
           <h3 className="font-bold text-base tracking-tight">Detail Spesifikasi Temuan Awal</h3>
         </div>
       </div>
@@ -199,7 +198,7 @@ export const DetailSpesifikasiTemuanCard = ({
         {/* Lokasi Audit Area */}
         <div className="space-y-1.5">
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5 text-primary" /> Lokasi Audit Area
+            Lokasi Audit Area
           </span>
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-muted/40 p-2.5 rounded-xl border border-border/60">
@@ -245,7 +244,7 @@ export const DetailSpesifikasiTemuanCard = ({
         {(habitName || equipmentName || infrastructureName || photo?.hei_category || issue.hei_category) && (
           <div className="pt-2 border-t border-border/60 space-y-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Tag className="h-3.5 w-3.5 text-primary" /> Kategori HEI (Hasil Inspeksi)
+             Kategori HEI (Hasil Inspeksi)
             </span>
             <div className="flex flex-wrap gap-2">
               {habitName && (
@@ -270,7 +269,6 @@ export const DetailSpesifikasiTemuanCard = ({
         {/* Metadata PIC, Due Date, Created At */}
         <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border/60 text-xs">
           <div className="flex items-start gap-2">
-            <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
             <div>
               <span className="text-[11px] text-muted-foreground block font-medium">PIC Penanggung Jawab</span>
               <span className="font-semibold text-foreground">{issue.pic_name || issue.issue_pic_user_id}</span>
@@ -278,7 +276,6 @@ export const DetailSpesifikasiTemuanCard = ({
           </div>
 
           <div className="flex items-start gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
             <div>
               <span className="text-[11px] text-muted-foreground block font-medium">Target Penyelesaian</span>
               {dueDate ? (
@@ -297,14 +294,13 @@ export const DetailSpesifikasiTemuanCard = ({
       <div className="pt-4 border-t border-border space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-amber-500" />
             <h4 className="font-bold text-sm">
               Maintenance (WO / WR) {photo ? "Terisolasi Foto" : ""}
             </h4>
           </div>
           {isReadOnly ? (
             <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold border border-amber-500/20 flex items-center gap-1">
-              <Lock className="h-3 w-3" /> Terkunci
+              Terkunci
             </span>
           ) : (
             <span className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-semibold border border-green-500/20">
@@ -391,7 +387,7 @@ export const DetailSpesifikasiTemuanCard = ({
             />
             {validationError && (
               <p className="text-red-500 text-xs font-medium pl-1 animate-in fade-in">
-                ⚠️ {validationError}
+                {validationError}
               </p>
             )}
           </div>
@@ -436,9 +432,9 @@ export const DetailSpesifikasiTemuanCard = ({
             {wowrMutation.isPending || photoWowrMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Wrench className="mr-2 h-4 w-4" />
+              <span>Simpan Data Maintenance Foto</span>
             )}
-            Simpan Data Maintenance Foto
+            
           </Button>
         )}
       </div>

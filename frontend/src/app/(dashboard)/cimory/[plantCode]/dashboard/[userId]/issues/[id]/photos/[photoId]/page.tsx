@@ -14,6 +14,7 @@ import {
   Loader2,
   Eye,
   Tag,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -71,10 +72,17 @@ export default function InitialPhotoDetailPage() {
   const currentPhoto = allPhotos.find((p) => p.issue_photo_id === photoId) || allPhotos.find((p) => p.photo_type === "Initial");
   const initialPhotosCount = allPhotos.filter((p) => p.photo_type === "Initial").length;
 
-  // Filter follow-up & WOWR photos specific to this initial photo (or photos without ref_photo_id if only 1 initial photo exists)
+  // Filter follow-up photos specific to this initial photo (photo_type === "FollowUp" ONLY)
   const followUpPhotos = allPhotos.filter(
     (p) =>
-      (p.photo_type === "FollowUp" || p.photo_type === "WOWR") &&
+      p.photo_type === "FollowUp" &&
+      (p.ref_photo_id === photoId || (!p.ref_photo_id && initialPhotosCount <= 1))
+  );
+
+  // Filter WOWR proof photos specific to this initial photo (photo_type === "WOWR" ONLY)
+  const wowrPhotos = allPhotos.filter(
+    (p) =>
+      p.photo_type === "WOWR" &&
       (p.ref_photo_id === photoId || (!p.ref_photo_id && initialPhotosCount <= 1))
   );
 
@@ -309,6 +317,45 @@ export default function InitialPhotoDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* List Foto Bukti WOWR (Terpisah dari Follow-Up) */}
+      {(wowrPhotos.length > 0 || currentPhoto?.needs_wo_wr || issue?.needs_wo_wr) && (
+        <Card className="p-6 bg-card/60 backdrop-blur-md space-y-5 shadow-sm border-border/80">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <Wrench className="h-5 w-5 text-amber-500" />
+                Bukti Foto Penyelesaian WO / WR
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Foto bukti konfirmasi perbaikan fisik khusus Work Order / Work Request ({currentPhoto?.wo_id || currentPhoto?.wr_id || issue?.wo_id || issue?.wr_id || "WO/WR"}).
+              </p>
+            </div>
+          </div>
+
+          {wowrPhotos.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground rounded-2xl border border-dashed border-border bg-muted/20 flex flex-col items-center gap-2">
+              <p className="font-medium text-sm text-amber-600 dark:text-amber-400">Belum ada foto bukti penyelesaian WO/WR.</p>
+              <p className="text-xs text-muted-foreground">Unggah foto bukti penyelesaian WO/WR dilakukan melalui halaman Manajemen WO/WR.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+              {wowrPhotos.map((photo) => (
+                <FollowUpPhotoCard
+                  key={photo.issue_photo_id}
+                  photo={photo}
+                  onPreview={() => setSelectedImage(formatImageUrl(photo.image_url))}
+                  onDelete={() => deleteMutation.mutate(photo.issue_photo_id)}
+                  isDeleting={deleteMutation.isPending}
+                  isClosed={isClosed}
+                  canDelete={isAuditor || canUploadFollowUp}
+                  onRefresh={() => queryClient.invalidateQueries({ queryKey: ["issue-photos", id] })}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Image Lightbox */}
       {selectedImage && (
