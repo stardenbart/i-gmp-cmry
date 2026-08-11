@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { issueApi, IssuePhoto, IssueStatus } from "@/lib/api/issue.api";
 import { cn, formatImageUrl } from "@/lib/utils";
-import { DetailSpesifikasiTemuanCard } from "@/components/isssues/DetailSpesifikasiTemuanCard";
+import { InfoCard } from "@/components/isssues/InfoCard";
 import { PhotoSection } from "@/components/isssues/PhotosCard";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
@@ -282,14 +282,8 @@ export default function IssueDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-1">
-          {/* Detail Spesifikasi Temuan Awal (Integrated Info & Maintenance WO/WR) */}
-          <DetailSpesifikasiTemuanCard
-            issue={issue}
-            dueDate={dueDate}
-            isAuditor={isAuditor}
-            canEditWOWR={canEditWOWR}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ["issue", id] })}
-          />
+          {/* Information Card */}
+          <InfoCard issue={issue} dueDate={dueDate} />
         </div>
 
         {/* Photos Card */}
