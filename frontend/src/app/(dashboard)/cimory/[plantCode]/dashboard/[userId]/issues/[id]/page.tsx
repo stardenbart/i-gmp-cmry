@@ -350,15 +350,20 @@ export default function IssueDetailPage() {
 
       {/* Modal Konfirmasi Hapus Temuan */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-card p-6 shadow-2xl space-y-4">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowDeleteModal(false);
+          }}
+        >
+          <div className="relative w-[92vw] max-w-[420px] shrink-0 rounded-2xl border border-red-500/30 bg-card p-5 sm:p-6 shadow-2xl space-y-4 my-auto animate-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 text-red-400">
               <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
                 <Trash2 className="h-5 w-5 text-red-500" />
               </div>
-              <div>
-                <h3 className="font-bold text-base text-foreground">Hapus Temuan</h3>
-                <p className="text-xs text-muted-foreground font-mono">ID: {id}</p>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-base text-foreground truncate">Hapus Temuan</h3>
+                <p className="text-xs text-muted-foreground font-mono truncate">ID: {id}</p>
               </div>
             </div>
 
