@@ -94,7 +94,9 @@ func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID st
 			  JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
 			  WHERE ip."IssueID" = "Issue"."IssueID" 
 			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName"`).
-		Preload("Photos").
+		Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order(`"PhotoCreatedAt" ASC`)
+		}).
 		Preload("HEI.Habit").
 		Preload("HEI.Equipment").
 		Preload("HEI.Infrastructure").
@@ -135,7 +137,9 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
-		Preload("Photos").
+		Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order(`"PhotoCreatedAt" ASC`)
+		}).
 		Preload("HEI.Habit").
 		Preload("HEI.Equipment").
 		Preload("HEI.Infrastructure").

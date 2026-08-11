@@ -1,10 +1,9 @@
 import { cn } from "@/lib/utils"
-import { Activity, Wrench, Warehouse, FileText, User, Calendar, Clock } from "lucide-react"
+import { Activity, Wrench, Warehouse, User, Calendar, Clock } from "lucide-react"
 import { Card } from "../ui/card"
 
 interface InfoCardProps {
   issue: {
-    keterangan: string | null
     issue_pic_user_id: string
     pic_name?: string
     due_date: string | null
@@ -39,14 +38,6 @@ export const InfoCard = ({ issue, dueDate }: InfoCardProps) => {
       <h3 className="font-semibold border-b border-border pb-2 text-base">Informasi Temuan</h3>
 
       <div className="space-y-3.5 text-sm">
-        <div className="flex items-start gap-3">
-          <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-          <div>
-            <span className="text-xs text-muted-foreground block font-medium">Keterangan</span>
-            <span className="font-semibold text-foreground">{issue.keterangan || "-"}</span>
-          </div>
-        </div>
-
         {habitName && (
           <div className="flex items-start gap-3">
             <Activity className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />

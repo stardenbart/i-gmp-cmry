@@ -67,7 +67,9 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
       issue.issue_status !== "Verified");
 
   const href = targetUrl || `issues/${issue.issue_id}`;
-  const firstPhoto = issue.photos && issue.photos.length > 0 ? issue.photos[0] : null;
+  const initialPhotos = issue.photos?.filter((p) => p.photo_type === "Initial") || issue.photos || [];
+  const firstPhoto = initialPhotos.length > 0 ? initialPhotos[0] : (issue.photos && issue.photos.length > 0 ? issue.photos[0] : null);
+  const totalPhotoCount = issue.photos?.length || 0;
 
   return (
     <Link href={href}>
@@ -90,9 +92,9 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
               alt="Foto Temuan"
               className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
-            {(issue.photos?.length ?? 0) > 1 && (
+            {totalPhotoCount > 1 && (
               <span className="absolute bottom-1 right-1 text-[9px] font-bold bg-black/80 text-white px-1.5 py-0.5 rounded-md backdrop-blur-xs">
-                +{(issue.photos?.length ?? 1) - 1}
+                +{totalPhotoCount - 1}
               </span>
             )}
           </div>

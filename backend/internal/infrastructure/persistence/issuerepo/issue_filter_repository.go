@@ -41,7 +41,9 @@ func (r *issueFilterRepository) FindFiltered(f *issue.IssueFilter) ([]issue.Issu
 			  JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih2."DetailKawasanID"
 			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
 			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName"`).
-		Preload("Photos").
+		Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order(`"PhotoCreatedAt" ASC`)
+		}).
 		Offset((f.Page - 1) * f.Limit).
 		Limit(f.Limit).
 		Find(&items).Error
