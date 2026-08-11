@@ -158,7 +158,7 @@ export default function InitialPhotoDetailPage() {
             photo={currentPhoto}
             dueDate={issue.due_date ? new Date(issue.due_date) : null}
             isAuditor={isAuditor}
-            canEditWOWR={!isClosed && (isAuditor || isWorkStarted)}
+            canEditWOWR={!isClosed}
             onRefresh={() => {
               queryClient.invalidateQueries({ queryKey: ["issue", id] });
               queryClient.invalidateQueries({ queryKey: ["issue-photos", id] });
