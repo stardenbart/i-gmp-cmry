@@ -144,6 +144,15 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 			existing.IssuePICUserID = req.IssuePICUserID
 		}
 		if req.Keterangan != "" {
+			if existing.Keterangan != "" {
+				decExisting := uc.cryptoSvc.DecryptWithFallback(existing.Keterangan)
+				if decExisting != "" && decExisting != req.Keterangan && !strings.Contains(decExisting, req.Keterangan) {
+					combined := decExisting + "; " + req.Keterangan
+					if enc, err := uc.cryptoSvc.Encrypt(combined); err == nil {
+						keteranganEnc = enc
+					}
+				}
+			}
 			existing.Keterangan = keteranganEnc
 		}
 		if req.Label != "" {

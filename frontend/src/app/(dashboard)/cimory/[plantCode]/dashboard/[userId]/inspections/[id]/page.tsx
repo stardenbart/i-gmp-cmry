@@ -593,14 +593,9 @@ export default function InspectionDetailPage() {
         const updatedChecklistRes = await inspectionApi.getChecklist(id);
         const updatedChecklist = updatedChecklistRes?.data;
 
-        // Collect all photo IDs present in all tasks of this inspection session
-        const allSessionPhotoIdsSet = new Set<string>();
-        for (const t of ngUraianTasks) {
-          for (const p of t.photos) {
-            if (p.existingPhotoId) allSessionPhotoIdsSet.add(p.existingPhotoId);
-            if (p.id) allSessionPhotoIdsSet.add(p.id);
-          }
-        }
+        // Track all valid photo IDs across all tasks in this session to protect them from deletion
+        const validSessionPhotoIds = new Set<string>();
+        let activeIssueIdForSession = "";
 
         for (const task of ngUraianTasks) {
           let savedResultId = "";
@@ -622,6 +617,7 @@ export default function InspectionDetailPage() {
             });
 
             const createdIssueId = issueRes?.data?.issue_id;
+            if (createdIssueId) activeIssueIdForSession = createdIssueId;
 
             if (createdIssueId && task.photos.length > 0) {
               let existingPhotos: IssuePhoto[] = [];
@@ -631,8 +627,6 @@ export default function InspectionDetailPage() {
               } catch (e) {
                 console.warn("Failed to fetch existing photos for issue:", e);
               }
-
-              const matchedPhotoIdsSet = new Set<string>();
 
               for (const photoItem of task.photos) {
                 let photoFile = photoItem.file;
@@ -646,7 +640,7 @@ export default function InspectionDetailPage() {
                 );
 
                 if (matchedExistingPhoto) {
-                  matchedPhotoIdsSet.add(matchedExistingPhoto.issue_photo_id);
+                  validSessionPhotoIds.add(matchedExistingPhoto.issue_photo_id);
                   if (photoItem.hei_id || photoItem.hei_category) {
                     await issueApi.updatePhotoHEI(matchedExistingPhoto.issue_photo_id, {
                       hei_id: photoItem.hei_id || "",
@@ -688,22 +682,28 @@ export default function InspectionDetailPage() {
                   fd.append("keterangan", photoItem.keterangan || "");
                   if (photoItem.hei_id) fd.append("hei_id", photoItem.hei_id);
                   if (photoItem.hei_category) fd.append("hei_category", photoItem.hei_category);
-                  await issueApi.uploadPhoto(createdIssueId, fd);
-                }
-              }
-
-              // 3. Delete any initial photos from server that were removed by the auditor
-              // ONLY delete if photo is NOT present in ANY task in the current inspection session
-              for (const ep of existingPhotos) {
-                if (ep.photo_type === "Initial" && !allSessionPhotoIdsSet.has(ep.issue_photo_id) && !matchedPhotoIdsSet.has(ep.issue_photo_id)) {
-                  try {
-                    await issueApi.deletePhoto(createdIssueId, ep.issue_photo_id);
-                  } catch (e) {
-                    console.warn("Failed to delete removed photo:", e);
+                  const uploadRes = await issueApi.uploadPhoto(createdIssueId, fd);
+                  if (uploadRes?.data?.issue_photo_id) {
+                    validSessionPhotoIds.add(uploadRes.data.issue_photo_id);
                   }
                 }
               }
             }
+          }
+        }
+
+        // Clean up photos removed by auditor across the entire session
+        if (activeIssueIdForSession && validSessionPhotoIds.size > 0) {
+          try {
+            const finalPhotosRes = await issueApi.getPhotos(activeIssueIdForSession);
+            const finalExistingPhotos: IssuePhoto[] = finalPhotosRes?.data || [];
+            for (const ep of finalExistingPhotos) {
+              if (ep.photo_type === "Initial" && !validSessionPhotoIds.has(ep.issue_photo_id)) {
+                await issueApi.deletePhoto(activeIssueIdForSession, ep.issue_photo_id);
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to perform final session photo cleanup:", e);
           }
         }
         // Auto-close any existing issue for items changed from NG to OK
