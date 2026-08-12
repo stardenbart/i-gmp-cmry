@@ -536,7 +536,7 @@ function IssueRow({
                               onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                               className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                             />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
+                            <div className="absolute inset-0 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
                               <Eye className="h-4 w-4" />
                               {!isClosed && canValidate && (
                                 <button
@@ -599,7 +599,7 @@ function IssueRow({
                               onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
                               className="h-full w-full object-cover transition-transform group-hover:scale-105" 
                             />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
+                            <div className="absolute inset-0 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
                               <Eye className="h-4 w-4" />
                               {!isClosed && (canUploadProof || canValidate) && (
                                 <button

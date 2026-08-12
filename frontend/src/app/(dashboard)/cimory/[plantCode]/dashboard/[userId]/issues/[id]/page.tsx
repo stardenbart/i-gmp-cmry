@@ -354,11 +354,19 @@ function PhotoCard({
         className="h-full w-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
         onClick={onPreview}
       />
-      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+      <div className="absolute inset-0 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <button
+          onClick={onPreview}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 border border-white/20 text-white hover:bg-white hover:text-black transition-colors"
+          title="Lihat Foto"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
         <button
           onClick={onDelete}
           disabled={isDeleting}
           className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-colors"
+          title="Hapus Foto"
         >
           <Trash2 className="h-4 w-4" />
         </button>

@@ -115,8 +115,8 @@ const PhotoCard = ({
           onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
           className="h-full w-full object-cover transition-transform group-hover:scale-105"
         />
-        {/* Overlay Menu Saat Hover / Focus */}
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {/* Overlay Menu Saat Hover / Focus (Selalu Terlihat di Mobile Touchscreen) */}
+        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
           <Button
             size="icon"
             variant="outline"

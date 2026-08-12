@@ -215,7 +215,7 @@ export default function InitialPhotoDetailPage() {
                 onClick={() => setSelectedImage(formatImageUrl(currentPhoto.image_url))}
               />
               <div
-                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                className="absolute inset-0 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                 onClick={() => setSelectedImage(formatImageUrl(currentPhoto.image_url))}
               >
                 <Button size="sm" variant="outline" className="gap-2 font-medium shadow-md bg-background/90 text-foreground">
@@ -432,7 +432,7 @@ function FollowUpPhotoCard({
           alt="Foto Follow up"
           className="h-full w-full object-cover transition-transform group-hover:scale-105"
         />
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <Button
             size="icon"
             variant="outline"
