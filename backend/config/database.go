@@ -65,6 +65,10 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_hei_category_code ON "HEI_Master" ("CategoryName", "HEICode");
 		CREATE INDEX IF NOT EXISTS idx_pic_mapping_userid ON "PIC_Mapping" ("UserID");
 		CREATE INDEX IF NOT EXISTS idx_kawasan_aspek_kawasanid ON "kawasan_aspek" ("KawasanID");
+		CREATE INDEX IF NOT EXISTS idx_dept_master_id ON "Department_Master" ("DepartmentID");
+		CREATE INDEX IF NOT EXISTS idx_role_master_id ON "Role_Master" ("RoleID");
+		CREATE INDEX IF NOT EXISTS idx_role_perm_role_isallowed ON "Role_Permission" ("RoleID", "IsAllowed");
+		CREATE INDEX IF NOT EXISTS idx_perm_master_mod_code ON "Permission_Master" ("ModuleID", "PermissionCode");
 	`)
 
 	return db, nil

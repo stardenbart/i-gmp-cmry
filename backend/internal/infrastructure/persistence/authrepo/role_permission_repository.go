@@ -1,12 +1,24 @@
 package authrepo
 
 import (
+	"fmt"
+	"sync"
+	"time"
+
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-type rolePermRepository struct{ db *gorm.DB }
+type permCacheItem struct {
+	hasPerm   bool
+	expiresAt time.Time
+}
+
+type rolePermRepository struct {
+	db    *gorm.DB
+	cache sync.Map
+}
 
 func NewRolePermissionRepository(db *gorm.DB) authdomain.RolePermissionRepository {
 	_ = db.AutoMigrate(&authdomain.RolePermission{})
@@ -27,15 +39,33 @@ func (r *rolePermRepository) FindByRoleAndPermission(roleID, permissionID string
 
 // HasPermission checks via a JOIN query whether roleID has a specific permission allowed.
 func (r *rolePermRepository) HasPermission(roleID, moduleID, permissionCode string) (bool, error) {
+	cacheKey := fmt.Sprintf("%s:%s:%s", roleID, moduleID, permissionCode)
+	if val, ok := r.cache.Load(cacheKey); ok {
+		item := val.(permCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			return item.hasPerm, nil
+		}
+		r.cache.Delete(cacheKey)
+	}
+
 	var count int64
 	err := r.db.Table("\"Role_Permission\" rp").
 		Joins("JOIN \"Permission_Master\" pm ON pm.\"PermissionID\" = rp.\"PermissionID\"").
 		Where("rp.\"RoleID\" = ? AND pm.\"ModuleID\" = ? AND pm.\"PermissionCode\" = ? AND rp.\"IsAllowed\" = true", roleID, moduleID, permissionCode).
 		Count(&count).Error
-	return count > 0, err
+
+	hasPerm := count > 0
+	if err == nil {
+		r.cache.Store(cacheKey, permCacheItem{
+			hasPerm:   hasPerm,
+			expiresAt: time.Now().Add(5 * time.Minute),
+		})
+	}
+	return hasPerm, err
 }
 
 func (r *rolePermRepository) Upsert(rp *authdomain.RolePermission) error {
+	r.cache = sync.Map{} // clear cache on update
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "RoleID"}, {Name: "PermissionID"}},
 		DoUpdates: clause.AssignmentColumns([]string{"IsAllowed", "RolePermissionUpdatedBy", "RolePermissionUpdatedAt"}),
@@ -43,6 +73,7 @@ func (r *rolePermRepository) Upsert(rp *authdomain.RolePermission) error {
 }
 
 func (r *rolePermRepository) BulkUpsert(rps []authdomain.RolePermission) error {
+	r.cache = sync.Map{} // clear cache on update
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "RoleID"}, {Name: "PermissionID"}},
 		DoUpdates: clause.AssignmentColumns([]string{"IsAllowed", "RolePermissionUpdatedBy", "RolePermissionUpdatedAt"}),
@@ -50,5 +81,6 @@ func (r *rolePermRepository) BulkUpsert(rps []authdomain.RolePermission) error {
 }
 
 func (r *rolePermRepository) Delete(id string) error {
+	r.cache = sync.Map{} // clear cache on delete
 	return r.db.Where("\"RolePermissionID\" = ?", id).Delete(&authdomain.RolePermission{}).Error
 }

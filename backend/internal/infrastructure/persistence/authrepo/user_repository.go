@@ -1,11 +1,22 @@
 package authrepo
 
 import (
+	"sync"
+	"time"
+
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"gorm.io/gorm"
 )
 
-type userRepository struct{ db *gorm.DB }
+type userCacheItem struct {
+	user      *authdomain.User
+	expiresAt time.Time
+}
+
+type userRepository struct {
+	db    *gorm.DB
+	cache sync.Map
+}
 
 func NewUserRepository(db *gorm.DB) authdomain.UserRepository {
 	return &userRepository{db: db}
@@ -37,8 +48,22 @@ func (r *userRepository) FindAll(page, limit int, search, roleID, deptID, plantI
 }
 
 func (r *userRepository) FindByID(id string) (*authdomain.User, error) {
+	if val, ok := r.cache.Load(id); ok {
+		item := val.(userCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			return item.user, nil
+		}
+		r.cache.Delete(id)
+	}
+
 	var user authdomain.User
 	err := r.db.Preload("Role").Preload("Department").Preload("PICMappings").Where("\"UserID\" = ?", id).Take(&user).Error
+	if err == nil {
+		r.cache.Store(id, userCacheItem{
+			user:      &user,
+			expiresAt: time.Now().Add(2 * time.Minute),
+		})
+	}
 	return &user, err
 }
 
@@ -53,7 +78,7 @@ func (r *userRepository) FindByUsername(username string) (*authdomain.User, erro
 
 func (r *userRepository) FindByEmail(email string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Where("\"Email\" = ?", email).First(&user).Error
+	err := r.db.Where("\"Email\" = ?", email).Take(&user).Error
 	return &user, err
 }
 
@@ -62,9 +87,11 @@ func (r *userRepository) Create(u *authdomain.User) error {
 }
 
 func (r *userRepository) Update(u *authdomain.User) error {
+	r.cache.Delete(u.UserID)
 	return r.db.Save(u).Error
 }
 
 func (r *userRepository) Delete(id string) error {
+	r.cache.Delete(id)
 	return r.db.Where("\"UserID\" = ?", id).Delete(&authdomain.User{}).Error
 }
