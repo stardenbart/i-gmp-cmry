@@ -66,10 +66,14 @@ export function formatPhotoUrl(url?: string): string {
   const cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
 
   // If MinIO URL with port 9000 or /monitoring-audit-bucket/uploads/, convert to backend static /uploads route
-  if (formatted.includes(":9000/") || formatted.includes("/monitoring-audit-bucket/uploads/")) {
+  if (formatted.includes(":9000/") || formatted.includes("minio:9000") || formatted.includes("/monitoring-audit-bucket/uploads/")) {
     const uploadPathIdx = formatted.indexOf("/uploads/");
     if (uploadPathIdx !== -1) {
       return `${cleanHost}${formatted.substring(uploadPathIdx)}`;
+    }
+    const bucketIdx = formatted.indexOf("/monitoring-audit-bucket/");
+    if (bucketIdx !== -1) {
+      return `${cleanHost}/uploads/${formatted.substring(bucketIdx + "/monitoring-audit-bucket/".length)}`;
     }
   }
 
@@ -188,8 +192,10 @@ export function PhotoUploaderWithKeterangan({
         <div className="space-y-3">
           {photos.map((item, index) => {
             const activeCategory = item.hei_category || "";
-            const rawUrl = item.previewUrl || (item as any).file_url || (item as any).url || (item as any).photo_url || (item as any).image_url || (item.file ? URL.createObjectURL(item.file) : "");
-            const displayUrl = formatPhotoUrl(rawUrl);
+            const rawUrl = item.file
+              ? URL.createObjectURL(item.file)
+              : item.previewUrl || (item as any).file_url || (item as any).url || (item as any).photo_url || (item as any).image_url || "";
+            const displayUrl = item.file ? rawUrl : formatPhotoUrl(rawUrl);
 
             return (
               <div
@@ -205,12 +211,12 @@ export function PhotoUploaderWithKeterangan({
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         const target = e.currentTarget as HTMLImageElement;
-                        if (target.src.includes(":9000/")) {
+                        if (target.src.includes(":9000/") || target.src.includes("monitoring-audit-bucket")) {
                           const uploadPathIdx = target.src.indexOf("/uploads/");
                           if (uploadPathIdx !== -1) {
-                            const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-                            const cleanHost = backendUrl.replace(/\/api\/v1\/?$/, "");
-                            target.src = `${cleanHost}${target.src.substring(uploadPathIdx)}`;
+                            const currentHost = typeof window !== "undefined" ? window.location.hostname : "localhost";
+                            const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
+                            target.src = `${protocol}//${currentHost}:8080${target.src.substring(uploadPathIdx)}`;
                             return;
                           }
                         }
