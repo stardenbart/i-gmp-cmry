@@ -45,6 +45,56 @@ import {
 import { useDistributedDraft } from "@/hooks/useDistributedDraft";
 import { useAspekLock } from "@/hooks/useAspekLock";
 import { AspekStatusPanel } from "@/components/Inspection/AspekStatusPanel";
+
+// Helper function to compress camera image files before upload
+const compressImageFile = async (file: File, maxWidth = 1920, quality = 0.85): Promise<File> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith("image/") || file.size <= 1024 * 1024) {
+      resolve(file);
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const compressedFile = new File([blob], file.name, {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    img.src = url;
+  });
+};
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   setActiveAspekIndex,
@@ -486,8 +536,10 @@ export default function InspectionDetailPage() {
       photos.map(async (photo) => {
         if (photo.file && !photo.previewUrl?.includes("http")) {
           try {
+            // Compress large camera image on client side before upload
+            const fileToUpload = await compressImageFile(photo.file);
             const fd = new FormData();
-            fd.append("file", photo.file);
+            fd.append("file", fileToUpload);
             fd.append("file_type", "image");
             fd.append("inspection_id", id);
             const res = await api.post("/uploads/file", fd, {

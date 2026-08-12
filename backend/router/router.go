@@ -27,6 +27,7 @@ func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStor
 
 	r := fiber.New(fiber.Config{
 		DisableStartupMessage: cfg.AppEnv == "production",
+		BodyLimit:             50 * 1024 * 1024, // 50MB max upload body limit
 	})
 	r.Use(recover.New())
 

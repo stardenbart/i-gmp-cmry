@@ -18,7 +18,7 @@ var AllowedImageExtensions = []string{".jpg", ".jpeg", ".png", ".gif", ".webp"}
 // Max file sizes
 const (
 	MaxDOCXSize  = 50 * 1024 * 1024 // 50MB
-	MaxImageSize = 10 * 1024 * 1024 // 10MB
+	MaxImageSize = 50 * 1024 * 1024 // 50MB
 )
 
 // Kafka topics
