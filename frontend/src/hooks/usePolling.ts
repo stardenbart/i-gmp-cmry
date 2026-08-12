@@ -22,19 +22,22 @@ export function usePolling(options?: UsePollingOptions) {
   const queryClient = useQueryClient();
   const token = useAuthStore((state) => state.token);
   const lastPollTimeRef = useRef<number>(Date.now() - 10000);
+  const consecutiveFailuresRef = useRef<number>(0);
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  const intervalMs = options?.intervalMs ?? 5000; // 5s interval
+  const baseIntervalMs = options?.intervalMs ?? 10000; // 10s default interval
 
   useEffect(() => {
     if (!token) return;
 
     let isMounted = true;
+    let timerId: NodeJS.Timeout | null = null;
 
     const poll = async () => {
       // Pause polling if document/tab is hidden/inactive
       if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        scheduleNextPoll();
         return;
       }
 
@@ -43,6 +46,8 @@ export function usePolling(options?: UsePollingOptions) {
         const res = await api.get<PollResponse>(`/events/poll?since=${since}`);
         
         if (!isMounted) return;
+
+        consecutiveFailuresRef.current = 0; // reset failures on success
 
         if (res.data?.server_time) {
           lastPollTimeRef.current = res.data.server_time;
@@ -76,18 +81,27 @@ export function usePolling(options?: UsePollingOptions) {
           }
         }
       } catch (err) {
-        // Silent catch for network hiccups during polling
+        consecutiveFailuresRef.current += 1;
+      } finally {
+        if (isMounted) {
+          scheduleNextPoll();
+        }
       }
+    };
+
+    const scheduleNextPoll = () => {
+      if (!isMounted) return;
+      const backoffFactor = Math.min(5, consecutiveFailuresRef.current);
+      const nextDelay = baseIntervalMs * (backoffFactor > 0 ? backoffFactor : 1);
+      timerId = setTimeout(poll, nextDelay);
     };
 
     // Immediate initial poll
     poll();
 
-    const timer = setInterval(poll, intervalMs);
-
     return () => {
       isMounted = false;
-      clearInterval(timer);
+      if (timerId) clearTimeout(timerId);
     };
-  }, [token, queryClient, intervalMs]);
+  }, [token, queryClient, baseIntervalMs]);
 }
