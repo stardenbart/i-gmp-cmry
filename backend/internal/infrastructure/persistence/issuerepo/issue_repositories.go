@@ -129,17 +129,7 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 			u."FullName" AS "PICName",
 			asp."AspekName" AS "AspekName",
 			dm."DetailName" AS "DetailAspekName",
-			um."UraianText" AS "UraianText",
-			(SELECT COALESCE(NULLIF(hei."CategoryName", ''), ip."HEICategory") 
-			  FROM "Issue_Photo" ip 
-			  LEFT JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
-			  WHERE ip."IssueID" = "Issue"."IssueID" 
-			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEICategory",
-			(SELECT hei."HEIName" 
-			  FROM "Issue_Photo" ip 
-			  JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
-			  WHERE ip."IssueID" = "Issue"."IssueID" 
-			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName"`).
+			um."UraianText" AS "UraianText"`).
 		Joins(`LEFT JOIN "Inspection_Result" ir ON ir."ResultID" = "Issue"."ResultID"`).
 		Joins(`LEFT JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
 		Joins(`LEFT JOIN "Area_Master" am ON am."AreaID" = ih."AreaID"`).
@@ -150,19 +140,31 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
-			return db.Order(`"PhotoCreatedAt" ASC`)
+			return db.Preload("HEI").Order(`"PhotoCreatedAt" ASC`)
 		}).
 		Preload("HEI.Habit").
 		Preload("HEI.Equipment").
 		Preload("HEI.Infrastructure").
 		Where(`"Issue"."IssueID" = ?`, id).
-		First(&item).Error
+		Take(&item).Error
+
+	if err == nil && len(item.Photos) > 0 {
+		firstPhoto := item.Photos[0]
+		if firstPhoto.HEI != nil {
+			item.HEICategory = firstPhoto.HEI.CategoryName
+			item.HEIName = firstPhoto.HEI.HEIName
+		}
+		if item.HEICategory == "" {
+			item.HEICategory = firstPhoto.HEICategory
+		}
+	}
+
 	return &item, err
 }
 
 func (r *issueRepository) FindByResultID(resultID string) (*issue.Issue, error) {
 	var item issue.Issue
-	err := r.db.Where("\"ResultID\" = ?", resultID).First(&item).Error
+	err := r.db.Where("\"ResultID\" = ?", resultID).Take(&item).Error
 	return &item, err
 }
 
