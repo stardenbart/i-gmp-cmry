@@ -3,6 +3,7 @@ package auth
 import (
 	"time"
 
+	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/internal/domain/pic"
 )
 
