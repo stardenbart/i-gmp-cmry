@@ -129,9 +129,8 @@ func (uc *UploadUseCase) UploadFile(ctx context.Context, fileHeader *multipart.F
 		Status:           status,
 	}
 
-	if err := uc.uploadRepo.Create(uploadRecord); err != nil {
-		// Log error but don't fail - the file is already uploaded
-		fmt.Printf("Warning: failed to create upload record: %v\n", err)
+	if uc.uploadRepo != nil {
+		_ = uc.uploadRepo.Create(uploadRecord)
 	}
 
 	// 9. For images, queue for async processing
