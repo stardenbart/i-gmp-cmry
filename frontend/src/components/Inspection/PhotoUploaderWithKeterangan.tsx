@@ -69,16 +69,11 @@ export function PhotoUploaderWithKeterangan({
 
     const newItems: PhotoItem[] = await Promise.all(
       files.map(async (file) => {
-        let base64 = "";
-        try {
-          base64 = await fileToBase64(file);
-        } catch {
-          base64 = URL.createObjectURL(file);
-        }
+        const objectUrl = URL.createObjectURL(file);
         return {
           id: `photo_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
           file,
-          previewUrl: base64,
+          previewUrl: objectUrl,
           keterangan: "",
           hei_id: "",
           hei_category: "",

@@ -503,7 +503,7 @@ export default function InspectionDetailPage() {
               keterangan: "",
               photos: photos.map((p) => ({
                 id: p.id,
-                previewUrl: p.previewUrl || "",
+                previewUrl: p.previewUrl?.startsWith("data:") || p.previewUrl?.startsWith("blob:") ? "" : p.previewUrl || "",
                 keterangan: p.keterangan || "",
                 hei_id: p.hei_id || "",
                 hei_category: p.hei_category || "",
