@@ -91,6 +91,11 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_perm_master_mod_code ON "Permission_Master" ("ModuleID", "PermissionCode");
 		CREATE INDEX IF NOT EXISTS idx_inspection_result_inspectionid ON "Inspection_Result" ("InspectionID");
 		CREATE INDEX IF NOT EXISTS idx_inspection_header_inspectionid ON "Inspection_Header" ("InspectionID");
+		CREATE INDEX IF NOT EXISTS idx_insp_hdr_area_status ON "Inspection_Header" ("AreaID", "InspectionHeaderStatus");
+		CREATE INDEX IF NOT EXISTS idx_insp_hdr_kawasan_status ON "Inspection_Header" ("KawasanID", "InspectionHeaderStatus");
+		CREATE INDEX IF NOT EXISTS idx_insp_hdr_inspector_status ON "Inspection_Header" ("InspectorID", "InspectionHeaderStatus");
+		CREATE INDEX IF NOT EXISTS idx_insp_hdr_created_at ON "Inspection_Header" ("InspectionHeaderCreatedAt" DESC);
+		CREATE INDEX IF NOT EXISTS idx_area_master_plant ON "Area_Master" ("PlantID", "AreaID");
 	`)
 
 	return db, nil

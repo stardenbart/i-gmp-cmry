@@ -1,11 +1,20 @@
 package inspectionrepo
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"gorm.io/gorm"
 )
+
+type facetCacheItem struct {
+	facets    inspection.InspectionFacets
+	expiresAt time.Time
+}
+
+var globalFacetCache sync.Map
 
 // ── Inspection Filter Repository ──────────────────────────────────────────
 
@@ -46,10 +55,17 @@ func (r *inspectionFilterRepository) FindFiltered(f *inspection.InspectionFilter
 	return items, total, err
 }
 
-// FindFacets computes per-field counts. For each facet field, the filter for
-// that field itself is excluded (facet exclusion) so the chip counts remain
-// accurate when a value is already selected.
+// FindFacets computes per-field counts.
 func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) (inspection.InspectionFacets, error) {
+	cacheKey := fmt.Sprintf("facet:%s:%s:%s:%s:%s:%s", f.PlantID, f.Status, f.AreaID, f.KawasanID, f.InspectorID, f.Q)
+	if val, ok := globalFacetCache.Load(cacheKey); ok {
+		item := val.(facetCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			return item.facets, nil
+		}
+		globalFacetCache.Delete(cacheKey)
+	}
+
 	facets := inspection.InspectionFacets{
 		Status:      make(map[string]int64),
 		AreaID:      make(map[string]int64),
@@ -96,7 +112,7 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 		return tmp.ApplyTo(r.db.Model(&inspection.InspectionHeader{}))
 	}
 
-	// Status facet (without status filter)
+	// Status facet
 	var statusRows []kv
 	if err := baseWithout(true, false, false, false, false).
 		Select(`"InspectionHeaderStatus" AS key, COUNT(*) AS count`).
@@ -107,7 +123,7 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 		}
 	}
 
-	// AreaID facet (without area filter)
+	// AreaID facet
 	var areaRows []kv
 	if err := baseWithout(false, true, false, false, false).
 		Select(`"AreaID" AS key, COUNT(*) AS count`).
@@ -118,7 +134,7 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 		}
 	}
 
-	// KawasanID facet (without kawasan filter)
+	// KawasanID facet
 	var kawasanRows []kv
 	if err := baseWithout(false, false, true, false, false).
 		Select(`"KawasanID" AS key, COUNT(*) AS count`).
@@ -129,7 +145,7 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 		}
 	}
 
-	// InspectorID facet (without inspector filter)
+	// InspectorID facet
 	var inspectorRows []kv
 	if err := baseWithout(false, false, false, true, false).
 		Select(`"InspectorID" AS key, COUNT(*) AS count`).
@@ -140,7 +156,7 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 		}
 	}
 
-	// Date range (without date filter)
+	// Date range
 	type dateResult struct {
 		Min *time.Time `gorm:"column:min"`
 		Max *time.Time `gorm:"column:max"`
@@ -152,6 +168,11 @@ func (r *inspectionFilterRepository) FindFacets(f *inspection.InspectionFilter) 
 		facets.DateRange.Min = dr.Min
 		facets.DateRange.Max = dr.Max
 	}
+
+	globalFacetCache.Store(cacheKey, facetCacheItem{
+		facets:    facets,
+		expiresAt: time.Now().Add(30 * time.Second),
+	})
 
 	return facets, nil
 }
