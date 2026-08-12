@@ -12,7 +12,7 @@ type DetailKawasan struct {
 	DetailKawasanUpdatedAt time.Time  `gorm:"column:DetailKawasanUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Computed: active ongoing inspection status (not stored in DB)
-	ActiveInspectionStatus string `gorm:"column:ActiveInspectionStatus;->" json:"active_inspection_status,omitempty"`
+	ActiveInspectionStatus string `gorm:"-" json:"active_inspection_status,omitempty"`
 
 	// Relations
 	Kawasan *Kawasan `gorm:"foreignKey:KawasanID;references:KawasanID" json:"kawasan,omitempty"`
