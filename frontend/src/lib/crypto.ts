@@ -12,13 +12,27 @@ function base64ToUint8Array(base64: string): Uint8Array {
 export function isEncryptedBase64(str: string | null | undefined): boolean {
   if (!str) return false;
   const trimmed = str.trim();
-  return (
-    trimmed.length >= 30 &&
-    !trimmed.includes(" ") &&
-    !trimmed.includes("/") &&
-    !trimmed.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i) &&
-    (trimmed.endsWith("==") || trimmed.endsWith("=") || trimmed.includes("+"))
-  );
+  if (trimmed.length < 24 || trimmed.includes(" ")) return false;
+
+  // If it's already a clean path/URL, it is NOT base64 ciphertext
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("/uploads/") ||
+    trimmed.startsWith("uploads/") ||
+    trimmed.startsWith("/monitoring-audit-bucket/") ||
+    trimmed.startsWith("monitoring-audit-bucket/")
+  ) {
+    return false;
+  }
+
+  // If it has standard image file extensions, it is NOT ciphertext
+  if (trimmed.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i)) {
+    return false;
+  }
+
+  // AES-256-GCM base64 ciphertext pattern (Base64 chars: A-Z, a-z, 0-9, +, /, =)
+  return /^[A-Za-z0-9+/=]+$/.test(trimmed);
 }
 
 export async function decryptAESGCM(cipherBase64: string, rawKeyBase64 = DEFAULT_KEY_BASE64): Promise<string> {
@@ -70,11 +84,9 @@ export async function decryptApiResponseData<T>(data: T): Promise<T> {
   }
 
   const obj = { ...data } as any;
-  const targetKeys = ["keterangan", "image_url", "file_name", "ImageUrl", "FileName", "Keterangan"];
-
   for (const key of Object.keys(obj)) {
     const val = obj[key];
-    if (typeof val === "string" && targetKeys.includes(key) && isEncryptedBase64(val)) {
+    if (typeof val === "string" && isEncryptedBase64(val)) {
       obj[key] = await decryptAESGCM(val);
     } else if (val && typeof val === "object") {
       obj[key] = await decryptApiResponseData(val);
