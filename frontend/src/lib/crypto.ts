@@ -35,27 +35,39 @@ export function isEncryptedBase64(str: string | null | undefined): boolean {
   return /^[A-Za-z0-9+/=]+$/.test(trimmed);
 }
 
-export async function decryptAESGCM(cipherBase64: string, rawKeyBase64 = DEFAULT_KEY_BASE64): Promise<string> {
-  if (!cipherBase64 || typeof window === "undefined" || !window.crypto?.subtle) {
-    return cipherBase64;
-  }
+let cachedCryptoKey: CryptoKey | null = null;
+
+async function getCryptoKey(rawKeyBase64 = DEFAULT_KEY_BASE64): Promise<CryptoKey | null> {
+  if (cachedCryptoKey) return cachedCryptoKey;
   try {
-    const rawData = base64ToUint8Array(cipherBase64);
-    if (rawData.length < 28) return cipherBase64; // 12 bytes IV + 16 bytes tag
-
-    const iv = rawData.slice(0, 12);
-    const ciphertextWithTag = rawData.slice(12);
-
     const keyBytes = base64ToUint8Array(rawKeyBase64);
     const keyBuffer = keyBytes.buffer.slice(keyBytes.byteOffset, keyBytes.byteOffset + keyBytes.byteLength) as ArrayBuffer;
-
-    const cryptoKey = await window.crypto.subtle.importKey(
+    cachedCryptoKey = await window.crypto.subtle.importKey(
       "raw",
       keyBuffer,
       { name: "AES-GCM" },
       false,
       ["decrypt"]
     );
+    return cachedCryptoKey;
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function decryptAESGCM(cipherBase64: string, rawKeyBase64 = DEFAULT_KEY_BASE64): Promise<string> {
+  if (!cipherBase64 || typeof window === "undefined" || !window.crypto?.subtle) {
+    return cipherBase64;
+  }
+  try {
+    const cryptoKey = await getCryptoKey(rawKeyBase64);
+    if (!cryptoKey) return cipherBase64;
+
+    const rawData = base64ToUint8Array(cipherBase64);
+    if (rawData.length < 28) return cipherBase64; // 12 bytes IV + 16 bytes tag
+
+    const iv = rawData.slice(0, 12);
+    const ciphertextWithTag = rawData.slice(12);
 
     const ivBuffer = iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer;
     const dataBuffer = ciphertextWithTag.buffer.slice(ciphertextWithTag.byteOffset, ciphertextWithTag.byteOffset + ciphertextWithTag.byteLength) as ArrayBuffer;
@@ -72,9 +84,12 @@ export async function decryptAESGCM(cipherBase64: string, rawKeyBase64 = DEFAULT
   }
 }
 
+const TARGET_KEYS = new Set([
+  "keterangan", "image_url", "file_name", "ImageUrl", "FileName", "Keterangan", "photo_url", "url", "path"
+]);
+
 /**
- * Recursively inspects API response data and decrypts any encrypted base64 strings
- * found in fields like keterangan, image_url, file_name, etc.
+ * Fast-path recursive decryption of API response data
  */
 export async function decryptApiResponseData<T>(data: T): Promise<T> {
   if (!data || typeof data !== "object") return data;
@@ -86,7 +101,7 @@ export async function decryptApiResponseData<T>(data: T): Promise<T> {
   const obj = { ...data } as any;
   for (const key of Object.keys(obj)) {
     const val = obj[key];
-    if (typeof val === "string" && isEncryptedBase64(val)) {
+    if (typeof val === "string" && TARGET_KEYS.has(key) && isEncryptedBase64(val)) {
       obj[key] = await decryptAESGCM(val);
     } else if (val && typeof val === "object") {
       obj[key] = await decryptApiResponseData(val);

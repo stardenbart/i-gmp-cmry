@@ -92,6 +92,10 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
             <img
               src={formatImageUrl(firstPhoto.image_url)}
               alt="Foto Temuan"
+              loading="lazy"
+              decoding="async"
+              width={80}
+              height={80}
               className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
             {totalPhotoCount > 1 && (

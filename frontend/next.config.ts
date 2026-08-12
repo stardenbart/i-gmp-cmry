@@ -21,6 +21,8 @@ const withPWA = require("next-pwa")({
 });
 
 const nextConfig: NextConfig = {
+  compress: true,
+  poweredByHeader: false,
   reactStrictMode: false,
   reactCompiler: true,
   turbopack: {},
@@ -61,6 +63,28 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
     ],
+  },
+  async headers() {
+    return [
+      {
+        source: "/monitoring-audit-bucket/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/uploads/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
   },
   async redirects() {
     return [
