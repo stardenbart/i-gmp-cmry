@@ -50,28 +50,44 @@ export function dataURLtoFile(dataurl: string, filename: string): File {
 
 export function formatPhotoUrl(url?: string): string {
   if (!url) return "";
+  let formatted = url.trim();
+  if (!formatted) return "";
 
-  const apiHost = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  // Detect current hostname and protocol when running in browser
+  let currentHost = "localhost";
+  let protocol = "http:";
+  if (typeof window !== "undefined") {
+    currentHost = window.location.hostname;
+    protocol = window.location.protocol;
+  }
+
+  const backendPort = "8080";
+  const apiHost = process.env.NEXT_PUBLIC_API_URL || `${protocol}//${currentHost}:${backendPort}`;
   const cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
 
-  // If MinIO URL with port 9000, rewrite to backend /uploads static route for CORS reliability
-  if (url.includes(":9000/")) {
-    const uploadPathIdx = url.indexOf("/uploads/");
+  // If MinIO URL with port 9000 or /monitoring-audit-bucket/uploads/, convert to backend static /uploads route
+  if (formatted.includes(":9000/") || formatted.includes("/monitoring-audit-bucket/uploads/")) {
+    const uploadPathIdx = formatted.indexOf("/uploads/");
     if (uploadPathIdx !== -1) {
-      return `${cleanHost}${url.substring(uploadPathIdx)}`;
+      return `${cleanHost}${formatted.substring(uploadPathIdx)}`;
     }
   }
 
-  if (
-    url.startsWith("http://") ||
-    url.startsWith("https://") ||
-    url.startsWith("data:") ||
-    url.startsWith("blob:")
-  ) {
-    return url;
+  // Replace hardcoded localhost or 127.0.0.1 with current connected server hostname
+  if (formatted.includes("localhost") || formatted.includes("127.0.0.1")) {
+    formatted = formatted.replace(/localhost|127\.0\.0\.1/g, currentHost);
   }
 
-  const cleanPath = url.startsWith("/") ? url : `/${url}`;
+  if (
+    formatted.startsWith("http://") ||
+    formatted.startsWith("https://") ||
+    formatted.startsWith("data:") ||
+    formatted.startsWith("blob:")
+  ) {
+    return formatted;
+  }
+
+  const cleanPath = formatted.startsWith("/") ? formatted : `/${formatted}`;
   return `${cleanHost}${cleanPath}`;
 }
 

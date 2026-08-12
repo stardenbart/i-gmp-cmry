@@ -66,42 +66,47 @@ export function formatImageUrl(url: string | null | undefined): string {
     return "";
   }
 
-  // If it's a MinIO image URL containing /monitoring-audit-bucket/, convert to relative path for Next.js proxying
-  const bucketIndex = formatted.indexOf("/monitoring-audit-bucket/");
-  if (bucketIndex !== -1) {
-    return formatted.substring(bucketIndex);
+  // Detect current hostname and protocol when running in browser
+  let currentHost = "localhost";
+  let protocol = "http:";
+  if (typeof window !== "undefined") {
+    currentHost = window.location.hostname;
+    protocol = window.location.protocol;
   }
 
-  // Fallback if port 9000 is included in full URL
-  const portIndex = formatted.indexOf(":9000/");
-  if (portIndex !== -1) {
-    const rawPath = formatted.substring(portIndex + 5).replace(/^\/+/, '');
-    return rawPath.startsWith("monitoring-audit-bucket/") ? `/${rawPath}` : `/monitoring-audit-bucket/${rawPath}`;
+  const backendPort = "8080";
+  const apiHost = process.env.NEXT_PUBLIC_API_URL || `${protocol}//${currentHost}:${backendPort}`;
+  const cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
+
+  // If MinIO URL with port 9000 or /monitoring-audit-bucket/uploads/, convert to backend static /uploads route
+  if (formatted.includes(":9000/") || formatted.includes("/monitoring-audit-bucket/uploads/")) {
+    const uploadPathIdx = formatted.indexOf("/uploads/");
+    if (uploadPathIdx !== -1) {
+      return `${cleanHost}${formatted.substring(uploadPathIdx)}`;
+    }
   }
 
-  // If minio internal hostname is used
-  if (formatted.includes("minio:9000")) {
-    const minioPath = formatted.substring(formatted.indexOf("minio:9000") + 10).replace(/^\/+/, '');
-    return minioPath.startsWith("monitoring-audit-bucket/") ? `/${minioPath}` : `/monitoring-audit-bucket/${minioPath}`;
+  // Replace localhost or 127.0.0.1 with current connected server hostname
+  if (formatted.includes("localhost") || formatted.includes("127.0.0.1")) {
+    formatted = formatted.replace(/localhost|127\.0\.0\.1/g, currentHost);
   }
 
-  // Ensure full HTTP/HTTPS URLs are preserved for external browser image loading
-  if (formatted.startsWith("http://") || formatted.startsWith("https://")) {
+  if (
+    formatted.startsWith("http://") ||
+    formatted.startsWith("https://") ||
+    formatted.startsWith("data:") ||
+    formatted.startsWith("blob:")
+  ) {
     return formatted;
   }
 
   // Local uploads folder
   if (formatted.startsWith("/uploads/") || formatted.startsWith("uploads/")) {
-    return formatted.startsWith("/") ? formatted : `/${formatted}`;
+    const cleanP = formatted.startsWith("/") ? formatted : `/${formatted}`;
+    return `${cleanHost}${cleanP}`;
   }
 
-  // If already prefixed with /monitoring-audit-bucket/
-  if (formatted.startsWith("/monitoring-audit-bucket/")) {
-    return formatted;
-  }
-
-  // Default object key -> prefix with /monitoring-audit-bucket/
-  const key = formatted.replace(/^\/+/, '');
-  const encodedKey = key.includes('+') ? encodeURIComponent(key) : key;
-  return `/monitoring-audit-bucket/${encodedKey}`;
+  // Default object key -> prefix with /uploads/
+  const key = formatted.replace(/^\/+/, '').replace(/^monitoring-audit-bucket\//, '');
+  return `${cleanHost}/uploads/${key}`;
 }
