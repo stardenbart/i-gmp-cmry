@@ -63,7 +63,8 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 			}
 		}
 		if total > 0 {
-			item.Score = float64(okCount) * 100.0 / float64(total)
+			scoreVal := float64(okCount) * 100.0 / float64(total)
+			item.Score = &scoreVal
 		}
 	}
 

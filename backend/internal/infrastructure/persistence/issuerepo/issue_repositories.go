@@ -140,7 +140,7 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
-			return db.Preload("HEI").Order(`"PhotoCreatedAt" ASC`)
+			return db.Order(`"PhotoCreatedAt" ASC`)
 		}).
 		Preload("HEI.Habit").
 		Preload("HEI.Equipment").
@@ -150,13 +150,8 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 
 	if err == nil && len(item.Photos) > 0 {
 		firstPhoto := item.Photos[0]
-		if firstPhoto.HEI != nil {
-			item.HEICategory = firstPhoto.HEI.CategoryName
-			item.HEIName = firstPhoto.HEI.HEIName
-		}
-		if item.HEICategory == "" {
-			item.HEICategory = firstPhoto.HEICategory
-		}
+		item.HEICategory = firstPhoto.HEICategory
+		item.HEIName = firstPhoto.HEIName
 	}
 
 	return &item, err
