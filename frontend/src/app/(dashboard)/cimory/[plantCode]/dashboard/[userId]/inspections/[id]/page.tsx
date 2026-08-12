@@ -727,18 +727,16 @@ export default function InspectionDetailPage() {
                     photoFile = dataURLtoFile(photoItem.previewUrl, `photo_${Date.now()}.jpg`);
                   } else {
                     try {
-                      const fetchUrl = photoItem.previewUrl.startsWith("http")
-                        ? photoItem.previewUrl
-                        : photoItem.previewUrl.startsWith("/")
-                        ? photoItem.previewUrl
-                        : `/${photoItem.previewUrl}`;
-                      const res = await api.get(fetchUrl, { responseType: "blob" });
-                      const blob = res.data;
-                      if (blob && blob.size > 0 && !blob.type?.includes("html")) {
-                        photoFile = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+                      const fullUrl = formatPhotoUrl(photoItem.previewUrl);
+                      const res = await fetch(fullUrl);
+                      if (res.ok) {
+                        const blob = await res.blob();
+                        if (blob && blob.size > 0 && !blob.type?.includes("html")) {
+                          photoFile = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || "image/jpeg" });
+                        }
                       }
                     } catch (e) {
-                      console.warn("Failed to fetch photo blob via api.get from previewUrl:", e);
+                      console.warn("Failed to fetch photo blob via native fetch from previewUrl:", e);
                     }
                   }
                 }
