@@ -55,7 +55,7 @@ const statusConfig: Record<
 };
 
 /* ── Issue Card ────────────────────────────────────────────────────────── */
-function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
+function IssueCard({ issue, targetUrl, index = 1 }: { issue: Issue; targetUrl?: string; index?: number }) {
   const displayStatus = issue.computed_status || issue.issue_status;
   const cfg = statusConfig[displayStatus] ?? statusConfig["Open"];
   const StatusIcon = cfg.icon;
@@ -72,6 +72,7 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
   const initialPhotos = issue.photos?.filter((p) => p.photo_type === "Initial") || issue.photos || [];
   const firstPhoto = initialPhotos.length > 0 ? initialPhotos[0] : (issue.photos && issue.photos.length > 0 ? issue.photos[0] : null);
   const totalPhotoCount = issue.photos?.length || 0;
+  const isLcp = index === 0;
 
   return (
     <Link href={href}>
@@ -92,9 +93,9 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
             <img
               src={formatImageUrl(firstPhoto.image_url)}
               alt={`Foto temuan ${issue.area_name || "inspeksi"}`}
-              loading="lazy"
+              loading={isLcp ? "eager" : "lazy"}
               decoding="async"
-              fetchPriority="high"
+              fetchPriority={isLcp ? "high" : "low"}
               width={80}
               height={80}
               className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -413,10 +414,11 @@ export default function IssuesPage() {
             </div>
           </div>
         ) : (
-          issues.map((issue) => (
+          issues.map((issue, index) => (
             <IssueCard 
               key={issue.issue_id} 
               issue={issue} 
+              index={index}
               targetUrl={`/cimory/${plantCode}/dashboard/${userId}/issues/${issue.issue_id}`} 
             />
           ))

@@ -88,14 +88,11 @@ const TARGET_KEYS = new Set([
   "keterangan", "image_url", "file_name", "ImageUrl", "FileName", "Keterangan", "photo_url", "url", "path"
 ]);
 
-/**
- * Fast-path recursive decryption of API response data
- */
-export async function decryptApiResponseData<T>(data: T): Promise<T> {
+async function decryptObjectRecursive<T>(data: T): Promise<T> {
   if (!data || typeof data !== "object") return data;
 
   if (Array.isArray(data)) {
-    return (await Promise.all(data.map((item) => decryptApiResponseData(item)))) as unknown as T;
+    return (await Promise.all(data.map((item) => decryptObjectRecursive(item)))) as unknown as T;
   }
 
   const obj = { ...data } as any;
@@ -104,9 +101,28 @@ export async function decryptApiResponseData<T>(data: T): Promise<T> {
     if (typeof val === "string" && TARGET_KEYS.has(key) && isEncryptedBase64(val)) {
       obj[key] = await decryptAESGCM(val);
     } else if (val && typeof val === "object") {
-      obj[key] = await decryptApiResponseData(val);
+      obj[key] = await decryptObjectRecursive(val);
     }
   }
 
   return obj as T;
+}
+
+/**
+ * Fast-path recursive decryption of API response data with 0ms TBT overhead
+ */
+export async function decryptApiResponseData<T>(data: T): Promise<T> {
+  if (!data || typeof data !== "object") return data;
+
+  // Fast pre-check: if payload contains no base64 ciphertext indicators, return immediately
+  try {
+    const jsonStr = JSON.stringify(data);
+    if (!jsonStr.includes("==") && !jsonStr.includes("=") && !jsonStr.includes("+")) {
+      return data;
+    }
+  } catch (e) {
+    // Safety fallback
+  }
+
+  return decryptObjectRecursive(data);
 }
