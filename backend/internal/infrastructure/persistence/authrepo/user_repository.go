@@ -38,7 +38,7 @@ func (r *userRepository) FindAll(page, limit int, search, roleID, deptID, plantI
 
 func (r *userRepository) FindByID(id string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Preload("Role").Preload("PICMappings").Where("\"UserID\" = ?", id).First(&user).Error
+	err := r.db.Preload("Role").Preload("Department").Preload("PICMappings").Where("\"UserID\" = ?", id).First(&user).Error
 	return &user, err
 }
 

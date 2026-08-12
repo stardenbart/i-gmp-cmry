@@ -30,8 +30,9 @@ type User struct {
 	UserUpdatedAt time.Time  `gorm:"column:UserUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations (preload when needed)
-	Role        *Role            `gorm:"foreignKey:RoleID;references:RoleID" json:"role,omitempty"`
-	PICMappings []pic.PICMapping `gorm:"foreignKey:UserID;references:UserID" json:"pic_mappings,omitempty"`
+	Role        *Role               `gorm:"foreignKey:RoleID;references:RoleID" json:"role,omitempty"`
+	Department  *masterdomain.Department `gorm:"foreignKey:DepartmentID;references:DepartmentID" json:"department,omitempty"`
+	PICMappings []pic.PICMapping    `gorm:"foreignKey:UserID;references:UserID" json:"pic_mappings,omitempty"`
 }
 
 func (User) TableName() string { return "Users" }

@@ -37,25 +37,6 @@ const passwordSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
-// Known role ID to Human Name dictionary
-const ROLE_NAME_MAP: Record<string, string> = {
-  "ROLE-000": "Super Admin",
-  "SUPERADMIN": "Super Admin",
-  "ROLE-001": "Administrator",
-  "ADMIN": "Administrator",
-  "ADM": "Administrator",
-  "ROLE-002": "Auditor",
-  "AUDITOR": "Auditor",
-  "ROLE-003": "Auditee",
-  "AUDITEE": "Auditee",
-  "ROLE-004": "Supervisor",
-  "SUPERVISOR": "Supervisor",
-  "ROLE-005": "Manager",
-  "MANAGER": "Manager",
-  "ROLE-006": "User",
-  "USER": "User",
-};
-
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { user, setAuth, token, logout } = useAuthStore();
@@ -68,13 +49,13 @@ export default function ProfilePage() {
     enabled: !!token,
   });
 
-  // Optional: Fetch master roles for exact dynamic name matching
-  const { data: masterRoles } = useQuery({
+  // Fetch master roles from backend database
+  const { data: masterRoles = [] } = useQuery({
     queryKey: ["profile-master-roles"],
     queryFn: async () => {
       try {
         const res = await api.get("/master/roles", { params: { limit: 100 } });
-        return res.data?.data?.items || [];
+        return res.data?.data?.items || res.data?.items || res.data || [];
       } catch (e) {
         return [];
       }
@@ -82,13 +63,13 @@ export default function ProfilePage() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Optional: Fetch master departments for exact dynamic name matching
-  const { data: masterDepts } = useQuery({
+  // Fetch master departments from backend database
+  const { data: masterDepts = [] } = useQuery({
     queryKey: ["profile-master-departments"],
     queryFn: async () => {
       try {
         const res = await api.get("/master/departments", { params: { limit: 100 } });
-        return res.data?.data?.items || [];
+        return res.data?.data?.items || res.data?.items || res.data || [];
       } catch (e) {
         return [];
       }
@@ -98,7 +79,7 @@ export default function ProfilePage() {
 
   const currentUser = meData?.data || user;
 
-  // Format Role Name (never display raw ROLE-00x ID)
+  // Format Role Name directly aligned with backend database master records
   const getRoleDisplayName = () => {
     if (currentUser?.role?.role_name) return currentUser.role.role_name;
     if ((currentUser as any)?.role_name) return (currentUser as any).role_name;
@@ -106,19 +87,23 @@ export default function ProfilePage() {
     const id = currentUser?.role_id;
     if (!id) return "–";
 
-    // Try finding in master roles list
-    const foundMaster = masterRoles?.find((r: any) => r.role_id === id);
-    if (foundMaster?.role_name) return foundMaster.role_name;
+    // Match role_id with backend master roles table
+    const foundRole = masterRoles.find((r: any) => r.role_id === id);
+    if (foundRole?.role_name) return foundRole.role_name;
 
-    // Try finding in static dictionary
+    // Standard fallback mapping
     const upperId = id.toUpperCase();
-    if (ROLE_NAME_MAP[upperId]) return ROLE_NAME_MAP[upperId];
+    if (upperId === "ROLE-000" || upperId === "SUPERADMIN") return "Super Admin";
+    if (upperId === "ROLE-001" || upperId === "ADMIN" || upperId === "ADM") return "Administrator";
+    if (upperId === "ROLE-002" || upperId === "AUDITOR") return "Auditor";
+    if (upperId === "ROLE-003" || upperId === "AUDITEE") return "Auditee";
+    if (upperId === "ROLE-004" || upperId === "SUPERVISOR") return "Supervisor";
+    if (upperId === "ROLE-005" || upperId === "MANAGER") return "Manager";
 
-    // Fallback: strip ROLE- prefix if any
-    return id.replace(/^ROLE-?/i, "").replace(/_/g, " ");
+    return id;
   };
 
-  // Format Department Name (never display raw DEPT-00x ID)
+  // Format Department Name directly aligned with backend database master records
   const getDeptDisplayName = () => {
     if (currentUser?.department?.department_name) return currentUser.department.department_name;
     if ((currentUser as any)?.department_name) return (currentUser as any).department_name;
@@ -126,14 +111,9 @@ export default function ProfilePage() {
     const id = currentUser?.department_id;
     if (!id) return "–";
 
-    // Try finding in master departments list
-    const foundMaster = masterDepts?.find((d: any) => d.department_id === id);
-    if (foundMaster?.department_name) return foundMaster.department_name;
-
-    // Fallback: humanize DEPT- ID
-    if (id.startsWith("DEPT-")) {
-      return `Departemen ${id.replace("DEPT-", "")}`;
-    }
+    // Match department_id with backend master departments table
+    const foundDept = masterDepts.find((d: any) => d.department_id === id);
+    if (foundDept?.department_name) return foundDept.department_name;
 
     return id;
   };
