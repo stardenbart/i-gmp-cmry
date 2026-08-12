@@ -15,9 +15,10 @@ type permCacheItem struct {
 	expiresAt time.Time
 }
 
+var globalRolePermCache sync.Map
+
 type rolePermRepository struct {
-	db    *gorm.DB
-	cache sync.Map
+	db *gorm.DB
 }
 
 func NewRolePermissionRepository(db *gorm.DB) authdomain.RolePermissionRepository {
@@ -33,19 +34,19 @@ func (r *rolePermRepository) FindByRoleID(roleID string) ([]authdomain.RolePermi
 
 func (r *rolePermRepository) FindByRoleAndPermission(roleID, permissionID string) (*authdomain.RolePermission, error) {
 	var rp authdomain.RolePermission
-	err := r.db.Where("\"RoleID\" = ? AND \"PermissionID\" = ?", roleID, permissionID).First(&rp).Error
+	err := r.db.Where("\"RoleID\" = ? AND \"PermissionID\" = ?", roleID, permissionID).Take(&rp).Error
 	return &rp, err
 }
 
 // HasPermission checks via a JOIN query whether roleID has a specific permission allowed.
 func (r *rolePermRepository) HasPermission(roleID, moduleID, permissionCode string) (bool, error) {
 	cacheKey := fmt.Sprintf("%s:%s:%s", roleID, moduleID, permissionCode)
-	if val, ok := r.cache.Load(cacheKey); ok {
+	if val, ok := globalRolePermCache.Load(cacheKey); ok {
 		item := val.(permCacheItem)
 		if time.Now().Before(item.expiresAt) {
 			return item.hasPerm, nil
 		}
-		r.cache.Delete(cacheKey)
+		globalRolePermCache.Delete(cacheKey)
 	}
 
 	var count int64
@@ -56,7 +57,7 @@ func (r *rolePermRepository) HasPermission(roleID, moduleID, permissionCode stri
 
 	hasPerm := count > 0
 	if err == nil {
-		r.cache.Store(cacheKey, permCacheItem{
+		globalRolePermCache.Store(cacheKey, permCacheItem{
 			hasPerm:   hasPerm,
 			expiresAt: time.Now().Add(5 * time.Minute),
 		})
@@ -65,7 +66,7 @@ func (r *rolePermRepository) HasPermission(roleID, moduleID, permissionCode stri
 }
 
 func (r *rolePermRepository) Upsert(rp *authdomain.RolePermission) error {
-	r.cache = sync.Map{} // clear cache on update
+	globalRolePermCache = sync.Map{} // clear cache on update
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "RoleID"}, {Name: "PermissionID"}},
 		DoUpdates: clause.AssignmentColumns([]string{"IsAllowed", "RolePermissionUpdatedBy", "RolePermissionUpdatedAt"}),
@@ -73,7 +74,7 @@ func (r *rolePermRepository) Upsert(rp *authdomain.RolePermission) error {
 }
 
 func (r *rolePermRepository) BulkUpsert(rps []authdomain.RolePermission) error {
-	r.cache = sync.Map{} // clear cache on update
+	globalRolePermCache = sync.Map{} // clear cache on update
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "RoleID"}, {Name: "PermissionID"}},
 		DoUpdates: clause.AssignmentColumns([]string{"IsAllowed", "RolePermissionUpdatedBy", "RolePermissionUpdatedAt"}),
@@ -81,6 +82,6 @@ func (r *rolePermRepository) BulkUpsert(rps []authdomain.RolePermission) error {
 }
 
 func (r *rolePermRepository) Delete(id string) error {
-	r.cache = sync.Map{} // clear cache on delete
+	globalRolePermCache = sync.Map{} // clear cache on delete
 	return r.db.Where("\"RolePermissionID\" = ?", id).Delete(&authdomain.RolePermission{}).Error
 }

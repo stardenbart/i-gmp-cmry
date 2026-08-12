@@ -87,6 +87,7 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_dept_master_id ON "Department_Master" ("DepartmentID");
 		CREATE INDEX IF NOT EXISTS idx_role_master_id ON "Role_Master" ("RoleID");
 		CREATE INDEX IF NOT EXISTS idx_role_perm_role_isallowed ON "Role_Permission" ("RoleID", "IsAllowed");
+		CREATE INDEX IF NOT EXISTS idx_user_perm_userid ON "User_Permission" ("UserID");
 		CREATE INDEX IF NOT EXISTS idx_perm_master_mod_code ON "Permission_Master" ("ModuleID", "PermissionCode");
 	`)
 

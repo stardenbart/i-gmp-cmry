@@ -2,10 +2,20 @@ package authrepo
 
 import (
 	"database/sql"
+	"fmt"
+	"sync"
+	"time"
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"gorm.io/gorm"
 )
+
+type userPermCacheItem struct {
+	val       *bool
+	expiresAt time.Time
+}
+
+var globalUserPermCache sync.Map
 
 type userPermRepository struct{ db *gorm.DB }
 
@@ -21,6 +31,15 @@ func (r *userPermRepository) FindByUserID(userID string) ([]authdomain.UserPermi
 }
 
 func (r *userPermRepository) CheckOverride(userID, moduleID, permissionCode string) (*bool, error) {
+	cacheKey := fmt.Sprintf("uperm:%s:%s:%s", userID, moduleID, permissionCode)
+	if val, ok := globalUserPermCache.Load(cacheKey); ok {
+		item := val.(userPermCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			return item.val, nil
+		}
+		globalUserPermCache.Delete(cacheKey)
+	}
+
 	var isAllowed sql.NullBool
 	err := r.db.Table("\"User_Permission\" up").
 		Select("up.\"IsAllowed\"").
@@ -32,22 +51,31 @@ func (r *userPermRepository) CheckOverride(userID, moduleID, permissionCode stri
 		return nil, err
 	}
 
-	if !isAllowed.Valid {
-		return nil, nil // No override found
+	var result *bool
+	if isAllowed.Valid {
+		b := isAllowed.Bool
+		result = &b
 	}
 
-	val := isAllowed.Bool
-	return &val, nil
+	globalUserPermCache.Store(cacheKey, userPermCacheItem{
+		val:       result,
+		expiresAt: time.Now().Add(5 * time.Minute),
+	})
+
+	return result, nil
 }
 
 func (r *userPermRepository) BulkUpsert(ups []authdomain.UserPermission) error {
+	globalUserPermCache = sync.Map{} // clear cache on update
 	return r.db.CreateInBatches(&ups, 100).Error
 }
 
 func (r *userPermRepository) Delete(id string) error {
+	globalUserPermCache = sync.Map{} // clear cache on delete
 	return r.db.Where("\"UserPermissionID\" = ?", id).Delete(&authdomain.UserPermission{}).Error
 }
 
 func (r *userPermRepository) DeleteByUserID(userID string) error {
+	globalUserPermCache = sync.Map{} // clear cache on delete
 	return r.db.Where("\"UserID\" = ?", userID).Delete(&authdomain.UserPermission{}).Error
 }
