@@ -41,6 +41,7 @@ import {
   PhotoUploaderWithKeterangan,
   PhotoItem,
   dataURLtoFile,
+  formatPhotoUrl,
 } from "@/components/Inspection/PhotoUploaderWithKeterangan";
 import { useDistributedDraft } from "@/hooks/useDistributedDraft";
 import { useAspekLock } from "@/hooks/useAspekLock";
@@ -443,14 +444,18 @@ export default function InspectionDetailPage() {
           }
 
           // 3. Photos (scoped pKey takes precedence; un-scoped uId only used if detail_id is not set)
+          // 3. Photos (scoped pKey takes precedence; un-scoped uId only used if detail_id is not set)
           const draftPhotos = mergedPhotosMap[pKey] || (!detail.detail_id ? mergedPhotosMap[uId] : undefined);
           if (draftPhotos && draftPhotos.length > 0) {
-            photoStateMap[pKey] = draftPhotos;
+            photoStateMap[pKey] = draftPhotos.map((p: any) => ({
+              ...p,
+              previewUrl: formatPhotoUrl(p.previewUrl || p.file_url || p.url || p.photo_url || p.image_url),
+            }));
           } else if (uraian.result?.photos && uraian.result.photos.length > 0) {
             photoStateMap[pKey] = uraian.result.photos.map((p: any) => ({
               id: p.issue_photo_id,
               existingPhotoId: p.issue_photo_id,
-              previewUrl: p.image_url,
+              previewUrl: formatPhotoUrl(p.image_url),
               keterangan: p.keterangan || "",
               hei_id: p.hei_id || "",
               hei_category: p.hei_category || "",
@@ -503,7 +508,7 @@ export default function InspectionDetailPage() {
               keterangan: "",
               photos: photos.map((p) => ({
                 id: p.id,
-                previewUrl: p.previewUrl?.startsWith("data:") || p.previewUrl?.startsWith("blob:") ? "" : p.previewUrl || "",
+                previewUrl: p.previewUrl?.startsWith("data:") ? "" : p.previewUrl || "",
                 keterangan: p.keterangan || "",
                 hei_id: p.hei_id || "",
                 hei_category: p.hei_category || "",
@@ -547,7 +552,8 @@ export default function InspectionDetailPage() {
             });
             const uploadedUrl = res.data?.data?.file_url || res.data?.data?.processed_url || res.data?.data?.file_path || res.data?.data?.url;
             if (uploadedUrl) {
-              return { ...photo, previewUrl: uploadedUrl, file: undefined };
+              const fullUrl = formatPhotoUrl(uploadedUrl);
+              return { ...photo, previewUrl: fullUrl, file: undefined };
             }
           } catch (e) {
             console.warn("Direct MinIO upload for draft photo failed:", e);
