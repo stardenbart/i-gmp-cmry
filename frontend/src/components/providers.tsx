@@ -71,6 +71,8 @@ function ToasterWithTheme() {
   return <Toaster position="top-center" theme={(resolvedTheme as "light" | "dark" | "system") || "dark"} />;
 }
 
+import { CoreWebVitalsOverlay } from "@/components/ui/CoreWebVitalsOverlay";
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -93,6 +95,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <QueryClientProvider client={queryClient}>
           {children}
           <ToasterWithTheme />
+          <CoreWebVitalsOverlay />
         </QueryClientProvider>
       </ThemeProvider>
     </StoreProvider>
