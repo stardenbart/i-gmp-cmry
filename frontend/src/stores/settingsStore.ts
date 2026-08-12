@@ -5,6 +5,9 @@ interface SettingsState {
   showSearchLatencyButton: boolean;
   setShowSearchLatencyButton: (show: boolean) => void;
   toggleSearchLatencyButton: () => void;
+  showCoreWebVitalsMonitor: boolean;
+  setShowCoreWebVitalsMonitor: (show: boolean) => void;
+  toggleCoreWebVitalsMonitor: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -13,6 +16,9 @@ export const useSettingsStore = create<SettingsState>()(
       showSearchLatencyButton: true,
       setShowSearchLatencyButton: (show: boolean) => set({ showSearchLatencyButton: show }),
       toggleSearchLatencyButton: () => set((state) => ({ showSearchLatencyButton: !state.showSearchLatencyButton })),
+      showCoreWebVitalsMonitor: true,
+      setShowCoreWebVitalsMonitor: (show: boolean) => set({ showCoreWebVitalsMonitor: show }),
+      toggleCoreWebVitalsMonitor: () => set((state) => ({ showCoreWebVitalsMonitor: !state.showCoreWebVitalsMonitor })),
     }),
     {
       name: "app-settings-storage",

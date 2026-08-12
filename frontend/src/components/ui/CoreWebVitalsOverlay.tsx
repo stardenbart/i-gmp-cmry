@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useReportWebVitals } from "next/web-vitals";
 import { Activity, Gauge, ChevronUp, ChevronDown, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/authStore";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useMounted } from "@/lib/useMounted";
 
 interface MetricState {
   value: number;
@@ -11,6 +14,10 @@ interface MetricState {
 }
 
 export function CoreWebVitalsOverlay() {
+  const mounted = useMounted();
+  const user = useAuthStore((state) => state.user);
+  const showCoreWebVitalsMonitor = useSettingsStore((state) => state.showCoreWebVitalsMonitor);
+
   const [isOpen, setIsOpen] = useState(false);
   const [metrics, setMetrics] = useState<Record<string, MetricState>>({
     LCP: { value: 0, rating: "good" },
@@ -19,6 +26,19 @@ export function CoreWebVitalsOverlay() {
     FCP: { value: 0, rating: "good" },
     TTFB: { value: 0, rating: "good" },
   });
+
+  const isSuperAdmin =
+    user?.role_id === "ROLE-000" ||
+    user?.role_id === "SUPERADMIN" ||
+    user?.role?.role_name === "Super Admin" ||
+    !user?.plant_id;
+
+  const isAdmin =
+    isSuperAdmin ||
+    user?.role_id === "ROLE-001" ||
+    user?.role_id === "ROLE-002" ||
+    user?.role_id === "ADMIN" ||
+    user?.role?.role_name === "Administrator";
 
   useReportWebVitals((metric) => {
     const { name, value, rating } = metric;
@@ -29,17 +49,12 @@ export function CoreWebVitalsOverlay() {
         rating: rating as "good" | "needs-improvement" | "poor",
       },
     }));
-
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[Core Web Vitals] ${name}: ${value} (${rating})`);
-    }
   });
 
   // Client-side PerformanceObserver fallback for real-time local testing
   useEffect(() => {
     if (typeof window === "undefined" || !("PerformanceObserver" in window)) return;
 
-    // Observe LCP
     try {
       const lcpObs = new PerformanceObserver((entryList) => {
         const entries = entryList.getEntries();
@@ -52,7 +67,6 @@ export function CoreWebVitalsOverlay() {
       });
       lcpObs.observe({ type: "largest-contentful-paint", buffered: true });
 
-      // Observe CLS
       let clsValue = 0;
       const clsObs = new PerformanceObserver((entryList) => {
         for (const entry of entryList.getEntries() as any[]) {
@@ -73,6 +87,10 @@ export function CoreWebVitalsOverlay() {
       // Browser safety fallback
     }
   }, []);
+
+  if (!mounted || !user || !isAdmin || !showCoreWebVitalsMonitor) {
+    return null;
+  }
 
   const getRatingBadge = (rating: "good" | "needs-improvement" | "poor") => {
     switch (rating) {
@@ -117,7 +135,7 @@ export function CoreWebVitalsOverlay() {
           "bg-zinc-950/90 text-zinc-100 border-zinc-800 hover:border-zinc-700",
           overall.bg
         )}
-        title="Toggle Core Web Vitals Monitor"
+        title="Toggle Core Web Vitals Monitor (Admin Only)"
       >
         <Gauge className="h-3.5 w-3.5" />
         <span className="font-semibold tracking-wider">CWV</span>
@@ -134,7 +152,7 @@ export function CoreWebVitalsOverlay() {
           <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
             <div className="flex items-center gap-1.5">
               <Activity className="h-4 w-4 text-primary" />
-              <span className="font-bold text-xs">Core Web Vitals Monitor</span>
+              <span className="font-bold text-xs">Core Web Vitals (Admin)</span>
             </div>
             <span className={cn("px-2 py-0.5 rounded-full text-[10px] border font-bold", overall.bg)}>
               {overall.label}
@@ -188,7 +206,7 @@ export function CoreWebVitalsOverlay() {
           </div>
 
           <div className="text-[9px] text-zinc-500 border-t border-zinc-800 pt-2 text-center">
-            Real-time local testing monitor (PerformanceObserver API)
+            Mode Khusus Admin & SuperAdmin
           </div>
         </div>
       )}

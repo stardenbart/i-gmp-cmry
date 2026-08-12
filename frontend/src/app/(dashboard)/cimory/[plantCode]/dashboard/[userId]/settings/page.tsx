@@ -47,7 +47,12 @@ export default function SettingsPage() {
   const isAdmin = hasPermission("PERM-MSTR-R");
   const mounted = useMounted();
   const queryClient = useQueryClient();
-  const { showSearchLatencyButton, toggleSearchLatencyButton } = useSettingsStore();
+  const {
+    showSearchLatencyButton,
+    toggleSearchLatencyButton,
+    showCoreWebVitalsMonitor,
+    toggleCoreWebVitalsMonitor,
+  } = useSettingsStore();
 
   const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN" || user?.role?.role_name === "Super Admin";
 
@@ -264,10 +269,12 @@ export default function SettingsPage() {
                     ))}
 
                     {/* Fitur Pengujian & Performa Switch Toggle */}
-                    <div className="bg-muted/30 p-5 rounded-xl border border-border">
-                      <h4 className="font-semibold mb-4 text-primary flex items-center gap-2">
-                        Pengaturan Pengujian & Performa
+                    <div className="bg-muted/30 p-5 rounded-xl border border-border space-y-4">
+                      <h4 className="font-semibold text-primary flex items-center gap-2">
+                        Pengaturan Pengujian & Performa (Khusus Admin & SuperAdmin)
                       </h4>
+
+                      {/* Switch 1: Search Latency */}
                       <div className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/80 shadow-sm gap-4">
                         <div className="space-y-0.5">
                           <label className="text-sm font-semibold text-foreground block">
@@ -296,6 +303,40 @@ export default function SettingsPage() {
                           <span
                             className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                               showSearchLatencyButton ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Switch 2: Core Web Vitals Monitor */}
+                      <div className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/80 shadow-sm gap-4">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-semibold text-foreground block">
+                            Widget Live Monitor Core Web Vitals
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Tampilkan widget pengujian performa real-time <strong>Core Web Vitals</strong> (LCP, CLS, INP, TTFB) di pojok kiri bawah.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={showCoreWebVitalsMonitor}
+                          onClick={() => {
+                            toggleCoreWebVitalsMonitor();
+                            toast.success(
+                              !showCoreWebVitalsMonitor
+                                ? "Widget Core Web Vitals Diaktifkan"
+                                : "Widget Core Web Vitals Dinonaktifkan"
+                            );
+                          }}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            showCoreWebVitalsMonitor ? "bg-primary" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              showCoreWebVitalsMonitor ? "translate-x-5" : "translate-x-0"
                             }`}
                           />
                         </button>

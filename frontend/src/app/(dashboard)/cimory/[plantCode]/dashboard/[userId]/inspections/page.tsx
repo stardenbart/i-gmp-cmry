@@ -250,9 +250,7 @@ export default function InspectionsPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
-              <PlayCircle className="h-4 w-4 text-amber-500" />
-            </div>
+            
             <div>
               <h2 className="text-base font-bold tracking-tight">Tugas Saya</h2>
               <p className="text-xs text-muted-foreground">Inspeksi yang sedang berjalan</p>
