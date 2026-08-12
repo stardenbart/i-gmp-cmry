@@ -150,6 +150,7 @@ export function PhotoUploaderWithKeterangan({
         <div className="space-y-3">
           {photos.map((item, index) => {
             const activeCategory = item.hei_category || "";
+            const displayUrl = item.previewUrl || (item as any).file_url || (item as any).url || (item as any).photo_url || (item as any).image_url || "";
 
             return (
               <div
@@ -158,9 +159,9 @@ export function PhotoUploaderWithKeterangan({
               >
                 {/* Photo Thumbnail */}
                 <div className="relative group shrink-0 w-full sm:w-28 h-28 rounded-md overflow-hidden bg-muted border border-border">
-                  {item.previewUrl ? (
+                  {displayUrl ? (
                     <img
-                      src={item.previewUrl}
+                      src={displayUrl}
                       alt={`Bukti temuan ${index + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -168,8 +169,9 @@ export function PhotoUploaderWithKeterangan({
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-muted text-[10px] italic">
-                      Memuat foto...
+                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-muted text-[10px] p-2 text-center gap-1">
+                      <ImageIcon className="h-4 w-4 opacity-50" />
+                      <span>Foto bukti temuan #{index + 1}</span>
                     </div>
                   )}
                   {!disabled && (
@@ -212,12 +214,12 @@ export function PhotoUploaderWithKeterangan({
                     )}
                   </div>
 
-                  {/* Dynamic HEI Selection (Single Select per Photo) */}
+                  {/* Dynamic HEI Selection (Mandatory Select per Photo) */}
                   <div className="pt-2 border-t border-border/60 space-y-1.5">
                     <div className="w-full sm:w-1/2 space-y-1">
-                      <label htmlFor={`hei_cat_${item.id}`} className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                      <label htmlFor={`hei_cat_${item.id}`} className="text-[11px] font-semibold flex items-center gap-1">
                         <Tag className="h-3 w-3 text-primary" />
-                        Kategori HEI (Pilih 1)
+                        Kategori HEI (Habit, Equipment, Infrastructure) <span className="text-destructive">*</span>
                       </label>
                       <select
                         id={`hei_cat_${item.id}`}
@@ -225,9 +227,11 @@ export function PhotoUploaderWithKeterangan({
                         value={item.hei_id || item.hei_category || ""}
                         onChange={(e) => handleHEISelect(item.id, e.target.value)}
                         disabled={disabled}
-                        className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
+                        className={`flex h-8 w-full rounded-md border bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50 ${
+                          !item.hei_id && !item.hei_category ? "border-amber-500/80 focus:border-amber-500" : "border-input"
+                        }`}
                       >
-                        <option value="">-- Tanpa HEI (Opsional) --</option>
+                        <option value="">-- Pilih Kategori / Item HEI (Wajib) --</option>
                         {categories.map((cat) => {
                           const itemsInCat = heiItems.filter((h: any) => h.category_name?.toLowerCase() === cat.toLowerCase());
                           if (itemsInCat.length === 0) {
@@ -248,6 +252,12 @@ export function PhotoUploaderWithKeterangan({
                           );
                         })}
                       </select>
+                      {!item.hei_id && !item.hei_category && (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3 shrink-0" />
+                          Kategori / Item HEI wajib dipilih untuk foto temuan ini.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

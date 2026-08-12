@@ -503,10 +503,10 @@ export default function InspectionDetailPage() {
               keterangan: "",
               photos: photos.map((p) => ({
                 id: p.id,
-                previewUrl: p.previewUrl?.startsWith("data:") ? "" : p.previewUrl,
-                keterangan: p.keterangan,
-                hei_id: p.hei_id,
-                hei_category: p.hei_category,
+                previewUrl: p.previewUrl || "",
+                keterangan: p.keterangan || "",
+                hei_id: p.hei_id || "",
+                hei_category: p.hei_category || "",
               })),
             };
           }
@@ -573,6 +573,7 @@ export default function InspectionDetailPage() {
 
     let unansweredCount = 0;
     let missingPhotoInfoCount = 0;
+    let missingHEICount = 0;
 
     const resultsPayload: any[] = [];
     const ngUraianTasks: { uraian: any; keterangan: string; photos: PhotoItem[] }[] = [];
@@ -610,6 +611,10 @@ export default function InspectionDetailPage() {
               if (hasEmptyPhotoKet) {
                 missingPhotoInfoCount++;
               }
+              const hasEmptyPhotoHEI = photos.some((p) => !p.hei_id && !p.hei_category);
+              if (hasEmptyPhotoHEI) {
+                missingHEICount++;
+              }
 
               ngUraianTasks.push({
                 uraian,
@@ -629,6 +634,11 @@ export default function InspectionDetailPage() {
 
     if (missingPhotoInfoCount > 0) {
       toast.error("Setiap item NG wajib memiliki minimal 1 foto bukti DAN keterangan spesifik per foto.");
+      return;
+    }
+
+    if (missingHEICount > 0) {
+      toast.error("Setiap foto temuan NG wajib memilih Kategori/Item HEI (Habit, Equipment, Infrastructure)!");
       return;
     }
 
