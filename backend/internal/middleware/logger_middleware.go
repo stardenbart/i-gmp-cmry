@@ -102,8 +102,18 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 		err := c.Next()
 
 		status := c.Response().StatusCode()
-		// Only log successful mutating operations (2xx on non-GET requests) and all GETs for audit trail
+		// Only log successful operations
 		if status < 200 || status >= 300 {
+			return err
+		}
+
+		path := c.Path()
+		// Skip audit logging for high-frequency background polling/sync/heartbeat paths to prevent DB I/O thrashing
+		if strings.Contains(path, "/sync") ||
+			strings.Contains(path, "/heartbeat") ||
+			strings.Contains(path, "/notifications") ||
+			strings.Contains(path, "/health") ||
+			strings.Contains(path, "/metrics") {
 			return err
 		}
 
