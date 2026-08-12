@@ -57,7 +57,7 @@ func (r *userRepository) FindByID(id string) (*authdomain.User, error) {
 	}
 
 	var user authdomain.User
-	err := r.db.Preload("Role").Preload("Department").Preload("PICMappings").Where("\"UserID\" = ?", id).Take(&user).Error
+	err := r.db.Joins("Role").Joins("Department").Preload("PICMappings").Where("\"Users\".\"UserID\" = ?", id).Take(&user).Error
 	if err == nil {
 		r.cache.Store(id, userCacheItem{
 			user:      &user,
