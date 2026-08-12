@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { authApi } from "@/lib/api/auth.api";
+import { api } from "@/lib/api/axios";
 
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,22 @@ const passwordSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
+// Known role ID to Human Name dictionary
+const ROLE_NAME_MAP: Record<string, string> = {
+  "ROLE-000": "Super Admin",
+  "SUPERADMIN": "Super Admin",
+  "ROLE-001": "Administrator",
+  "ROLE-002": "Administrator",
+  "ADMIN": "Administrator",
+  "ADM": "Administrator",
+  "ROLE-003": "Auditor",
+  "AUDITOR": "Auditor",
+  "ROLE-004": "Auditee",
+  "AUDITEE": "Auditee",
+  "ROLE-005": "User",
+  "USER": "User",
+};
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { user, setAuth, token, logout } = useAuthStore();
@@ -48,11 +65,78 @@ export default function ProfilePage() {
     enabled: !!token,
   });
 
+  // Optional: Fetch master roles for exact dynamic name matching
+  const { data: masterRoles } = useQuery({
+    queryKey: ["profile-master-roles"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/master/roles", { params: { limit: 100 } });
+        return res.data?.data?.items || [];
+      } catch (e) {
+        return [];
+      }
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Optional: Fetch master departments for exact dynamic name matching
+  const { data: masterDepts } = useQuery({
+    queryKey: ["profile-master-departments"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/master/departments", { params: { limit: 100 } });
+        return res.data?.data?.items || [];
+      } catch (e) {
+        return [];
+      }
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
   const currentUser = meData?.data || user;
 
-  // Use role and department info already embedded in user session — no admin-only API calls needed
-  const roleName = (currentUser as any)?.role?.role_name || (currentUser as any)?.role_name || currentUser?.role_id || "–";
-  const deptName = (currentUser as any)?.department?.department_name || (currentUser as any)?.department_name || currentUser?.department_id || "–";
+  // Format Role Name (never display raw ROLE-00x ID)
+  const getRoleDisplayName = () => {
+    if (currentUser?.role?.role_name) return currentUser.role.role_name;
+    if ((currentUser as any)?.role_name) return (currentUser as any).role_name;
+    
+    const id = currentUser?.role_id;
+    if (!id) return "–";
+
+    // Try finding in master roles list
+    const foundMaster = masterRoles?.find((r: any) => r.role_id === id);
+    if (foundMaster?.role_name) return foundMaster.role_name;
+
+    // Try finding in static dictionary
+    const upperId = id.toUpperCase();
+    if (ROLE_NAME_MAP[upperId]) return ROLE_NAME_MAP[upperId];
+
+    // Fallback: strip ROLE- prefix if any
+    return id.replace(/^ROLE-?/i, "").replace(/_/g, " ");
+  };
+
+  // Format Department Name (never display raw DEPT-00x ID)
+  const getDeptDisplayName = () => {
+    if (currentUser?.department?.department_name) return currentUser.department.department_name;
+    if ((currentUser as any)?.department_name) return (currentUser as any).department_name;
+    
+    const id = currentUser?.department_id;
+    if (!id) return "–";
+
+    // Try finding in master departments list
+    const foundMaster = masterDepts?.find((d: any) => d.department_id === id);
+    if (foundMaster?.department_name) return foundMaster.department_name;
+
+    // Fallback: humanize DEPT- ID
+    if (id.startsWith("DEPT-")) {
+      return `Departemen ${id.replace("DEPT-", "")}`;
+    }
+
+    return id;
+  };
+
+  const roleName = getRoleDisplayName();
+  const deptName = getDeptDisplayName();
 
   // Profile form
   const profileForm = useForm<ProfileFormValues>({
