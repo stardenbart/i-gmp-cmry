@@ -4,7 +4,7 @@ const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.NODE_ENV === "production", //production
   runtimeCaching: [
     {
       urlPattern: /\.(?:css|js)$/,
@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "localhost:9000",
     "localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:9000",
+    "http://127.0.0.1:8080",
     "pug-widow-rewind.ngrok-free.dev",
     "*.ngrok-free.dev",
     "*.ngrok.io",
@@ -69,7 +72,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const isProd = process.env.NODE_ENV === "production";
+    const isProd = process.env.NODE_ENV === "production"; //development
     const backendUrl = process.env.INTERNAL_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || (isProd ? "http://backend:8080" : "http://127.0.0.1:8080");
     const minioUrl = process.env.MINIO_ENDPOINT
       ? (process.env.MINIO_ENDPOINT.startsWith("http") ? process.env.MINIO_ENDPOINT : `http://${process.env.MINIO_ENDPOINT}`)

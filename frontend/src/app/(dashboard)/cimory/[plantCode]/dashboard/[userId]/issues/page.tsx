@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { Issue, IssueStatus, issueApi } from "@/lib/api/issue.api";
 import { filterApi, IssueFilterParams } from "@/lib/api/filter.api";
 import { Button } from "@/components/ui/button";
-import { cn, formatImageUrl } from "@/lib/utils";
+import { cn, formatImageUrl, isEncryptedBase64 } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
@@ -115,7 +115,9 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
                 {issue.area_name || "Tanpa Area"} · {issue.kawasan_name || "Tanpa Kawasan"} · {issue.detail_kawasan_name || "Tanpa Detail"}
               </h4>
               <p className="text-xs text-muted-foreground mt-0.5 font-medium line-clamp-2">
-                {issue.keterangan || "Tanpa keterangan"}
+                {isEncryptedBase64(issue.keterangan)
+                  ? issue.uraian_text || "Deskripsi temuan inspeksi"
+                  : issue.keterangan || "Tanpa keterangan"}
               </p>
             </div>
             <span

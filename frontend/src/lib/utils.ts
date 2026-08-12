@@ -35,10 +35,27 @@ export function formatTimeAgo(dateString: string): string {
   return date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
+export function isEncryptedBase64(str: string | null | undefined): boolean {
+  if (!str) return false;
+  const trimmed = str.trim();
+  return (
+    trimmed.length >= 30 &&
+    !trimmed.includes(" ") &&
+    !trimmed.includes("/") &&
+    !trimmed.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i) &&
+    (trimmed.endsWith("==") || trimmed.endsWith("=") || trimmed.includes("+"))
+  );
+}
+
 export function formatImageUrl(url: string | null | undefined): string {
   if (!url) return "";
   let formatted = url.trim();
   if (!formatted) return "";
+
+  // If string is an undecrypted AES base64 ciphertext, do not send as raw MinIO URL
+  if (isEncryptedBase64(formatted)) {
+    return "";
+  }
 
   // Reject malformed paths that point to a directory/issue ID prefix instead of an actual image file
   const cleanPath = formatted.split('?')[0].split('#')[0];
