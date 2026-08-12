@@ -111,12 +111,13 @@ export const DashboardPanelAdmin = () => {
           {/* Plant Selector Dropdown for SuperAdmin */}
           {isSuperAdmin ? (
             <select
+              aria-label="Pilih Plant"
               value={selectedPlant || "all"}
               onChange={(e) => {
                 setSelectedPlant(e.target.value);
                 setSelectedArea("");
               }}
-              className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none"
+              className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none min-h-[44px]"
             >
               <option value="all">Semua Plant</option>
               {plantsResponse?.data?.items?.map((plant: any) => (
@@ -134,9 +135,10 @@ export const DashboardPanelAdmin = () => {
 
           {/* Area Selector Dropdown */}
           <select 
+            aria-label="Pilih Area"
             value={selectedArea} 
             onChange={(e) => setSelectedArea(e.target.value)}
-            className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none"
+            className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none min-h-[44px]"
           >
             <option value="">Semua Area</option>
             {filteredAreas.map((area: any) => (

@@ -79,8 +79,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 2 * 60 * 1000, // 2 minutes staleTime to prevent duplicate requests on navigation/re-renders
-            gcTime: 10 * 60 * 1000,    // 10 minutes in-memory cache time
+            staleTime: 5 * 60 * 1000, // 5 minutes staleTime for instant 0ms page transitions
+            gcTime: 30 * 60 * 1000,   // 30 minutes in-memory cache time
             refetchOnWindowFocus: false,
             refetchIntervalInBackground: false,
             retry: 1,

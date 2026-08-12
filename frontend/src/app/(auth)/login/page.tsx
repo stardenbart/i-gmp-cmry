@@ -93,7 +93,7 @@ export default function LoginPage() {
             <div className="space-y-2.5">
               <label
                 htmlFor="username"
-                className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-300"
               >
                 Username
               </label>
@@ -101,12 +101,15 @@ export default function LoginPage() {
                 id="username"
                 type="text"
                 autoComplete="username"
-                className="h-12 rounded-2xl border-white/10 bg-black/40 px-4 text-white placeholder:text-zinc-600 focus-visible:border-primary/50 focus-visible:bg-black/60 focus-visible:ring-1 focus-visible:ring-primary/50 transition-all"
+                aria-required="true"
+                aria-invalid={errors.username ? "true" : "false"}
+                aria-describedby={errors.username ? "username-error" : undefined}
+                className="h-12 rounded-2xl border-white/10 bg-black/40 px-4 text-white placeholder:text-zinc-500 focus-visible:border-primary/50 focus-visible:bg-black/60 focus-visible:ring-1 focus-visible:ring-primary/50 transition-all"
                 placeholder="admin"
                 {...register("username")}
               />
               {errors.username && (
-                <p className="ml-1 mt-1 text-xs font-medium text-red-400">
+                <p id="username-error" className="ml-1 mt-1 text-xs font-medium text-red-400">
                   {errors.username.message}
                 </p>
               )}
@@ -117,13 +120,14 @@ export default function LoginPage() {
               <div className="ml-1 flex items-center justify-between">
                 <label
                   htmlFor="password"
-                  className="text-xs font-semibold uppercase tracking-wider text-zinc-400"
+                  className="text-xs font-semibold uppercase tracking-wider text-zinc-300"
                 >
                   Password
                 </label>
                 <a
                   href="/forgot-password"
-                  className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                  className="text-xs font-medium text-primary hover:text-primary/80 transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+                  aria-label="Lupa password akun Anda"
                 >
                   Lupa password?
                 </a>
@@ -132,12 +136,15 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 autoComplete="current-password"
-                className="h-12 rounded-2xl border-white/10 bg-black/40 px-4 text-white placeholder:text-zinc-600 focus-visible:border-primary/50 focus-visible:bg-black/60 focus-visible:ring-1 focus-visible:ring-primary/50 transition-all"
+                aria-required="true"
+                aria-invalid={errors.password ? "true" : "false"}
+                aria-describedby={errors.password ? "password-error" : undefined}
+                className="h-12 rounded-2xl border-white/10 bg-black/40 px-4 text-white placeholder:text-zinc-500 focus-visible:border-primary/50 focus-visible:bg-black/60 focus-visible:ring-1 focus-visible:ring-primary/50 transition-all"
                 placeholder="••••••••"
                 {...register("password")}
               />
               {errors.password && (
-                <p className="ml-1 mt-1 text-xs font-medium text-red-400">
+                <p id="password-error" className="ml-1 mt-1 text-xs font-medium text-red-400">
                   {errors.password.message}
                 </p>
               )}
@@ -147,7 +154,8 @@ export default function LoginPage() {
             <div className="pt-2">
               <Button
                 type="submit"
-                className="h-12 w-full rounded-2xl bg-gradient-to-r from-primary to-purple-600 text-[15px] font-bold text-white shadow-lg shadow-primary/25 transition-all hover:scale-[1.02] hover:from-primary/90 hover:to-purple-600/90 active:scale-[0.98]"
+                aria-label="Sign In ke Akun"
+                className="h-12 w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-primary to-purple-600 text-[15px] font-bold text-white shadow-lg shadow-primary/25 transition-all hover:scale-[1.02] hover:from-primary/90 hover:to-purple-600/90 active:scale-[0.98]"
                 isLoading={isLoading}
               >
                 Sign In

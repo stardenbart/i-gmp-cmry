@@ -91,9 +91,10 @@ function IssueCard({ issue, targetUrl }: { issue: Issue; targetUrl?: string }) {
           <div className="relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-xl overflow-hidden bg-muted border border-border/80 ml-2">
             <img
               src={formatImageUrl(firstPhoto.image_url)}
-              alt="Foto Temuan"
+              alt={`Foto temuan ${issue.area_name || "inspeksi"}`}
               loading="lazy"
               decoding="async"
+              fetchPriority="high"
               width={80}
               height={80}
               className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -305,12 +306,13 @@ export default function IssuesPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <input
             type="search"
+            aria-label="Cari temuan berdasarkan label atau deskripsi"
             value={search}
             onChange={(e) => dispatch(setSearch(e.target.value))}
             placeholder="Cari temuan (Label)..."
             className={cn(
               "w-full rounded-xl border border-border/60 bg-card/60 backdrop-blur-md",
-              "pl-9 pr-4 py-2.5 text-sm placeholder:text-muted-foreground",
+              "pl-9 pr-4 py-2.5 text-sm placeholder:text-muted-foreground min-h-[44px]",
               "focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50",
               "transition-all"
             )}
@@ -327,6 +329,8 @@ export default function IssuesPage() {
       {/* ── Status filter chips — facet counts from API ── */}
       <div className="-mx-4 sm:-mx-6 px-4 sm:px-6">
         <div
+          aria-label="Filter status temuan"
+          role="region"
           className="flex gap-2 overflow-x-auto pb-0.5"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
@@ -340,9 +344,11 @@ export default function IssuesPage() {
             <button
               key={opt.value}
               onClick={() => dispatch(setActiveStatus(opt.value))}
+              aria-pressed={isActive}
+              aria-label={`Filter status ${opt.label} (${count} temuan)`}
               className={cn(
-                "shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold",
-                "transition-all duration-200 border",
+                "shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold min-h-[44px]",
+                "transition-all duration-200 border focus:outline-none focus:ring-2 focus:ring-primary",
                 isActive
                   ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20"
                   : "bg-card/60 text-muted-foreground border-border/60 hover:border-primary/40 hover:text-foreground"
