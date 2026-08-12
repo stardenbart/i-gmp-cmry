@@ -63,10 +63,9 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-4 py-12 sm:px-6 lg:px-8">
-      {/* Ambient Background Elements */}
-      <div className="pointer-events-none absolute left-[-10%] top-[-10%] h-[50vw] max-h-150 w-[50vw] max-w-150 rounded-full bg-primary/20 blur-[100px] lg:blur-[140px]" />
-      <div className="pointer-events-none absolute right-[-10%] bottom-[0%] h-[40vw] max-h-125 w-[40vw] max-w-125 rounded-full bg-purple-600/20 blur-[100px] lg:blur-[140px]" />
-      <div className="pointer-events-none absolute left-[20%] top-[40%] h-[30vw] max-h-100 w-[30vw] max-w-100 rounded-full bg-emerald-500/10 blur-[120px]" />
+      {/* Lightweight Ambient Background Elements */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.15),transparent_50%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(147,51,234,0.15),transparent_50%)]" />
 
       <div className="relative z-10 w-full max-w-110">
         {/* Header Section */}

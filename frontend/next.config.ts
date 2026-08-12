@@ -25,6 +25,19 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: false,
   reactCompiler: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "@tanstack/react-query",
+      "framer-motion",
+      "recharts",
+      "date-fns",
+      "sonner",
+    ],
+  },
   turbopack: {},
   allowedDevOrigins: [
     "localhost:3000",
