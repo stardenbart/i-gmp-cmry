@@ -177,7 +177,7 @@ func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 	kawasanID := c.Params("kawasanId")
 
 	var kawasanAspeks []inspection.KawasanAspek
-	h.db.Where("KawasanID = ?", kawasanID).Find(&kawasanAspeks)
+	h.db.Where("\"KawasanID\" = ?", kawasanID).Find(&kawasanAspeks)
 
 	statuses := make([]inspection.AspekLockStatus, 0, len(kawasanAspeks))
 	for _, ka := range kawasanAspeks {
@@ -206,7 +206,7 @@ func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
 	draft, err := h.lockMgr.GetDraftState(c.Context(), scopeID, aspekID)
 	if (err != nil || len(draft) == 0) && h.db != nil {
 		var header inspection.InspectionHeader
-		if dbErr := h.db.Where("InspectionID = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
+		if dbErr := h.db.Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
 			legacyDraft, _ := h.lockMgr.GetDraftState(c.Context(), header.KawasanID, aspekID)
 			if len(legacyDraft) > 0 {
 				draft = legacyDraft
@@ -239,7 +239,7 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 		// check if scopeID corresponds to an inspection header and migrate legacy keys from kawasanID.
 		if (err != nil || len(keys) == 0) && h.db != nil {
 			var header inspection.InspectionHeader
-			if dbErr := h.db.Where("InspectionID = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
+			if dbErr := h.db.Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
 				legacyPattern := fmt.Sprintf("state:aspek:%s:*", header.KawasanID)
 				legacyKeys, _ := h.rdb.Keys(c.Context(), legacyPattern).Result()
 				if len(legacyKeys) > 0 {

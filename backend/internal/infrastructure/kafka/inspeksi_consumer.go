@@ -143,7 +143,7 @@ func (c *InspeksiConsumer) SyncKawasanToDB(ctx context.Context, kawasanID, sessi
 	// Fallback to fetch master aspek for Kawasan if Redis tracker is empty
 	if len(aspekIDs) == 0 {
 		var kawasanAspeks []inspection.KawasanAspek
-		c.db.Where("KawasanID = ?", kawasanID).Find(&kawasanAspeks)
+		c.db.Where("\"KawasanID\" = ?", kawasanID).Find(&kawasanAspeks)
 		for _, ka := range kawasanAspeks {
 			aspekIDs = append(aspekIDs, ka.AspekID)
 		}
@@ -172,7 +172,7 @@ func (c *InspeksiConsumer) SyncKawasanToDB(ctx context.Context, kawasanID, sessi
 	err := c.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Update Session status
 		if err := tx.Model(&inspection.InspeksiSession{}).
-			Where("SessionID = ?", sessionID).
+			Where("\"SessionID\" = ?", sessionID).
 			Updates(map[string]interface{}{
 				"Status":   "Synced",
 				"SyncedAt": time.Now(),
