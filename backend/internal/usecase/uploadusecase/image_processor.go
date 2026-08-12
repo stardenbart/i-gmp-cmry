@@ -3,7 +3,6 @@ package uploadusecase
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"image"
 	"image/gif"
