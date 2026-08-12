@@ -156,9 +156,8 @@ func (h *InspeksiHandler) SaveAspek(c *fiber.Ctx) error {
 
 	// Produce message to Kafka
 	if h.kafkaProducer != nil {
-		msgBytes, _ := json.Marshal(req)
 		key := kawasanID
-		if err := h.kafkaProducer.PublishEvent(c.Context(), events.TopicInspeksiAspekSave, key, string(msgBytes)); err != nil {
+		if err := h.kafkaProducer.PublishEvent(c.Context(), events.TopicInspeksiAspekSave, key, req); err != nil {
 			h.log.Warn("Kafka produce warning, saving draft state directly", logger.Error(err))
 		}
 	}

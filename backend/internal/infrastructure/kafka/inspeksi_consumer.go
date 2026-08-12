@@ -44,8 +44,17 @@ func (c *InspeksiConsumer) Start(ctx context.Context) {
 func (c *InspeksiConsumer) handleMessage(ctx context.Context, msg segmentio.Message) error {
 	var req inspection.SaveAspekRequest
 	if err := json.Unmarshal(msg.Value, &req); err != nil {
-		c.log.Error("Failed to parse InspeksiMessage", logger.Error(err))
-		return nil // Non-retryable parse error
+		// Fallback: If message payload was published as a stringified JSON string, unmarshal string first
+		var strPayload string
+		if strErr := json.Unmarshal(msg.Value, &strPayload); strErr == nil {
+			if unmarshalErr := json.Unmarshal([]byte(strPayload), &req); unmarshalErr == nil {
+				err = nil
+			}
+		}
+		if err != nil {
+			c.log.Error("Failed to parse InspeksiMessage", logger.Error(err))
+			return nil // Non-retryable parse error
+		}
 	}
 
 	// 1. Idempotency Check
