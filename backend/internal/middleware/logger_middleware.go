@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gofiber/fiber/v2"
 	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
@@ -145,13 +146,20 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 		// For POST/PUT/PATCH/DELETE: use the raw JSON body
 		// For GET: build a descriptive JSON payload from path, query params, and headers
 		var reqBody string
+		contentType := c.Get("Content-Type")
 		bodyBytes := c.Body()
-		if len(bodyBytes) > 0 {
-			if len(bodyBytes) > 10000 {
-				reqBody = string(bodyBytes[:10000]) + "... (truncated)"
-			} else {
-				reqBody = string(bodyBytes)
+
+		if strings.Contains(contentType, "multipart/form-data") || strings.Contains(contentType, "image/") || strings.Contains(contentType, "octet-stream") {
+			reqBody = fmt.Sprintf("[file upload payload: %s, size: %d bytes]", contentType, len(bodyBytes))
+		} else if len(bodyBytes) > 0 {
+			rawStr := string(bodyBytes)
+			if len(rawStr) > 10000 {
+				rawStr = rawStr[:10000] + "... (truncated)"
 			}
+			if !utf8.ValidString(rawStr) {
+				rawStr = strings.ToValidUTF8(rawStr, "?")
+			}
+			reqBody = rawStr
 		} else {
 			// For GET (READ) — build a payload from query information
 			reqPayload := fmt.Sprintf(`{

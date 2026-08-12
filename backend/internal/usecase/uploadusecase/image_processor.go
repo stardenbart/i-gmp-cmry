@@ -130,12 +130,7 @@ func (p *ImageProcessor) QueueForProcessing(ctx context.Context, msg *upload.Ima
 	}
 
 	key := msg.FileID
-	payload, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
-	}
-
-	err = p.kafkaProducer.PublishEvent(ctx, p.topic, key, payload)
+	err := p.kafkaProducer.PublishEvent(ctx, p.topic, key, msg)
 	if err != nil {
 		return fmt.Errorf("failed to publish to Kafka: %w", err)
 	}

@@ -57,8 +57,17 @@ func (c *ImageProcessingConsumer) Start(ctx context.Context) {
 func (c *ImageProcessingConsumer) handleMessage(ctx context.Context, msg kafka.Message) error {
 	var task upload.ImageProcessingMessage
 	if err := json.Unmarshal(msg.Value, &task); err != nil {
-		c.log.Error("Failed to unmarshal image processing message", logger.Error(err))
-		return err
+		// Fallback: If message payload was published as a stringified JSON string, unmarshal string first
+		var strPayload string
+		if strErr := json.Unmarshal(msg.Value, &strPayload); strErr == nil {
+			if unmarshalErr := json.Unmarshal([]byte(strPayload), &task); unmarshalErr == nil {
+				err = nil
+			}
+		}
+		if err != nil {
+			c.log.Error("Failed to unmarshal image processing message", logger.Error(err))
+			return nil // Non-retryable parse error
+		}
 	}
 
 	c.log.Info("Processing image",
