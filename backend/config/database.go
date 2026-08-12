@@ -56,8 +56,25 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	// Ensure high-performance indexes exist
+	// Ensure high-performance indexes and uploads table exist
 	_ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS "uploads" (
+			"id"                VARCHAR(36)  NOT NULL,
+			"inspection_id"     VARCHAR(36)  NOT NULL,
+			"original_filename" VARCHAR(255) NOT NULL,
+			"stored_filename"   VARCHAR(255) NOT NULL,
+			"file_path"         TEXT         NOT NULL,
+			"file_size"         BIGINT       NOT NULL,
+			"content_type"      VARCHAR(100) NOT NULL,
+			"file_type"         VARCHAR(20)  NOT NULL,
+			"status"            VARCHAR(20)  NOT NULL DEFAULT 'completed',
+			"processed_url"     TEXT,
+			"created_at"        BIGINT       NOT NULL,
+			"updated_at"        BIGINT       NOT NULL,
+			PRIMARY KEY ("id")
+		);
+		CREATE INDEX IF NOT EXISTS idx_uploads_inspection_id ON "uploads" ("inspection_id");
+		CREATE INDEX IF NOT EXISTS idx_uploads_status ON "uploads" ("status");
 		CREATE INDEX IF NOT EXISTS idx_users_userid ON "Users" ("UserID");
 		CREATE INDEX IF NOT EXISTS idx_users_username ON "Users" ("Username");
 		CREATE INDEX IF NOT EXISTS idx_activitylog_createdat ON "Activity_Log" ("ActivityCreatedAt" DESC);

@@ -13,6 +13,7 @@ type UploadRepository struct {
 
 // NewUploadRepository creates a new upload repository instance
 func NewUploadRepository(db *gorm.DB) *UploadRepository {
+	_ = db.AutoMigrate(&upload.Upload{})
 	return &UploadRepository{db: db}
 }
 
