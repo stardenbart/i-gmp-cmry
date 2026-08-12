@@ -27,18 +27,23 @@ export function CoreWebVitalsOverlay() {
     TTFB: { value: 0, rating: "good" },
   });
 
+  // Strict role check: ONLY explicitly matched Admin & SuperAdmin roles allowed
+  const roleId = (user?.role_id || "").toUpperCase();
+  const roleName = (user?.role?.role_name || "").toLowerCase();
+
   const isSuperAdmin =
-    user?.role_id === "ROLE-000" ||
-    user?.role_id === "SUPERADMIN" ||
-    user?.role?.role_name === "Super Admin" ||
-    !user?.plant_id;
+    roleId === "ROLE-000" ||
+    roleId === "SUPERADMIN" ||
+    roleName === "super admin" ||
+    roleName === "superadmin";
 
   const isAdmin =
     isSuperAdmin ||
-    user?.role_id === "ROLE-001" ||
-    user?.role_id === "ROLE-002" ||
-    user?.role_id === "ADMIN" ||
-    user?.role?.role_name === "Administrator";
+    roleId === "ROLE-001" ||
+    roleId === "ROLE-002" ||
+    roleId === "ADMIN" ||
+    roleName === "admin" ||
+    roleName === "administrator";
 
   useReportWebVitals((metric) => {
     const { name, value, rating } = metric;
@@ -88,6 +93,7 @@ export function CoreWebVitalsOverlay() {
     }
   }, []);
 
+  // Guarantee 100% strict block for non-admin users and when toggle is OFF
   if (!mounted || !user || !isAdmin || !showCoreWebVitalsMonitor) {
     return null;
   }

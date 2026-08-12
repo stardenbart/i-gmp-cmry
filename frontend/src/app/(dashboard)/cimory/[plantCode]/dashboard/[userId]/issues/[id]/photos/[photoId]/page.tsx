@@ -169,7 +169,7 @@ export default function InitialPhotoDetailPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button size="sm" onClick={handleStartWork} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl text-xs">
-              🚀 Mulai Kerjakan Sekarang
+              Mulai Kerjakan Sekarang
             </Button>
             <Link href={backUrl}>
               <Button size="sm" variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 rounded-xl text-xs">
