@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useMounted } from "@/lib/useMounted";
+import { isAdminUser, isSuperAdminUser } from "@/lib/useAdminGuard";
 
 interface MetricState {
   value: number;
@@ -27,25 +28,13 @@ export function CoreWebVitalsOverlay() {
     TTFB: { value: 0, rating: "good" },
   });
 
-  // Strict role check: ONLY explicitly matched Admin & SuperAdmin roles allowed
-  const roleId = (user?.role_id || "").toUpperCase();
-  const roleName = (user?.role?.role_name || "").toLowerCase();
-
-  const isSuperAdmin =
-    roleId === "ROLE-000" ||
-    roleId === "SUPERADMIN" ||
-    roleName === "super admin" ||
-    roleName === "superadmin";
-
-  const isAdmin =
-    isSuperAdmin ||
-    roleId === "ROLE-001" ||
-    roleId === "ROLE-002" ||
-    roleId === "ADMIN" ||
-    roleName === "admin" ||
-    roleName === "administrator";
+  // Strict role check using official system guards
+  const isAdmin = !!user && (isAdminUser(user.role_id, user.role?.role_name) || isSuperAdminUser(user.role_id, user.role?.role_name));
 
   useReportWebVitals((metric) => {
+    // Only capture metrics if user is authenticated admin & feature toggle is ON
+    if (!mounted || !user || !isAdmin || !showCoreWebVitalsMonitor) return;
+
     const { name, value, rating } = metric;
     setMetrics((prev) => ({
       ...prev,
@@ -58,6 +47,7 @@ export function CoreWebVitalsOverlay() {
 
   // Client-side PerformanceObserver fallback for real-time local testing
   useEffect(() => {
+    if (!mounted || !user || !isAdmin || !showCoreWebVitalsMonitor) return;
     if (typeof window === "undefined" || !("PerformanceObserver" in window)) return;
 
     try {
@@ -91,9 +81,9 @@ export function CoreWebVitalsOverlay() {
     } catch (e) {
       // Browser safety fallback
     }
-  }, []);
+  }, [mounted, user, isAdmin, showCoreWebVitalsMonitor]);
 
-  // Guarantee 100% strict block for non-admin users and when toggle is OFF
+  // Guarantee 100% strict block: if not mounted, not logged in, not admin, or toggle OFF, render NOTHING
   if (!mounted || !user || !isAdmin || !showCoreWebVitalsMonitor) {
     return null;
   }

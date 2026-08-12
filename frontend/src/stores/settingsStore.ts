@@ -16,7 +16,7 @@ export const useSettingsStore = create<SettingsState>()(
       showSearchLatencyButton: true,
       setShowSearchLatencyButton: (show: boolean) => set({ showSearchLatencyButton: show }),
       toggleSearchLatencyButton: () => set((state) => ({ showSearchLatencyButton: !state.showSearchLatencyButton })),
-      showCoreWebVitalsMonitor: true,
+      showCoreWebVitalsMonitor: false, // Default to FALSE so it is 100% hidden unless Admin explicitly enables it
       setShowCoreWebVitalsMonitor: (show: boolean) => set({ showCoreWebVitalsMonitor: show }),
       toggleCoreWebVitalsMonitor: () => set((state) => ({ showCoreWebVitalsMonitor: !state.showCoreWebVitalsMonitor })),
     }),
