@@ -38,13 +38,13 @@ func (r *userRepository) FindAll(page, limit int, search, roleID, deptID, plantI
 
 func (r *userRepository) FindByID(id string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Preload("Role").Preload("Department").Preload("PICMappings").Where("\"UserID\" = ?", id).First(&user).Error
+	err := r.db.Preload("Role").Preload("Department").Preload("PICMappings").Where("\"UserID\" = ?", id).Take(&user).Error
 	return &user, err
 }
 
 func (r *userRepository) FindByUsername(username string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Where("\"Username\" = ?", username).First(&user).Error
+	err := r.db.Where("\"Username\" = ?", username).Take(&user).Error
 	if err != nil {
 		return nil, err
 	}
