@@ -83,6 +83,7 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_activitylog_userid ON "Activity_Log" ("UserID");
 		CREATE INDEX IF NOT EXISTS idx_hei_category_code ON "HEI_Master" ("CategoryName", "HEICode");
 		CREATE INDEX IF NOT EXISTS idx_pic_mapping_userid ON "PIC_Mapping" ("UserID");
+		CREATE INDEX IF NOT EXISTS idx_pic_mapping_area_kawasan ON "PIC_Mapping" ("AreaID", "KawasanID");
 		CREATE INDEX IF NOT EXISTS idx_kawasan_aspek_kawasanid ON "kawasan_aspek" ("KawasanID");
 		CREATE INDEX IF NOT EXISTS idx_dept_master_id ON "Department_Master" ("DepartmentID");
 		CREATE INDEX IF NOT EXISTS idx_role_master_id ON "Role_Master" ("RoleID");
@@ -90,6 +91,7 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_user_perm_userid ON "User_Permission" ("UserID");
 		CREATE INDEX IF NOT EXISTS idx_perm_master_mod_code ON "Permission_Master" ("ModuleID", "PermissionCode");
 		CREATE INDEX IF NOT EXISTS idx_inspection_result_inspectionid ON "Inspection_Result" ("InspectionID");
+		CREATE INDEX IF NOT EXISTS idx_inspection_result_id_checking ON "Inspection_Result" ("InspectionID", "Checking");
 		CREATE INDEX IF NOT EXISTS idx_inspection_header_inspectionid ON "Inspection_Header" ("InspectionID");
 		CREATE INDEX IF NOT EXISTS idx_insp_hdr_area_status ON "Inspection_Header" ("AreaID", "InspectionHeaderStatus");
 		CREATE INDEX IF NOT EXISTS idx_insp_hdr_kawasan_status ON "Inspection_Header" ("KawasanID", "InspectionHeaderStatus");

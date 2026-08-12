@@ -42,8 +42,7 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 			"Area_Master"."AreaName" AS "AreaName", 
 			"Kawasan_Master"."KawasanName" AS "KawasanName", 
 			"DetailKawasan_Master"."DetailKawasanName" AS "DetailKawasanName", 
-			"Users"."FullName" AS "InspectorName",
-			(SELECT CASE WHEN COUNT(*) > 0 THEN (COUNT(CASE WHEN "Checking" = 'OK' THEN 1 END) * 100.0 / COUNT(*)) ELSE 0.0 END FROM "Inspection_Result" ir WHERE ir."InspectionID" = "Inspection_Header"."InspectionID" AND ir."Checking" IN ('OK', 'NG')) AS "Score"`).
+			"Users"."FullName" AS "InspectorName"`).
 		Joins(`LEFT JOIN "Area_Master" ON "Inspection_Header"."AreaID" = "Area_Master"."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" ON "Inspection_Header"."KawasanID" = "Kawasan_Master"."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" ON "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"`).
@@ -51,6 +50,23 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 		Where(`"Inspection_Header"."InspectionID" = ?`, id).
 		Preload("Results").
 		Take(&item).Error
+
+	if err == nil && len(item.Results) > 0 {
+		var total int
+		var okCount int
+		for _, res := range item.Results {
+			if res.Checking == "OK" || res.Checking == "NG" {
+				total++
+				if res.Checking == "OK" {
+					okCount++
+				}
+			}
+		}
+		if total > 0 {
+			item.Score = float64(okCount) * 100.0 / float64(total)
+		}
+	}
+
 	return &item, err
 }
 

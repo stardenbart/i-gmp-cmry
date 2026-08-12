@@ -42,8 +42,7 @@ func (r *inspectionFilterRepository) FindFiltered(f *inspection.InspectionFilter
 			"Area_Master"."AreaName" AS "AreaName", 
 			"Kawasan_Master"."KawasanName" AS "KawasanName", 
 			"DetailKawasan_Master"."DetailKawasanName" AS "DetailKawasanName", 
-			"Users"."FullName" AS "InspectorName",
-			(SELECT CASE WHEN COUNT(*) > 0 THEN (COUNT(CASE WHEN "Checking" = 'OK' THEN 1 END) * 100.0 / COUNT(*)) ELSE 0.0 END FROM "Inspection_Result" ir WHERE ir."InspectionID" = "Inspection_Header"."InspectionID" AND ir."Checking" IN ('OK', 'NG')) AS "Score"`).
+			"Users"."FullName" AS "InspectorName"`).
 		Joins(`LEFT JOIN "Area_Master" ON "Inspection_Header"."AreaID" = "Area_Master"."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" ON "Inspection_Header"."KawasanID" = "Kawasan_Master"."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" ON "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"`).
