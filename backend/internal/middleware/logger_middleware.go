@@ -108,6 +108,13 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 			return err
 		}
 
+		method := c.Method()
+		// Only log mutating operations (POST, PUT, PATCH, DELETE) for audit trail.
+		// Skip read-only GET/HEAD/OPTIONS requests to eliminate useless DB I/O thrashing.
+		if method == fiber.MethodGet || method == fiber.MethodHead || method == fiber.MethodOptions {
+			return err
+		}
+
 		path := c.Path()
 		// Skip audit logging for high-frequency background polling/sync/heartbeat/lock/permission paths to prevent DB I/O thrashing
 		if strings.Contains(path, "/sync") ||
