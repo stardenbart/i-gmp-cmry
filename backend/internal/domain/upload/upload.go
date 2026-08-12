@@ -74,8 +74,8 @@ type ImageProcessingMessage struct {
 
 // Upload - Database model
 type Upload struct {
-	ID               string  `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	InspectionID     string  `gorm:"column:inspection_id;type:uuid;not null"`
+	ID               string  `gorm:"column:id;primaryKey;type:varchar(50)"`
+	InspectionID     string  `gorm:"column:inspection_id;type:varchar(50);not null"`
 	OriginalFilename string  `gorm:"column:original_filename;type:varchar(255);not null"`
 	StoredFilename   string  `gorm:"column:stored_filename;type:varchar(255);not null"`
 	FilePath         string  `gorm:"column:file_path;type:text;not null"`
