@@ -133,7 +133,6 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 			recordID = c.Query("id")
 		}
 
-		path := c.Path()
 		query := string(c.Request().URI().QueryString())
 		desc := fmt.Sprintf("[%s] %s", method, path)
 		if query != "" {
