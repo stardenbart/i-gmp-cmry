@@ -136,7 +136,6 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 		// Capture all values from Fiber ctx BEFORE the goroutine.
 		// Fiber recycles ctx after the handler returns, so accessing c inside
 		// a goroutine causes a nil pointer dereference (panic: SIGSEGV).
-		method := c.Method()
 		action := httpMethodToAction(method)
 		table := pathToTable(c.Path())
 		recordID := c.Params("id")
