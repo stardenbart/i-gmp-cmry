@@ -15,7 +15,13 @@ type userPermCacheItem struct {
 	expiresAt time.Time
 }
 
+type userPermListCacheItem struct {
+	ups       []authdomain.UserPermission
+	expiresAt time.Time
+}
+
 var globalUserPermCache sync.Map
+var globalUserPermListCache sync.Map
 
 type userPermRepository struct{ db *gorm.DB }
 
@@ -25,8 +31,22 @@ func NewUserPermissionRepository(db *gorm.DB) authdomain.UserPermissionRepositor
 }
 
 func (r *userPermRepository) FindByUserID(userID string) ([]authdomain.UserPermission, error) {
+	if val, ok := globalUserPermListCache.Load(userID); ok {
+		item := val.(userPermListCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			return item.ups, nil
+		}
+		globalUserPermListCache.Delete(userID)
+	}
+
 	var ups []authdomain.UserPermission
 	err := r.db.Preload("Permission.Module").Where("\"UserID\" = ?", userID).Find(&ups).Error
+	if err == nil {
+		globalUserPermListCache.Store(userID, userPermListCacheItem{
+			ups:       ups,
+			expiresAt: time.Now().Add(5 * time.Minute),
+		})
+	}
 	return ups, err
 }
 
@@ -66,16 +86,19 @@ func (r *userPermRepository) CheckOverride(userID, moduleID, permissionCode stri
 }
 
 func (r *userPermRepository) BulkUpsert(ups []authdomain.UserPermission) error {
-	globalUserPermCache = sync.Map{} // clear cache on update
+	globalUserPermCache = sync.Map{}     // clear cache on update
+	globalUserPermListCache = sync.Map{} // clear cache on update
 	return r.db.CreateInBatches(&ups, 100).Error
 }
 
 func (r *userPermRepository) Delete(id string) error {
-	globalUserPermCache = sync.Map{} // clear cache on delete
+	globalUserPermCache = sync.Map{}     // clear cache on delete
+	globalUserPermListCache = sync.Map{} // clear cache on delete
 	return r.db.Where("\"UserPermissionID\" = ?", id).Delete(&authdomain.UserPermission{}).Error
 }
 
 func (r *userPermRepository) DeleteByUserID(userID string) error {
-	globalUserPermCache = sync.Map{} // clear cache on delete
+	globalUserPermCache = sync.Map{}     // clear cache on delete
+	globalUserPermListCache = sync.Map{} // clear cache on delete
 	return r.db.Where("\"UserID\" = ?", userID).Delete(&authdomain.UserPermission{}).Error
 }

@@ -50,7 +50,7 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 		Joins(`LEFT JOIN "Users" ON "Inspection_Header"."InspectorID" = "Users"."UserID"`).
 		Where(`"Inspection_Header"."InspectionID" = ?`, id).
 		Preload("Results").
-		First(&item).Error
+		Take(&item).Error
 	return &item, err
 }
 

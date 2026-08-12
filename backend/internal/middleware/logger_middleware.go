@@ -109,12 +109,15 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 		}
 
 		path := c.Path()
-		// Skip audit logging for high-frequency background polling/sync/heartbeat paths to prevent DB I/O thrashing
+		// Skip audit logging for high-frequency background polling/sync/heartbeat/lock/permission paths to prevent DB I/O thrashing
 		if strings.Contains(path, "/sync") ||
 			strings.Contains(path, "/heartbeat") ||
 			strings.Contains(path, "/notifications") ||
 			strings.Contains(path, "/health") ||
-			strings.Contains(path, "/metrics") {
+			strings.Contains(path, "/metrics") ||
+			strings.Contains(path, "/lock") ||
+			strings.Contains(path, "/pic-mappings") ||
+			strings.Contains(path, "/permissions") {
 			return err
 		}
 
