@@ -375,7 +375,7 @@ export default function WOWRReportPage() {
                 </tr>
               ) : (
                 filteredItems.map((item, idx) => (
-                  <tr key={`${item.issue_id}-${item.wo_id || item.wr_id || idx}`} className="hover:bg-muted/30 transition-colors">
+                  <tr key={`wowr-row-${item.issue_id}-${idx}`} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-mono text-muted-foreground">{idx + 1}</td>
                     <td className="px-4 py-3 font-mono font-semibold text-primary">{item.issue_id}</td>
                     <td className="px-4 py-3 font-bold text-foreground">
