@@ -929,7 +929,7 @@ export default function InspectionDetailPage() {
 
         {/* Action Buttons */}
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2 w-full">
-          {isAuditor && isSamePlant && (
+          {isAuditor && isSamePlant && !isOngoing && (
             <Button
               variant="outline"
               onClick={() => setShowDeleteModal(true)}
