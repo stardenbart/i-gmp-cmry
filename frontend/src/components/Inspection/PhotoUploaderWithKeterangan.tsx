@@ -50,6 +50,18 @@ export function dataURLtoFile(dataurl: string, filename: string): File {
 
 export function formatPhotoUrl(url?: string): string {
   if (!url) return "";
+
+  const apiHost = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
+
+  // If MinIO URL with port 9000, rewrite to backend /uploads static route for CORS reliability
+  if (url.includes(":9000/")) {
+    const uploadPathIdx = url.indexOf("/uploads/");
+    if (uploadPathIdx !== -1) {
+      return `${cleanHost}${url.substring(uploadPathIdx)}`;
+    }
+  }
+
   if (
     url.startsWith("http://") ||
     url.startsWith("https://") ||
@@ -58,8 +70,7 @@ export function formatPhotoUrl(url?: string): string {
   ) {
     return url;
   }
-  const apiHost = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  const cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
+
   const cleanPath = url.startsWith("/") ? url : `/${url}`;
   return `${cleanHost}${cleanPath}`;
 }
@@ -161,7 +172,7 @@ export function PhotoUploaderWithKeterangan({
         <div className="space-y-3">
           {photos.map((item, index) => {
             const activeCategory = item.hei_category || "";
-            const rawUrl = item.previewUrl || (item as any).file_url || (item as any).url || (item as any).photo_url || (item as any).image_url || "";
+            const rawUrl = item.previewUrl || (item as any).file_url || (item as any).url || (item as any).photo_url || (item as any).image_url || (item.file ? URL.createObjectURL(item.file) : "");
             const displayUrl = formatPhotoUrl(rawUrl);
 
             return (
@@ -177,7 +188,21 @@ export function PhotoUploaderWithKeterangan({
                       alt={`Bukti temuan ${index + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                        const target = e.currentTarget as HTMLImageElement;
+                        if (target.src.includes(":9000/")) {
+                          const uploadPathIdx = target.src.indexOf("/uploads/");
+                          if (uploadPathIdx !== -1) {
+                            const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+                            const cleanHost = backendUrl.replace(/\/api\/v1\/?$/, "");
+                            target.src = `${cleanHost}${target.src.substring(uploadPathIdx)}`;
+                            return;
+                          }
+                        }
+                        if (item.file) {
+                          target.src = URL.createObjectURL(item.file);
+                          return;
+                        }
+                        target.style.display = "none";
                       }}
                     />
                   ) : (
