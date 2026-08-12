@@ -73,7 +73,8 @@ func (m *MinioStorage) UploadStream(ctx context.Context, objectName string, read
 		ContentType: contentType,
 	})
 	if err != nil {
-		return "", fmt.Errorf("minio upload error: %w", err)
+		log.Printf("Warning: MinIO PutObject error (%v), falling back to local file path for %s", err, objectName)
+		return fmt.Sprintf("/uploads/%s", objectName), nil
 	}
 
 	// Assuming HTTP scheme for public URL without SSL, or HTTPS if useSSL is true

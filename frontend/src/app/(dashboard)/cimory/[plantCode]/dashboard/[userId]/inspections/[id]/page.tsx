@@ -493,7 +493,7 @@ export default function InspectionDetailPage() {
             const res = await api.post("/uploads/file", fd, {
               headers: { "Content-Type": "multipart/form-data" },
             });
-            const uploadedUrl = res.data?.data?.file_url || res.data?.data?.processed_url;
+            const uploadedUrl = res.data?.data?.file_url || res.data?.data?.processed_url || res.data?.data?.file_path || res.data?.data?.url;
             if (uploadedUrl) {
               return { ...photo, previewUrl: uploadedUrl, file: undefined };
             }

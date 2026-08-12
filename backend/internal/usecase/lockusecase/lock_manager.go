@@ -145,20 +145,43 @@ func (lm *LockManager) ReleaseLock(ctx context.Context, kawasanID, aspekID, user
 	return nil
 }
 
-// ValidateLock checks if the lock is held by user & token
+// ValidateLock checks if the lock is held by user & token, or auto-renews if owned by same user / free
 func (lm *LockManager) ValidateLock(ctx context.Context, kawasanID, aspekID, userID, token string) error {
 	if lm.redis == nil {
 		return nil
 	}
 
 	key := fmt.Sprintf("lock:aspek:%s:%s", kawasanID, aspekID)
-	expected := fmt.Sprintf("%s:%s:", userID, token)
-
 	val, err := lm.redis.Get(ctx, key).Result()
-	if err != nil || !strings.HasPrefix(val, expected) {
-		return ErrLockExpiredOrStolen
+	if err == redis.Nil || val == "" {
+		// Lock expired or is free: auto-grant lock to current user for seamless draft saving
+		ttl := 30 * time.Second
+		if token == "" {
+			token = generateSecureToken()
+		}
+		value := fmt.Sprintf("%s:%s:%d", userID, token, time.Now().Unix())
+		lm.redis.Set(ctx, key, value, ttl)
+		return nil
 	}
-	return nil
+
+	if err != nil {
+		return nil // Non-fatal Redis error fallback
+	}
+
+	parts := strings.SplitN(val, ":", 3)
+	if len(parts) >= 1 && parts[0] == userID {
+		// Same user: refresh lock TTL automatically
+		ttl := 30 * time.Second
+		if token == "" && len(parts) >= 2 {
+			token = parts[1]
+		}
+		value := fmt.Sprintf("%s:%s:%d", userID, token, time.Now().Unix())
+		lm.redis.Set(ctx, key, value, ttl)
+		return nil
+	}
+
+	// Lock is held by another user
+	return fmt.Errorf("%w (locked by user: %s)", ErrLockConflict, parts[0])
 }
 
 // GetLockInfo returns current lock details

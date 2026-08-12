@@ -6,7 +6,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Trash2, CheckCircle2,
-  Loader2, XCircle, CircleDashed
+  Loader2, XCircle, CircleDashed,
+  Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
