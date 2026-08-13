@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -172,12 +173,36 @@ func (h *InspeksiHandler) SaveAspek(c *fiber.Ctx) error {
 	})
 }
 
+type kawasanAspekCacheItem struct {
+	aspeks    []inspection.KawasanAspek
+	expiresAt time.Time
+}
+
+var globalKawasanAspekCache sync.Map
+
 // GetKawasanStatus - GET /api/v1/inspeksi/:kawasanId/status
 func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 	kawasanID := c.Params("kawasanId")
 
 	var kawasanAspeks []inspection.KawasanAspek
-	h.db.Where("\"KawasanID\" = ?", kawasanID).Find(&kawasanAspeks)
+	if val, ok := globalKawasanAspekCache.Load(kawasanID); ok {
+		item := val.(kawasanAspekCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			kawasanAspeks = item.aspeks
+		} else {
+			globalKawasanAspekCache.Delete(kawasanID)
+		}
+	}
+
+	if len(kawasanAspeks) == 0 {
+		h.db.Where("\"KawasanID\" = ?", kawasanID).Find(&kawasanAspeks)
+		if len(kawasanAspeks) > 0 {
+			globalKawasanAspekCache.Store(kawasanID, kawasanAspekCacheItem{
+				aspeks:    kawasanAspeks,
+				expiresAt: time.Now().Add(10 * time.Minute),
+			})
+		}
+	}
 
 	statuses := make([]inspection.AspekLockStatus, 0, len(kawasanAspeks))
 	for _, ka := range kawasanAspeks {

@@ -87,4 +87,13 @@ func (r *activityLogRepository) FindByID(id string) (*logdomain.ActivityLog, err
 	return &item, err
 }
 
-func (r *activityLogRepository) Create(a *logdomain.ActivityLog) error { return r.db.Create(a).Error }
+func (r *activityLogRepository) Create(a *logdomain.ActivityLog) error {
+	if a == nil {
+		return nil
+	}
+	logCopy := *a
+	go func(item logdomain.ActivityLog) {
+		_ = r.db.Create(&item).Error
+	}(logCopy)
+	return nil
+}

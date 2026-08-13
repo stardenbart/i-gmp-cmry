@@ -1,16 +1,41 @@
 package inspectionrepo
 
 import (
+	"sync"
+	"time"
+
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/domain/master"
 )
 
+type aspekChecklistCacheItem struct {
+	aspeks    []master.Aspek
+	expiresAt time.Time
+}
+
+var globalAspekChecklistCache sync.Map
+
 func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID string) (*inspection.FullChecklist, error) {
-	// 1. Fetch all Aspeks for AreaID, including Details and Uraians
+	// 1. Fetch all Aspeks for AreaID from cache or DB
 	var aspeks []master.Aspek
-	err := r.db.Preload("Details.Urains").Where("\"AreaID\" = ?", areaID).Find(&aspeks).Error
-	if err != nil {
-		return nil, err
+	if val, ok := globalAspekChecklistCache.Load(areaID); ok {
+		item := val.(aspekChecklistCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			aspeks = item.aspeks
+		} else {
+			globalAspekChecklistCache.Delete(areaID)
+		}
+	}
+
+	if len(aspeks) == 0 {
+		err := r.db.Preload("Details.Urains").Where("\"AreaID\" = ?", areaID).Find(&aspeks).Error
+		if err != nil {
+			return nil, err
+		}
+		globalAspekChecklistCache.Store(areaID, aspekChecklistCacheItem{
+			aspeks:    aspeks,
+			expiresAt: time.Now().Add(10 * time.Minute),
+		})
 	}
 
 	// 2. Fetch all InspectionResults for the given inspectionID
