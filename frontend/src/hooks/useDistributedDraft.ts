@@ -124,7 +124,8 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
   }, [fetchAllDrafts]);
 
   // Save single aspect draft to Redis with debounce
-  // Foto base64 hanya di-sync saat benar-benar berubah (debounce 2s) untuk hemat bandwidth
+  // Strategi: metadata (cepat, 500ms) vs foto penuh (lambat, 2s hanya saat berubah)
+  // KUNCI: metadata sync TIDAK pernah menimpa base64 yang sudah tersimpan di Redis
   const saveAspekDraft = useCallback(
     (
       aspekId: string,
@@ -134,7 +135,7 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
     ) => {
       if (!inspectionId || !aspekId || !lockToken) return;
 
-      // Hitung hash foto sederhana untuk deteksi perubahan
+      // Hitung hash foto untuk deteksi perubahan foto (berdasarkan id + ukuran base64)
       const photoHash = JSON.stringify(
         Object.fromEntries(
           Object.entries(aspekDataPayload).map(([k, v]) => [
@@ -145,22 +146,41 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
       );
       const photosChanged = photoHash !== lastPhotoHashRef.current[aspekId];
 
-      // Payload tanpa base64 untuk sync metadata cepat (per keystroke)
+      // Kalau foto berubah: simpan snapshot penuh sebagai "last synced"
+      // Ini digunakan oleh metadata sync agar tidak menimpa base64 yang sudah ada
+      if (photosChanged) {
+        lastPhotoHashRef.current[aspekId] = photoHash;
+        // Simpan snapshot data penuh (termasuk base64) untuk referensi metadata sync
+        (lastPhotoHashRef as any).currentData = (lastPhotoHashRef as any).currentData || {};
+        (lastPhotoHashRef as any).currentData[aspekId] = aspekDataPayload;
+      }
+
+      // Ambil data foto terakhir yang sudah/akan di-sync (dengan base64 penuh)
+      const lastSyncedData: Record<string, RedisDraftValue> =
+        (lastPhotoHashRef as any).currentData?.[aspekId] || aspekDataPayload;
+
+      // Payload metadata: gunakan previewUrl dari lastSyncedData (bukan placeholder)
+      // Ini memastikan metadata sync tidak pernah menghapus base64 dari Redis
       const metadataPayload = Object.fromEntries(
-        Object.entries(aspekDataPayload).map(([k, v]) => [
-          k,
-          {
-            ...v,
-            photos: (v.photos || []).map((p) => ({
-              ...p,
-              // Strip base64 dari metadata payload — hanya kirim saat foto berubah
-              previewUrl: p.previewUrl?.startsWith("data:") ? "__base64_pending__" : p.previewUrl || "",
-            })),
-          },
-        ])
+        Object.entries(aspekDataPayload).map(([k, v]) => {
+          const lastPhotos = lastSyncedData[k]?.photos || [];
+          return [
+            k,
+            {
+              ...v,
+              photos: (v.photos || []).map((p, idx) => ({
+                ...p,
+                // Gunakan previewUrl dari snapshot terakhir jika foto ini belum berubah
+                previewUrl: lastPhotos[idx]?.id === p.id
+                  ? (lastPhotos[idx]?.previewUrl || p.previewUrl || "")
+                  : (p.previewUrl || ""),
+              })),
+            },
+          ];
+        })
       );
 
-      // Clear existing debounce timer for this aspek
+      // Clear existing debounce timer
       if (debounceTimersRef.current[aspekId]) {
         clearTimeout(debounceTimersRef.current[aspekId]);
       }
@@ -176,7 +196,7 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
         },
       }));
 
-      // Debounce metadata (tanpa base64) ke Redis (500ms per keystroke)
+      // Debounce metadata ke Redis (500ms) — selalu sertakan previewUrl yang valid
       debounceTimersRef.current[aspekId] = setTimeout(async () => {
         try {
           await inspectionApi.saveAspekDraft(inspectionId, aspekId, lockToken, {
@@ -188,16 +208,15 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
         }
       }, 500);
 
-      // Sync foto penuh (dengan base64) hanya saat ada perubahan foto (debounce 2s)
+      // Sync foto penuh (base64) hanya saat foto berubah (debounce 2s)
       if (photosChanged) {
-        lastPhotoHashRef.current[aspekId] = photoHash;
         if (photoDebounceRef.current[aspekId]) {
           clearTimeout(photoDebounceRef.current[aspekId]);
         }
         photoDebounceRef.current[aspekId] = setTimeout(async () => {
           try {
             await inspectionApi.saveAspekDraft(inspectionId, aspekId, lockToken, {
-              data: aspekDataPayload, // Full payload dengan base64
+              data: aspekDataPayload, // Full payload termasuk base64
               skor,
             });
           } catch (e) {
