@@ -81,17 +81,28 @@ export function formatPhotoUrl(url?: string): string {
     }
   }
 
-  // Handle MinIO / port 9000 / monitoring-audit-bucket URLs
-  if (formatted.includes(":9000/") || formatted.includes("minio:9000") || formatted.includes("monitoring-audit-bucket")) {
-    const uploadIdx = formatted.indexOf("/uploads/");
-    if (uploadIdx !== -1) {
-      return `${cleanHost}${formatted.substring(uploadIdx)}`;
+  // Handle MinIO Issue photos (containing issues/ or monitoring-audit-bucket or port 9000)
+  if (formatted.includes("issues/") || formatted.includes("monitoring-audit-bucket") || formatted.includes(":9000/")) {
+    const issueIdx = formatted.indexOf("issues/");
+    if (issueIdx !== -1) {
+      const pathAfterIssue = formatted.substring(issueIdx);
+      return typeof window !== "undefined"
+        ? `${protocol}//${window.location.host}/monitoring-audit-bucket/${pathAfterIssue}`
+        : `/monitoring-audit-bucket/${pathAfterIssue}`;
     }
     const bucketIdx = formatted.indexOf("/monitoring-audit-bucket/");
     if (bucketIdx !== -1) {
-      const pathAfterBucket = formatted.substring(bucketIdx + "/monitoring-audit-bucket/".length);
-      return `${cleanHost}/uploads/${pathAfterBucket}`;
+      const pathAfterBucket = formatted.substring(bucketIdx);
+      return typeof window !== "undefined"
+        ? `${protocol}//${window.location.host}${pathAfterBucket}`
+        : pathAfterBucket;
     }
+  }
+
+  // Local uploads folder
+  if (formatted.startsWith("/uploads/") || formatted.startsWith("uploads/")) {
+    const cleanP = formatted.startsWith("/") ? formatted : `/${formatted}`;
+    return `${cleanHost}${cleanP}`;
   }
 
   // Upgrade HTTP to HTTPS if page is HTTPS to eliminate Mixed Content errors
