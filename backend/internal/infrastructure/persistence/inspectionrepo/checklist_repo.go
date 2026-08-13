@@ -13,10 +13,29 @@ type aspekChecklistCacheItem struct {
 	expiresAt time.Time
 }
 
-var globalAspekChecklistCache sync.Map
+// Cache layer 2: full checklist per inspectionID (termasuk results)
+type fullChecklistCacheItem struct {
+	checklist *inspection.FullChecklist
+	expiresAt time.Time
+}
+
+var globalAspekChecklistCache    sync.Map
+var globalFullChecklistCache     sync.Map
 
 func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID string) (*inspection.FullChecklist, error) {
-	// 1. Fetch all Aspeks for AreaID from cache or DB
+	// Cache layer 2: full checklist per inspectionID (2 menit TTL)
+	// Ini mencegah 200 user concurrent semua hit DB untuk inspection yang sama
+	if inspectionID != "" {
+		if val, ok := globalFullChecklistCache.Load(inspectionID); ok {
+			item := val.(fullChecklistCacheItem)
+			if time.Now().Before(item.expiresAt) {
+				return item.checklist, nil
+			}
+			globalFullChecklistCache.Delete(inspectionID)
+		}
+	}
+
+	// Cache layer 1: aspek structure per areaID (1 jam TTL — master data jarang berubah)
 	var aspeks []master.Aspek
 	if val, ok := globalAspekChecklistCache.Load(areaID); ok {
 		item := val.(aspekChecklistCacheItem)
@@ -34,11 +53,11 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 		}
 		globalAspekChecklistCache.Store(areaID, aspekChecklistCacheItem{
 			aspeks:    aspeks,
-			expiresAt: time.Now().Add(10 * time.Minute),
+			expiresAt: time.Now().Add(1 * time.Hour), // 10 menit → 1 jam
 		})
 	}
 
-	// 2. Fetch all InspectionResults for the given inspectionID
+	// Fetch all InspectionResults untuk inspectionID ini (1 query ringan)
 	var results []inspection.InspectionResult
 	if inspectionID != "" {
 		r.db.Where("\"InspectionID\" = ?", inspectionID).Find(&results)
@@ -48,7 +67,7 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 		resultMap[results[i].UraianID] = &results[i]
 	}
 
-	// 3. Map to DTO
+	// Map ke DTO
 	checklist := &inspection.FullChecklist{
 		InspectionID: inspectionID,
 		AreaID:       areaID,
@@ -81,5 +100,19 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 		checklist.Aspeks = append(checklist.Aspeks, ca)
 	}
 
+	// Simpan full checklist ke cache per inspectionID (2 menit)
+	if inspectionID != "" {
+		globalFullChecklistCache.Store(inspectionID, fullChecklistCacheItem{
+			checklist: checklist,
+			expiresAt: time.Now().Add(2 * time.Minute),
+		})
+	}
+
 	return checklist, nil
+}
+
+// InvalidateChecklistCache dipanggil saat ada update pada inspection result
+// agar cache tidak stale setelah auditor submit jawaban
+func InvalidateChecklistCache(inspectionID string) {
+	globalFullChecklistCache.Delete(inspectionID)
 }

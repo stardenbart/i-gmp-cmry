@@ -66,29 +66,30 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 		Joins(`LEFT JOIN "DetailKawasan_Master" ON "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"`).
 		Joins(`LEFT JOIN "Users" ON "Inspection_Header"."InspectorID" = "Users"."UserID"`).
 		Where(`"Inspection_Header"."InspectionID" = ?`, id).
-		Preload("Results").
-		Take(&item).Error
+		Take(&item).Error // Hapus Preload("Results") — sangat lambat di high concurrency
 
 	if err == nil {
-		if len(item.Results) > 0 {
-			var total int
-			var okCount int
-			for _, res := range item.Results {
-				if res.Checking == "OK" || res.Checking == "NG" {
-					total++
-					if res.Checking == "OK" {
-						okCount++
-					}
-				}
-			}
-			if total > 0 {
-				scoreVal := float64(okCount) * 100.0 / float64(total)
-				item.Score = &scoreVal
-			}
+		// Hitung score dengan satu COUNT query ringan, bukan load semua Results
+		type scoreRow struct {
+			Total   int
+			OkCount int
 		}
+		var sr scoreRow
+		r.db.Raw(`
+			SELECT
+				COUNT(*) FILTER (WHERE "Checking" IN ('OK','NG')) AS total,
+				COUNT(*) FILTER (WHERE "Checking" = 'OK') AS ok_count
+			FROM "Inspection_Result"
+			WHERE "InspectionID" = ?`, id).Scan(&sr)
+		if sr.Total > 0 {
+			scoreVal := float64(sr.OkCount) * 100.0 / float64(sr.Total)
+			item.Score = &scoreVal
+		}
+
+		// Cache 5 menit — cukup fresh untuk status inspeksi yang jarang berubah
 		globalInspHeaderCache.Store(id, inspHeaderCacheItem{
 			header:    &item,
-			expiresAt: time.Now().Add(30 * time.Second), // 5s terlalu pendek untuk query JOIN 4 tabel
+			expiresAt: time.Now().Add(5 * time.Minute),
 		})
 	}
 
