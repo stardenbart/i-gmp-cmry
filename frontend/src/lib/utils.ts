@@ -144,10 +144,6 @@ export function formatImageUrl(url: string | null | undefined): string {
       const match = window.location.pathname.match(/\/(INSP-[A-Za-z0-9_-]+)/i);
       if (match) inspId = match[1];
     }
-    // Auto append .jpg if missing image extension
-    if (!formatted.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i)) {
-      formatted = `${formatted}.jpg`;
-    }
     if (inspId) {
       formatted = `uploads/${inspId}/${formatted}`;
     } else {

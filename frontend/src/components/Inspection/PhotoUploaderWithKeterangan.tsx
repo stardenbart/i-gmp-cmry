@@ -131,10 +131,6 @@ export function formatPhotoUrl(url?: string, inspectionId?: string): string {
       const match = window.location.pathname.match(/\/(INSP-[A-Za-z0-9_-]+)/i);
       if (match) inspId = match[1];
     }
-    // Auto append .jpg if missing image extension
-    if (!formatted.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i)) {
-      formatted = `${formatted}.jpg`;
-    }
     if (inspId) {
       formatted = `uploads/${inspId}/${formatted}`;
     } else {
@@ -271,31 +267,34 @@ export function PhotoUploaderWithKeterangan({
                       onError={(e) => {
                         const target = e.currentTarget as HTMLImageElement;
                         const currentSrc = target.src;
+                        const extensions = [".png", ".jpeg", ".jpg", ".webp", ".heic", ".heif"];
+                        
+                        let tried: string[] = [];
+                        try {
+                          tried = JSON.parse(target.dataset.triedExts || "[]");
+                        } catch {}
 
-                        // 1. If URL has no image extension, try appending .jpg
-                        if (!currentSrc.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i)) {
-                          target.src = currentSrc + ".jpg";
+                        const baseUrl = currentSrc.replace(/\.(png|jpeg|jpg|webp|heic|heif)$/i, "");
+                        const nextExt = extensions.find((ext) => !tried.includes(ext));
+
+                        if (nextExt) {
+                          target.dataset.triedExts = JSON.stringify([...tried, nextExt]);
+                          target.src = baseUrl + nextExt;
                           return;
                         }
 
-                        // 2. If .jpg failed, try .png
-                        if (currentSrc.endsWith(".jpg")) {
-                          target.src = currentSrc.replace(/\.jpg$/, ".png");
-                          return;
-                        }
-
-                        // 3. Fallback to local file object blob if available
+                        // Fallback to local file object blob if available
                         if (item.file) {
                           target.src = URL.createObjectURL(item.file);
                           return;
                         }
 
-                        // If image still fails to load, replace with broken badge UI
+                        // If all format extensions fail, display broken badge UI
                         const parentNode = target.parentNode as HTMLElement;
-                        if (parentNode) {
+                        if (parentNode && !parentNode.querySelector(".broken-badge")) {
                           target.style.display = "none";
                           const fallbackDiv = document.createElement("div");
-                          fallbackDiv.className = "w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 p-2 text-center text-[10px] font-medium gap-1";
+                          fallbackDiv.className = "broken-badge w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 p-2 text-center text-[10px] font-medium gap-1";
                           fallbackDiv.innerHTML = `<svg class="h-4 w-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><span>Berkas Hilang</span><span class="text-[9px] text-muted-foreground">Klik Sampah (Hapus)</span>`;
                           parentNode.appendChild(fallbackDiv);
                         }
