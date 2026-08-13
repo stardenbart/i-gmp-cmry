@@ -65,6 +65,16 @@ export function formatPhotoUrl(url?: string): string {
   const apiHost = process.env.NEXT_PUBLIC_API_URL || `${protocol}//${currentHost}:${backendPort}`;
   const cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
 
+  // If expired blob URL (blob:http://... or blob:https://...)
+  if (formatted.startsWith("blob:")) {
+    const lastSlashIdx = formatted.lastIndexOf("/");
+    if (lastSlashIdx !== -1) {
+      formatted = formatted.substring(lastSlashIdx + 1);
+    } else {
+      formatted = formatted.replace(/^blob:/, "");
+    }
+  }
+
   // If MinIO URL with port 9000 or /monitoring-audit-bucket/uploads/, convert to backend static /uploads route
   if (formatted.includes(":9000/") || formatted.includes("minio:9000") || formatted.includes("/monitoring-audit-bucket/uploads/")) {
     const uploadPathIdx = formatted.indexOf("/uploads/");
@@ -85,8 +95,7 @@ export function formatPhotoUrl(url?: string): string {
   if (
     formatted.startsWith("http://") ||
     formatted.startsWith("https://") ||
-    formatted.startsWith("data:") ||
-    formatted.startsWith("blob:")
+    formatted.startsWith("data:")
   ) {
     return formatted;
   }
