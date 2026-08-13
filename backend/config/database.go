@@ -121,6 +121,9 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		`CREATE INDEX IF NOT EXISTS idx_detail_kawasan_kawasanid ON "DetailKawasan_Master" ("KawasanID")`,
 		`CREATE INDEX IF NOT EXISTS idx_detail_kawasan_areaid ON "DetailKawasan_Master" ("AreaID")`,
 		`CREATE INDEX IF NOT EXISTS idx_kawasan_areaid ON "Kawasan_Master" ("AreaID")`,
+		`CREATE INDEX IF NOT EXISTS idx_aspek_master_areaid ON "Aspek_Master" ("AreaID")`,
+		`CREATE INDEX IF NOT EXISTS idx_detail_master_aspekid ON "Detail_Master" ("AspekID")`,
+		`CREATE INDEX IF NOT EXISTS idx_uraian_master_detailid ON "Uraian_Master" ("DetailID")`,
 		`CREATE INDEX IF NOT EXISTS idx_pic_mapping_area_kaw_covering ON "PIC_Mapping" ("AreaID", "KawasanID", "UserID")`,
 		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_id_covering ON "Inspection_Header" ("InspectionID", "AreaID", "KawasanID", "DetailKawasanID", "InspectorID")`,
 	}

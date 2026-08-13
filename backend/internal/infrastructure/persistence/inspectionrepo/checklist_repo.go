@@ -6,6 +6,7 @@ import (
 
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/domain/master"
+	"golang.org/x/sync/singleflight"
 )
 
 type aspekChecklistCacheItem struct {
@@ -19,12 +20,16 @@ type fullChecklistCacheItem struct {
 	expiresAt time.Time
 }
 
-var globalAspekChecklistCache    sync.Map
-var globalFullChecklistCache     sync.Map
+var globalAspekChecklistCache sync.Map
+var globalFullChecklistCache  sync.Map
+
+// singleflight groups — mencegah cache stampede saat 200 VU concurrent hit cache miss bersamaan.
+// Hanya satu goroutine yang query DB, sisanya menunggu dan menerima hasil yang sama.
+var checklistSFGroup   singleflight.Group
+var aspekStructSFGroup singleflight.Group
 
 func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID string) (*inspection.FullChecklist, error) {
 	// Cache layer 2: full checklist per inspectionID (2 menit TTL)
-	// Ini mencegah 200 user concurrent semua hit DB untuk inspection yang sama
 	if inspectionID != "" {
 		if val, ok := globalFullChecklistCache.Load(inspectionID); ok {
 			item := val.(fullChecklistCacheItem)
@@ -36,6 +41,13 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 	}
 
 	// Cache layer 1: aspek structure per areaID (1 jam TTL — master data jarang berubah)
+	// Gunakan singleflight agar saat 200 VU concurrent miss cache secara bersamaan,
+	// hanya 1 goroutine yang query DB. Sisanya menunggu hasil yang sama.
+	type aspekResult struct {
+		aspeks []master.Aspek
+		err    error
+	}
+
 	var aspeks []master.Aspek
 	if val, ok := globalAspekChecklistCache.Load(areaID); ok {
 		item := val.(aspekChecklistCacheItem)
@@ -47,22 +59,42 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 	}
 
 	if len(aspeks) == 0 {
-		err := r.db.Preload("Details.Urains").Where("\"AreaID\" = ?", areaID).Find(&aspeks).Error
+		sfKey := "aspek-struct:" + areaID
+		result, err, _ := aspekStructSFGroup.Do(sfKey, func() (interface{}, error) {
+			// Re-check cache inside singleflight to avoid race between waiters
+			if val, ok := globalAspekChecklistCache.Load(areaID); ok {
+				item := val.(aspekChecklistCacheItem)
+				if time.Now().Before(item.expiresAt) {
+					return item.aspeks, nil
+				}
+			}
+
+			var dbAspeks []master.Aspek
+			dbErr := r.db.
+				Preload("Details.Urains").
+				Where(`"AreaID" = ?`, areaID).
+				Find(&dbAspeks).Error
+			if dbErr != nil {
+				return nil, dbErr
+			}
+			globalAspekChecklistCache.Store(areaID, aspekChecklistCacheItem{
+				aspeks:    dbAspeks,
+				expiresAt: time.Now().Add(1 * time.Hour),
+			})
+			return dbAspeks, nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		globalAspekChecklistCache.Store(areaID, aspekChecklistCacheItem{
-			aspeks:    aspeks,
-			expiresAt: time.Now().Add(1 * time.Hour), // 10 menit → 1 jam
-		})
+		aspeks = result.([]master.Aspek)
 	}
 
-	// Fetch all InspectionResults untuk inspectionID ini (1 query ringan)
+	// Fetch all InspectionResults untuk inspectionID ini dalam 1 query ringan
 	var results []inspection.InspectionResult
 	if inspectionID != "" {
-		r.db.Where("\"InspectionID\" = ?", inspectionID).Find(&results)
+		r.db.Where(`"InspectionID" = ?`, inspectionID).Find(&results)
 	}
-	resultMap := make(map[string]*inspection.InspectionResult)
+	resultMap := make(map[string]*inspection.InspectionResult, len(results))
 	for i := range results {
 		resultMap[results[i].UraianID] = &results[i]
 	}
@@ -71,20 +103,20 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 	checklist := &inspection.FullChecklist{
 		InspectionID: inspectionID,
 		AreaID:       areaID,
-		Aspeks:       make([]inspection.ChecklistAspek, 0),
+		Aspeks:       make([]inspection.ChecklistAspek, 0, len(aspeks)),
 	}
 
 	for _, a := range aspeks {
 		ca := inspection.ChecklistAspek{
 			AspekID:   a.AspekID,
 			AspekName: a.AspekName,
-			Details:   make([]inspection.ChecklistDetail, 0),
+			Details:   make([]inspection.ChecklistDetail, 0, len(a.Details)),
 		}
 		for _, d := range a.Details {
 			cd := inspection.ChecklistDetail{
 				DetailID:   d.DetailID,
 				DetailName: d.DetailName,
-				Uraians:    make([]inspection.ChecklistUraian, 0),
+				Uraians:    make([]inspection.ChecklistUraian, 0, len(d.Urains)),
 			}
 			for _, u := range d.Urains {
 				cu := inspection.ChecklistUraian{

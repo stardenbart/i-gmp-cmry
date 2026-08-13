@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -155,17 +156,21 @@ func (h *InspeksiHandler) SaveAspek(c *fiber.Ctx) error {
 		req.SessionID = uuid.New().String()
 	}
 
-	// Produce message to Kafka
-	if h.kafkaProducer != nil {
-		key := kawasanID
-		if err := h.kafkaProducer.PublishEvent(c.Context(), events.TopicInspeksiAspekSave, key, req); err != nil {
-			h.log.Warn("Kafka produce warning, saving draft state directly", logger.Error(err))
-		}
-	}
-
-	// Immediate draft save to Redis for ultra-low latency response
+	// Immediate draft save to Redis DULU — ini jalur utama, harus ultra-low latency
 	dataBytes, _ := json.Marshal(req.Data)
 	h.lockMgr.SaveDraftState(c.Context(), kawasanID, aspekID, userID, string(dataBytes), req.Skor)
+
+	// Publish ke Kafka secara ASYNC (fire-and-forget) agar tidak memblok HTTP response.
+	// Draft sudah aman tersimpan di Redis di atas. Kafka hanya untuk event stream / audit.
+	if h.kafkaProducer != nil {
+		reqCopy := req // capture copy untuk goroutine
+		keyCopy := kawasanID
+		go func() {
+			if err := h.kafkaProducer.PublishEvent(context.Background(), events.TopicInspeksiAspekSave, keyCopy, reqCopy); err != nil {
+				h.log.Warn("Kafka async produce warning", logger.Error(err))
+			}
+		}()
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,

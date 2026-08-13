@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/monitoring-system/backend/internal/domain/inspection"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -14,7 +15,8 @@ type inspHeaderCacheItem struct {
 	expiresAt time.Time
 }
 
-var globalInspHeaderCache sync.Map
+var globalInspHeaderCache  sync.Map
+var inspHeaderSFGroup      singleflight.Group // mencegah cache stampede saat VU concurrent miss
 
 // ── Inspection Header ─────────────────────────────────────────────────────
 
@@ -46,6 +48,7 @@ func (r *inspectionHeaderRepository) FindAll(page, limit int, plantID, areaID, s
 }
 
 func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.InspectionHeader, error) {
+	// Fast path: return from in-memory cache
 	if val, ok := globalInspHeaderCache.Load(id); ok {
 		item := val.(inspHeaderCacheItem)
 		if time.Now().Before(item.expiresAt) {
@@ -54,46 +57,61 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 		globalInspHeaderCache.Delete(id)
 	}
 
-	var item inspection.InspectionHeader
-	err := r.db.Model(&item).
-		Select(`"Inspection_Header".*, 
-			"Area_Master"."AreaName" AS "AreaName", 
-			"Kawasan_Master"."KawasanName" AS "KawasanName", 
-			"DetailKawasan_Master"."DetailKawasanName" AS "DetailKawasanName", 
-			"Users"."FullName" AS "InspectorName"`).
-		Joins(`LEFT JOIN "Area_Master" ON "Inspection_Header"."AreaID" = "Area_Master"."AreaID"`).
-		Joins(`LEFT JOIN "Kawasan_Master" ON "Inspection_Header"."KawasanID" = "Kawasan_Master"."KawasanID"`).
-		Joins(`LEFT JOIN "DetailKawasan_Master" ON "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"`).
-		Joins(`LEFT JOIN "Users" ON "Inspection_Header"."InspectorID" = "Users"."UserID"`).
-		Where(`"Inspection_Header"."InspectionID" = ?`, id).
-		Take(&item).Error // Hapus Preload("Results") — sangat lambat di high concurrency
-
-	if err == nil {
-		// Hitung score dengan satu COUNT query ringan, bukan load semua Results
-		type scoreRow struct {
-			Total   int
-			OkCount int
-		}
-		var sr scoreRow
-		r.db.Raw(`
-			SELECT
-				COUNT(*) FILTER (WHERE "Checking" IN ('OK','NG')) AS total,
-				COUNT(*) FILTER (WHERE "Checking" = 'OK') AS ok_count
-			FROM "Inspection_Result"
-			WHERE "InspectionID" = ?`, id).Scan(&sr)
-		if sr.Total > 0 {
-			scoreVal := float64(sr.OkCount) * 100.0 / float64(sr.Total)
-			item.Score = &scoreVal
+	// singleflight: hanya 1 goroutine yang query DB, VU lain menunggu hasil yang sama.
+	// Ini mencegah 200 VU concurrent semua hit DB untuk inspection ID yang sama.
+	result, err, _ := inspHeaderSFGroup.Do(id, func() (interface{}, error) {
+		// Re-check cache di dalam singleflight untuk menghindari race
+		if val, ok := globalInspHeaderCache.Load(id); ok {
+			item := val.(inspHeaderCacheItem)
+			if time.Now().Before(item.expiresAt) {
+				return item.header, nil
+			}
 		}
 
-		// Cache 5 menit — cukup fresh untuk status inspeksi yang jarang berubah
-		globalInspHeaderCache.Store(id, inspHeaderCacheItem{
-			header:    &item,
-			expiresAt: time.Now().Add(5 * time.Minute),
-		})
+		var item inspection.InspectionHeader
+		dbErr := r.db.Model(&item).
+			Select(`"Inspection_Header".*, 
+				"Area_Master"."AreaName" AS "AreaName", 
+				"Kawasan_Master"."KawasanName" AS "KawasanName", 
+				"DetailKawasan_Master"."DetailKawasanName" AS "DetailKawasanName", 
+				"Users"."FullName" AS "InspectorName"`).
+			Joins(`LEFT JOIN "Area_Master" ON "Inspection_Header"."AreaID" = "Area_Master"."AreaID"`).
+			Joins(`LEFT JOIN "Kawasan_Master" ON "Inspection_Header"."KawasanID" = "Kawasan_Master"."KawasanID"`).
+			Joins(`LEFT JOIN "DetailKawasan_Master" ON "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"`).
+			Joins(`LEFT JOIN "Users" ON "Inspection_Header"."InspectorID" = "Users"."UserID"`).
+			Where(`"Inspection_Header"."InspectionID" = ?`, id).
+			Take(&item).Error
+
+		if dbErr == nil {
+			type scoreRow struct {
+				Total   int
+				OkCount int
+			}
+			var sr scoreRow
+			r.db.Raw(`
+				SELECT
+					COUNT(*) FILTER (WHERE "Checking" IN ('OK','NG')) AS total,
+					COUNT(*) FILTER (WHERE "Checking" = 'OK') AS ok_count
+				FROM "Inspection_Result"
+				WHERE "InspectionID" = ?`, id).Scan(&sr)
+			if sr.Total > 0 {
+				scoreVal := float64(sr.OkCount) * 100.0 / float64(sr.Total)
+				item.Score = &scoreVal
+			}
+			// Cache 5 menit
+			globalInspHeaderCache.Store(id, inspHeaderCacheItem{
+				header:    &item,
+				expiresAt: time.Now().Add(5 * time.Minute),
+			})
+			return &item, nil
+		}
+		return nil, dbErr
+	})
+
+	if err != nil {
+		return nil, err
 	}
-
-	return &item, err
+	return result.(*inspection.InspectionHeader), nil
 }
 
 func (r *inspectionHeaderRepository) FindActiveByKawasan(kawasanID string) ([]inspection.InspectionHeader, error) {

@@ -24,10 +24,12 @@ func NewProducer(brokers []string) EventProducer {
 	w := &kafka.Writer{
 		Addr:                   kafka.TCP(brokers...),
 		Balancer:               &kafka.Hash{},
-		RequiredAcks:           kafka.RequireAll,
-		MaxAttempts:            3,
-		AllowAutoTopicCreation: true, // Auto-create topics if they don't exist
-		BatchTimeout:           10 * time.Millisecond,
+		RequiredAcks:           kafka.RequireOne,  // Leader-only ack: ~10x faster than RequireAll
+		MaxAttempts:            2,
+		AllowAutoTopicCreation: true,
+		BatchTimeout:           5 * time.Millisecond,
+		WriteTimeout:           2 * time.Second,   // Batas atas latency per write
+		ReadTimeout:            2 * time.Second,
 	}
 
 	return &producer{writer: w}
