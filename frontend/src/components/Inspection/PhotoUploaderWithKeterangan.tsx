@@ -48,10 +48,14 @@ export function dataURLtoFile(dataurl: string, filename: string): File {
   }
 }
 
-export function formatPhotoUrl(url?: string, inspectionId?: string): string {
   if (!url) return "";
   let formatted = url.trim();
   if (!formatted) return "";
+
+  // 1. Data URLs (base64) returned immediately
+  if (formatted.startsWith("data:")) {
+    return formatted;
+  }
 
   // Detect current hostname and protocol when running in browser
   let currentHost = "localhost";
@@ -81,21 +85,21 @@ export function formatPhotoUrl(url?: string, inspectionId?: string): string {
     }
   }
 
-  // Handle MinIO Issue photos (containing issues/ or monitoring-audit-bucket or port 9000)
-  if (formatted.includes("issues/") || formatted.includes("monitoring-audit-bucket") || formatted.includes(":9000/")) {
+  // Handle MinIO bucket photos via Next.js proxy route (/monitoring-audit-bucket/)
+  if (formatted.startsWith("/monitoring-audit-bucket/") || formatted.includes("/monitoring-audit-bucket/")) {
+    const bucketIdx = formatted.indexOf("/monitoring-audit-bucket/");
+    const cleanBucketPath = formatted.substring(bucketIdx);
+    return typeof window !== "undefined"
+      ? `${protocol}//${window.location.host}${cleanBucketPath}`
+      : cleanBucketPath;
+  }
+  if (formatted.includes("issues/") || formatted.includes(":9000/")) {
     const issueIdx = formatted.indexOf("issues/");
     if (issueIdx !== -1) {
       const pathAfterIssue = formatted.substring(issueIdx);
       return typeof window !== "undefined"
         ? `${protocol}//${window.location.host}/monitoring-audit-bucket/${pathAfterIssue}`
         : `/monitoring-audit-bucket/${pathAfterIssue}`;
-    }
-    const bucketIdx = formatted.indexOf("/monitoring-audit-bucket/");
-    if (bucketIdx !== -1) {
-      const pathAfterBucket = formatted.substring(bucketIdx);
-      return typeof window !== "undefined"
-        ? `${protocol}//${window.location.host}${pathAfterBucket}`
-        : pathAfterBucket;
     }
   }
 

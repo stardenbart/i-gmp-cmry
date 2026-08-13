@@ -77,13 +77,8 @@ func (m *MinioStorage) UploadStream(ctx context.Context, objectName string, read
 		return fmt.Sprintf("/uploads/%s", objectName), nil
 	}
 
-	// Assuming HTTP scheme for public URL without SSL, or HTTPS if useSSL is true
-	scheme := "http"
-	if m.client.EndpointURL().Scheme == "https" {
-		scheme = "https"
-	}
-
-	publicURL := fmt.Sprintf("%s://%s/%s/%s", scheme, m.client.EndpointURL().Host, m.bucket, info.Key)
+	// Return relative proxy URL to allow Next.js proxy rewrite without hardcoding hosts/ports
+	publicURL := fmt.Sprintf("/%s/%s", m.bucket, strings.TrimPrefix(info.Key, "/"))
 	return publicURL, nil
 }
 
