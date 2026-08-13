@@ -226,9 +226,18 @@ func (lm *LockManager) SaveDraftState(ctx context.Context, kawasanID, aspekID, u
 		"status", "InProgress",
 		"last_saved_at", time.Now().Unix(),
 	)
-	pipe.Expire(ctx, stateKey, 24*time.Hour)
+	pipe.Expire(ctx, stateKey, 48*time.Hour) // extended dari 24h ke 48h untuk foto draft
 	_, err := pipe.Exec(ctx)
 	return err
+}
+
+// ClearDraftState menghapus draft Redis untuk sebuah aspek setelah finalisasi sukses
+func (lm *LockManager) ClearDraftState(ctx context.Context, kawasanID, aspekID string) error {
+	if lm.redis == nil {
+		return nil
+	}
+	stateKey := fmt.Sprintf("state:aspek:%s:%s", kawasanID, aspekID)
+	return lm.redis.Del(ctx, stateKey).Err()
 }
 
 // GetDraftState retrieves draft data for an Aspek from Redis

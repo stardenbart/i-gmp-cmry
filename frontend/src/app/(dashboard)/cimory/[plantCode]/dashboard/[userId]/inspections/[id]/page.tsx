@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { convertToWebP } from "@/lib/utils/imageUtils";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -40,6 +41,7 @@ import { useAuthStore } from "@/stores/authStore";
 import {
   PhotoUploaderWithKeterangan,
   PhotoItem,
+  fileToBase64,
   dataURLtoFile,
   formatPhotoUrl,
 } from "@/components/Inspection/PhotoUploaderWithKeterangan";
@@ -47,54 +49,42 @@ import { useDistributedDraft } from "@/hooks/useDistributedDraft";
 import { useAspekLock } from "@/hooks/useAspekLock";
 import { AspekStatusPanel } from "@/components/Inspection/AspekStatusPanel";
 
-// Helper function to compress camera image files before upload
-const compressImageFile = async (file: File, maxWidth = 1920, quality = 0.85): Promise<File> => {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith("image/") || file.size <= 1024 * 1024) {
-      resolve(file);
-      return;
+// Helper: simpan base64 foto draft ke localStorage dengan key terstruktur
+const saveDraftPhotoToStorage = (inspectionId: string, photoKey: string, base64: string): void => {
+  try {
+    const storageKey = `draft_photo:${inspectionId}:${photoKey}`;
+    localStorage.setItem(storageKey, JSON.stringify({ data: base64, ts: Date.now() }));
+  } catch {
+    // localStorage full — abaikan, foto tetap tersimpan di state React
+  }
+};
+
+// Helper: ambil base64 foto draft dari localStorage
+const loadDraftPhotoFromStorage = (inspectionId: string, photoKey: string): string | null => {
+  try {
+    const storageKey = `draft_photo:${inspectionId}:${photoKey}`;
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Expired setelah 48 jam
+    if (Date.now() - parsed.ts > 48 * 60 * 60 * 1000) {
+      localStorage.removeItem(storageKey);
+      return null;
     }
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let width = img.width;
-      let height = img.height;
-      if (width > maxWidth) {
-        height = Math.round((height * maxWidth) / width);
-        width = maxWidth;
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        resolve(file);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            resolve(file);
-            return;
-          }
-          const compressedFile = new File([blob], file.name, {
-            type: "image/jpeg",
-            lastModified: Date.now(),
-          });
-          resolve(compressedFile);
-        },
-        "image/jpeg",
-        quality
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(file);
-    };
-    img.src = url;
-  });
+    return parsed.data;
+  } catch {
+    return null;
+  }
+};
+
+// Helper: hapus semua foto draft dari localStorage untuk inspeksi tertentu
+const clearDraftPhotosFromStorage = (inspectionId: string): void => {
+  try {
+    const prefix = `draft_photo:${inspectionId}:`;
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(prefix))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {}
 };
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -132,6 +122,7 @@ export default function InspectionDetailPage() {
   const targetUraianParam = searchParams.get("uraian") || searchParams.get("uraian_id");
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
@@ -535,29 +526,32 @@ export default function InspectionDetailPage() {
     return () => subscription.unsubscribe();
   }, [watch, syncCurrentAspekToRedis]);
 
-  // Handler for photo updates per NG item (Upload file instantly to MinIO if new)
+  // Handler for photo updates per NG item
+  // Foto baru dikonversi ke WebP → base64 → disimpan di localStorage (bukan upload MinIO)
+  // Upload ke MinIO terjadi HANYA saat inspeksi di-finalisasi (Completed)
   const handlePhotosChange = async (key: string, photos: PhotoItem[]) => {
+    if (isFinalizing) return; // block perubahan foto saat sedang finalisasi
+
     const processedPhotos: PhotoItem[] = await Promise.all(
       photos.map(async (photo) => {
-        if (photo.file && !photo.previewUrl?.includes("http")) {
+        // Hanya proses foto baru yang belum menjadi base64 / URL server
+        if (photo.file && !photo.previewUrl?.startsWith("data:") && !photo.previewUrl?.startsWith("http")) {
           try {
-            // Compress large camera image on client side before upload
-            const fileToUpload = await compressImageFile(photo.file);
-            const fd = new FormData();
-            fd.append("file", fileToUpload);
-            fd.append("file_type", "image");
-            fd.append("inspection_id", id);
-            const res = await api.post("/uploads/file", fd, {
-              headers: { "Content-Type": "multipart/form-data" },
-            });
-            const uploadedUrl = res.data?.data?.file_url || res.data?.data?.processed_url || res.data?.data?.file_path || res.data?.data?.url;
-            if (uploadedUrl) {
-              const fullUrl = formatPhotoUrl(uploadedUrl);
-              return { ...photo, previewUrl: fullUrl, file: undefined };
-            }
+            // 1. Konversi semua format (HEIC, PNG, JPEG, dll) → WebP (lebih kecil ~30%)
+            const webpFile = await convertToWebP(photo.file, 1280);
+            // 2. Encode ke base64 data URL
+            const base64DataUrl = await fileToBase64(webpFile);
+            // 3. Simpan ke localStorage (persistensi lintas reload, 48 jam TTL)
+            saveDraftPhotoToStorage(id, `${key}_${photo.id}`, base64DataUrl);
+            return { ...photo, previewUrl: base64DataUrl, file: undefined };
           } catch (e) {
-            console.warn("Direct MinIO upload for draft photo failed:", e);
+            console.warn("Konversi foto WebP gagal, pakai original:", e);
           }
+        }
+        // Foto lama yang sudah base64 di localStorage — coba restore jika previewUrl kosong
+        if (!photo.previewUrl && photo.id) {
+          const stored = loadDraftPhotoFromStorage(id, `${key}_${photo.id}`);
+          if (stored) return { ...photo, previewUrl: stored };
         }
         return photo;
       })
@@ -649,6 +643,7 @@ export default function InspectionDetailPage() {
     }
 
     setIsSaving(true);
+    setIsFinalizing(true); // block write draft selama finalisasi
 
     try {
       // 1. Bulk Save Results to PostgreSQL DB Core
@@ -787,7 +782,10 @@ export default function InspectionDetailPage() {
       // 3. Update Inspection Status to Completed
       await inspectionApi.updateStatus(id, "Completed");
 
-      // 4. Release active aspect lock
+      // 4. Hapus semua foto draft dari localStorage setelah inspeksi selesai
+      clearDraftPhotosFromStorage(id);
+
+      // 5. Release active aspect lock
       await releaseLock();
 
       toast.success("Inspeksi berhasil diselesaikan dan disinkronkan ke DB Core!");
@@ -803,6 +801,7 @@ export default function InspectionDetailPage() {
       toast.error(err.response?.data?.message || "Gagal menyelesaikan inspeksi");
     } finally {
       setIsSaving(false);
+      setIsFinalizing(false);
     }
   };
 

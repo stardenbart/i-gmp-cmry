@@ -6,10 +6,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/middleware"
+	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
 	"github.com/monitoring-system/backend/pkg/validator"
 	"github.com/monitoring-system/backend/pkg/exporter"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // ── Inspection Header Handler ─────────────────────────────────────────────
@@ -17,10 +19,17 @@ import (
 type InspectionHeaderHandler struct {
 	uc       inspection.InspectionHeaderUseCase
 	resultUC inspection.InspectionResultUseCase
+	uploadUC *uploadusecase.UploadUseCase
+	rdb      *redis.Client
 }
 
-func NewInspectionHeaderHandler(uc inspection.InspectionHeaderUseCase, resultUC inspection.InspectionResultUseCase) *InspectionHeaderHandler {
-	return &InspectionHeaderHandler{uc: uc, resultUC: resultUC}
+func NewInspectionHeaderHandler(
+	uc inspection.InspectionHeaderUseCase,
+	resultUC inspection.InspectionResultUseCase,
+	uploadUC *uploadusecase.UploadUseCase,
+	rdb *redis.Client,
+) *InspectionHeaderHandler {
+	return &InspectionHeaderHandler{uc: uc, resultUC: resultUC, uploadUC: uploadUC, rdb: rdb}
 }
 
 // @Summary Get all inspections
@@ -163,7 +172,23 @@ func (h *InspectionHeaderHandler) UpdateStatus(c *fiber.Ctx) error {
 		return response.BadRequest(c, "validation failed", errs)
 	}
 	actorID := middleware.GetUserID(c)
-	item, err := h.uc.UpdateStatus(c.Params("id"), actorID, &req)
+	inspectionID := c.Params("id")
+
+	// Jika status berubah ke Completed: finalisasi foto base64 WebP dari Redis ke MinIO
+	if req.Status == "Completed" && h.uploadUC != nil {
+		go func() {
+			// Jalankan di background goroutine agar tidak memblok response
+			// Frontend sudah punya isFinalizing guard untuk mencegah race condition
+			_ = c.Request() // capture context before handler returns
+			_, _ = h.uploadUC.FinalizeInspectionPhotos(
+				c.Context(),
+				h.rdb,
+				inspectionID,
+			)
+		}()
+	}
+
+	item, err := h.uc.UpdateStatus(inspectionID, actorID, &req)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}

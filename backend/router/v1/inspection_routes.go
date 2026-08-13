@@ -8,17 +8,21 @@ import (
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/inspectionrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/picrepo"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/uploadrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/authusecase"
 	"github.com/monitoring-system/backend/internal/usecase/inspectionusecase"
+	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/mail"
+	"github.com/monitoring-system/backend/pkg/storage"
+	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
-func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
+func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase, minioStorage *storage.MinioStorage, rdb *redis.Client) {
 	headerRepo := inspectionrepo.NewInspectionHeaderRepository(db)
 	resultRepo := inspectionrepo.NewInspectionResultRepository(db)
 
@@ -37,7 +41,13 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	filterRepo := inspectionrepo.NewInspectionFilterRepository(db)
 	filterUC := inspectionusecase.NewInspectionFilterUseCase(filterRepo)
 
-	headerH := inspectionhandler.NewInspectionHeaderHandler(headerUC, resultUC)
+	// Build uploadUC untuk FinalizeInspectionPhotos saat inspeksi Completed
+	fileUploadRepo := uploadrepo.NewUploadRepository(db)
+	imageProc := uploadusecase.NewImageProcessor(nil) // Kafka producer opsional
+	docxProc := uploadusecase.NewDOCXProcessor()
+	uploadUC := uploadusecase.NewUploadUseCase(minioStorage, docxProc, imageProc, fileUploadRepo)
+
+	headerH := inspectionhandler.NewInspectionHeaderHandler(headerUC, resultUC, uploadUC, rdb)
 	resultH := inspectionhandler.NewInspectionResultHandler(resultUC)
 	filterH := inspectionhandler.NewInspectionFilterHandler(filterUC)
 
