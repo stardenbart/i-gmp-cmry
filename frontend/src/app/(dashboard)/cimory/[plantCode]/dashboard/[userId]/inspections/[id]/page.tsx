@@ -438,10 +438,18 @@ export default function InspectionDetailPage() {
           // 3. Photos (scoped pKey takes precedence; un-scoped uId only used if detail_id is not set)
           const draftPhotos = mergedPhotosMap[pKey] || (!detail.detail_id ? mergedPhotosMap[uId] : undefined);
           if (draftPhotos && draftPhotos.length > 0) {
-            photoStateMap[pKey] = draftPhotos.map((p: any) => ({
-              ...p,
-              previewUrl: formatPhotoUrl(p.previewUrl || p.file_url || p.url || p.photo_url || p.image_url),
-            }));
+            photoStateMap[pKey] = draftPhotos.map((p: any) => {
+              // Prioritas: previewUrl dari Redis, fallback ke localStorage jika kosong
+              let resolvedUrl = p.previewUrl || p.file_url || p.url || p.photo_url || p.image_url || "";
+              if (!resolvedUrl && p.id) {
+                const stored = loadDraftPhotoFromStorage(id, `${pKey}_${p.id}`);
+                if (stored) resolvedUrl = stored;
+              }
+              return {
+                ...p,
+                previewUrl: resolvedUrl.startsWith("data:") ? resolvedUrl : formatPhotoUrl(resolvedUrl),
+              };
+            });
           } else if (uraian.result?.photos && uraian.result.photos.length > 0) {
             photoStateMap[pKey] = uraian.result.photos.map((p: any) => ({
               id: p.issue_photo_id,
@@ -499,7 +507,9 @@ export default function InspectionDetailPage() {
               keterangan: "",
               photos: photos.map((p) => ({
                 id: p.id,
-                previewUrl: p.previewUrl?.startsWith("data:") ? "" : p.previewUrl || "",
+                // Simpan base64 ke Redis juga — diperlukan agar foto bisa di-restore lintas reload
+                // Fiber BodyLimit 50MB cukup untuk beberapa foto WebP base64
+                previewUrl: p.previewUrl || "",
                 keterangan: p.keterangan || "",
                 hei_id: p.hei_id || "",
                 hei_category: p.hei_category || "",

@@ -246,16 +246,19 @@ export function PhotoUploaderWithKeterangan({
         <div className="space-y-3">
           {photos.map((item, index) => {
             const activeCategory = item.hei_category || "";
-            const rawUrl = item.file
-              ? URL.createObjectURL(item.file)
-              : (item as any).file_url ||
-                (item as any).file_path ||
-                (item as any).photo_url ||
-                (item as any).image_url ||
-                item.previewUrl ||
-                (item as any).url ||
-                "";
-            const displayUrl = item.file ? rawUrl : formatPhotoUrl(rawUrl);
+            const rawUrl = item.previewUrl ||
+              (item as any).file_url ||
+              (item as any).file_path ||
+              (item as any).photo_url ||
+              (item as any).image_url ||
+              (item as any).url ||
+              "";
+            // base64 dan blob URL dipakai langsung tanpa formatPhotoUrl
+            const displayUrl = rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")
+              ? rawUrl
+              : item.file
+                ? URL.createObjectURL(item.file)
+                : formatPhotoUrl(rawUrl);
 
             return (
               <div
