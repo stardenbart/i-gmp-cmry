@@ -22,9 +22,9 @@ type User struct {
 	DepartmentID  string     `gorm:"column:DepartmentID;not null" json:"department_id"`
 	RoleID        string     `gorm:"column:RoleID;not null" json:"role_id"`
 	PlantID       *string    `gorm:"column:PlantID" json:"plant_id,omitempty"`
-	Username      string     `gorm:"column:Username;not null" json:"username"`
+	Username      string     `gorm:"column:Username;not null;uniqueIndex:idx_users_username_unique" json:"username"`
 	FullName      string     `gorm:"column:FullName;not null" json:"full_name"`
-	Email         string     `gorm:"column:Email;not null" json:"email"`
+	Email         string     `gorm:"column:Email;not null;uniqueIndex:idx_users_email_unique" json:"email"`
 	PasswordHash  string     `gorm:"column:PasswordHash;not null" json:"-"`
 	UserStatus    UserStatus `gorm:"column:UserStatus;not null;default:Active" json:"user_status"`
 	UserCreatedAt time.Time  `gorm:"column:UserCreatedAt;autoCreateTime" json:"created_at"`

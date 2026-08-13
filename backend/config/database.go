@@ -78,6 +78,11 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_uploads_inspection_id ON "uploads" ("inspection_id");
 		CREATE INDEX IF NOT EXISTS idx_uploads_status ON "uploads" ("status");
 		CREATE INDEX IF NOT EXISTS idx_users_userid ON "Users" ("UserID");
+		-- Hapus constraint lama yang dicoba drop oleh GORM AutoMigrate (constraint mungkin tidak ada)
+		-- Gunakan IF EXISTS agar tidak error saat restart
+		ALTER TABLE IF EXISTS "Users" DROP CONSTRAINT IF EXISTS "uni_Users_username";
+		ALTER TABLE IF EXISTS "Users" DROP CONSTRAINT IF EXISTS "uni_Users_email";
+		-- Pastikan unique index versi kita tetap ada
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON "Users" ("Username");
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON "Users" ("Email");
 		CREATE INDEX IF NOT EXISTS idx_activitylog_createdat ON "Activity_Log" ("ActivityCreatedAt" DESC);
