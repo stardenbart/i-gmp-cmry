@@ -48,7 +48,7 @@ export function dataURLtoFile(dataurl: string, filename: string): File {
   }
 }
 
-export function formatPhotoUrl(url?: string): string {
+export function formatPhotoUrl(url?: string, inspectionId?: string): string {
   if (!url) return "";
   let formatted = url.trim();
   if (!formatted) return "";
@@ -124,7 +124,19 @@ export function formatPhotoUrl(url?: string): string {
     return formatted;
   }
 
-  if (!formatted.startsWith("/uploads/") && !formatted.startsWith("uploads/")) {
+  // Handle bare UUID / filename without slash (e.g. 647fdba7-d04c-46b0-a4de-284a290fbb76)
+  if (!formatted.includes("/")) {
+    let inspId = inspectionId;
+    if (!inspId && typeof window !== "undefined") {
+      const match = window.location.pathname.match(/\/(INSP-[A-Za-z0-9_-]+)/i);
+      if (match) inspId = match[1];
+    }
+    if (inspId) {
+      formatted = `uploads/${inspId}/${formatted}`;
+    } else {
+      formatted = `uploads/${formatted}`;
+    }
+  } else if (!formatted.startsWith("/uploads/") && !formatted.startsWith("uploads/")) {
     formatted = `uploads/${formatted.replace(/^\/+/, '')}`;
   }
 
@@ -231,7 +243,13 @@ export function PhotoUploaderWithKeterangan({
             const activeCategory = item.hei_category || "";
             const rawUrl = item.file
               ? URL.createObjectURL(item.file)
-              : item.previewUrl || (item as any).file_url || (item as any).url || (item as any).photo_url || (item as any).image_url || "";
+              : (item as any).file_url ||
+                (item as any).file_path ||
+                (item as any).photo_url ||
+                (item as any).image_url ||
+                item.previewUrl ||
+                (item as any).url ||
+                "";
             const displayUrl = item.file ? rawUrl : formatPhotoUrl(rawUrl);
 
             return (

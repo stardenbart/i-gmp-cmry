@@ -137,13 +137,22 @@ export function formatImageUrl(url: string | null | undefined): string {
     return formatted;
   }
 
-  // Local uploads folder
-  if (formatted.startsWith("/uploads/") || formatted.startsWith("uploads/")) {
-    const cleanP = formatted.startsWith("/") ? formatted : `/${formatted}`;
-    return `${cleanHost}${cleanP}`;
+  // Handle bare UUID / filename without slash (e.g. 647fdba7-d04c-46b0-a4de-284a290fbb76)
+  if (!formatted.includes("/")) {
+    let inspId = "";
+    if (typeof window !== "undefined") {
+      const match = window.location.pathname.match(/\/(INSP-[A-Za-z0-9_-]+)/i);
+      if (match) inspId = match[1];
+    }
+    if (inspId) {
+      formatted = `uploads/${inspId}/${formatted}`;
+    } else {
+      formatted = `uploads/${formatted}`;
+    }
+  } else if (!formatted.startsWith("/uploads/") && !formatted.startsWith("uploads/")) {
+    formatted = `uploads/${formatted.replace(/^\/+/, '')}`;
   }
 
-  // Default object key / UUID filename -> prefix with /uploads/
-  const key = formatted.replace(/^\/+/, '').replace(/^monitoring-audit-bucket\//, '');
-  return `${cleanHost}/uploads/${key}`;
+  const cleanP = formatted.startsWith("/") ? formatted : `/${formatted}`;
+  return `${cleanHost}${cleanP}`;
 }
