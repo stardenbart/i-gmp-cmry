@@ -1,10 +1,20 @@
 package inspectionrepo
 
 import (
+	"sync"
+	"time"
+
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+type inspHeaderCacheItem struct {
+	header    *inspection.InspectionHeader
+	expiresAt time.Time
+}
+
+var globalInspHeaderCache sync.Map
 
 // ── Inspection Header ─────────────────────────────────────────────────────
 
@@ -36,6 +46,14 @@ func (r *inspectionHeaderRepository) FindAll(page, limit int, plantID, areaID, s
 }
 
 func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.InspectionHeader, error) {
+	if val, ok := globalInspHeaderCache.Load(id); ok {
+		item := val.(inspHeaderCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			return item.header, nil
+		}
+		globalInspHeaderCache.Delete(id)
+	}
+
 	var item inspection.InspectionHeader
 	err := r.db.Model(&item).
 		Select(`"Inspection_Header".*, 
@@ -51,21 +69,27 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 		Preload("Results").
 		Take(&item).Error
 
-	if err == nil && len(item.Results) > 0 {
-		var total int
-		var okCount int
-		for _, res := range item.Results {
-			if res.Checking == "OK" || res.Checking == "NG" {
-				total++
-				if res.Checking == "OK" {
-					okCount++
+	if err == nil {
+		if len(item.Results) > 0 {
+			var total int
+			var okCount int
+			for _, res := range item.Results {
+				if res.Checking == "OK" || res.Checking == "NG" {
+					total++
+					if res.Checking == "OK" {
+						okCount++
+					}
 				}
 			}
+			if total > 0 {
+				scoreVal := float64(okCount) * 100.0 / float64(total)
+				item.Score = &scoreVal
+			}
 		}
-		if total > 0 {
-			scoreVal := float64(okCount) * 100.0 / float64(total)
-			item.Score = &scoreVal
-		}
+		globalInspHeaderCache.Store(id, inspHeaderCacheItem{
+			header:    &item,
+			expiresAt: time.Now().Add(5 * time.Second),
+		})
 	}
 
 	return &item, err
@@ -185,9 +209,11 @@ func (r *inspectionHeaderRepository) Create(h *inspection.InspectionHeader) erro
 	return r.db.Create(h).Error
 }
 func (r *inspectionHeaderRepository) Update(h *inspection.InspectionHeader) error {
+	globalInspHeaderCache.Delete(h.InspectionID)
 	return r.db.Save(h).Error
 }
 func (r *inspectionHeaderRepository) Delete(id string) error {
+	globalInspHeaderCache.Delete(id)
 	var h inspection.InspectionHeader
 	if err := r.db.Where("\"InspectionID\" = ?", id).First(&h).Error; err == nil {
 		// 1. Delete associated Issue_Photo records
