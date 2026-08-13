@@ -115,23 +115,11 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           />
         )}
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">Department Induk</label>
-          <div className="relative">
-            <select name="department_id" defaultValue={editingItem?.department_id as string} className={selectClass} required>
-              <option value="" disabled>Pilih Department...</option>
-              {deptLookup?.items?.map((d: any) => (
-                <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-          </div>
-        </div>
-        <div className="space-y-1.5">
           <label className="text-sm font-medium">Nama Area</label>
           <Input
             name="area_name"
             defaultValue={editingItem?.area_name as string}
-            placeholder="Contoh: Pabrik Utama"
+            placeholder="Contoh: Area Produksi"
             required
           />
         </div>
