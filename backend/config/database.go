@@ -78,7 +78,8 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_uploads_inspection_id ON "uploads" ("inspection_id");
 		CREATE INDEX IF NOT EXISTS idx_uploads_status ON "uploads" ("status");
 		CREATE INDEX IF NOT EXISTS idx_users_userid ON "Users" ("UserID");
-		CREATE INDEX IF NOT EXISTS idx_users_username ON "Users" ("Username");
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON "Users" ("Username");
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON "Users" ("Email");
 		CREATE INDEX IF NOT EXISTS idx_activitylog_createdat ON "Activity_Log" ("ActivityCreatedAt" DESC);
 		CREATE INDEX IF NOT EXISTS idx_activitylog_userid ON "Activity_Log" ("UserID");
 		CREATE INDEX IF NOT EXISTS idx_hei_category_code ON "HEI_Master" ("CategoryName", "HEICode");
