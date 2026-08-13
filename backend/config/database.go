@@ -119,6 +119,28 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_area_master_plant_areaid ON "Area_Master" ("PlantID", "AreaID") INCLUDE ("AreaName");
 		-- Activity_Log: index tambahan untuk filter by module + action
 		CREATE INDEX IF NOT EXISTS idx_activitylog_table_action ON "Activity_Log" ("TableAffected", "ActivityAction", "ActivityCreatedAt" DESC);
+
+		-- kawasan_aspek: slow query SELECT * WHERE KawasanID (298ms)
+		CREATE INDEX IF NOT EXISTS idx_kawasan_aspek_kawasanid_aspekid ON "kawasan_aspek" ("KawasanID", "AspekID");
+
+		-- HEI_Master: slow query DISTINCT CategoryName WHERE Status (352ms)
+		-- count(*) tidak bisa dibantu index, tapi bisa pakai cache (1 jam TTL)
+		CREATE INDEX IF NOT EXISTS idx_hei_master_status_cat ON "HEI_Master" ("Status", "CategoryName");
+		CREATE INDEX IF NOT EXISTS idx_hei_master_heiid ON "HEI_Master" ("HEID");
+
+		-- DetailKawasan_Master: diperlukan untuk JOIN di GetByID inspection header
+		CREATE INDEX IF NOT EXISTS idx_detail_kawasan_kawasanid ON "DetailKawasan_Master" ("KawasanID");
+		CREATE INDEX IF NOT EXISTS idx_detail_kawasan_areaid ON "DetailKawasan_Master" ("AreaID");
+
+		-- Kawasan_Master: diperlukan untuk JOIN di inspection header
+		CREATE INDEX IF NOT EXISTS idx_kawasan_areaid ON "Kawasan_Master" ("AreaID");
+
+		-- PIC_Mapping: covering index untuk (AreaID, KawasanID) query count + select
+		CREATE INDEX IF NOT EXISTS idx_pic_mapping_area_kaw_covering ON "PIC_Mapping" ("AreaID", "KawasanID", "UserID");
+
+		-- Inspection_Header: covering index untuk GetByID JOIN query
+		-- Primary key sudah ada, tapi index ini membantu JOIN resolver
+		CREATE INDEX IF NOT EXISTS idx_insp_hdr_id_covering ON "Inspection_Header" ("InspectionID", "AreaID", "KawasanID", "DetailKawasanID", "InspectorID");
 	`)
 
 	return db, nil

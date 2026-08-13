@@ -88,7 +88,7 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 		}
 		globalInspHeaderCache.Store(id, inspHeaderCacheItem{
 			header:    &item,
-			expiresAt: time.Now().Add(5 * time.Second),
+			expiresAt: time.Now().Add(30 * time.Second), // 5s terlalu pendek untuk query JOIN 4 tabel
 		})
 	}
 

@@ -74,7 +74,7 @@ func (r *heiRepository) FindAll(page, limit int, category, search string) ([]mas
 	globalHEICache.Store(cacheKey, heiCacheItem{
 		items:     items,
 		total:     total,
-		expiresAt: time.Now().Add(10 * time.Minute),
+		expiresAt: time.Now().Add(1 * time.Hour), // HEI master jarang berubah
 	})
 
 	return items, total, nil
@@ -131,7 +131,7 @@ func (r *heiRepository) FindCategories() ([]string, error) {
 
 	globalHEICatCache.Store(cacheKey, heiCatCacheItem{
 		categories: finalCats,
-		expiresAt:  time.Now().Add(10 * time.Minute),
+		expiresAt:  time.Now().Add(1 * time.Hour), // kategori HEI sangat jarang berubah
 	})
 
 	return finalCats, nil
