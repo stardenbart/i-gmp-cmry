@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,6 +13,19 @@ import (
 	"github.com/monitoring-system/backend/pkg/logger"
 	"go.uber.org/zap"
 )
+
+// base64ImageRegex mencocokkan data URL base64 gambar di dalam JSON string
+// Contoh: "data:image/webp;base64,UklGR..." (bisa ratusan KB)
+var base64ImageRegex = regexp.MustCompile(`data:image/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]{100,}`)
+
+// stripBase64FromJSON mengganti semua base64 data URL dengan placeholder ringkas
+// sehingga Activity_Log tidak menyimpan data biner besar
+func stripBase64FromJSON(s string) string {
+	return base64ImageRegex.ReplaceAllStringFunc(s, func(match string) string {
+		return fmt.Sprintf("[base64_image:%d_bytes]", len(match))
+	})
+}
+
 
 // LoggerMiddleware logs every incoming HTTP request using Zap structured logger.
 func LoggerMiddleware(log *logger.Logger) fiber.Handler {
@@ -162,8 +176,11 @@ func ActivityLogMiddleware(actLogUC logdomain.ActivityLogUseCase) fiber.Handler 
 			reqBody = fmt.Sprintf("[file upload payload: %s, size: %d bytes]", contentType, len(bodyBytes))
 		} else if len(bodyBytes) > 0 {
 			rawStr := string(bodyBytes)
-			if len(rawStr) > 10000 {
-				rawStr = rawStr[:10000] + "... (truncated)"
+			// Strip base64 data URLs sebelum logging — bisa 500KB+ per foto WebP
+			// Ganti dengan placeholder ringkas agar INSERT Activity_Log tidak lambat
+			rawStr = stripBase64FromJSON(rawStr)
+			if len(rawStr) > 2000 {
+				rawStr = rawStr[:2000] + "... (truncated)"
 			}
 			if !utf8.ValidString(rawStr) {
 				rawStr = strings.ToValidUTF8(rawStr, "?")

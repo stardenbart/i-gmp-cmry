@@ -105,6 +105,15 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_issue_createdat ON "Issue" ("IssueCreatedAt" DESC);
 		CREATE INDEX IF NOT EXISTS idx_notification_userid ON "Notification" ("UserID");
 		CREATE INDEX IF NOT EXISTS idx_notification_userid_createdat ON "Notification" ("UserID", "CreatedAt" DESC);
+
+		-- Index untuk mempercepat slow SQL filter inspection (IN subquery + status + created_at)
+		-- Sebelumnya: 300-440ms. Target: <50ms dengan covering index
+		CREATE INDEX IF NOT EXISTS idx_insp_hdr_area_status_created ON "Inspection_Header" ("AreaID", "InspectionHeaderStatus", "InspectionHeaderCreatedAt" DESC);
+		CREATE INDEX IF NOT EXISTS idx_insp_hdr_inspector_created ON "Inspection_Header" ("InspectorID", "InspectionHeaderCreatedAt" DESC);
+		-- Covering index untuk subquery Area_Master: mempercepat IN (SELECT AreaID FROM Area_Master WHERE PlantID = ...)
+		CREATE INDEX IF NOT EXISTS idx_area_master_plant_areaid ON "Area_Master" ("PlantID", "AreaID") INCLUDE ("AreaName");
+		-- Activity_Log: index tambahan untuk filter by module + action
+		CREATE INDEX IF NOT EXISTS idx_activitylog_table_action ON "Activity_Log" ("TableAffected", "ActivityAction", "ActivityCreatedAt" DESC);
 	`)
 
 	return db, nil
