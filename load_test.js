@@ -18,10 +18,11 @@ import { Rate, Trend, Counter } from 'k6/metrics';
 // ── Konfigurasi ─────────────────────────────────────────────────────────────
 const BASE_URL    = __ENV.BASE_URL    || 'http://localhost:8080/api/v1';
 const USERNAME    = __ENV.USERNAME    || 'admin_sentul';
-const PASSWORD    = __ENV.PASSWORD    || 'admin123';        // ← Fixed: default admin123
+const PASSWORD    = __ENV.PASSWORD    || 'admin123';
 const PLANT_CODE  = __ENV.PLANT_CODE  || 'PLT-SENTUL';
-const KAWASAN_ID  = __ENV.KAWASAN_ID  || 'K001';
-const ASPEK_IDS   = ['ASP001', 'ASP002', 'ASP003'];
+// Real IDs sesuai master data yang sudah di-seed
+const KAWASAN_ID  = __ENV.KAWASAN_ID  || 'KWS-001';
+const ASPEK_IDS   = ['ASP-001', 'ASP-002', 'ASP-003', 'ASP-004', 'ASP-005'];
 
 // ── Custom Metrics ───────────────────────────────────────────────────────────
 const errorRate       = new Rate('custom_error_rate');
@@ -69,17 +70,30 @@ export function setup() {
   const token = body.data?.token || body.token || '';
   console.log(`✅ Login berhasil. Token: ${token.substring(0, 30)}...`);
 
-  // Ambil daftar inspection ID yang tersedia untuk simulasi read
-  const inspRes = http.get(`${BASE_URL}/inspections?limit=10`, {
+  // Ambil daftar inspection ID yang tersedia (gunakan limit besar agar dapat banyak variasi)
+  const inspRes = http.get(`${BASE_URL}/inspections?limit=50`, {
     headers: { 'Authorization': `Bearer ${token}` },
   });
-  let inspectionIds = ['INSP-260812-f99cce7e']; // fallback ID
+  // Fallback ke ID seed yang baru (valid setelah reseed)
+  let inspectionIds = [
+    'INSP-LOADTEST-001-01', 'INSP-LOADTEST-001-02',
+    'INSP-LOADTEST-002-01', 'INSP-LOADTEST-002-02',
+    'INSP-LOADTEST-003-01', 'INSP-LOADTEST-003-02',
+    'INSP-LOADTEST-004-01', 'INSP-LOADTEST-005-01',
+  ];
   if (inspRes.status === 200) {
     const inspBody = JSON.parse(inspRes.body);
-    const ids = (inspBody.data?.items || inspBody.items || []).map(i => i.inspection_id || i.InspectionID);
-    if (ids.length > 0) inspectionIds = ids;
+    const ids = (inspBody.data?.items || inspBody.items || []).map(i => i.inspection_id || i.InspectionID || i.id).filter(Boolean);
+    if (ids.length > 0) {
+      inspectionIds = ids;
+      console.log(`📋 Fetched ${ids.length} inspection IDs from API`);
+    } else {
+      console.log(`⚠️  API returned 0 inspections, using fallback IDs (${inspectionIds.length} total)`);
+    }
+  } else {
+    console.warn(`⚠️  GET /inspections failed [${inspRes.status}], using fallback IDs`);
   }
-  console.log(`📋 Ditemukan ${inspectionIds.length} inspeksi untuk simulasi: ${inspectionIds.join(', ')}`);
+  console.log(`📋 Using ${inspectionIds.length} inspection IDs: ${inspectionIds.slice(0,3).join(', ')}...`);
 
   return { token, inspectionIds };
 }
