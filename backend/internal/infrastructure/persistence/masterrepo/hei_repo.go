@@ -137,20 +137,27 @@ func (r *heiRepository) FindCategories() ([]string, error) {
 	return finalCats, nil
 }
 
+func clearSyncMap(m *sync.Map) {
+	m.Range(func(key, value any) bool {
+		m.Delete(key)
+		return true
+	})
+}
+
 func (r *heiRepository) Create(h *master.HEIMaster) error {
-	globalHEICache = sync.Map{}
-	globalHEICatCache = sync.Map{}
+	clearSyncMap(&globalHEICache)
+	clearSyncMap(&globalHEICatCache)
 	return r.db.Create(h).Error
 }
 
 func (r *heiRepository) Update(h *master.HEIMaster) error {
-	globalHEICache = sync.Map{}
-	globalHEICatCache = sync.Map{}
+	clearSyncMap(&globalHEICache)
+	clearSyncMap(&globalHEICatCache)
 	return r.db.Save(h).Error
 }
 
 func (r *heiRepository) Delete(id string) error {
-	globalHEICache = sync.Map{}
-	globalHEICatCache = sync.Map{}
+	clearSyncMap(&globalHEICache)
+	clearSyncMap(&globalHEICatCache)
 	return r.db.Where("\"HEIID\" = ?", id).Delete(&master.HEIMaster{}).Error
 }

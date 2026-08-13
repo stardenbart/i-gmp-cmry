@@ -85,20 +85,21 @@ func (r *userPermRepository) CheckOverride(userID, moduleID, permissionCode stri
 	return result, nil
 }
 
+
 func (r *userPermRepository) BulkUpsert(ups []authdomain.UserPermission) error {
-	globalUserPermCache = sync.Map{}     // clear cache on update
-	globalUserPermListCache = sync.Map{} // clear cache on update
+	clearSyncMap(&globalUserPermCache)     // clear cache on update (thread-safe)
+	clearSyncMap(&globalUserPermListCache) // clear cache on update (thread-safe)
 	return r.db.CreateInBatches(&ups, 100).Error
 }
 
 func (r *userPermRepository) Delete(id string) error {
-	globalUserPermCache = sync.Map{}     // clear cache on delete
-	globalUserPermListCache = sync.Map{} // clear cache on delete
+	clearSyncMap(&globalUserPermCache)     // clear cache on delete (thread-safe)
+	clearSyncMap(&globalUserPermListCache) // clear cache on delete (thread-safe)
 	return r.db.Where("\"UserPermissionID\" = ?", id).Delete(&authdomain.UserPermission{}).Error
 }
 
 func (r *userPermRepository) DeleteByUserID(userID string) error {
-	globalUserPermCache = sync.Map{}     // clear cache on delete
-	globalUserPermListCache = sync.Map{} // clear cache on delete
+	clearSyncMap(&globalUserPermCache)     // clear cache on delete (thread-safe)
+	clearSyncMap(&globalUserPermListCache) // clear cache on delete (thread-safe)
 	return r.db.Where("\"UserID\" = ?", userID).Delete(&authdomain.UserPermission{}).Error
 }

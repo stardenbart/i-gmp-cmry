@@ -60,7 +60,10 @@ func (r *notificationRepository) FindByUserID(userID string, offset int, limit i
 }
 
 func (r *notificationRepository) MarkAsRead(notificationID string) error {
-	globalNotifCountCache = sync.Map{} // clear cache on update
+	globalNotifCountCache.Range(func(key, value any) bool {
+		globalNotifCountCache.Delete(key)
+		return true
+	})
 	return r.db.Model(&notification.Notification{}).
 		Where("\"NotificationID\" = ?", notificationID).
 		Update("\"IsRead\"", true).Error
