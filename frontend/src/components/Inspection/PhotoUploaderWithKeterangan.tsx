@@ -56,14 +56,20 @@ export function formatPhotoUrl(url?: string): string {
   // Detect current hostname and protocol when running in browser
   let currentHost = "localhost";
   let protocol = "http:";
+  let cleanHost = "";
+
   if (typeof window !== "undefined") {
     currentHost = window.location.hostname;
     protocol = window.location.protocol;
+    if (protocol === "https:" || currentHost.includes("ngrok") || window.location.port === "") {
+      cleanHost = `${protocol}//${window.location.host}`;
+    } else {
+      cleanHost = `${protocol}//${currentHost}:8080`;
+    }
+  } else {
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
   }
-
-  const backendPort = "8080";
-  const apiHost = process.env.NEXT_PUBLIC_API_URL || `${protocol}//${currentHost}:${backendPort}`;
-  const cleanHost = apiHost.replace(/\/api\/v1\/?$/, "");
 
   // If expired blob URL (blob:http://... or blob:https://...)
   if (formatted.startsWith("blob:")) {
@@ -75,16 +81,23 @@ export function formatPhotoUrl(url?: string): string {
     }
   }
 
-  // If MinIO URL with port 9000 or /monitoring-audit-bucket/uploads/, convert to backend static /uploads route
-  if (formatted.includes(":9000/") || formatted.includes("minio:9000") || formatted.includes("/monitoring-audit-bucket/uploads/")) {
-    const uploadPathIdx = formatted.indexOf("/uploads/");
-    if (uploadPathIdx !== -1) {
-      return `${cleanHost}${formatted.substring(uploadPathIdx)}`;
+  // Handle MinIO / port 9000 / monitoring-audit-bucket URLs
+  if (formatted.includes(":9000/") || formatted.includes("minio:9000") || formatted.includes("monitoring-audit-bucket")) {
+    const uploadIdx = formatted.indexOf("/uploads/");
+    if (uploadIdx !== -1) {
+      return `${cleanHost}${formatted.substring(uploadIdx)}`;
     }
     const bucketIdx = formatted.indexOf("/monitoring-audit-bucket/");
     if (bucketIdx !== -1) {
-      return `${cleanHost}/uploads/${formatted.substring(bucketIdx + "/monitoring-audit-bucket/".length)}`;
+      const pathAfterBucket = formatted.substring(bucketIdx + "/monitoring-audit-bucket/".length);
+      return `${cleanHost}/uploads/${pathAfterBucket}`;
     }
+  }
+
+  // Upgrade HTTP to HTTPS if page is HTTPS to eliminate Mixed Content errors
+  if (protocol === "https:" && formatted.startsWith("http://")) {
+    formatted = formatted.replace(/^http:\/\//, "https://").replace(/:9000|:8080/g, "");
+    return formatted;
   }
 
   // Replace hardcoded localhost or 127.0.0.1 with current connected server hostname
