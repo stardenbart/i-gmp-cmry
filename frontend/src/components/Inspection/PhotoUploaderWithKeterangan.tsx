@@ -48,6 +48,7 @@ export function dataURLtoFile(dataurl: string, filename: string): File {
   }
 }
 
+export function formatPhotoUrl(url?: string, inspectionId?: string): string {
   if (!url) return "";
   let formatted = url.trim();
   if (!formatted) return "";
