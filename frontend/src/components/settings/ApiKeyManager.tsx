@@ -97,11 +97,11 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
     <div className="space-y-6">
       {/* Header & Action */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 bg-card rounded-2xl border border-border/80 shadow-sm">
-        <div>
+        <div className="flex-1 min-w-0">
           <h3 className="text-lg font-bold flex items-center gap-2">
-            <Key className="w-5 h-5 text-primary" /> Integrasi API Key Power BI
+            <Key className="w-5 h-5 text-primary shrink-0" /> Integrasi API Key Power BI
           </h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
             Buat API Key Publik (Bearer Token) untuk menarik data <strong>inspeksi, temuan, follow-up, & photo</strong> secara aman ke Power BI. Key dapat dikonfigurasi <em>Single-Use (1x penarikan)</em> demi keamanan maksimal.
           </p>
         </div>
