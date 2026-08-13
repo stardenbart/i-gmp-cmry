@@ -81,7 +81,7 @@ export default function ProfilePage() {
 
   // Format Role Name directly aligned with backend database master records
   const getRoleDisplayName = () => {
-    if (currentUser?.role?.role_name) return currentUser.role.role_name;
+    if ((currentUser as any)?.role?.role_name) return (currentUser as any).role.role_name;
     if ((currentUser as any)?.role_name) return (currentUser as any).role_name;
     
     const id = currentUser?.role_id;
@@ -105,7 +105,7 @@ export default function ProfilePage() {
 
   // Format Department Name directly aligned with backend database master records
   const getDeptDisplayName = () => {
-    if (currentUser?.department?.department_name) return currentUser.department.department_name;
+    if ((currentUser as any)?.department?.department_name) return (currentUser as any).department.department_name;
     if ((currentUser as any)?.department_name) return (currentUser as any).department_name;
     
     const id = currentUser?.department_id;
