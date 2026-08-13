@@ -35,7 +35,6 @@ export function useHeartbeat({ kawasanId, aspekId, lockToken, enabled, onLockExp
         );
       } catch (err: any) {
         if (err?.response?.status === 409 || err?.response?.status === 401) {
-          toast.error("Sesi edit Anda pada aspek ini telah berakhir.");
           if (onLockExpired) onLockExpired();
         }
       }

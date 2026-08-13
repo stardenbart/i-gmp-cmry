@@ -106,7 +106,7 @@ export function formatImageUrl(url: string | null | undefined): string {
     return `${cleanHost}${cleanP}`;
   }
 
-  // Default object key -> prefix with /uploads/
+  // Default object key / UUID filename -> prefix with /uploads/
   const key = formatted.replace(/^\/+/, '').replace(/^monitoring-audit-bucket\//, '');
   return `${cleanHost}/uploads/${key}`;
 }

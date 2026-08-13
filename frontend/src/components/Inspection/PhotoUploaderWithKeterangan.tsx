@@ -91,6 +91,10 @@ export function formatPhotoUrl(url?: string): string {
     return formatted;
   }
 
+  if (!formatted.startsWith("/uploads/") && !formatted.startsWith("uploads/")) {
+    formatted = `uploads/${formatted.replace(/^\/+/, '')}`;
+  }
+
   const cleanPath = formatted.startsWith("/") ? formatted : `/${formatted}`;
   return `${cleanHost}${cleanPath}`;
 }

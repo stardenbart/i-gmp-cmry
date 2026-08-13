@@ -34,7 +34,15 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
     if (typeof window === "undefined" || !token) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = process.env.NEXT_PUBLIC_WS_HOST || window.location.hostname + ":8080";
+    let host = process.env.NEXT_PUBLIC_WS_HOST;
+    if (!host) {
+      const hostname = window.location.hostname;
+      if (hostname.includes("ngrok") || window.location.protocol === "https:" || window.location.port === "") {
+        host = window.location.host;
+      } else {
+        host = `${hostname}:8080`;
+      }
+    }
     const wsUrl = `${protocol}//${host}/api/v1/ws?token=${encodeURIComponent(token)}${
       kawasanId ? `&kawasan_id=${encodeURIComponent(kawasanId)}` : ""
     }`;
