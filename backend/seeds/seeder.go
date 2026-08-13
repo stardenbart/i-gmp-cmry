@@ -17,6 +17,7 @@ func Run(db *gorm.DB) {
 	SeedPlants(db)
 	SeedUsers(db)
 	SeedSettings(db)
+	SeedRealMasterData(db)
 	CleanupDummyData(db)
 
 	log.Println("✅ Seeding completed.")

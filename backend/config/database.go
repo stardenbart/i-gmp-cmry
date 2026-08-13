@@ -61,8 +61,8 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 	}
 
 	// Ensure high-performance indexes and uploads table exist
-	_ = db.Exec(`
-		CREATE TABLE IF NOT EXISTS "uploads" (
+	sqlStatements := []string{
+		`CREATE TABLE IF NOT EXISTS "uploads" (
 			"id"                VARCHAR(50)  NOT NULL,
 			"inspection_id"     VARCHAR(50)  NOT NULL,
 			"original_filename" VARCHAR(255) NOT NULL,
@@ -76,76 +76,58 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 			"created_at"        BIGINT       NOT NULL,
 			"updated_at"        BIGINT       NOT NULL,
 			PRIMARY KEY ("id")
-		);
-		ALTER TABLE IF EXISTS "uploads" ALTER COLUMN "inspection_id" TYPE VARCHAR(50);
-		ALTER TABLE IF EXISTS "uploads" ALTER COLUMN "id" TYPE VARCHAR(50);
-		CREATE INDEX IF NOT EXISTS idx_uploads_inspection_id ON "uploads" ("inspection_id");
-		CREATE INDEX IF NOT EXISTS idx_uploads_status ON "uploads" ("status");
-		CREATE INDEX IF NOT EXISTS idx_users_userid ON "Users" ("UserID");
-		-- Hapus constraint lama yang dicoba drop oleh GORM AutoMigrate (constraint mungkin tidak ada)
-		-- Gunakan IF EXISTS agar tidak error saat restart
-		ALTER TABLE IF EXISTS "Users" DROP CONSTRAINT IF EXISTS "uni_Users_username";
-		ALTER TABLE IF EXISTS "Users" DROP CONSTRAINT IF EXISTS "uni_Users_email";
-		-- Pastikan unique index versi kita tetap ada
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON "Users" ("Username");
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON "Users" ("Email");
-		CREATE INDEX IF NOT EXISTS idx_activitylog_createdat ON "Activity_Log" ("ActivityCreatedAt" DESC);
-		CREATE INDEX IF NOT EXISTS idx_activitylog_userid ON "Activity_Log" ("UserID");
-		CREATE INDEX IF NOT EXISTS idx_hei_category_code ON "HEI_Master" ("CategoryName", "HEICode");
-		CREATE INDEX IF NOT EXISTS idx_pic_mapping_userid ON "PIC_Mapping" ("UserID");
-		CREATE INDEX IF NOT EXISTS idx_pic_mapping_area_kawasan ON "PIC_Mapping" ("AreaID", "KawasanID");
-		CREATE INDEX IF NOT EXISTS idx_kawasan_aspek_kawasanid ON "kawasan_aspek" ("KawasanID");
-		CREATE INDEX IF NOT EXISTS idx_dept_master_id ON "Department_Master" ("DepartmentID");
-		CREATE INDEX IF NOT EXISTS idx_role_master_id ON "Role_Master" ("RoleID");
-		CREATE INDEX IF NOT EXISTS idx_role_perm_role_isallowed ON "Role_Permission" ("RoleID", "IsAllowed");
-		CREATE INDEX IF NOT EXISTS idx_user_perm_userid ON "User_Permission" ("UserID");
-		CREATE INDEX IF NOT EXISTS idx_perm_master_mod_code ON "Permission_Master" ("ModuleID", "PermissionCode");
-		CREATE INDEX IF NOT EXISTS idx_inspection_result_inspectionid ON "Inspection_Result" ("InspectionID");
-		CREATE INDEX IF NOT EXISTS idx_inspection_result_id_checking ON "Inspection_Result" ("InspectionID", "Checking");
-		CREATE INDEX IF NOT EXISTS idx_inspection_header_inspectionid ON "Inspection_Header" ("InspectionID");
-		CREATE INDEX IF NOT EXISTS idx_insp_hdr_area_status ON "Inspection_Header" ("AreaID", "InspectionHeaderStatus");
-		CREATE INDEX IF NOT EXISTS idx_insp_hdr_kawasan_status ON "Inspection_Header" ("KawasanID", "InspectionHeaderStatus");
-		CREATE INDEX IF NOT EXISTS idx_insp_hdr_inspector_status ON "Inspection_Header" ("InspectorID", "InspectionHeaderStatus");
-		CREATE INDEX IF NOT EXISTS idx_insp_hdr_created_at ON "Inspection_Header" ("InspectionHeaderCreatedAt" DESC);
-		CREATE INDEX IF NOT EXISTS idx_area_master_plant ON "Area_Master" ("PlantID", "AreaID");
-		CREATE INDEX IF NOT EXISTS idx_issue_photo_issueid ON "Issue_Photo" ("IssueID");
-		CREATE INDEX IF NOT EXISTS idx_issue_photo_issueid_createdat ON "Issue_Photo" ("IssueID", "PhotoCreatedAt" ASC);
-		CREATE INDEX IF NOT EXISTS idx_issue_resultid ON "Issue" ("ResultID");
-		CREATE INDEX IF NOT EXISTS idx_issue_createdat ON "Issue" ("IssueCreatedAt" DESC);
-		CREATE INDEX IF NOT EXISTS idx_notification_userid ON "Notification" ("UserID");
-		CREATE INDEX IF NOT EXISTS idx_notification_userid_createdat ON "Notification" ("UserID", "CreatedAt" DESC);
+		)`,
+		`ALTER TABLE IF EXISTS "uploads" ALTER COLUMN "inspection_id" TYPE VARCHAR(50)`,
+		`ALTER TABLE IF EXISTS "uploads" ALTER COLUMN "id" TYPE VARCHAR(50)`,
+		`CREATE INDEX IF NOT EXISTS idx_uploads_inspection_id ON "uploads" ("inspection_id")`,
+		`CREATE INDEX IF NOT EXISTS idx_uploads_status ON "uploads" ("status")`,
+		`CREATE INDEX IF NOT EXISTS idx_users_userid ON "Users" ("UserID")`,
+		`ALTER TABLE IF EXISTS "Users" DROP CONSTRAINT IF EXISTS "uni_Users_username"`,
+		`ALTER TABLE IF EXISTS "Users" DROP CONSTRAINT IF EXISTS "uni_Users_email"`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON "Users" ("Username")`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON "Users" ("Email")`,
+		`CREATE INDEX IF NOT EXISTS idx_activitylog_createdat ON "Activity_Log" ("ActivityCreatedAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_activitylog_userid ON "Activity_Log" ("UserID")`,
+		`CREATE INDEX IF NOT EXISTS idx_hei_category_code ON "HEI_Master" ("CategoryName", "HEICode")`,
+		`CREATE INDEX IF NOT EXISTS idx_pic_mapping_userid ON "PIC_Mapping" ("UserID")`,
+		`CREATE INDEX IF NOT EXISTS idx_pic_mapping_area_kawasan ON "PIC_Mapping" ("AreaID", "KawasanID")`,
+		`CREATE INDEX IF NOT EXISTS idx_kawasan_aspek_kawasanid ON "kawasan_aspek" ("KawasanID")`,
+		`CREATE INDEX IF NOT EXISTS idx_dept_master_id ON "Department_Master" ("DepartmentID")`,
+		`CREATE INDEX IF NOT EXISTS idx_role_master_id ON "Role_Master" ("RoleID")`,
+		`CREATE INDEX IF NOT EXISTS idx_role_perm_role_isallowed ON "Role_Permission" ("RoleID", "IsAllowed")`,
+		`CREATE INDEX IF NOT EXISTS idx_user_perm_userid ON "User_Permission" ("UserID")`,
+		`CREATE INDEX IF NOT EXISTS idx_perm_master_mod_code ON "Permission_Master" ("ModuleID", "PermissionCode")`,
+		`CREATE INDEX IF NOT EXISTS idx_inspection_result_inspectionid ON "Inspection_Result" ("InspectionID")`,
+		`CREATE INDEX IF NOT EXISTS idx_inspection_result_id_checking ON "Inspection_Result" ("InspectionID", "Checking")`,
+		`CREATE INDEX IF NOT EXISTS idx_inspection_header_inspectionid ON "Inspection_Header" ("InspectionID")`,
+		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_area_status ON "Inspection_Header" ("AreaID", "InspectionHeaderStatus")`,
+		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_kawasan_status ON "Inspection_Header" ("KawasanID", "InspectionHeaderStatus")`,
+		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_inspector_status ON "Inspection_Header" ("InspectorID", "InspectionHeaderStatus")`,
+		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_created_at ON "Inspection_Header" ("InspectionHeaderCreatedAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_area_master_plant ON "Area_Master" ("PlantID", "AreaID")`,
+		`CREATE INDEX IF NOT EXISTS idx_issue_photo_issueid ON "Issue_Photo" ("IssueID")`,
+		`CREATE INDEX IF NOT EXISTS idx_issue_photo_issueid_createdat ON "Issue_Photo" ("IssueID", "PhotoCreatedAt" ASC)`,
+		`CREATE INDEX IF NOT EXISTS idx_issue_resultid ON "Issue" ("ResultID")`,
+		`CREATE INDEX IF NOT EXISTS idx_issue_createdat ON "Issue" ("IssueCreatedAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_notification_userid ON "Notification" ("UserID")`,
+		`CREATE INDEX IF NOT EXISTS idx_notification_userid_createdat ON "Notification" ("UserID", "CreatedAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_area_status_created ON "Inspection_Header" ("AreaID", "InspectionHeaderStatus", "InspectionHeaderCreatedAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_inspector_created ON "Inspection_Header" ("InspectorID", "InspectionHeaderCreatedAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_area_master_plant_areaid ON "Area_Master" ("PlantID", "AreaID") INCLUDE ("AreaName")`,
+		`CREATE INDEX IF NOT EXISTS idx_activitylog_table_action ON "Activity_Log" ("TableAffected", "ActivityAction", "ActivityCreatedAt" DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_kawasan_aspek_kawasanid_aspekid ON "kawasan_aspek" ("KawasanID", "AspekID")`,
+		`CREATE INDEX IF NOT EXISTS idx_hei_master_status_cat ON "HEI_Master" ("Status", "CategoryName")`,
+		`CREATE INDEX IF NOT EXISTS idx_hei_master_heiid ON "HEI_Master" ("HEID")`,
+		`CREATE INDEX IF NOT EXISTS idx_detail_kawasan_kawasanid ON "DetailKawasan_Master" ("KawasanID")`,
+		`CREATE INDEX IF NOT EXISTS idx_detail_kawasan_areaid ON "DetailKawasan_Master" ("AreaID")`,
+		`CREATE INDEX IF NOT EXISTS idx_kawasan_areaid ON "Kawasan_Master" ("AreaID")`,
+		`CREATE INDEX IF NOT EXISTS idx_pic_mapping_area_kaw_covering ON "PIC_Mapping" ("AreaID", "KawasanID", "UserID")`,
+		`CREATE INDEX IF NOT EXISTS idx_insp_hdr_id_covering ON "Inspection_Header" ("InspectionID", "AreaID", "KawasanID", "DetailKawasanID", "InspectorID")`,
+	}
 
-		-- Index untuk mempercepat slow SQL filter inspection (IN subquery + status + created_at)
-		-- Sebelumnya: 300-440ms. Target: <50ms dengan covering index
-		CREATE INDEX IF NOT EXISTS idx_insp_hdr_area_status_created ON "Inspection_Header" ("AreaID", "InspectionHeaderStatus", "InspectionHeaderCreatedAt" DESC);
-		CREATE INDEX IF NOT EXISTS idx_insp_hdr_inspector_created ON "Inspection_Header" ("InspectorID", "InspectionHeaderCreatedAt" DESC);
-		-- Covering index untuk subquery Area_Master: mempercepat IN (SELECT AreaID FROM Area_Master WHERE PlantID = ...)
-		CREATE INDEX IF NOT EXISTS idx_area_master_plant_areaid ON "Area_Master" ("PlantID", "AreaID") INCLUDE ("AreaName");
-		-- Activity_Log: index tambahan untuk filter by module + action
-		CREATE INDEX IF NOT EXISTS idx_activitylog_table_action ON "Activity_Log" ("TableAffected", "ActivityAction", "ActivityCreatedAt" DESC);
-
-		-- kawasan_aspek: slow query SELECT * WHERE KawasanID (298ms)
-		CREATE INDEX IF NOT EXISTS idx_kawasan_aspek_kawasanid_aspekid ON "kawasan_aspek" ("KawasanID", "AspekID");
-
-		-- HEI_Master: slow query DISTINCT CategoryName WHERE Status (352ms)
-		-- count(*) tidak bisa dibantu index, tapi bisa pakai cache (1 jam TTL)
-		CREATE INDEX IF NOT EXISTS idx_hei_master_status_cat ON "HEI_Master" ("Status", "CategoryName");
-		CREATE INDEX IF NOT EXISTS idx_hei_master_heiid ON "HEI_Master" ("HEID");
-
-		-- DetailKawasan_Master: diperlukan untuk JOIN di GetByID inspection header
-		CREATE INDEX IF NOT EXISTS idx_detail_kawasan_kawasanid ON "DetailKawasan_Master" ("KawasanID");
-		CREATE INDEX IF NOT EXISTS idx_detail_kawasan_areaid ON "DetailKawasan_Master" ("AreaID");
-
-		-- Kawasan_Master: diperlukan untuk JOIN di inspection header
-		CREATE INDEX IF NOT EXISTS idx_kawasan_areaid ON "Kawasan_Master" ("AreaID");
-
-		-- PIC_Mapping: covering index untuk (AreaID, KawasanID) query count + select
-		CREATE INDEX IF NOT EXISTS idx_pic_mapping_area_kaw_covering ON "PIC_Mapping" ("AreaID", "KawasanID", "UserID");
-
-		-- Inspection_Header: covering index untuk GetByID JOIN query
-		-- Primary key sudah ada, tapi index ini membantu JOIN resolver
-		CREATE INDEX IF NOT EXISTS idx_insp_hdr_id_covering ON "Inspection_Header" ("InspectionID", "AreaID", "KawasanID", "DetailKawasanID", "InspectorID");
-	`)
+	for _, stmt := range sqlStatements {
+		_ = db.Exec(stmt).Error
+	}
 
 	return db, nil
 }

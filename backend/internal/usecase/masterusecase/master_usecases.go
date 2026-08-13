@@ -2,7 +2,6 @@ package masterusecase
 
 import (
 	"github.com/monitoring-system/backend/internal/domain/master"
-	"github.com/monitoring-system/backend/pkg/idgen"
 )
 
 // ── Department ────────────────────────────────────────────────────────────
@@ -19,7 +18,6 @@ func (uc *departmentUseCase) GetByID(id string) (*master.Department, error) {
 	return uc.repo.FindByID(id)
 }
 func (uc *departmentUseCase) Create(d *master.Department) error {
-	d.DepartmentID = idgen.Generate(idgen.PrefixDepartment)
 	return uc.repo.Create(d)
 }
 func (uc *departmentUseCase) Update(d *master.Department) error { return uc.repo.Update(d) }
@@ -37,7 +35,6 @@ func (uc *areaUseCase) GetAll(page, limit int, plantID, search string) ([]master
 }
 func (uc *areaUseCase) GetByID(id string) (*master.Area, error) { return uc.repo.FindByID(id) }
 func (uc *areaUseCase) Create(a *master.Area) error {
-	a.AreaID = idgen.Generate(idgen.PrefixArea)
 	return uc.repo.Create(a)
 }
 func (uc *areaUseCase) Update(a *master.Area) error { return uc.repo.Update(a) }
@@ -58,7 +55,6 @@ func (uc *kawasanUseCase) GetByAreaID(areaID string) ([]master.Kawasan, error) {
 	return uc.repo.FindByAreaID(areaID)
 }
 func (uc *kawasanUseCase) Create(k *master.Kawasan) error {
-	k.KawasanID = idgen.Generate(idgen.PrefixKawasan)
 	return uc.repo.Create(k)
 }
 func (uc *kawasanUseCase) Update(k *master.Kawasan) error { return uc.repo.Update(k) }
@@ -83,7 +79,6 @@ func (uc *detailKawasanUseCase) GetByKawasanID(kawasanID string) ([]master.Detai
 	return uc.repo.FindByKawasanID(kawasanID)
 }
 func (uc *detailKawasanUseCase) Create(dk *master.DetailKawasan) error {
-	dk.DetailKawasanID = idgen.Generate(idgen.PrefixDetailKawasan)
 	return uc.repo.Create(dk)
 }
 func (uc *detailKawasanUseCase) Update(dk *master.DetailKawasan) error { return uc.repo.Update(dk) }
@@ -104,7 +99,6 @@ func (uc *aspekUseCase) GetByAreaID(areaID string) ([]master.Aspek, error) {
 	return uc.repo.FindByAreaID(areaID)
 }
 func (uc *aspekUseCase) Create(a *master.Aspek) error {
-	a.AspekID = idgen.Generate(idgen.PrefixAspek)
 	return uc.repo.Create(a)
 }
 func (uc *aspekUseCase) Update(a *master.Aspek) error { return uc.repo.Update(a) }
@@ -125,7 +119,6 @@ func (uc *detailUseCase) GetByAspekID(aspekID string) ([]master.Detail, error) {
 	return uc.repo.FindByAspekID(aspekID)
 }
 func (uc *detailUseCase) Create(d *master.Detail) error {
-	d.DetailID = idgen.Generate(idgen.PrefixDetail)
 	return uc.repo.Create(d)
 }
 func (uc *detailUseCase) Update(d *master.Detail) error { return uc.repo.Update(d) }
@@ -146,7 +139,6 @@ func (uc *uraianUseCase) GetByDetailID(detailID string) ([]master.Uraian, error)
 	return uc.repo.FindByDetailID(detailID)
 }
 func (uc *uraianUseCase) Create(u *master.Uraian) error {
-	u.UraianID = idgen.Generate(idgen.PrefixUraian)
 	return uc.repo.Create(u)
 }
 func (uc *uraianUseCase) Update(u *master.Uraian) error { return uc.repo.Update(u) }

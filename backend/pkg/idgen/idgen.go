@@ -3,8 +3,11 @@ package idgen
 import (
 	"crypto/rand"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // counter is a naive in-memory counter for sequential ID generation within the same second.
@@ -34,6 +37,45 @@ func GenerateRandom(prefix string) string {
 	randomHex := fmt.Sprintf("%x", randomBytes)
 
 	return fmt.Sprintf("%s-%s-%s", prefix, today, randomHex)
+}
+
+// GenerateSequential queries DB for the highest existing ID with prefix and returns next padded ID.
+// Example: PREFIX="DEPT", digits=3 -> DEPT-008
+func GenerateSequential(db *gorm.DB, tableName, columnName, prefix string, digits int) string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	var lastID string
+	// Find latest ID matching prefix pattern
+	err := db.Table(tableName).
+		Select(fmt.Sprintf("\"%s\"", columnName)).
+		Where(fmt.Sprintf("\"%s\" LIKE ?", columnName), prefix+"-%").
+		Order(fmt.Sprintf("LENGTH(\"%s\") DESC, \"%s\" DESC", columnName, columnName)).
+		Limit(1).
+		Scan(&lastID).Error
+
+	nextNum := 1
+	if err == nil && lastID != "" {
+		parts := strings.Split(lastID, "-")
+		if len(parts) > 0 {
+			numStr := parts[len(parts)-1]
+			var n int
+			if _, parseErr := fmt.Sscanf(numStr, "%d", &n); parseErr == nil && n > 0 {
+				nextNum = n + 1
+			}
+		}
+	}
+
+	if nextNum == 1 {
+		var count int64
+		db.Table(tableName).Count(&count)
+		if count > 0 {
+			nextNum = int(count) + 1
+		}
+	}
+
+	formatStr := fmt.Sprintf("%%s-%%0%dd", digits)
+	return fmt.Sprintf(formatStr, prefix, nextNum)
 }
 
 // Predefined prefix constants — aligned with ERD table names.

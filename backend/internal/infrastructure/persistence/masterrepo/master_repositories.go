@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/monitoring-system/backend/internal/domain/master"
+	"github.com/monitoring-system/backend/pkg/idgen"
 	"gorm.io/gorm"
 )
 
@@ -31,7 +32,12 @@ func (r *departmentRepository) FindByID(id string) (*master.Department, error) {
 	return &item, err
 }
 
-func (r *departmentRepository) Create(d *master.Department) error { return r.db.Create(d).Error }
+func (r *departmentRepository) Create(d *master.Department) error {
+	if d.DepartmentID == "" {
+		d.DepartmentID = idgen.GenerateSequential(r.db, "Department_Master", "DepartmentID", "DEPT", 3)
+	}
+	return r.db.Create(d).Error
+}
 func (r *departmentRepository) Update(d *master.Department) error { return r.db.Save(d).Error }
 func (r *departmentRepository) Delete(id string) error {
 	return r.db.Where("\"DepartmentID\" = ?", id).Delete(&master.Department{}).Error
@@ -68,7 +74,12 @@ func (r *areaRepository) FindByID(id string) (*master.Area, error) {
 	return &item, err
 }
 
-func (r *areaRepository) Create(a *master.Area) error { return r.db.Create(a).Error }
+func (r *areaRepository) Create(a *master.Area) error {
+	if a.AreaID == "" {
+		a.AreaID = idgen.GenerateSequential(r.db, "Area_Master", "AreaID", "AREA", 3)
+	}
+	return r.db.Create(a).Error
+}
 func (r *areaRepository) Update(a *master.Area) error { return r.db.Save(a).Error }
 func (r *areaRepository) Delete(id string) error {
 	return r.db.Where("\"AreaID\" = ?", id).Delete(&master.Area{}).Error
@@ -114,7 +125,12 @@ func (r *kawasanRepository) FindByAreaID(areaID string) ([]master.Kawasan, error
 	return items, err
 }
 
-func (r *kawasanRepository) Create(k *master.Kawasan) error { return r.db.Create(k).Error }
+func (r *kawasanRepository) Create(k *master.Kawasan) error {
+	if k.KawasanID == "" {
+		k.KawasanID = idgen.GenerateSequential(r.db, "Kawasan_Master", "KawasanID", "KWS", 3)
+	}
+	return r.db.Create(k).Error
+}
 func (r *kawasanRepository) Update(k *master.Kawasan) error { return r.db.Save(k).Error }
 func (r *kawasanRepository) UpdateLastInspection(id string, lastInspection time.Time) error {
 	return r.db.Model(&master.Kawasan{}).Where("\"KawasanID\" = ?", id).Update("LastInspection", lastInspection).Error
@@ -182,6 +198,9 @@ func (r *detailKawasanRepository) FindAllByAreaID(areaID string) ([]master.Detai
 }
 
 func (r *detailKawasanRepository) Create(dk *master.DetailKawasan) error {
+	if dk.DetailKawasanID == "" {
+		dk.DetailKawasanID = idgen.GenerateSequential(r.db, "DetailKawasan_Master", "DetailKawasanID", "DKWS", 3)
+	}
 	return r.db.Create(dk).Error
 }
 func (r *detailKawasanRepository) Update(dk *master.DetailKawasan) error { return r.db.Save(dk).Error }
@@ -232,7 +251,12 @@ func (r *aspekRepository) FindByAreaID(areaID string) ([]master.Aspek, error) {
 	return items, err
 }
 
-func (r *aspekRepository) Create(a *master.Aspek) error { return r.db.Create(a).Error }
+func (r *aspekRepository) Create(a *master.Aspek) error {
+	if a.AspekID == "" {
+		a.AspekID = idgen.GenerateSequential(r.db, "Aspek_Master", "AspekID", "ASP", 3)
+	}
+	return r.db.Create(a).Error
+}
 func (r *aspekRepository) Update(a *master.Aspek) error { return r.db.Save(a).Error }
 func (r *aspekRepository) Delete(id string) error {
 	return r.db.Where("\"AspekID\" = ?", id).Delete(&master.Aspek{}).Error
@@ -279,7 +303,12 @@ func (r *detailRepository) FindByAspekID(aspekID string) ([]master.Detail, error
 	return items, err
 }
 
-func (r *detailRepository) Create(d *master.Detail) error { return r.db.Create(d).Error }
+func (r *detailRepository) Create(d *master.Detail) error {
+	if d.DetailID == "" {
+		d.DetailID = idgen.GenerateSequential(r.db, "Detail_Master", "DetailID", "DET", 3)
+	}
+	return r.db.Create(d).Error
+}
 func (r *detailRepository) Update(d *master.Detail) error { return r.db.Save(d).Error }
 func (r *detailRepository) Delete(id string) error {
 	return r.db.Where("\"DetailID\" = ?", id).Delete(&master.Detail{}).Error
@@ -326,7 +355,12 @@ func (r *uraianRepository) FindByDetailID(detailID string) ([]master.Uraian, err
 	return items, err
 }
 
-func (r *uraianRepository) Create(u *master.Uraian) error { return r.db.Create(u).Error }
+func (r *uraianRepository) Create(u *master.Uraian) error {
+	if u.UraianID == "" {
+		u.UraianID = idgen.GenerateSequential(r.db, "Uraian_Master", "UraianID", "URN", 3)
+	}
+	return r.db.Create(u).Error
+}
 func (r *uraianRepository) Update(u *master.Uraian) error { return r.db.Save(u).Error }
 func (r *uraianRepository) Delete(id string) error {
 	return r.db.Where("\"UraianID\" = ?", id).Delete(&master.Uraian{}).Error
