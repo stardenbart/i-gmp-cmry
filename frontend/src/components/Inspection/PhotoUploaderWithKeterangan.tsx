@@ -286,7 +286,15 @@ export function PhotoUploaderWithKeterangan({
                           return;
                         }
 
-                        target.style.display = "none";
+                        // If image still fails to load, replace with broken badge UI
+                        const parentNode = target.parentNode as HTMLElement;
+                        if (parentNode) {
+                          target.style.display = "none";
+                          const fallbackDiv = document.createElement("div");
+                          fallbackDiv.className = "w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 p-2 text-center text-[10px] font-medium gap-1";
+                          fallbackDiv.innerHTML = `<svg class="h-4 w-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><span>Berkas Hilang</span><span class="text-[9px] text-muted-foreground">Klik Sampah (Hapus)</span>`;
+                          parentNode.appendChild(fallbackDiv);
+                        }
                       }}
                     />
                   ) : (
