@@ -102,6 +102,8 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		CREATE INDEX IF NOT EXISTS idx_issue_photo_issueid_createdat ON "Issue_Photo" ("IssueID", "PhotoCreatedAt" ASC);
 		CREATE INDEX IF NOT EXISTS idx_issue_resultid ON "Issue" ("ResultID");
 		CREATE INDEX IF NOT EXISTS idx_issue_createdat ON "Issue" ("IssueCreatedAt" DESC);
+		CREATE INDEX IF NOT EXISTS idx_notification_userid ON "Notification" ("UserID");
+		CREATE INDEX IF NOT EXISTS idx_notification_userid_createdat ON "Notification" ("UserID", "CreatedAt" DESC);
 	`)
 
 	return db, nil
