@@ -266,19 +266,26 @@ export function PhotoUploaderWithKeterangan({
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         const target = e.currentTarget as HTMLImageElement;
-                        if (target.src.includes(":9000/") || target.src.includes("monitoring-audit-bucket")) {
-                          const uploadPathIdx = target.src.indexOf("/uploads/");
-                          if (uploadPathIdx !== -1) {
-                            const currentHost = typeof window !== "undefined" ? window.location.hostname : "localhost";
-                            const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
-                            target.src = `${protocol}//${currentHost}:8080${target.src.substring(uploadPathIdx)}`;
-                            return;
-                          }
+                        const currentSrc = target.src;
+
+                        // 1. If URL has no image extension, try appending .jpg
+                        if (!currentSrc.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i)) {
+                          target.src = currentSrc + ".jpg";
+                          return;
                         }
+
+                        // 2. If .jpg failed, try .png
+                        if (currentSrc.endsWith(".jpg")) {
+                          target.src = currentSrc.replace(/\.jpg$/, ".png");
+                          return;
+                        }
+
+                        // 3. Fallback to local file object blob if available
                         if (item.file) {
                           target.src = URL.createObjectURL(item.file);
                           return;
                         }
+
                         target.style.display = "none";
                       }}
                     />

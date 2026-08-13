@@ -79,10 +79,17 @@ export const inspectionApi = {
   },
 
   releaseLock: async (scopeId: string, aspekId: string, lockToken: string) => {
-    const res = await api.delete(`/inspeksi/${scopeId}/${aspekId}/lock`, {
-      headers: { "X-Lock-Token": lockToken },
-    });
-    return res.data;
+    try {
+      const res = await api.delete(`/inspeksi/${scopeId}/${aspekId}/lock`, {
+        headers: { "X-Lock-Token": lockToken },
+      });
+      return res.data;
+    } catch (err: any) {
+      if (err?.response?.status === 403 || err?.response?.status === 404 || err?.response?.status === 409) {
+        return { success: true };
+      }
+      throw err;
+    }
   },
 
   saveAspekDraft: async (
