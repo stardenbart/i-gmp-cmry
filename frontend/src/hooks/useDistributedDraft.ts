@@ -27,6 +27,9 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
   const [mergedPhotosMap, setMergedPhotosMap] = useState<Record<string, PhotoItem[]>>({});
   const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
   const debounceTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  // Foto debounce terpisah (2s) agar base64 besar tidak ikut setiap keystroke
+  const photoDebounceRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const lastPhotoHashRef = useRef<Record<string, string>>({});
 
   // Fetch all draft states from Redis using Batching + Chunking
   const fetchAllDrafts = useCallback(
@@ -81,7 +84,17 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
                       formDefaults[`ket_${key}`] = val.keterangan;
                     }
                     if (Array.isArray(val.photos) && val.photos.length > 0) {
-                      photosMap[key] = val.photos;
+                      // Filter out placeholder yang belum ada foto penuhnya
+                      // __base64_pending__ = foto sedang menunggu sync penuh (2s debounce)
+                      const validPhotos = val.photos.filter(
+                        (p: any) => p.previewUrl !== "__base64_pending__"
+                      );
+                      if (validPhotos.length > 0) {
+                        photosMap[key] = validPhotos;
+                      } else if (val.photos.length > 0) {
+                        // Tetap simpan metadata foto (id, keterangan, hei) walau previewUrl pending
+                        photosMap[key] = val.photos.map((p: any) => ({ ...p, previewUrl: "" }));
+                      }
                     }
                   }
                 });
@@ -111,6 +124,7 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
   }, [fetchAllDrafts]);
 
   // Save single aspect draft to Redis with debounce
+  // Foto base64 hanya di-sync saat benar-benar berubah (debounce 2s) untuk hemat bandwidth
   const saveAspekDraft = useCallback(
     (
       aspekId: string,
@@ -119,6 +133,32 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
       skor: number = 0
     ) => {
       if (!inspectionId || !aspekId || !lockToken) return;
+
+      // Hitung hash foto sederhana untuk deteksi perubahan
+      const photoHash = JSON.stringify(
+        Object.fromEntries(
+          Object.entries(aspekDataPayload).map(([k, v]) => [
+            k,
+            (v.photos || []).map((p) => p.id + (p.previewUrl?.length || 0)).join(","),
+          ])
+        )
+      );
+      const photosChanged = photoHash !== lastPhotoHashRef.current[aspekId];
+
+      // Payload tanpa base64 untuk sync metadata cepat (per keystroke)
+      const metadataPayload = Object.fromEntries(
+        Object.entries(aspekDataPayload).map(([k, v]) => [
+          k,
+          {
+            ...v,
+            photos: (v.photos || []).map((p) => ({
+              ...p,
+              // Strip base64 dari metadata payload — hanya kirim saat foto berubah
+              previewUrl: p.previewUrl?.startsWith("data:") ? "__base64_pending__" : p.previewUrl || "",
+            })),
+          },
+        ])
+      );
 
       // Clear existing debounce timer for this aspek
       if (debounceTimersRef.current[aspekId]) {
@@ -136,17 +176,35 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
         },
       }));
 
-      // Debounce call to Redis API (500ms)
+      // Debounce metadata (tanpa base64) ke Redis (500ms per keystroke)
       debounceTimersRef.current[aspekId] = setTimeout(async () => {
         try {
           await inspectionApi.saveAspekDraft(inspectionId, aspekId, lockToken, {
-            data: aspekDataPayload,
+            data: metadataPayload,
             skor,
           });
         } catch (e) {
-          console.warn(`Background save to Redis failed for aspek ${aspekId}:`, e);
+          console.warn(`Background save metadata to Redis failed for aspek ${aspekId}:`, e);
         }
       }, 500);
+
+      // Sync foto penuh (dengan base64) hanya saat ada perubahan foto (debounce 2s)
+      if (photosChanged) {
+        lastPhotoHashRef.current[aspekId] = photoHash;
+        if (photoDebounceRef.current[aspekId]) {
+          clearTimeout(photoDebounceRef.current[aspekId]);
+        }
+        photoDebounceRef.current[aspekId] = setTimeout(async () => {
+          try {
+            await inspectionApi.saveAspekDraft(inspectionId, aspekId, lockToken, {
+              data: aspekDataPayload, // Full payload dengan base64
+              skor,
+            });
+          } catch (e) {
+            console.warn(`Background save photos to Redis failed for aspek ${aspekId}:`, e);
+          }
+        }, 2000);
+      }
     },
     [inspectionId]
   );
