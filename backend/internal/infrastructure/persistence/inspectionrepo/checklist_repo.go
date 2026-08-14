@@ -1,6 +1,7 @@
 package inspectionrepo
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -65,92 +66,117 @@ var checklistSFGroup   singleflight.Group
 var aspekStructSFGroup singleflight.Group
 
 func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID string) (*inspection.FullChecklist, error) {
-	// Cache layer 2: full checklist per inspectionID (2 menit TTL)
+	// Fast path: Cache layer 2 (full checklist per inspectionID, 2 min TTL)
 	if inspectionID != "" {
 		if cached, ok := globalFullChecklistCache.Load(inspectionID); ok {
 			return cached, nil
 		}
 	}
 
-	// Cache layer 1: aspek structure per areaID (1 jam TTL — master data jarang berubah)
-	var aspeks []master.Aspek
-	if cached, ok := globalAspekChecklistCache.Load(areaID); ok {
-		aspeks = cached
-	}
-
-	if len(aspeks) == 0 {
-		sfKey := "aspek-struct:" + areaID
-		result, err, _ := aspekStructSFGroup.Do(sfKey, func() (interface{}, error) {
-			// Re-check cache inside singleflight to avoid race between waiters
-			if cached, ok := globalAspekChecklistCache.Load(areaID); ok {
+	// Slow path: singleflight per inspectionID & areaID
+	// Saat 200 VU concurrent hit cache miss untuk inspectionID yang sama,
+	// hanya 1 goroutine yang query DB. 199 goroutine lain menunggu hasil dari 1 query tersebut.
+	sfKey := "checklist:" + areaID + ":" + inspectionID
+	result, err, _ := checklistSFGroup.Do(sfKey, func() (interface{}, error) {
+		// Re-check cache di dalam singleflight
+		if inspectionID != "" {
+			if cached, ok := globalFullChecklistCache.Load(inspectionID); ok {
 				return cached, nil
 			}
+		}
 
-			var dbAspeks []master.Aspek
-			dbErr := r.db.
-				Preload("Details.Urains").
-				Where(`"AreaID" = ?`, areaID).
-				Find(&dbAspeks).Error
+		// Cache layer 1: aspek structure per areaID (1 jam TTL — master data jarang berubah)
+		var aspeks []master.Aspek
+		if cached, ok := globalAspekChecklistCache.Load(areaID); ok {
+			aspeks = cached
+		}
+
+		if len(aspeks) == 0 {
+			aspekKey := "aspek-struct:" + areaID
+			res, dbErr, _ := aspekStructSFGroup.Do(aspekKey, func() (interface{}, error) {
+				if cached, ok := globalAspekChecklistCache.Load(areaID); ok {
+					return cached, nil
+				}
+				var dbAspeks []master.Aspek
+				err := r.db.
+					Preload("Details.Urains").
+					Where(`"AreaID" = ?`, areaID).
+					Find(&dbAspeks).Error
+				if err != nil {
+					return nil, err
+				}
+				globalAspekChecklistCache.Store(areaID, dbAspeks, 1*time.Hour)
+				return dbAspeks, nil
+			})
 			if dbErr != nil {
 				return nil, dbErr
 			}
-			globalAspekChecklistCache.Store(areaID, dbAspeks, 1*time.Hour)
-			return dbAspeks, nil
-		})
-		if err != nil {
-			return nil, err
+			aspeks = res.([]master.Aspek)
 		}
-		aspeks = result.([]master.Aspek)
-	}
 
-	// Fetch all InspectionResults untuk inspectionID ini dalam 1 query ringan
-	var results []inspection.InspectionResult
-	if inspectionID != "" {
-		r.db.Where(`"InspectionID" = ?`, inspectionID).Find(&results)
-	}
-	resultMap := make(map[string]*inspection.InspectionResult, len(results))
-	for i := range results {
-		resultMap[results[i].UraianID] = &results[i]
-	}
-
-	// Map ke DTO
-	checklist := &inspection.FullChecklist{
-		InspectionID: inspectionID,
-		AreaID:       areaID,
-		Aspeks:       make([]inspection.ChecklistAspek, 0, len(aspeks)),
-	}
-
-	for _, a := range aspeks {
-		ca := inspection.ChecklistAspek{
-			AspekID:   a.AspekID,
-			AspekName: a.AspekName,
-			Details:   make([]inspection.ChecklistDetail, 0, len(a.Details)),
-		}
-		for _, d := range a.Details {
-			cd := inspection.ChecklistDetail{
-				DetailID:   d.DetailID,
-				DetailName: d.DetailName,
-				Uraians:    make([]inspection.ChecklistUraian, 0, len(d.Urains)),
+		// Fetch all InspectionResults untuk inspectionID ini dalam 1 query ringan
+		var results []inspection.InspectionResult
+		if inspectionID != "" {
+			if dbErr := r.db.Where(`"InspectionID" = ?`, inspectionID).Find(&results).Error; dbErr != nil {
+				return nil, dbErr
 			}
-			for _, u := range d.Urains {
-				cu := inspection.ChecklistUraian{
-					UraianID:      u.UraianID,
-					UraianText:    u.UraianText,
-					StandardScore: u.StandardScore,
-					Result:        resultMap[u.UraianID],
+		}
+		resultMap := make(map[string]*inspection.InspectionResult, len(results))
+		for i := range results {
+			resultMap[results[i].UraianID] = &results[i]
+		}
+
+		// Map ke DTO
+		checklist := &inspection.FullChecklist{
+			InspectionID: inspectionID,
+			AreaID:       areaID,
+			Aspeks:       make([]inspection.ChecklistAspek, 0, len(aspeks)),
+		}
+
+		for _, a := range aspeks {
+			ca := inspection.ChecklistAspek{
+				AspekID:   a.AspekID,
+				AspekName: a.AspekName,
+				Details:   make([]inspection.ChecklistDetail, 0, len(a.Details)),
+			}
+			for _, d := range a.Details {
+				cd := inspection.ChecklistDetail{
+					DetailID:   d.DetailID,
+					DetailName: d.DetailName,
+					Uraians:    make([]inspection.ChecklistUraian, 0, len(d.Urains)),
 				}
-				cd.Uraians = append(cd.Uraians, cu)
+				for _, u := range d.Urains {
+					cu := inspection.ChecklistUraian{
+						UraianID:      u.UraianID,
+						UraianText:    u.UraianText,
+						StandardScore: u.StandardScore,
+						Result:        resultMap[u.UraianID],
+					}
+					cd.Uraians = append(cd.Uraians, cu)
+				}
+				ca.Details = append(ca.Details, cd)
 			}
-			ca.Details = append(ca.Details, cd)
+			checklist.Aspeks = append(checklist.Aspeks, ca)
 		}
-		checklist.Aspeks = append(checklist.Aspeks, ca)
-	}
 
-	// Simpan full checklist ke cache per inspectionID (2 menit)
-	if inspectionID != "" {
-		globalFullChecklistCache.Store(inspectionID, checklist, 2*time.Minute)
-	}
+		// Simpan full checklist ke cache per inspectionID (2 menit)
+		if inspectionID != "" {
+			globalFullChecklistCache.Store(inspectionID, checklist, 2*time.Minute)
+		}
 
+		return checklist, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, errors.New("checklist not found")
+	}
+	checklist, ok := result.(*inspection.FullChecklist)
+	if !ok || checklist == nil {
+		return nil, errors.New("checklist not found")
+	}
 	return checklist, nil
 }
 
