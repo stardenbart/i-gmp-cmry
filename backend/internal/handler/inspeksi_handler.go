@@ -199,8 +199,11 @@ func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 		}
 	}
 
+	ctx, cancel := context.WithTimeout(c.UserContext(), 3*time.Second)
+	defer cancel()
+
 	if len(kawasanAspeks) == 0 {
-		h.db.Where("\"KawasanID\" = ?", kawasanID).Find(&kawasanAspeks)
+		h.db.WithContext(ctx).Where("\"KawasanID\" = ?", kawasanID).Find(&kawasanAspeks)
 		if len(kawasanAspeks) > 0 {
 			globalKawasanAspekCache.Store(kawasanID, kawasanAspekCacheItem{
 				aspeks:    kawasanAspeks,
@@ -211,7 +214,7 @@ func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 
 	statuses := make([]inspection.AspekLockStatus, 0, len(kawasanAspeks))
 	for _, ka := range kawasanAspeks {
-		info, err := h.lockMgr.GetLockInfo(c.Context(), kawasanID, ka.AspekID)
+		info, err := h.lockMgr.GetLockInfo(ctx, kawasanID, ka.AspekID)
 		if err != nil || info == nil {
 			statuses = append(statuses, inspection.AspekLockStatus{
 				AspekID: ka.AspekID,
@@ -230,14 +233,17 @@ func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 
 // GetDraftState - GET /api/v1/inspeksi/:kawasanId/:aspekId/state
 func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.UserContext(), 3*time.Second)
+	defer cancel()
+
 	scopeID := c.Params("kawasanId")
 	aspekID := c.Params("aspekId")
 
-	draft, err := h.lockMgr.GetDraftState(c.Context(), scopeID, aspekID)
+	draft, err := h.lockMgr.GetDraftState(ctx, scopeID, aspekID)
 	if (err != nil || len(draft) == 0) && h.db != nil {
 		var header inspection.InspectionHeader
-		if dbErr := h.db.Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
-			legacyDraft, _ := h.lockMgr.GetDraftState(c.Context(), header.KawasanID, aspekID)
+		if dbErr := h.db.WithContext(ctx).Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
+			legacyDraft, _ := h.lockMgr.GetDraftState(ctx, header.KawasanID, aspekID)
 			if len(legacyDraft) > 0 {
 				draft = legacyDraft
 			}
@@ -247,7 +253,7 @@ func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	lockInfo, _ := h.lockMgr.GetLockInfo(c.Context(), scopeID, aspekID)
+	lockInfo, _ := h.lockMgr.GetLockInfo(ctx, scopeID, aspekID)
 
 	return c.JSON(fiber.Map{
 		"success":   true,
@@ -258,20 +264,23 @@ func (h *InspeksiHandler) GetDraftState(c *fiber.Ctx) error {
 
 // GetAllAspekDraftState - GET /api/v1/inspeksi/:kawasanId/drafts
 func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.UserContext(), 3*time.Second)
+	defer cancel()
+
 	scopeID := c.Params("kawasanId")
 
 	drafts := make(map[string]map[string]string)
 	if h.rdb != nil {
 		pattern := fmt.Sprintf("state:aspek:%s:*", scopeID)
-		keys, err := h.rdb.Keys(c.Context(), pattern).Result()
+		keys, err := h.rdb.Keys(ctx, pattern).Result()
 
 		// Fallback / Auto-Migration: If no keys found under scopeID (e.g. inspectionId),
 		// check if scopeID corresponds to an inspection header and migrate legacy keys from kawasanID.
 		if (err != nil || len(keys) == 0) && h.db != nil {
 			var header inspection.InspectionHeader
-			if dbErr := h.db.Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
+			if dbErr := h.db.WithContext(ctx).Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
 				legacyPattern := fmt.Sprintf("state:aspek:%s:*", header.KawasanID)
-				legacyKeys, _ := h.rdb.Keys(c.Context(), legacyPattern).Result()
+				legacyKeys, _ := h.rdb.Keys(ctx, legacyPattern).Result()
 				if len(legacyKeys) > 0 {
 					for _, lKey := range legacyKeys {
 						parts := strings.Split(lKey, ":")
@@ -279,21 +288,21 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 							aspekID := parts[3]
 							newKey := fmt.Sprintf("state:aspek:%s:%s", scopeID, aspekID)
 							// Retrieve legacy hash and write to new scope key
-							if legacyData, getErr := h.rdb.HGetAll(c.Context(), lKey).Result(); getErr == nil && len(legacyData) > 0 {
+							if legacyData, getErr := h.rdb.HGetAll(ctx, lKey).Result(); getErr == nil && len(legacyData) > 0 {
 								args := make([]interface{}, 0, len(legacyData)*2)
 								for k, v := range legacyData {
 									args = append(args, k, v)
 								}
-								if setErr := h.rdb.HSet(c.Context(), newKey, args...).Err(); setErr != nil {
+								if setErr := h.rdb.HSet(ctx, newKey, args...).Err(); setErr != nil {
 									h.log.Warn("Failed to copy legacy Redis draft key", logger.Error(setErr))
 								} else {
-									_ = h.rdb.Expire(c.Context(), newKey, 24*time.Hour)
+									_ = h.rdb.Expire(ctx, newKey, 24*time.Hour)
 								}
 							}
 						}
 					}
 					// Re-query keys under new scopeID
-					keys, _ = h.rdb.Keys(c.Context(), pattern).Result()
+					keys, _ = h.rdb.Keys(ctx, pattern).Result()
 				}
 			}
 		}
@@ -306,10 +315,10 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 				parts := strings.Split(key, ":")
 				if len(parts) >= 4 {
 					aspekID := parts[3]
-					cmds[aspekID] = pipe.HGetAll(c.Context(), key)
+					cmds[aspekID] = pipe.HGetAll(ctx, key)
 				}
 			}
-			_, _ = pipe.Exec(c.Context())
+			_, _ = pipe.Exec(ctx)
 
 			for aspekID, cmd := range cmds {
 				draft, err := cmd.Result()
