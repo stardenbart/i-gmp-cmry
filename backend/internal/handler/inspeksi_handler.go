@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -272,7 +273,14 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 	drafts := make(map[string]map[string]string)
 	if h.rdb != nil {
 		pattern := fmt.Sprintf("state:aspek:%s:*", scopeID)
-		keys, err := h.rdb.Keys(ctx, pattern).Result()
+		
+		// Gunakan SCAN Iterator (non-blocking O(1) step) pengganti KEYS O(N) anti-pattern
+		var keys []string
+		iter := h.rdb.Scan(ctx, 0, pattern, 100).Iterator()
+		for iter.Next(ctx) {
+			keys = append(keys, iter.Val())
+		}
+		err := iter.Err()
 
 		// Fallback / Auto-Migration: If no keys found under scopeID (e.g. inspectionId),
 		// check if scopeID corresponds to an inspection header and migrate legacy keys from kawasanID.
@@ -280,7 +288,11 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 			var header inspection.InspectionHeader
 			if dbErr := h.db.WithContext(ctx).Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
 				legacyPattern := fmt.Sprintf("state:aspek:%s:*", header.KawasanID)
-				legacyKeys, _ := h.rdb.Keys(ctx, legacyPattern).Result()
+				var legacyKeys []string
+				legIter := h.rdb.Scan(ctx, 0, legacyPattern, 100).Iterator()
+				for legIter.Next(ctx) {
+					legacyKeys = append(legacyKeys, legIter.Val())
+				}
 				if len(legacyKeys) > 0 {
 					for _, lKey := range legacyKeys {
 						parts := strings.Split(lKey, ":")
@@ -301,8 +313,12 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 							}
 						}
 					}
-					// Re-query keys under new scopeID
-					keys, _ = h.rdb.Keys(ctx, pattern).Result()
+					// Re-scan keys under new scopeID
+					keys = nil
+					reIter := h.rdb.Scan(ctx, 0, pattern, 100).Iterator()
+					for reIter.Next(ctx) {
+						keys = append(keys, reIter.Val())
+					}
 				}
 			}
 		}
@@ -327,6 +343,14 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 				}
 			}
 		}
+	}
+
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "service busy, please try again",
+			"error":   "context deadline exceeded",
+		})
 	}
 
 	return c.JSON(fiber.Map{
