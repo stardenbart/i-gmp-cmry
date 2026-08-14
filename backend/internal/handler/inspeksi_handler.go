@@ -226,16 +226,46 @@ func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 		}
 	}
 
+	// Ambil semua lock status dalam SATU pipeline (bukan 5 serial GetLockInfo yang masing-masing
+	// melakukan 1 pipeline GET+TTL = 5 round-trips total untuk 5 aspek)
+	// Dengan bulk pipeline: semua key dikirim dalam 1 round-trip
 	statuses := make([]inspection.AspekLockStatus, 0, len(kawasanAspeks))
-	for _, ka := range kawasanAspeks {
-		info, err := h.lockMgr.GetLockInfo(ctx, kawasanID, ka.AspekID)
-		if err != nil || info == nil {
-			statuses = append(statuses, inspection.AspekLockStatus{
-				AspekID: ka.AspekID,
-				Status:  "FREE",
+	if len(kawasanAspeks) > 0 && h.lockMgr != nil {
+		pipe := h.rdb.Pipeline()
+		type pipeEntry struct {
+			aspekID string
+			getCmd  *redis.StringCmd
+			ttlCmd  *redis.DurationCmd
+		}
+		entries := make([]pipeEntry, 0, len(kawasanAspeks))
+		for _, ka := range kawasanAspeks {
+			key := fmt.Sprintf("lock:aspek:%s:%s", kawasanID, ka.AspekID)
+			entries = append(entries, pipeEntry{
+				aspekID: ka.AspekID,
+				getCmd:  pipe.Get(ctx, key),
+				ttlCmd:  pipe.TTL(ctx, key),
 			})
-		} else {
-			statuses = append(statuses, *info)
+		}
+		_, _ = pipe.Exec(ctx)
+
+		for _, e := range entries {
+			val, err := e.getCmd.Result()
+			if err != nil || val == "" {
+				statuses = append(statuses, inspection.AspekLockStatus{
+					AspekID: e.aspekID,
+					Status:  "FREE",
+				})
+			} else {
+				parts := strings.SplitN(val, ":", 3)
+				ttl, _ := e.ttlCmd.Result()
+				expiresAt := time.Now().Add(ttl)
+				statuses = append(statuses, inspection.AspekLockStatus{
+					AspekID:   e.aspekID,
+					Status:    "LOCKED",
+					LockedBy:  parts[0],
+					ExpiresAt: &expiresAt,
+				})
+			}
 		}
 	}
 

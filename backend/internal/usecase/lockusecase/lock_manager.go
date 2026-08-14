@@ -191,7 +191,14 @@ func (lm *LockManager) GetLockInfo(ctx context.Context, kawasanID, aspekID strin
 	}
 
 	key := fmt.Sprintf("lock:aspek:%s:%s", kawasanID, aspekID)
-	val, err := lm.redis.Get(ctx, key).Result()
+
+	// Pipeline GET + TTL dalam satu round-trip, bukan dua (mengurangi 50% Redis ops)
+	pipe := lm.redis.Pipeline()
+	getCmd := pipe.Get(ctx, key)
+	ttlCmd := pipe.TTL(ctx, key)
+	_, _ = pipe.Exec(ctx)
+
+	val, err := getCmd.Result()
 	if err == redis.Nil || val == "" {
 		return &inspection.AspekLockStatus{AspekID: aspekID, Status: "FREE"}, nil
 	}
@@ -199,9 +206,9 @@ func (lm *LockManager) GetLockInfo(ctx context.Context, kawasanID, aspekID strin
 		return nil, err
 	}
 
-	parts := strings.SplitN(val, ":", 3)
-	ttl, _ := lm.redis.TTL(ctx, key).Result()
+	ttl, _ := ttlCmd.Result()
 	expiresAt := time.Now().Add(ttl)
+	parts := strings.SplitN(val, ":", 3)
 
 	return &inspection.AspekLockStatus{
 		AspekID:   aspekID,
