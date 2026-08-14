@@ -18,6 +18,7 @@ import (
 	pkgkafka "github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/logger"
 	redis "github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
@@ -186,6 +187,18 @@ type kawasanAspekCacheItem struct {
 
 var globalKawasanAspekCache sync.Map
 
+// draftMigrationSFGroup coalesces concurrent DB lookups for the same scopeID
+// saat Redis kosong — mencegah thundering herd ke DB pool dari 200 VU bersamaan.
+var draftMigrationSFGroup singleflight.Group
+
+// looksLikeInspectionID returns true jika scopeID berformat InspectionID
+// (misal INSP-LT-001-01) bukan KawasanID (misal KWS-001).
+// Heuristic: InspectionID mengandung ≥3 segmen dipisah '-' dan dimulai 'INSP'.
+// Ini mencegah DB fallback yang sia-sia saat caller sudah menggunakan KawasanID.
+func looksLikeInspectionID(s string) bool {
+	return strings.HasPrefix(strings.ToUpper(s), "INSP") && strings.Count(s, "-") >= 3
+}
+
 // GetKawasanStatus - GET /api/v1/inspeksi/:kawasanId/status
 func (h *InspeksiHandler) GetKawasanStatus(c *fiber.Ctx) error {
 	kawasanID := c.Params("kawasanId")
@@ -282,12 +295,25 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 		}
 		err := iter.Err()
 
-		// Fallback / Auto-Migration: If no keys found under scopeID (e.g. inspectionId),
-		// check if scopeID corresponds to an inspection header and migrate legacy keys from kawasanID.
-		if (err != nil || len(keys) == 0) && h.db != nil {
-			var header inspection.InspectionHeader
-			if dbErr := h.db.WithContext(ctx).Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil && header.KawasanID != "" {
-				legacyPattern := fmt.Sprintf("state:aspek:%s:*", header.KawasanID)
+		// Fallback / Auto-Migration: hanya dijalankan jika:
+		//   1. SCAN tidak menemukan key (belum ada draft atau scope baru)
+		//   2. scopeID berbentuk InspectionID (misal INSP-LT-001-01) — bukan KawasanID
+		//      Kalau caller sudah pakai KawasanID (KWS-001), SCAN 0 hasil = belum ada draft → stop.
+		//   3. Dikemas dalam singleflight agar 200 VU yang bersamaan hanya memicu 1 DB query
+		if (err != nil || len(keys) == 0) && h.db != nil && looksLikeInspectionID(scopeID) {
+			type migResult struct {
+				kawasanID string
+			}
+			v, _, _ := draftMigrationSFGroup.Do(scopeID, func() (interface{}, error) {
+				var header inspection.InspectionHeader
+				if dbErr := h.db.WithContext(ctx).Where("\"InspectionID\" = ?", scopeID).First(&header).Error; dbErr == nil {
+					return &migResult{kawasanID: header.KawasanID}, nil
+				}
+				return &migResult{}, nil
+			})
+
+			if res, ok := v.(*migResult); ok && res.kawasanID != "" {
+				legacyPattern := fmt.Sprintf("state:aspek:%s:*", res.kawasanID)
 				var legacyKeys []string
 				legIter := h.rdb.Scan(ctx, 0, legacyPattern, 100).Iterator()
 				for legIter.Next(ctx) {
@@ -299,7 +325,6 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 						if len(parts) >= 4 {
 							aspekID := parts[3]
 							newKey := fmt.Sprintf("state:aspek:%s:%s", scopeID, aspekID)
-							// Retrieve legacy hash and write to new scope key
 							if legacyData, getErr := h.rdb.HGetAll(ctx, lKey).Result(); getErr == nil && len(legacyData) > 0 {
 								args := make([]interface{}, 0, len(legacyData)*2)
 								for k, v := range legacyData {
@@ -313,7 +338,7 @@ func (h *InspeksiHandler) GetAllAspekDraftState(c *fiber.Ctx) error {
 							}
 						}
 					}
-					// Re-scan keys under new scopeID
+					// Re-scan keys under new scopeID after migration
 					keys = nil
 					reIter := h.rdb.Scan(ctx, 0, pattern, 100).Iterator()
 					for reIter.Next(ctx) {
