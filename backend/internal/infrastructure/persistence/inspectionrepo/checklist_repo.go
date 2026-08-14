@@ -9,64 +9,81 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-type aspekChecklistCacheItem struct {
-	aspeks    []master.Aspek
+// ─── Generic mutex-protected TTL cache ───────────────────────────────────────
+// sync.Map di Go 1.26 menggunakan HashTrieMap yang panic dengan error
+// "ran out of hash bits" saat concurrent Store/Delete tanpa sinkronisasi.
+// Semua cache dalam package ini menggunakan pattern ini.
+
+type ttlEntry[V any] struct {
+	value     V
 	expiresAt time.Time
 }
 
-// Cache layer 2: full checklist per inspectionID (termasuk results)
-type fullChecklistCacheItem struct {
-	checklist *inspection.FullChecklist
-	expiresAt time.Time
+type ttlCache[V any] struct {
+	mu    sync.RWMutex
+	items map[string]ttlEntry[V]
 }
 
-var globalAspekChecklistCache sync.Map
-var globalFullChecklistCache  sync.Map
+func newTTLCache[V any]() *ttlCache[V] {
+	return &ttlCache[V]{items: make(map[string]ttlEntry[V])}
+}
+
+func (c *ttlCache[V]) Load(key string) (V, bool) {
+	c.mu.RLock()
+	entry, ok := c.items[key]
+	c.mu.RUnlock()
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	if time.Now().After(entry.expiresAt) {
+		c.Delete(key) // lazy eviction
+		var zero V
+		return zero, false
+	}
+	return entry.value, true
+}
+
+func (c *ttlCache[V]) Store(key string, value V, ttl time.Duration) {
+	c.mu.Lock()
+	c.items[key] = ttlEntry[V]{value: value, expiresAt: time.Now().Add(ttl)}
+	c.mu.Unlock()
+}
+
+func (c *ttlCache[V]) Delete(key string) {
+	c.mu.Lock()
+	delete(c.items, key)
+	c.mu.Unlock()
+}
+
+// ─── Cache singletons ────────────────────────────────────────────────────────
+var globalAspekChecklistCache = newTTLCache[[]master.Aspek]()
+var globalFullChecklistCache  = newTTLCache[*inspection.FullChecklist]()
 
 // singleflight groups — mencegah cache stampede saat 200 VU concurrent hit cache miss bersamaan.
-// Hanya satu goroutine yang query DB, sisanya menunggu dan menerima hasil yang sama.
 var checklistSFGroup   singleflight.Group
 var aspekStructSFGroup singleflight.Group
 
 func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID string) (*inspection.FullChecklist, error) {
 	// Cache layer 2: full checklist per inspectionID (2 menit TTL)
 	if inspectionID != "" {
-		if val, ok := globalFullChecklistCache.Load(inspectionID); ok {
-			item := val.(fullChecklistCacheItem)
-			if time.Now().Before(item.expiresAt) {
-				return item.checklist, nil
-			}
-			globalFullChecklistCache.Delete(inspectionID)
+		if cached, ok := globalFullChecklistCache.Load(inspectionID); ok {
+			return cached, nil
 		}
 	}
 
 	// Cache layer 1: aspek structure per areaID (1 jam TTL — master data jarang berubah)
-	// Gunakan singleflight agar saat 200 VU concurrent miss cache secara bersamaan,
-	// hanya 1 goroutine yang query DB. Sisanya menunggu hasil yang sama.
-	type aspekResult struct {
-		aspeks []master.Aspek
-		err    error
-	}
-
 	var aspeks []master.Aspek
-	if val, ok := globalAspekChecklistCache.Load(areaID); ok {
-		item := val.(aspekChecklistCacheItem)
-		if time.Now().Before(item.expiresAt) {
-			aspeks = item.aspeks
-		} else {
-			globalAspekChecklistCache.Delete(areaID)
-		}
+	if cached, ok := globalAspekChecklistCache.Load(areaID); ok {
+		aspeks = cached
 	}
 
 	if len(aspeks) == 0 {
 		sfKey := "aspek-struct:" + areaID
 		result, err, _ := aspekStructSFGroup.Do(sfKey, func() (interface{}, error) {
 			// Re-check cache inside singleflight to avoid race between waiters
-			if val, ok := globalAspekChecklistCache.Load(areaID); ok {
-				item := val.(aspekChecklistCacheItem)
-				if time.Now().Before(item.expiresAt) {
-					return item.aspeks, nil
-				}
+			if cached, ok := globalAspekChecklistCache.Load(areaID); ok {
+				return cached, nil
 			}
 
 			var dbAspeks []master.Aspek
@@ -77,10 +94,7 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 			if dbErr != nil {
 				return nil, dbErr
 			}
-			globalAspekChecklistCache.Store(areaID, aspekChecklistCacheItem{
-				aspeks:    dbAspeks,
-				expiresAt: time.Now().Add(1 * time.Hour),
-			})
+			globalAspekChecklistCache.Store(areaID, dbAspeks, 1*time.Hour)
 			return dbAspeks, nil
 		})
 		if err != nil {
@@ -134,10 +148,7 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 
 	// Simpan full checklist ke cache per inspectionID (2 menit)
 	if inspectionID != "" {
-		globalFullChecklistCache.Store(inspectionID, fullChecklistCacheItem{
-			checklist: checklist,
-			expiresAt: time.Now().Add(2 * time.Minute),
-		})
+		globalFullChecklistCache.Store(inspectionID, checklist, 2*time.Minute)
 	}
 
 	return checklist, nil
@@ -148,3 +159,5 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 func InvalidateChecklistCache(inspectionID string) {
 	globalFullChecklistCache.Delete(inspectionID)
 }
+
+

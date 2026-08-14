@@ -11,13 +11,54 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// ─── Thread-safe TTL cache pengganti sync.Map ───────────────────────────────
+// sync.Map di Go 1.26 menggunakan HashTrieMap yang panic dengan error
+// "ran out of hash bits" saat concurrent Store/Delete tanpa sinkronisasi.
+// Ganti dengan RWMutex-protected map yang provably safe.
+
 type inspHeaderCacheItem struct {
 	header    *inspection.InspectionHeader
 	expiresAt time.Time
 }
 
-var globalInspHeaderCache  sync.Map
-var inspHeaderSFGroup      singleflight.Group // mencegah cache stampede saat VU concurrent miss
+type inspHeaderCache struct {
+	mu    sync.RWMutex
+	items map[string]inspHeaderCacheItem
+}
+
+func newInspHeaderCache() *inspHeaderCache {
+	return &inspHeaderCache{items: make(map[string]inspHeaderCacheItem)}
+}
+
+func (c *inspHeaderCache) Load(key string) (*inspection.InspectionHeader, bool) {
+	c.mu.RLock()
+	item, ok := c.items[key]
+	c.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	if time.Now().After(item.expiresAt) {
+		c.Delete(key) // lazy eviction
+		return nil, false
+	}
+	return item.header, true
+}
+
+func (c *inspHeaderCache) Store(key string, header *inspection.InspectionHeader, ttl time.Duration) {
+	c.mu.Lock()
+	c.items[key] = inspHeaderCacheItem{header: header, expiresAt: time.Now().Add(ttl)}
+	c.mu.Unlock()
+}
+
+func (c *inspHeaderCache) Delete(key string) {
+	c.mu.Lock()
+	delete(c.items, key)
+	c.mu.Unlock()
+}
+
+// ─── Package-level singletons ────────────────────────────────────────────────
+var globalInspHeaderCache = newInspHeaderCache()
+var inspHeaderSFGroup     singleflight.Group // cache stampede prevention
 
 // ── Inspection Header ─────────────────────────────────────────────────────
 
@@ -49,24 +90,17 @@ func (r *inspectionHeaderRepository) FindAll(page, limit int, plantID, areaID, s
 }
 
 func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.InspectionHeader, error) {
-	// Fast path: return from in-memory cache
-	if val, ok := globalInspHeaderCache.Load(id); ok {
-		item := val.(inspHeaderCacheItem)
-		if time.Now().Before(item.expiresAt) {
-			return item.header, nil
-		}
-		globalInspHeaderCache.Delete(id)
+	// Fast path: cache hit (RLock-protected, tidak ada data race)
+	if h, ok := globalInspHeaderCache.Load(id); ok {
+		return h, nil
 	}
 
-	// singleflight: hanya 1 goroutine yang query DB, VU lain menunggu hasil yang sama.
-	// Ini mencegah 200 VU concurrent semua hit DB untuk inspection ID yang sama.
+	// Slow path: singleflight mencegah thundering herd saat cache miss
+	// Hanya 1 goroutine yang query DB; goroutine lain menunggu hasilnya.
 	result, err, _ := inspHeaderSFGroup.Do(id, func() (interface{}, error) {
-		// Re-check cache di dalam singleflight untuk menghindari race
-		if val, ok := globalInspHeaderCache.Load(id); ok {
-			item := val.(inspHeaderCacheItem)
-			if time.Now().Before(item.expiresAt) {
-				return item.header, nil
-			}
+		// Re-check setelah masuk singleflight (goroutine lain mungkin sudah isi cache)
+		if h, ok := globalInspHeaderCache.Load(id); ok {
+			return h, nil
 		}
 
 		var item inspection.InspectionHeader
@@ -83,37 +117,36 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 			Where(`"Inspection_Header"."InspectionID" = ?`, id).
 			Take(&item).Error
 
-		if dbErr == nil {
-			type scoreRow struct {
-				Total   int
-				OkCount int
-			}
-			var sr scoreRow
-			r.db.Raw(`
-				SELECT
-					COUNT(*) FILTER (WHERE "Checking" IN ('OK','NG')) AS total,
-					COUNT(*) FILTER (WHERE "Checking" = 'OK') AS ok_count
-				FROM "Inspection_Result"
-				WHERE "InspectionID" = ?`, id).Scan(&sr)
-			if sr.Total > 0 {
-				scoreVal := float64(sr.OkCount) * 100.0 / float64(sr.Total)
-				item.Score = &scoreVal
-			}
-			// Cache 5 menit
-			globalInspHeaderCache.Store(id, inspHeaderCacheItem{
-				header:    &item,
-				expiresAt: time.Now().Add(5 * time.Minute),
-			})
-			return &item, nil
+		if dbErr != nil {
+			// Jangan cache error — biarkan retry saat dipanggil berikutnya
+			return nil, dbErr
 		}
-		return nil, dbErr
+
+		// Hitung score
+		type scoreRow struct {
+			Total   int
+			OkCount int
+		}
+		var sr scoreRow
+		r.db.Raw(`
+			SELECT
+				COUNT(*) FILTER (WHERE "Checking" IN ('OK','NG')) AS total,
+				COUNT(*) FILTER (WHERE "Checking" = 'OK') AS ok_count
+			FROM "Inspection_Result"
+			WHERE "InspectionID" = ?`, id).Scan(&sr)
+		if sr.Total > 0 {
+			scoreVal := float64(sr.OkCount) * 100.0 / float64(sr.Total)
+			item.Score = &scoreVal
+		}
+
+		// Simpan ke cache (5 menit TTL) — Store mutex-protected, no race
+		globalInspHeaderCache.Store(id, &item, 5*time.Minute)
+		return &item, nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
-	// Nil-safe type assertion: jika singleflight mengembalikan nil result (edge case),
-	// hindari panic dengan explicit check sebelum cast
 	if result == nil {
 		return nil, errors.New("inspection not found")
 	}
@@ -123,6 +156,7 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 	}
 	return h, nil
 }
+
 
 func (r *inspectionHeaderRepository) FindActiveByKawasan(kawasanID string) ([]inspection.InspectionHeader, error) {
 	var items []inspection.InspectionHeader
