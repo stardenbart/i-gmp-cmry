@@ -1,6 +1,7 @@
 package inspectionrepo
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -111,7 +112,16 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 	if err != nil {
 		return nil, err
 	}
-	return result.(*inspection.InspectionHeader), nil
+	// Nil-safe type assertion: jika singleflight mengembalikan nil result (edge case),
+	// hindari panic dengan explicit check sebelum cast
+	if result == nil {
+		return nil, errors.New("inspection not found")
+	}
+	h, ok := result.(*inspection.InspectionHeader)
+	if !ok || h == nil {
+		return nil, errors.New("inspection not found")
+	}
+	return h, nil
 }
 
 func (r *inspectionHeaderRepository) FindActiveByKawasan(kawasanID string) ([]inspection.InspectionHeader, error) {

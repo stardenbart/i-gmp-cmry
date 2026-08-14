@@ -69,7 +69,10 @@ func (h *InspectionHeaderHandler) GetAll(c *fiber.Ctx) error {
 func (h *InspectionHeaderHandler) GetByID(c *fiber.Ctx) error {
 	item, err := h.uc.GetByID(c.Params("id"))
 	if err != nil {
-		return response.NotFound(c, "inspection not found")
+		if err.Error() == "record not found" || err.Error() == "inspection not found" {
+			return response.NotFound(c, "inspection not found")
+		}
+		return response.InternalServerError(c, "failed to fetch inspection", err.Error())
 	}
 	return response.OK(c, "success", item)
 }
@@ -77,7 +80,10 @@ func (h *InspectionHeaderHandler) GetByID(c *fiber.Ctx) error {
 func (h *InspectionHeaderHandler) GetChecklist(c *fiber.Ctx) error {
 	item, err := h.uc.GetChecklist(c.Params("id"))
 	if err != nil {
-		return response.NotFound(c, err.Error())
+		if err.Error() == "record not found" || err.Error() == "inspection not found" {
+			return response.NotFound(c, "inspection not found")
+		}
+		return response.InternalServerError(c, "failed to load checklist", err.Error())
 	}
 	return response.OK(c, "success", item)
 }

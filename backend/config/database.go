@@ -47,13 +47,14 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("get sql.DB: %w", err)
 	}
 
-	// Connection pool — disesuaikan untuk 200 concurrent users
-	// MaxOpenConns: 100 terlalu rendah untuk 200 VU × query berat
-	// Rule of thumb: (max_vus × avg_db_time_ms) / target_latency_ms
-	sqlDB.SetMaxIdleConns(25)                 // 10 → 25 (lebih banyak koneksi siap pakai)
-	sqlDB.SetMaxOpenConns(300)                // 100 → 300 (support 200+ concurrent users)
-	sqlDB.SetConnMaxLifetime(30 * time.Minute) // 1h → 30m (recycle lebih cepat)
-	sqlDB.SetConnMaxIdleTime(5 * time.Minute)  // Tutup koneksi idle > 5 menit
+	// Connection pool — disesuaikan untuk PostgreSQL default max_connections=100
+	// Rule: MaxOpenConns HARUS < PostgreSQL max_connections (biasanya 100)
+	// Sisakan ~20 koneksi untuk psql CLI, migrations, monitoring
+	// singleflight sudah mereduksi concurrency DB hit, jadi 80 koneksi cukup untuk 200 VU
+	sqlDB.SetMaxIdleConns(20)                  // idle pool
+	sqlDB.SetMaxOpenConns(80)                  // 300 → 80 (agar tidak exceed PostgreSQL max_connections=100)
+	sqlDB.SetConnMaxLifetime(15 * time.Minute) // recycle koneksi tiap 15 menit
+	sqlDB.SetConnMaxIdleTime(3 * time.Minute)  // tutup koneksi idle > 3 menit
 
 	// Verify connection
 	if err := sqlDB.Ping(); err != nil {

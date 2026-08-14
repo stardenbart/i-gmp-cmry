@@ -74,12 +74,15 @@ export function setup() {
   const inspRes = http.get(`${BASE_URL}/inspections?limit=50`, {
     headers: { 'Authorization': `Bearer ${token}` },
   });
-  // Fallback ke ID seed yang baru (valid setelah reseed)
+  // Fallback ke ID seed yang baru (valid setelah reseed — 63 inspection headers)
   let inspectionIds = [
-    'INSP-LOADTEST-001-01', 'INSP-LOADTEST-001-02',
-    'INSP-LOADTEST-002-01', 'INSP-LOADTEST-002-02',
-    'INSP-LOADTEST-003-01', 'INSP-LOADTEST-003-02',
-    'INSP-LOADTEST-004-01', 'INSP-LOADTEST-005-01',
+    'INSP-LT-001-01', 'INSP-LT-001-02', 'INSP-LT-001-03',
+    'INSP-LT-002-01', 'INSP-LT-002-02', 'INSP-LT-002-03',
+    'INSP-LT-003-01', 'INSP-LT-003-02', 'INSP-LT-003-03',
+    'INSP-LT-004-01', 'INSP-LT-004-02', 'INSP-LT-005-01',
+    'INSP-LT-006-01', 'INSP-LT-007-01', 'INSP-LT-008-01',
+    'INSP-LT-009-01', 'INSP-LT-010-01', 'INSP-LT-011-01',
+    'INSP-LT-012-01', 'INSP-LT-013-01', 'INSP-LT-014-01',
   ];
   if (inspRes.status === 200) {
     const inspBody = JSON.parse(inspRes.body);

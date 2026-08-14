@@ -1,6 +1,8 @@
 package router
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/swagger"
@@ -28,6 +30,11 @@ func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStor
 	r := fiber.New(fiber.Config{
 		DisableStartupMessage: cfg.AppEnv == "production",
 		BodyLimit:             50 * 1024 * 1024, // 50MB max upload body limit
+		// Timeout settings — PENTING untuk mencegah koneksi hang di high concurrency (200 VU)
+		// Tanpa ini, request yang stuck di DB connection pool wait bisa hang selamanya
+		ReadTimeout:  30 * time.Second, // max waktu baca request dari client
+		WriteTimeout: 30 * time.Second, // max waktu kirim response ke client
+		IdleTimeout:  65 * time.Second, // keep-alive connection max idle time
 	})
 	r.Use(recover.New())
 
