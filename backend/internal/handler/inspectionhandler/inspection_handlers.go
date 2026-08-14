@@ -1,16 +1,19 @@
 package inspectionhandler
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
+	"github.com/monitoring-system/backend/pkg/exporter"
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
 	"github.com/monitoring-system/backend/pkg/validator"
-	"github.com/monitoring-system/backend/pkg/exporter"
 	redis "github.com/redis/go-redis/v9"
 )
 
@@ -72,6 +75,9 @@ func (h *InspectionHeaderHandler) GetByID(c *fiber.Ctx) error {
 		if err.Error() == "record not found" || err.Error() == "inspection not found" {
 			return response.NotFound(c, "inspection not found")
 		}
+		if errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "context deadline exceeded") {
+			return response.ServiceUnavailable(c, "service busy, please try again", err.Error())
+		}
 		return response.InternalServerError(c, "failed to fetch inspection", err.Error())
 	}
 	return response.OK(c, "success", item)
@@ -82,6 +88,9 @@ func (h *InspectionHeaderHandler) GetChecklist(c *fiber.Ctx) error {
 	if err != nil {
 		if err.Error() == "record not found" || err.Error() == "inspection not found" {
 			return response.NotFound(c, "inspection not found")
+		}
+		if errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "context deadline exceeded") {
+			return response.ServiceUnavailable(c, "service busy, please try again", err.Error())
 		}
 		return response.InternalServerError(c, "failed to load checklist", err.Error())
 	}

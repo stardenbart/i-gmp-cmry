@@ -95,6 +95,15 @@ func InternalServerError(c *fiber.Ctx, message string, err interface{}) error {
 	})
 }
 
+func ServiceUnavailable(c *fiber.Ctx, message string, err interface{}) error {
+	return c.Status(http.StatusServiceUnavailable).JSON(APIResponse{
+		Success:    false,
+		StatusCode: http.StatusServiceUnavailable,
+		Message:    message,
+		Error:      err,
+	})
+}
+
 func Paginated(c *fiber.Ctx, message string, items interface{}, total int64, page, limit int) error {
 	totalPages := total / int64(limit)
 	if total%int64(limit) != 0 {
