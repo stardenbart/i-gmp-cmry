@@ -25,10 +25,20 @@ const KAWASAN_ID  = __ENV.KAWASAN_ID  || 'KWS-001';
 const ASPEK_IDS   = ['ASP-001', 'ASP-002', 'ASP-003', 'ASP-004', 'ASP-005'];
 
 // ── Custom Metrics ───────────────────────────────────────────────────────────
-const errorRate       = new Rate('custom_error_rate');
-const draftSyncTrend  = new Trend('draft_sync_ms',    true);
-const checklistTrend  = new Trend('checklist_load_ms', true);
-const loginErrors     = new Counter('login_errors');
+const errorRate          = new Rate('custom_error_rate');
+const draftSyncTrend     = new Trend('draft_sync_ms',     true);
+const checklistTrend     = new Trend('checklist_load_ms', true);
+const loginErrors        = new Counter('login_errors');
+
+// Per-status counters — untuk membedah gap http_req_failed vs checks_failed
+const draftSyncOk        = new Counter('draft_sync_200');   // write sukses, data tersimpan
+const draftSyncConflict  = new Counter('draft_sync_409');   // lock conflict (user lain)
+const draftSyncForbidden = new Counter('draft_sync_403');   // forbidden
+const draftSyncOther     = new Counter('draft_sync_other'); // 5xx / timeout
+const getDraftsOk        = new Counter('get_drafts_200');   // cache hit
+const getDraftsEmpty     = new Counter('get_drafts_404');   // kosong (belum pernah write)
+const getDraftsTimeout   = new Counter('get_drafts_503');   // fail-fast timeout
+const getDraftsOther     = new Counter('get_drafts_other'); // anomali lain
 
 // ── Skenario Beban ───────────────────────────────────────────────────────────
 export const options = {
@@ -172,19 +182,40 @@ export default function (data) {
   sleep(randomPause(1, 2));
 
   // 5. Get Redis Draft
-  // Gunakan KAWASAN_ID (bukan inspId) agar match dengan scope yang dipakai
-  // SaveDraftState di group 6 (PUT /inspeksi/${KAWASAN_ID}/${aspId})
-  // Key Redis write: state:aspek:${KAWASAN_ID}:${aspId}
-  // Key Redis read:  state:aspek:${KAWASAN_ID}:* — harus sama!
+  // Scope KAWASAN_ID (match dengan write scope di group 6)
+  // Key write: state:aspek:KWS-001:ASP-xxx  →  pattern read: state:aspek:KWS-001:*  ✓
+  // 503 TIDAK ditoleransi: dengan scope benar, cache hit seharusnya 200.
+  // Kalau masih 503 = ada masalah latensi residual yang perlu terlihat di checks_failed.
+  // responseCallback: memberitahu k6 bahwa 404 bukan failure (Redis kosong = valid state)
   group('5_get_drafts', () => {
-    let r = http.get(`${BASE_URL}/inspeksi/${KAWASAN_ID}/drafts`, { headers });
-    check(r, { '✓ get drafts': (r) => r.status === 200 || r.status === 404 || r.status === 503 });
-    errorRate.add(r.status !== 200 && r.status !== 404 && r.status !== 503);
+    let r = http.get(`${BASE_URL}/inspeksi/${KAWASAN_ID}/drafts`, {
+      headers,
+      responseCallback: http.expectedStatuses(200, 404), // 404 ok, bukan kegagalan
+    });
+    const isOk = check(r, { '✓ get drafts': (r) => r.status === 200 || r.status === 404 });
+    errorRate.add(!isOk);
+
+    // Per-status breakdown
+    if      (r.status === 200) getDraftsOk.add(1);
+    else if (r.status === 404) getDraftsEmpty.add(1);
+    else if (r.status === 503) getDraftsTimeout.add(1);
+    else                       getDraftsOther.add(1);
   });
 
   sleep(randomPause(0.5, 1.5));
 
-  // 6. Draft Sync
+  // 6. Draft Sync — alur realistis: Acquire Lock → SaveAspek
+  //
+  // Latar belakang ValidateLock:
+  //   - Lock bebas / expired → auto-grant ke caller (return 200)
+  //   - Lock dipegang SAME userID → auto-refresh TTL (return 200)
+  //   - Lock dipegang user LAIN → 409 Conflict
+  //   Karena semua VU login sebagai admin_sentul yang SAMA,
+  //   ValidateLock praktis selalu grant/refresh → draft write benar-benar berjalan.
+  //   Token 'load-test-no-lock' valid karena lock bebas akan auto-granted.
+  //
+  // responseCallback pada PUT memberitahu k6 bahwa 409 bukan kegagalan yang perlu
+  // dihitung di http_req_failed — ini adalah respons expected saat lock conflict.
   group('6_draft_sync_write', () => {
     const payload = JSON.stringify({
       data: {
@@ -202,12 +233,30 @@ export default function (data) {
     let r = http.put(
       `${BASE_URL}/inspeksi/${KAWASAN_ID}/${aspId}`,
       payload,
-      { headers: { ...headers, 'X-Lock-Token': 'load-test-no-lock' } }
+      {
+        headers: { ...headers, 'X-Lock-Token': 'load-test-no-lock' },
+        // Beritahu k6: 409 adalah respons expected (lock conflict), bukan kegagalan
+        responseCallback: http.expectedStatuses(200, 409),
+      }
     );
-    const ok = [200, 403, 404].includes(r.status);
-    if (ok) draftSyncTrend.add(Date.now() - start);
+    const elapsed = Date.now() - start;
+
+    // Hanya catat trend untuk write yang benar-benar berhasil (200)
+    if (r.status === 200) draftSyncTrend.add(elapsed);
+
+    // draft_sync dianggap "ok" selama tidak ada error server (5xx) atau timeout
+    // 409 = lock conflict = respons valid dari sistem yang bekerja benar
+    const ok = r.status === 200 || r.status === 409;
     check(r, { '✓ draft sync accepted': () => ok });
     errorRate.add(!ok);
+
+    // Per-status breakdown
+    if      (r.status === 200) draftSyncOk.add(1);
+    else if (r.status === 409) draftSyncConflict.add(1);
+    else if (r.status === 403) draftSyncForbidden.add(1);
+    else                       draftSyncOther.add(1);
+
+    if (!ok) console.warn(`Draft sync failed [${r.status}]: ${r.body.substring(0, 120)}`);
   });
 
   sleep(randomPause(1, 3));
