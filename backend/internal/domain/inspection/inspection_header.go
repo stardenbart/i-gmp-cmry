@@ -1,6 +1,9 @@
 package inspection
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // InspectionStatus defines allowed values for the inspection header status.
 type InspectionStatus string
@@ -61,6 +64,7 @@ type TrendData struct {
 type InspectionHeaderRepository interface {
 	FindAll(page, limit int, plantID, areaID, status, inspectorID string) ([]InspectionHeader, int64, error)
 	FindByID(id string) (*InspectionHeader, error)
+	FindByIDWithCtx(ctx context.Context, id string) (*InspectionHeader, error)
 	FindActiveByKawasan(kawasanID string) ([]InspectionHeader, error)
 	FindActiveByDetailKawasan(detailKawasanID string) ([]InspectionHeader, error)
 	FindActiveByInspector(inspectorID string) ([]InspectionHeader, error)
@@ -69,6 +73,7 @@ type InspectionHeaderRepository interface {
 	CountCompletedByAreaAndDetailKawasan(areaID, detailKawasanID string) (int64, error)
 	GetTrendByContext(contextID string, year int) ([]TrendData, error)
 	GetFullChecklist(areaID, inspectionID string) (*FullChecklist, error)
+	GetFullChecklistWithCtx(ctx context.Context, areaID, inspectionID string) (*FullChecklist, error)
 	Create(h *InspectionHeader) error
 	Update(h *InspectionHeader) error
 	Delete(id string) error

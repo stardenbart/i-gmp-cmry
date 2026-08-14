@@ -1,23 +1,26 @@
 package inspectionusecase
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 )
 
 func (uc *inspectionHeaderUseCase) GetChecklist(id string) (*inspection.FullChecklist, error) {
-	// Fetch the inspection header to get the AreaID
-	header, err := uc.repo.FindByID(id)
+	// Budget 3 detik tunggal untuk seluruh operasi GetChecklist (FindByID + GetFullChecklist)
+	// Mencegah akumulasi budget 3s + 3s = 6s saat pool connection sedang sibuk.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	header, err := uc.repo.FindByIDWithCtx(ctx, id)
 	if err != nil {
-		// Teruskan error asli ke handler, BUKAN selalu 404.
-		// Sebelumnya semua error (DB timeout, pool exhaustion) disamarkan jadi "inspection not found"
-		// yang menyebabkan load test melaporkan 404 padahal sebenarnya 503/500.
 		return nil, err
 	}
 	if header == nil {
 		return nil, errors.New("inspection not found")
 	}
 
-	return uc.repo.GetFullChecklist(header.AreaID, id)
+	return uc.repo.GetFullChecklistWithCtx(ctx, header.AreaID, id)
 }

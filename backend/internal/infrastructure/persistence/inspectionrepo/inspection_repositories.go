@@ -96,6 +96,12 @@ func (r *inspectionHeaderRepository) FindAll(page, limit int, plantID, areaID, s
 }
 
 func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.InspectionHeader, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return r.FindByIDWithCtx(ctx, id)
+}
+
+func (r *inspectionHeaderRepository) FindByIDWithCtx(parentCtx context.Context, id string) (*inspection.InspectionHeader, error) {
 	// Fast path: cache hit (RLock-protected, tidak ada data race)
 	if h, ok := globalInspHeaderCache.Load(id); ok {
 		return h, nil
@@ -107,9 +113,12 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 			return h, nil
 		}
 
-		// Fail-fast context timeout (3s) agar tidak menggantung 20s di connection pool queue
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+		ctx := parentCtx
+		if ctx == nil {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+		}
 
 		var item inspection.InspectionHeader
 		dbErr := r.db.WithContext(ctx).Model(&item).

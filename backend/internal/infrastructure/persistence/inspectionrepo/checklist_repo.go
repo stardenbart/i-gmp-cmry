@@ -71,6 +71,12 @@ var checklistSFGroup   singleflight.Group
 var aspekStructSFGroup singleflight.Group
 
 func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID string) (*inspection.FullChecklist, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return r.GetFullChecklistWithCtx(ctx, areaID, inspectionID)
+}
+
+func (r *inspectionHeaderRepository) GetFullChecklistWithCtx(parentCtx context.Context, areaID, inspectionID string) (*inspection.FullChecklist, error) {
 	// Fast path: Cache layer 2 (full checklist per inspectionID, 2 min TTL)
 	if inspectionID != "" {
 		if cached, ok := globalFullChecklistCache.Load(inspectionID); ok {
@@ -87,9 +93,12 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 			}
 		}
 
-		// Fail-fast context timeout (3s) agar tidak menggantung 20s di connection pool queue
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+		ctx := parentCtx
+		if ctx == nil {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+		}
 
 		// Cache layer 1: aspek structure per areaID (1 jam TTL — master data jarang berubah)
 		var aspeks []master.Aspek
