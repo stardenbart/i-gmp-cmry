@@ -1,6 +1,7 @@
 package inspectionrepo
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -38,7 +39,12 @@ func (c *inspHeaderCache) Load(key string) (*inspection.InspectionHeader, bool) 
 		return nil, false
 	}
 	if time.Now().After(item.expiresAt) {
-		c.Delete(key) // lazy eviction
+		c.mu.Lock()
+		// Double check to prevent race
+		if item, ok := c.items[key]; ok && time.Now().After(item.expiresAt) {
+			delete(c.items, key)
+		}
+		c.mu.Unlock()
 		return nil, false
 	}
 	return item.header, true
@@ -96,15 +102,17 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 	}
 
 	// Slow path: singleflight mencegah thundering herd saat cache miss
-	// Hanya 1 goroutine yang query DB; goroutine lain menunggu hasilnya.
 	result, err, _ := inspHeaderSFGroup.Do(id, func() (interface{}, error) {
-		// Re-check setelah masuk singleflight (goroutine lain mungkin sudah isi cache)
 		if h, ok := globalInspHeaderCache.Load(id); ok {
 			return h, nil
 		}
 
+		// Fail-fast context timeout (3s) agar tidak menggantung 20s di connection pool queue
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
 		var item inspection.InspectionHeader
-		dbErr := r.db.Model(&item).
+		dbErr := r.db.WithContext(ctx).Model(&item).
 			Select(`"Inspection_Header".*, 
 				"Area_Master"."AreaName" AS "AreaName", 
 				"Kawasan_Master"."KawasanName" AS "KawasanName", 
@@ -118,7 +126,6 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 			Take(&item).Error
 
 		if dbErr != nil {
-			// Jangan cache error — biarkan retry saat dipanggil berikutnya
 			return nil, dbErr
 		}
 
@@ -128,7 +135,7 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 			OkCount int
 		}
 		var sr scoreRow
-		r.db.Raw(`
+		r.db.WithContext(ctx).Raw(`
 			SELECT
 				COUNT(*) FILTER (WHERE "Checking" IN ('OK','NG')) AS total,
 				COUNT(*) FILTER (WHERE "Checking" = 'OK') AS ok_count
@@ -139,7 +146,6 @@ func (r *inspectionHeaderRepository) FindByID(id string) (*inspection.Inspection
 			item.Score = &scoreVal
 		}
 
-		// Simpan ke cache (5 menit TTL) — Store mutex-protected, no race
 		globalInspHeaderCache.Store(id, &item, 5*time.Minute)
 		return &item, nil
 	})

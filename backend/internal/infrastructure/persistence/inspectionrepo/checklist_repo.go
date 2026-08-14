@@ -1,6 +1,7 @@
 package inspectionrepo
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -38,7 +39,11 @@ func (c *ttlCache[V]) Load(key string) (V, bool) {
 		return zero, false
 	}
 	if time.Now().After(entry.expiresAt) {
-		c.Delete(key) // lazy eviction
+		c.mu.Lock()
+		if entry, ok := c.items[key]; ok && time.Now().After(entry.expiresAt) {
+			delete(c.items, key)
+		}
+		c.mu.Unlock()
 		var zero V
 		return zero, false
 	}
@@ -74,16 +79,17 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 	}
 
 	// Slow path: singleflight per inspectionID & areaID
-	// Saat 200 VU concurrent hit cache miss untuk inspectionID yang sama,
-	// hanya 1 goroutine yang query DB. 199 goroutine lain menunggu hasil dari 1 query tersebut.
 	sfKey := "checklist:" + areaID + ":" + inspectionID
 	result, err, _ := checklistSFGroup.Do(sfKey, func() (interface{}, error) {
-		// Re-check cache di dalam singleflight
 		if inspectionID != "" {
 			if cached, ok := globalFullChecklistCache.Load(inspectionID); ok {
 				return cached, nil
 			}
 		}
+
+		// Fail-fast context timeout (3s) agar tidak menggantung 20s di connection pool queue
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 
 		// Cache layer 1: aspek structure per areaID (1 jam TTL — master data jarang berubah)
 		var aspeks []master.Aspek
@@ -98,7 +104,7 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 					return cached, nil
 				}
 				var dbAspeks []master.Aspek
-				err := r.db.
+				err := r.db.WithContext(ctx).
 					Preload("Details.Urains").
 					Where(`"AreaID" = ?`, areaID).
 					Find(&dbAspeks).Error
@@ -117,7 +123,7 @@ func (r *inspectionHeaderRepository) GetFullChecklist(areaID, inspectionID strin
 		// Fetch all InspectionResults untuk inspectionID ini dalam 1 query ringan
 		var results []inspection.InspectionResult
 		if inspectionID != "" {
-			if dbErr := r.db.Where(`"InspectionID" = ?`, inspectionID).Find(&results).Error; dbErr != nil {
+			if dbErr := r.db.WithContext(ctx).Where(`"InspectionID" = ?`, inspectionID).Find(&results).Error; dbErr != nil {
 				return nil, dbErr
 			}
 		}
