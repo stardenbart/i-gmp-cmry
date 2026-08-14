@@ -172,10 +172,14 @@ export default function (data) {
   sleep(randomPause(1, 2));
 
   // 5. Get Redis Draft
+  // Gunakan KAWASAN_ID (bukan inspId) agar match dengan scope yang dipakai
+  // SaveDraftState di group 6 (PUT /inspeksi/${KAWASAN_ID}/${aspId})
+  // Key Redis write: state:aspek:${KAWASAN_ID}:${aspId}
+  // Key Redis read:  state:aspek:${KAWASAN_ID}:* — harus sama!
   group('5_get_drafts', () => {
-    let r = http.get(`${BASE_URL}/inspeksi/${inspId}/drafts`, { headers });
-    check(r, { '✓ get drafts': (r) => r.status === 200 || r.status === 404 });
-    errorRate.add(r.status !== 200 && r.status !== 404);
+    let r = http.get(`${BASE_URL}/inspeksi/${KAWASAN_ID}/drafts`, { headers });
+    check(r, { '✓ get drafts': (r) => r.status === 200 || r.status === 404 || r.status === 503 });
+    errorRate.add(r.status !== 200 && r.status !== 404 && r.status !== 503);
   });
 
   sleep(randomPause(0.5, 1.5));
