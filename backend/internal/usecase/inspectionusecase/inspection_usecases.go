@@ -9,16 +9,10 @@ import (
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/domain/master"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/inspectionrepo"
 	"github.com/monitoring-system/backend/pkg/idgen"
 	"github.com/monitoring-system/backend/pkg/kafka"
-	"golang.org/x/sync/singleflight"
 )
-
-// inspHeaderSFGroup mendeduplikasi query DB untuk inspectionID yang sama
-// yang datang secara bersamaan (thundering herd protection).
-// TIDAK menggunakan persistent cache — setiap inflight window menghasilkan
-// data fresh dari DB, tanpa risiko data basi.
-var inspHeaderSFGroup singleflight.Group
 
 // ── Inspection Header UseCase ─────────────────────────────────────────────
 
@@ -51,16 +45,9 @@ func (uc *inspectionHeaderUseCase) GetAll(page, limit int, plantID, areaID, stat
 }
 
 func (uc *inspectionHeaderUseCase) GetByID(id string) (*inspection.InspectionHeader, error) {
-	// Singleflight: 200 goroutine yang meminta ID yang sama secara bersamaan
-	// → hanya 1 goroutine yang menjalankan query DB, sisanya menunggu & berbagi hasil.
-	// Begitu query selesai, grup reset → request berikutnya ke DB fresh (tidak ada stale data).
-	v, err, _ := inspHeaderSFGroup.Do(id, func() (interface{}, error) {
-		return uc.repo.FindByID(id)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return v.(*inspection.InspectionHeader), nil
+	// Delegasikan langsung ke repo — repo layer sudah punya singleflight + TTL cache 5 menit sendiri.
+	// Menambah singleflight kedua di sini justru menciptakan serial blocking dengan shared 3s deadline.
+	return uc.repo.FindByID(id)
 }
 
 func (uc *inspectionHeaderUseCase) GetAreaStatus(areaID string) (inspection.AreaProgress, error) {
@@ -151,6 +138,9 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditInspections, h.InspectionID, event)
 
+		// Invalidasi header cache — status berubah, cache lama tidak valid
+		inspectionrepo.InvalidateHeaderCache(h.InspectionID)
+
 		// Record LastInspection timestamp on DetailKawasan & Kawasan when Completed
 		if h.InspectionHeaderStatus == inspection.InspectionStatusCompleted {
 			now := time.Now()
@@ -225,7 +215,15 @@ func (uc *inspectionResultUseCase) BulkSave(req *inspection.BulkSaveResultReques
 			Keterangan:   r.Keterangan,
 		})
 	}
-	return uc.repo.BulkCreate(results)
+	err := uc.repo.BulkCreate(results)
+	if err == nil {
+		// Invalidasi cache agar GetChecklist + GetByID berikutnya fetch data fresh.
+		// Ini yang membuat cache 2 menit dan 5 menit AMAN — data basi langsung
+		// dihapus begitu auditor menyimpan, tidak perlu menunggu TTL habis.
+		inspectionrepo.InvalidateChecklistCache(req.InspectionID)
+		inspectionrepo.InvalidateHeaderCache(req.InspectionID)
+	}
+	return err
 }
 
 func (uc *inspectionResultUseCase) Update(id string, req *inspection.SaveResultRequest) (*inspection.InspectionResult, error) {
@@ -236,7 +234,13 @@ func (uc *inspectionResultUseCase) Update(id string, req *inspection.SaveResultR
 	r.Checking = req.Checking
 	r.Nilai = req.Nilai
 	r.Keterangan = req.Keterangan
-	return r, uc.repo.Update(r)
+	updated, err := r, uc.repo.Update(r)
+	if err == nil {
+		// Invalidasi cache checklist dan header saat satu item hasil diupdate
+		inspectionrepo.InvalidateChecklistCache(r.InspectionID)
+		inspectionrepo.InvalidateHeaderCache(r.InspectionID) // skor bisa berubah
+	}
+	return updated, err
 }
 
 func (uc *inspectionResultUseCase) Delete(id string) error { return uc.repo.Delete(id) }

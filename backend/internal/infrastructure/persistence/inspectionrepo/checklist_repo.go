@@ -200,5 +200,3 @@ func (r *inspectionHeaderRepository) GetFullChecklistWithCtx(parentCtx context.C
 func InvalidateChecklistCache(inspectionID string) {
 	globalFullChecklistCache.Delete(inspectionID)
 }
-
-

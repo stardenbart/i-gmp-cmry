@@ -6,32 +6,26 @@ import (
 	"time"
 
 	"github.com/monitoring-system/backend/internal/domain/inspection"
-	"golang.org/x/sync/singleflight"
 )
 
-// checklistSFGroup mendeduplikasi query DB GetChecklist untuk inspectionID yang sama
-// yang datang secara bersamaan. TIDAK menggunakan persistent cache —
-// setiap inflight window menghasilkan data fresh dari DB, tanpa risiko data basi.
-var checklistSFGroup singleflight.Group
-
 func (uc *inspectionHeaderUseCase) GetChecklist(id string) (*inspection.FullChecklist, error) {
-	v, err, _ := checklistSFGroup.Do(id, func() (interface{}, error) {
-		// Budget 3 detik tunggal untuk seluruh operasi (FindByID + GetFullChecklist)
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+	// Budget 5 detik (naik dari 3s) — mencakup 2 sequential DB ops:
+	//   1. FindByIDWithCtx  → header JOIN 4 tabel + score query
+	//   2. GetFullChecklistWithCtx → aspek Preload Details.Urains + InspectionResult query
+	//
+	// Repo layer sudah punya singleflight + TTL cache sendiri (globalFullChecklistCache 2 menit,
+	// globalAspekChecklistCache 1 jam). Menambah singleflight kedua di usecase menciptakan
+	// serial blocking dengan shared deadline — justru memperbesar risiko timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-		header, err := uc.repo.FindByIDWithCtx(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		if header == nil {
-			return nil, errors.New("inspection not found")
-		}
-
-		return uc.repo.GetFullChecklistWithCtx(ctx, header.AreaID, id)
-	})
+	header, err := uc.repo.FindByIDWithCtx(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return v.(*inspection.FullChecklist), nil
+	if header == nil {
+		return nil, errors.New("inspection not found")
+	}
+
+	return uc.repo.GetFullChecklistWithCtx(ctx, header.AreaID, id)
 }

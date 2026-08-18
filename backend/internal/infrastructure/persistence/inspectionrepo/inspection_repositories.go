@@ -172,6 +172,11 @@ func (r *inspectionHeaderRepository) FindByIDWithCtx(parentCtx context.Context, 
 	return h, nil
 }
 
+// InvalidateHeaderCache dipanggil saat inspection header berubah (status update, hasil disimpan)
+// agar cache 5 menit tidak menyajikan data basi ke client.
+func InvalidateHeaderCache(inspectionID string) {
+	globalInspHeaderCache.Delete(inspectionID)
+}
 
 func (r *inspectionHeaderRepository) FindActiveByKawasan(kawasanID string) ([]inspection.InspectionHeader, error) {
 	var items []inspection.InspectionHeader
