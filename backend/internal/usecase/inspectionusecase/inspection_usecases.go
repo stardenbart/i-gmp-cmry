@@ -11,7 +11,14 @@ import (
 	"github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/pkg/idgen"
 	"github.com/monitoring-system/backend/pkg/kafka"
+	"golang.org/x/sync/singleflight"
 )
+
+// inspHeaderSFGroup mendeduplikasi query DB untuk inspectionID yang sama
+// yang datang secara bersamaan (thundering herd protection).
+// TIDAK menggunakan persistent cache — setiap inflight window menghasilkan
+// data fresh dari DB, tanpa risiko data basi.
+var inspHeaderSFGroup singleflight.Group
 
 // ── Inspection Header UseCase ─────────────────────────────────────────────
 
@@ -44,7 +51,16 @@ func (uc *inspectionHeaderUseCase) GetAll(page, limit int, plantID, areaID, stat
 }
 
 func (uc *inspectionHeaderUseCase) GetByID(id string) (*inspection.InspectionHeader, error) {
-	return uc.repo.FindByID(id)
+	// Singleflight: 200 goroutine yang meminta ID yang sama secara bersamaan
+	// → hanya 1 goroutine yang menjalankan query DB, sisanya menunggu & berbagi hasil.
+	// Begitu query selesai, grup reset → request berikutnya ke DB fresh (tidak ada stale data).
+	v, err, _ := inspHeaderSFGroup.Do(id, func() (interface{}, error) {
+		return uc.repo.FindByID(id)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*inspection.InspectionHeader), nil
 }
 
 func (uc *inspectionHeaderUseCase) GetAreaStatus(areaID string) (inspection.AreaProgress, error) {

@@ -51,8 +51,8 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 	// Rule: MaxOpenConns HARUS < PostgreSQL max_connections (biasanya 100)
 	// Sisakan ~20 koneksi untuk psql CLI, migrations, monitoring
 	// singleflight sudah mereduksi concurrency DB hit, jadi 80 koneksi cukup untuk 200 VU
-	sqlDB.SetMaxIdleConns(20)                  // idle pool
-	sqlDB.SetMaxOpenConns(80)                  // 300 → 80 (agar tidak exceed PostgreSQL max_connections=100)
+	sqlDB.SetMaxIdleConns(15)                  // idle pool
+	sqlDB.SetMaxOpenConns(60)                  // 80→60: sisakan 40 slot headroom untuk handshake baru + psql/monitoring
 	sqlDB.SetConnMaxLifetime(15 * time.Minute) // recycle koneksi tiap 15 menit
 	sqlDB.SetConnMaxIdleTime(3 * time.Minute)  // tutup koneksi idle > 3 menit
 
