@@ -176,17 +176,16 @@ func (r *issueRepository) FindActiveByUraianAndDetailKawasan(uraianID, detailKaw
 }
 
 func (r *issueRepository) FindActiveByResultContext(resultID string) (*issue.Issue, error) {
+	var detailKawasanID string
+	_ = r.db.Table(`"Inspection_Result"`).Select(`ih."DetailKawasanID"`).Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = "Inspection_Result"."InspectionID"`).Where(`"Inspection_Result"."ResultID" = ?`, resultID).Scan(&detailKawasanID).Error
+	if detailKawasanID != "" {
+		var item issue.Issue
+		err := r.db.Model(&issue.Issue{}).Where(`"DetailKawasanID" = ?`, detailKawasanID).Order(`"IssueCreatedAt" ASC`).First(&item).Error
+		if err == nil { return &item, nil }
+	}
 	var item issue.Issue
-	err := r.db.Model(&issue.Issue{}).
-		Select(`"Issue".*`).
-		Joins(`JOIN "Inspection_Result" ir_target ON ir_target."ResultID" = ?`, resultID).
-		Joins(`JOIN "Inspection_Header" ih_target ON ih_target."InspectionID" = ir_target."InspectionID"`).
-		Joins(`JOIN "Inspection_Result" ir_existing ON ir_existing."ResultID" = "Issue"."ResultID"`).
-		Joins(`JOIN "Inspection_Header" ih_existing ON ih_existing."InspectionID" = ir_existing."InspectionID"`).
-		Where(`ir_existing."UraianID" = ir_target."UraianID" AND ih_existing."DetailKawasanID" = ih_target."DetailKawasanID" AND "Issue"."IssueStatus" NOT IN (?, ?)`,
-			string(issue.IssueStatusClosed), string(issue.IssueStatusVerified)).
-		Order(`"Issue"."IssueCreatedAt" DESC`).
-		First(&item).Error
+	err := r.db.Model(&issue.Issue{}).Select(`"Issue".*`).Joins(`JOIN "Inspection_Result" ir_target ON ir_target."ResultID" = ?`, resultID).Joins(`JOIN "Inspection_Header" ih_target ON ih_target."InspectionID" = ir_target."InspectionID"`).Joins(`JOIN "Inspection_Result" ir_existing ON ir_existing."ResultID" = "Issue"."ResultID"`).Joins(`JOIN "Inspection_Header" ih_existing ON ih_existing."InspectionID" = ir_existing."InspectionID"`).Where(`ih_existing."DetailKawasanID" = ih_target."DetailKawasanID"`).Order(`"Issue"."IssueCreatedAt" ASC`).First(&item).Error
+	if err != nil { return nil, nil }
 	return &item, err
 }
 
@@ -346,4 +345,11 @@ func (r *issuePhotoRepository) Update(p *issue.IssuePhoto) error {
 }
 func (r *issuePhotoRepository) Delete(id string) error {
 	return r.db.Where("\"IssuePhotoID\" = ?", id).Delete(&issue.IssuePhoto{}).Error
+}
+
+func (r *issueRepository) FindByDetailKawasanID(detailKawasanID string) (*issue.Issue, error) {
+	var item issue.Issue
+	err := r.db.Model(&issue.Issue{}).Where(`"DetailKawasanID" = ?`, detailKawasanID).Order(`"IssueCreatedAt" ASC`).First(&item).Error
+	if err != nil { return nil, err }
+	return &item, nil
 }

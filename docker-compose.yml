@@ -1,4 +1,17 @@
 services:
+  cloudflared:
+    image: docker.io/cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --config /home/nonroot/.cloudflared/config.yml run system-audit
+    volumes:
+      - /home/wireroot/.cloudflared:/home/nonroot/.cloudflared:Z
+    networks:
+      - audit_network
+    depends_on:
+      - frontend
+      - backend
+
   db:
     image: postgres:15-alpine
     container_name: monitoring_db

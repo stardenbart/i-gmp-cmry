@@ -47,6 +47,7 @@ func (IssueHEI) TableName() string { return "Issue_HEI" }
 
 // Issue represents the Issue table.
 type Issue struct {
+	DetailKawasanID  string      `gorm:"column:DetailKawasanID" json:"detail_kawasan_id"`
 	IssueID             string        `gorm:"column:IssueID;primaryKey" json:"issue_id"`
 	ResultID            string        `gorm:"column:ResultID;not null" json:"result_id"`
 	IssuePICUserID      string        `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`

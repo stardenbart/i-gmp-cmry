@@ -4,7 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Build argument – dipass dari docker-compose via build.args
-ARG INTERNAL_BACKEND_URL=http://backend:8080
+ARG INTERNAL_BACKEND_URL=https://mills-bare-harris-deemed.trycloudflare.com
 ARG MINIO_ENDPOINT=http://minio:9000
 ENV INTERNAL_BACKEND_URL=$INTERNAL_BACKEND_URL
 ENV MINIO_ENDPOINT=$MINIO_ENDPOINT
@@ -25,7 +25,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
-ENV INTERNAL_BACKEND_URL=http://backend:8080
+ENV INTERNAL_BACKEND_URL=https://mills-bare-harris-deemed.trycloudflare.com
 ENV MINIO_ENDPOINT=http://minio:9000
 
 # Copy dari builder

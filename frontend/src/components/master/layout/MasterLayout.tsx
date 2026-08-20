@@ -42,7 +42,7 @@ export function MasterLayout() {
   // Main table query — only run when user has PERM-MSTR-R access
   const { data, isLoading } = useQuery({
     queryKey: ["master", activeTab, page, debouncedSearchQuery],
-    queryFn: () => fetchItems(currentTab.endpoint, page, debouncedSearchQuery),
+    queryFn: () => fetchItems(currentTab.endpoint, page, debouncedSearchQuery, 100),
     enabled: mounted && !!user && !isGuardLoading && isAdmin,
   });
 
