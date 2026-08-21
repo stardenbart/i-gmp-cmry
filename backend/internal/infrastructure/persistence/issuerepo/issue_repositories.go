@@ -11,6 +11,7 @@ import (
 type issueRepository struct{ db *gorm.DB }
 
 func NewIssueRepository(db *gorm.DB) issue.IssueRepository {
+	_ = db.AutoMigrate(&issue.Issue{})
 	return &issueRepository{db: db}
 }
 

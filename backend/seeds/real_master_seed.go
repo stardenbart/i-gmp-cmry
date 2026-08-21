@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
+	inspectiondomain "github.com/monitoring-system/backend/internal/domain/inspection"
+	issuedomain "github.com/monitoring-system/backend/internal/domain/issue"
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	picdomain "github.com/monitoring-system/backend/internal/domain/pic"
 	"github.com/monitoring-system/backend/pkg/password"
@@ -412,9 +415,98 @@ func SeedRealMasterData(db *gorm.DB) {
 				UraianText:    text,
 				StandardScore: 100,
 			}
-			db.Where("LOWER(\"UraianText\") = LOWER(?) AND \"DetailID\" = ?", text, det.DetailID).FirstOrCreate(&uraian)
+			db.Where("\"UraianID\" = ? OR (LOWER(\"UraianText\") = LOWER(?) AND \"DetailID\" = ?)", uID, text, det.DetailID).
+				Assign(masterdomain.Uraian{UraianID: uID, DetailID: det.DetailID, UraianText: text, StandardScore: 100}).
+				FirstOrCreate(&uraian)
 		}
 	}
 
-	log.Println("✅ Real Master Data seeded successfully.")
+	// ── 8. Sample Inspection & Issue Seeding for Development ────────────────
+	now := time.Now()
+	dueDate := now.AddDate(0, 0, 7)
+
+	sampleInsps := []struct {
+		InspID   string
+		AreaID   string
+		KawID    string
+		DKawID   string
+		ResID    string
+		UraianID string
+		IssueID  string
+		PICID    string
+		Status   string
+		Ket      string
+	}{
+		{
+			InspID:   "INSP-REAL-001",
+			AreaID:   "AREA-PRODUKSI",
+			KawID:    "KWS-001",
+			DKawID:   "DKWS-001",
+			ResID:    "RES-REAL-001",
+			UraianID: "URN-REAL-015",
+			IssueID:  "ISSUE-REAL-001",
+			PICID:    "USR-ADMIN-SENTUL",
+			Status:   "Open",
+			Ket:      "Pertemuan dinding dan lantai di area Proses CMD 1 belum melengkung (curving)",
+		},
+		{
+			InspID:   "INSP-REAL-002",
+			AreaID:   "AREA-PRODUKSI",
+			KawID:    "KWS-001",
+			DKawID:   "DKWS-002",
+			ResID:    "RES-REAL-002",
+			UraianID: "URN-REAL-020",
+			IssueID:  "ISSUE-REAL-002",
+			PICID:    "USR-PIC-001",
+			Status:   "PendingValidation",
+			Ket:      "Terdapat debu dan sisa material pada area filling",
+		},
+		{
+			InspID:   "INSP-REAL-003",
+			AreaID:   "AREA-GUDANG",
+			KawID:    "KWS-005",
+			DKawID:   "DKWS-016",
+			ResID:    "RES-REAL-003",
+			UraianID: "URN-REAL-029",
+			IssueID:  "ISSUE-REAL-003",
+			PICID:    "USR-PIC-002",
+			Status:   "Open",
+			Ket:      "Alat kebersihan di Gudang RMPM belum diberi label zona peruntukan",
+		},
+	}
+
+	for _, s := range sampleInsps {
+		inspHeader := inspectiondomain.InspectionHeader{
+			InspectionID:              s.InspID,
+			AreaID:                    s.AreaID,
+			KawasanID:                 s.KawID,
+			DetailKawasanID:           s.DKawID,
+			InspectorID:               "USR-ADMIN-SENTUL",
+			InspectionHeaderStatus:    inspectiondomain.InspectionStatusCompleted,
+			InspectionHeaderCreatedAt: now,
+		}
+		db.Where("\"InspectionID\" = ?", s.InspID).FirstOrCreate(&inspHeader)
+
+		inspResult := inspectiondomain.InspectionResult{
+			ResultID:     s.ResID,
+			InspectionID: s.InspID,
+			UraianID:     s.UraianID,
+			Checking:     "NG",
+			Nilai:        0,
+			Keterangan:   s.Ket,
+		}
+		db.Where("\"ResultID\" = ?", s.ResID).FirstOrCreate(&inspResult)
+
+		iss := issuedomain.Issue{
+			IssueID:        s.IssueID,
+			ResultID:       s.ResID,
+			IssuePICUserID: s.PICID,
+			DueDate:        &dueDate,
+			IssueStatus:    issuedomain.IssueStatus(s.Status),
+			Keterangan:     s.Ket,
+		}
+		db.Where("\"IssueID\" = ?", s.IssueID).FirstOrCreate(&iss)
+	}
+
+	log.Println("✅ Real Master Data & Sample Issues seeded successfully.")
 }

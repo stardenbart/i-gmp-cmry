@@ -94,7 +94,7 @@ export function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-card md:flex">
-      <div className="flex items-center gap-3 border-b border-border px-6 py-4 min-h-20">
+      <div className="flex h-16 items-center gap-3 border-b border-border px-6">
         <div className="flex items-center justify-center">
           <Image 
             src="/Logo_Cimory.png" 

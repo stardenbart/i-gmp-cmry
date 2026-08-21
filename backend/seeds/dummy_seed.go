@@ -198,35 +198,35 @@ func CleanupDummyData(db *gorm.DB) {
 	// 3. Delete Issue Delegates
 	db.Exec(`DELETE FROM "Issue_Delegate" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')`)
 
-	// 4. Delete Issues
-	db.Exec(`DELETE FROM "Issue" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%'`)
+	// 4. Delete Issues (Only dummy ISSUE-*, preserve ISSUE-REAL-*)
+	db.Exec(`DELETE FROM "Issue" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')`)
 
-	// 5. Delete Inspection Results
-	db.Exec(`DELETE FROM "Inspection_Result" WHERE "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%' OR "InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%'`)
+	// 5. Delete Inspection Results (Only dummy RES-*, preserve RES-REAL-*)
+	db.Exec(`DELETE FROM "Inspection_Result" WHERE "ResultID" NOT LIKE 'RES-REAL-%' AND ("ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%' OR "InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%')`)
 
-	// 6. Delete Inspection Headers
-	db.Exec(`DELETE FROM "Inspection_Header" WHERE "InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%'`)
+	// 6. Delete Inspection Headers (Only dummy INS-*, preserve INSP-REAL-*)
+	db.Exec(`DELETE FROM "Inspection_Header" WHERE "InspectionID" NOT LIKE 'INSP-REAL-%' AND ("InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%')`)
 
 	// 7. Delete Equipment Master dummy records
 	db.Exec(`DELETE FROM "Equipment_Master" WHERE "EquipmentID" LIKE 'EQ%' AND ("EquipmentCode" LIKE 'EQ-CODE-%' OR "KawasanID" LIKE 'K%')`)
 
-	// 8. Delete Checklist Uraian
-	db.Exec(`DELETE FROM "Uraian_Master" WHERE "UraianID" LIKE 'UR%' OR "UraianText" LIKE 'Lantai bersih dari genangan air%'`)
+	// 8. Delete Checklist Uraian (Only dummy UR0xx records, preserve URN-REAL-*)
+	db.Exec(`DELETE FROM "Uraian_Master" WHERE "UraianID" NOT LIKE 'URN-REAL-%' AND ("UraianID" LIKE 'UR%' OR "UraianText" LIKE 'Lantai bersih dari genangan air%')`)
 
-	// 9. Delete Checklist Detail
-	db.Exec(`DELETE FROM "Detail_Master" WHERE "DetailID" LIKE 'DET%' OR "DetailName" LIKE 'Lantai & Saluran Air%'`)
+	// 9. Delete Checklist Detail (Only dummy DET0xx records, preserve DET-*)
+	db.Exec(`DELETE FROM "Detail_Master" WHERE "DetailID" NOT LIKE 'DET-%' AND ("DetailID" LIKE 'DET%' OR "DetailName" LIKE 'Lantai & Saluran Air%')`)
 
-	// 10. Delete Checklist Aspek
-	db.Exec(`DELETE FROM "Aspek_Master" WHERE "AspekID" LIKE 'ASP%' OR "AspekName" LIKE 'Kebersihan%'`)
+	// 10. Delete Checklist Aspek (Only dummy ASP0xx records, preserve ASP-*)
+	db.Exec(`DELETE FROM "Aspek_Master" WHERE "AspekID" NOT LIKE 'ASP-%' AND ("AspekID" LIKE 'ASP%' OR "AspekName" LIKE 'Kebersihan%')`)
 
-	// 11. Delete DetailKawasan
-	db.Exec(`DELETE FROM "DetailKawasan_Master" WHERE "DetailKawasanID" LIKE 'DK%' OR "DetailKawasanName" LIKE 'Line%'`)
+	// 11. Delete DetailKawasan (Only dummy DK0xx records, preserve DKWS-*)
+	db.Exec(`DELETE FROM "DetailKawasan_Master" WHERE "DetailKawasanID" NOT LIKE 'DKWS-%' AND ("DetailKawasanID" LIKE 'DK%' OR "DetailKawasanName" LIKE 'Line%')`)
 
-	// 12. Delete Kawasan
-	db.Exec(`DELETE FROM "Kawasan_Master" WHERE "KawasanID" LIKE 'K%' OR "KawasanName" LIKE 'Area Produksi%'`)
+	// 12. Delete Kawasan (Only dummy K0xx records, preserve KWS-*)
+	db.Exec(`DELETE FROM "Kawasan_Master" WHERE "KawasanID" NOT LIKE 'KWS-%' AND ("KawasanID" LIKE 'K%' OR "KawasanName" LIKE 'Area Produksi%')`)
 
-	// 13. Delete Area
-	db.Exec(`DELETE FROM "Area_Master" WHERE "AreaID" LIKE 'A%' AND "AreaName" LIKE 'Area Pabrik%'`)
+	// 13. Delete Area (Only dummy A0xx records, preserve AREA-*)
+	db.Exec(`DELETE FROM "Area_Master" WHERE "AreaID" NOT LIKE 'AREA-%' AND ("AreaID" LIKE 'A%' AND "AreaName" LIKE 'Area Pabrik%')`)
 
 	// 14. Recalculate and sync LastInspection for remaining DetailKawasan and Kawasan
 	db.Exec(`
