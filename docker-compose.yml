@@ -160,6 +160,7 @@ services:
     build:
       context: ./backend
       dockerfile: docker/backend.Dockerfile
+    image: system-audit-backend:latest
     container_name: monitoring_backend
     restart: unless-stopped
     depends_on:
@@ -206,6 +207,7 @@ services:
       dockerfile: docker/frontend.Dockerfile
       args:
         INTERNAL_BACKEND_URL: http://backend:8080
+    image: system-audit-frontend:latest
     container_name: frontend
     restart: unless-stopped
     depends_on:

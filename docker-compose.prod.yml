@@ -1,0 +1,254 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: audit_prod_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      POSTGRES_DB: ${DB_NAME:-monitoring_audit}
+      TZ: Asia/Jakarta
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - audit_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: audit_prod_redis
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - audit_network
+
+  minio:
+    image: minio/minio
+    container_name: audit_prod_minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - audit_network
+
+  zookeeper:
+    image: bitnami/zookeeper:3.8
+    container_name: audit_prod_zookeeper
+    restart: unless-stopped
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - audit_network
+
+  kafka:
+    image: bitnami/kafka:3.4
+    container_name: audit_prod_kafka
+    restart: unless-stopped
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENERS=INTERNAL://:29092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:29092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - kafka_data:/bitnami/kafka
+    networks:
+      - audit_network
+
+  opensearch-node1:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: audit_prod_opensearch
+    restart: unless-stopped
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -I http://localhost:9200 | grep -q 'HTTP/1.1 200 OK' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - audit_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: docker/backend.Dockerfile
+    image: system-audit-backend:latest
+    container_name: audit_prod_backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_PORT: "8080"
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      DB_NAME: ${DB_NAME:-monitoring_audit}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: monitoring-audit-bucket
+      MINIO_USE_SSL: "false"
+      KAFKA_BROKERS: kafka:29092
+      OPENSEARCH_URL: http://opensearch-node1:9200
+      SETTING_ENCRYPTION_KEY: ${SETTING_ENCRYPTION_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    networks:
+      - audit_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        INTERNAL_BACKEND_URL: http://backend:8080
+    image: system-audit-frontend:latest
+    container_name: audit_prod_frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_BACKEND_URL: http://backend:8080
+      INTERNAL_BACKEND_URL: http://backend:8080
+    networks:
+      - audit_network
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # CLOUDFLARE TUNNEL (Zero Open Ports Security Model)
+  # ──────────────────────────────────────────────────────────────────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: audit_prod_cloudflared
+    restart: always
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - audit_network
+
+volumes:
+  db_data:
+  redis_data:
+  minio_data:
+  kafka_data:
+  opensearch_data:
+  backend_uploads:
+  backend_logs:
+
+networks:
+  audit_network:
+    driver: bridge
