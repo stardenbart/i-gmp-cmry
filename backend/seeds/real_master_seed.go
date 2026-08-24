@@ -427,10 +427,10 @@ func SeedRealMasterData(db *gorm.DB) {
 				UraianID:      uID,
 				DetailID:      det.DetailID,
 				UraianText:    text,
-				StandardScore: 100,
+				StandardScore: 2,
 			}
 			db.Where("\"UraianID\" = ? OR (LOWER(\"UraianText\") = LOWER(?) AND \"DetailID\" = ?)", uID, text, det.DetailID).
-				Assign(masterdomain.Uraian{UraianID: uID, DetailID: det.DetailID, UraianText: text, StandardScore: 100}).
+				Assign(masterdomain.Uraian{UraianID: uID, DetailID: det.DetailID, UraianText: text, StandardScore: 2}).
 				FirstOrCreate(&uraian)
 		}
 	}

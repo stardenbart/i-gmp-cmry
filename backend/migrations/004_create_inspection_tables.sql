@@ -3,8 +3,8 @@
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS "Aspek_Master" (
-    "AspekID"        VARCHAR(20)  NOT NULL,
-    "AreaID"         VARCHAR(20)  NOT NULL,
+    "AspekID"        VARCHAR(50)  NOT NULL,
+    "AreaID"         VARCHAR(50)  NOT NULL,
     "AspekName"      VARCHAR(100) NOT NULL,
     "AspekCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "AspekUpdatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS "Aspek_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Detail_Master" (
-    "DetailID"        VARCHAR(20)  NOT NULL,
-    "AspekID"         VARCHAR(20)  NOT NULL,
+    "DetailID"        VARCHAR(50)  NOT NULL,
+    "AspekID"         VARCHAR(50)  NOT NULL,
     "DetailName"      VARCHAR(150) NOT NULL,
     "DetailCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "DetailUpdatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -23,10 +23,10 @@ CREATE TABLE IF NOT EXISTS "Detail_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Uraian_Master" (
-    "UraianID"        VARCHAR(20)  NOT NULL,
-    "DetailID"        VARCHAR(20)  NOT NULL,
+    "UraianID"        VARCHAR(50)  NOT NULL,
+    "DetailID"        VARCHAR(50)  NOT NULL,
     "UraianText"      VARCHAR(500) NOT NULL,
-    "StandardScore"   INT          NOT NULL DEFAULT 0,
+    "StandardScore"   INT          NOT NULL DEFAULT 2,
     "UraianCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UraianUpdatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("UraianID"),
@@ -34,11 +34,11 @@ CREATE TABLE IF NOT EXISTS "Uraian_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Inspection_Header" (
-    "InspectionID"              VARCHAR(20) NOT NULL,
-    "AreaID"                    VARCHAR(20) NOT NULL,
-    "KawasanID"                 VARCHAR(20) NOT NULL,
-    "DetailKawasanID"           VARCHAR(20) NOT NULL,
-    "InspectorID"               VARCHAR(20) NOT NULL,
+    "InspectionID"              VARCHAR(50) NOT NULL,
+    "AreaID"                    VARCHAR(50) NOT NULL,
+    "KawasanID"                 VARCHAR(50) NOT NULL,
+    "DetailKawasanID"           VARCHAR(50) NOT NULL,
+    "InspectorID"               VARCHAR(50) NOT NULL,
     "InspectionHeaderStatus"    VARCHAR(30) NOT NULL DEFAULT 'Draft',
     "InspectionHeaderCreatedAt" TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "InspectionheaderUpdatedAt" TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -50,10 +50,10 @@ CREATE TABLE IF NOT EXISTS "Inspection_Header" (
 );
 
 CREATE TABLE IF NOT EXISTS "Inspection_Result" (
-    "ResultID"                   VARCHAR(20)  NOT NULL,
-    "InspectionID"               VARCHAR(20)  NOT NULL,
-    "UraianID"                   VARCHAR(20)  NOT NULL,
-    "Checking"                   VARCHAR(20),
+    "ResultID"                   VARCHAR(50)  NOT NULL,
+    "InspectionID"               VARCHAR(50)  NOT NULL,
+    "UraianID"                   VARCHAR(50)  NOT NULL,
+    "Checking"                   VARCHAR(50),
     "Nilai"                      INT          NOT NULL DEFAULT 0,
     "Keterangan"                 VARCHAR(255),
     "InspectionResultCreatedAt"  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

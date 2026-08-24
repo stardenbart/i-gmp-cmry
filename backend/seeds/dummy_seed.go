@@ -59,7 +59,7 @@ func SeedDummyData(db *gorm.DB) {
 
 			// 6. Uraian (Checklist item)
 			uraianID := fmt.Sprintf("UR%03d", idx)
-			uraian := masterdomain.Uraian{UraianID: uraianID, DetailID: detailID, UraianText: fmt.Sprintf("Lantai bersih dari genangan air %s %d", p.PlantName, i), StandardScore: 100}
+			uraian := masterdomain.Uraian{UraianID: uraianID, DetailID: detailID, UraianText: fmt.Sprintf("Lantai bersih dari genangan air %s %d", p.PlantName, i), StandardScore: 2}
 			db.Where(&masterdomain.Uraian{UraianID: uraian.UraianID}).FirstOrCreate(&uraian)
 
 			// 7. Current Month Inspection Header

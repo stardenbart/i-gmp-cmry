@@ -8,7 +8,7 @@ type Uraian struct {
 	UraianID        string    `gorm:"column:UraianID;primaryKey" json:"uraian_id"`
 	DetailID        string    `gorm:"column:DetailID;not null" json:"detail_id"`
 	UraianText      string    `gorm:"column:UraianText;size:500;not null" json:"uraian_text"`
-	StandardScore   int       `gorm:"column:StandardScore;not null;default:0" json:"standard_score"`
+	StandardScore   int       `gorm:"column:StandardScore;not null;default:2" json:"standard_score"`
 	UraianCreatedAt time.Time `gorm:"column:UraianCreatedAt;autoCreateTime" json:"created_at"`
 	UraianUpdatedAt time.Time `gorm:"column:UraianUpdatedAt;autoUpdateTime" json:"updated_at"`
 
