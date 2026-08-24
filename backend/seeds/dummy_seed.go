@@ -96,15 +96,16 @@ func SeedDummyData(db *gorm.DB) {
 
 			// 9. Issue (Only if NG)
 			if checking == "NG" {
-				eqID := fmt.Sprintf("EQ%03d", idx)
-				eq := issuedomain.Equipment{
-					EquipmentID:     eqID,
-					KawasanID:       kawasanID,
-					EquipmentCode:   fmt.Sprintf("EQ-CODE-%03d", idx),
-					EquipmentName:   fmt.Sprintf("Mesin Pompa %s %d", p.PlantName, i),
-					EquipmentStatus: "Active",
+				heiItemID := fmt.Sprintf("HEI-EQP-%03d", idx)
+				heiItem := masterdomain.HEIMaster{
+					HEIID:        heiItemID,
+					CategoryName: "Equipment",
+					HEICode:      fmt.Sprintf("EQ-CODE-%03d", idx),
+					HEIName:      fmt.Sprintf("Mesin Pompa %s %d", p.PlantName, i),
+					KawasanID:    &kawasanID,
+					Status:       "Active",
 				}
-				db.Where(&issuedomain.Equipment{EquipmentID: eq.EquipmentID}).FirstOrCreate(&eq)
+				db.Where(&masterdomain.HEIMaster{HEIID: heiItem.HEIID}).FirstOrCreate(&heiItem)
 
 				issueID := fmt.Sprintf("ISSUE-%03d", idx)
 				dueDate := now.AddDate(0, 0, 3)
@@ -118,10 +119,11 @@ func SeedDummyData(db *gorm.DB) {
 				}
 				db.Where(&issuedomain.Issue{IssueID: issue.IssueID}).FirstOrCreate(&issue)
 
+				heiID := "HEI-EQP-001"
 				hei := issuedomain.IssueHEI{
-					IssueHEIID:  fmt.Sprintf("HEI-%03d", idx),
-					IssueID:     issueID,
-					EquipmentID: &eqID,
+					IssueHEIID: fmt.Sprintf("HEI-%03d", idx),
+					IssueID:    issueID,
+					HEIID:      &heiID,
 				}
 				db.Where(&issuedomain.IssueHEI{IssueID: hei.IssueID}).FirstOrCreate(&hei)
 			}
@@ -207,14 +209,8 @@ func CleanupDummyData(db *gorm.DB) {
 	// 6. Delete Inspection Headers (Only dummy INS-*, preserve INSP-REAL-*)
 	db.Exec(`DELETE FROM "Inspection_Header" WHERE "InspectionID" NOT LIKE 'INSP-REAL-%' AND ("InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%')`)
 
-	// 7. Delete Equipment Master dummy records (only if table exists)
-	db.Exec(`
-		DO $$ BEGIN
-			IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'Equipment_Master') THEN
-				DELETE FROM "Equipment_Master" WHERE "EquipmentID" LIKE 'EQ%' AND ("EquipmentCode" LIKE 'EQ-CODE-%' OR "KawasanID" LIKE 'K%');
-			END IF;
-		END $$
-	`)
+	// 7. Delete HEI Master dummy records
+	db.Exec(`DELETE FROM "HEI_Master" WHERE "HEIID" NOT LIKE 'HEI-%' AND "HEIID" NOT LIKE 'HEI-HAB-%' AND "HEIID" NOT LIKE 'HEI-EQP-%' AND "HEIID" NOT LIKE 'HEI-INF-%'`)
 
 	// 8. Delete Checklist Uraian (Only dummy UR0xx records, preserve URN-REAL-*)
 	db.Exec(`DELETE FROM "Uraian_Master" WHERE "UraianID" NOT LIKE 'URN-REAL-%' AND ("UraianID" LIKE 'UR%' OR "UraianText" LIKE 'Lantai bersih dari genangan air%')`)

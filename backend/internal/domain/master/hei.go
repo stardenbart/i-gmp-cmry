@@ -11,10 +11,13 @@ type HEIMaster struct {
 	CategoryName string    `gorm:"column:CategoryName;not null" json:"category_name"`
 	HEICode      string    `gorm:"column:HEICode" json:"hei_code"`
 	HEIName      string    `gorm:"column:HEIName;not null" json:"hei_name"`
+	KawasanID    *string   `gorm:"column:KawasanID" json:"kawasan_id,omitempty"`
 	Description  string    `gorm:"column:Description" json:"description"`
 	Status       string    `gorm:"column:Status;default:Active" json:"status"`
 	CreatedAt    time.Time `gorm:"column:CreatedAt;autoCreateTime" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"column:UpdatedAt;autoUpdateTime" json:"updated_at"`
+
+	Kawasan *Kawasan `gorm:"foreignKey:KawasanID;references:KawasanID" json:"kawasan,omitempty"`
 }
 
 func (HEIMaster) TableName() string { return "HEI_Master" }

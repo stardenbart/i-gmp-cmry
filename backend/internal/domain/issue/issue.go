@@ -2,6 +2,8 @@ package issue
 
 import (
 	"time"
+
+	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 )
 
 // IssueStatus defines allowed values for issue status.
@@ -29,18 +31,14 @@ const (
 
 // IssueHEI represents the Issue_HEI junction table (1-to-1 per Issue).
 type IssueHEI struct {
-	IssueHEIID       string          `gorm:"column:IssueHEIID;primaryKey" json:"issue_hei_id"`
-	IssueID          string          `gorm:"column:IssueID;unique;not null" json:"issue_id"`
-	HabitID          *string         `gorm:"column:HabitID" json:"habit_id,omitempty"`
-	EquipmentID      *string         `gorm:"column:EquipmentID" json:"equipment_id,omitempty"`
-	InfrastructureID *string         `gorm:"column:InfrastructureID" json:"infrastructure_id,omitempty"`
-	CreatedAt        time.Time       `gorm:"column:CreatedAt;autoCreateTime" json:"created_at"`
-	UpdatedAt        time.Time       `gorm:"column:UpdatedAt;autoUpdateTime" json:"updated_at"`
+	IssueHEIID string    `gorm:"column:IssueHEIID;primaryKey" json:"issue_hei_id"`
+	IssueID    string    `gorm:"column:IssueID;unique;not null" json:"issue_id"`
+	HEIID      *string   `gorm:"column:HEIID" json:"hei_id,omitempty"`
+	CreatedAt  time.Time `gorm:"column:CreatedAt;autoCreateTime" json:"created_at"`
+	UpdatedAt  time.Time `gorm:"column:UpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Habit          *Habit          `gorm:"foreignKey:HabitID" json:"habit,omitempty"`
-	Equipment      *Equipment      `gorm:"foreignKey:EquipmentID" json:"equipment,omitempty"`
-	Infrastructure *Infrastructure `gorm:"foreignKey:InfrastructureID" json:"infrastructure,omitempty"`
+	HEI *masterdomain.HEIMaster `gorm:"foreignKey:HEIID;references:HEIID" json:"hei,omitempty"`
 }
 
 func (IssueHEI) TableName() string { return "Issue_HEI" }

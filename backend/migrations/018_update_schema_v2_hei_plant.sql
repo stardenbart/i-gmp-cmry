@@ -11,7 +11,7 @@ END $$;
 
 -- 2. Create Table Plant_Master
 CREATE TABLE IF NOT EXISTS "Plant_Master" (
-    "PlantID"        VARCHAR(20)  NOT NULL,
+    "PlantID"        VARCHAR(50)  NOT NULL,
     "PlantCode"      VARCHAR(20)  NOT NULL,
     "PlantName"      VARCHAR(100) NOT NULL,
     "Address"        VARCHAR(255),
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS "Plant_Master" (
 
 -- 3. Create Table Habit_Master
 CREATE TABLE IF NOT EXISTS "Habit_Master" (
-    "HabitID"        VARCHAR(20)  NOT NULL,
+    "HabitID"        VARCHAR(50)  NOT NULL,
     "HabitCode"      VARCHAR(20),
     "HabitName"      VARCHAR(150) NOT NULL,
     "HabitCategory"  VARCHAR(50),
@@ -70,8 +70,15 @@ CREATE INDEX IF NOT EXISTS "idx_infrastructure_kawasan" ON "Infrastructure_Maste
 ALTER TABLE "Area_Master" ADD COLUMN IF NOT EXISTS "PlantID" VARCHAR(20) REFERENCES "Plant_Master" ("PlantID") ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS "idx_area_plant" ON "Area_Master" ("PlantID");
 
--- 7. Fix Inspection_Header column typo
-ALTER TABLE "Inspection_Header" RENAME COLUMN "InspectionheaderUpdatedAt" TO "InspectionHeaderUpdatedAt";
+-- 7. Fix Inspection_Header column typo safely
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'Inspection_Header' AND column_name = 'InspectionheaderUpdatedAt'
+    ) THEN
+        ALTER TABLE "Inspection_Header" RENAME COLUMN "InspectionheaderUpdatedAt" TO "InspectionHeaderUpdatedAt";
+    END IF;
+END $$;
 
 -- 8. Fix PIC_Mapping AreaID default
 ALTER TABLE "PIC_Mapping" ALTER COLUMN "AreaID" DROP DEFAULT;

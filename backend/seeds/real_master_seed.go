@@ -520,6 +520,33 @@ func SeedRealMasterData(db *gorm.DB) {
 			Keterangan:     s.Ket,
 		}
 		db.Where("\"IssueID\" = ?", s.IssueID).FirstOrCreate(&iss)
+
+		// Create Issue_HEI entry referencing unified HEIID
+		heiID := "HEI-HAB-001"
+		if s.IssueID == "ISSUE-REAL-002" {
+			heiID = "HEI-EQP-001"
+		} else if s.IssueID == "ISSUE-REAL-003" {
+			heiID = "HEI-INF-001"
+		}
+		issueHEI := issuedomain.IssueHEI{
+			IssueHEIID: "HEI-" + s.IssueID,
+			IssueID:    s.IssueID,
+			HEIID:      &heiID,
+		}
+		db.Where("\"IssueID\" = ?", s.IssueID).FirstOrCreate(&issueHEI)
+	}
+
+	// Seed Sample HEI_Master Catalog Items
+	sampleHEIs := []masterdomain.HEIMaster{
+		{HEIID: "HEI-HAB-001", CategoryName: "Habit", HEICode: "HAB-001", HEIName: "Cuci Tangan Sebelum Masuk Area Produksi", Description: "Kepatuhan mencuci tangan dengan sabun & sanitasi", Status: "Active"},
+		{HEIID: "HEI-HAB-002", CategoryName: "Habit", HEICode: "HAB-002", HEIName: "Penggunaan APD Lengkap", Description: "Memakai masker, hairnet, dan sepatu kerja", Status: "Active"},
+		{HEIID: "HEI-EQP-001", CategoryName: "Equipment", HEICode: "EQ-CMD-01", HEIName: "Mesin Filling CMD 1", Description: "Unit Pengisian Produk Cair", Status: "Active"},
+		{HEIID: "HEI-EQP-002", CategoryName: "Equipment", HEICode: "EQ-CMD-02", HEIName: "Mesin Packing Sachet", Description: "Unit Pengemasan Sachet", Status: "Active"},
+		{HEIID: "HEI-INF-001", CategoryName: "Infrastructure", HEICode: "INF-SLR-01", HEIName: "Saluran Drainase Lantai Produksi", Description: "Sistem Drainase & Grating Lantai", Status: "Active"},
+		{HEIID: "HEI-INF-002", CategoryName: "Infrastructure", HEICode: "INF-LMP-01", HEIName: "Lampu Penerangan Anti-Pecah (Covered)", Description: "Fasilitas Penerangan Area Cleanroom", Status: "Active"},
+	}
+	for _, item := range sampleHEIs {
+		db.Where("\"HEIID\" = ?", item.HEIID).FirstOrCreate(&item)
 	}
 
 	log.Println("✅ Real Master Data & Sample Issues seeded successfully.")
