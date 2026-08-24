@@ -2,7 +2,7 @@ name: audit
 
 services:
   db:
-    image: postgres:15-alpine
+    image: docker.io/library/postgres:15-alpine
     container_name: audit_prod_db
     restart: always
     environment:
@@ -29,7 +29,7 @@ services:
       - audit_network
 
   redis:
-    image: redis:7-alpine
+    image: docker.io/library/redis:7-alpine
     container_name: audit_prod_redis
     restart: always
     deploy:
@@ -51,7 +51,7 @@ services:
       - audit_network
 
   minio:
-    image: minio/minio
+    image: docker.io/minio/minio:RELEASE.2023-09-20T22-40-07Z
     container_name: audit_prod_minio
     restart: always
     environment:
@@ -76,7 +76,7 @@ services:
       - audit_network
 
   zookeeper:
-    image: bitnami/zookeeper:3.8
+    image: docker.io/bitnamilegacy/zookeeper:3.8
     container_name: audit_prod_zookeeper
     restart: unless-stopped
     environment:
@@ -90,7 +90,7 @@ services:
       - audit_network
 
   kafka:
-    image: bitnami/kafka:3.4
+    image: docker.io/bitnamilegacy/kafka:3.4
     container_name: audit_prod_kafka
     restart: unless-stopped
     environment:
@@ -119,7 +119,7 @@ services:
       - audit_network
 
   opensearch-node1:
-    image: opensearchproject/opensearch:2.11.0
+    image: docker.io/opensearchproject/opensearch:2.11.0
     container_name: audit_prod_opensearch
     restart: unless-stopped
     environment:
@@ -164,14 +164,12 @@ services:
           cpus: '1.0'
           memory: 512M
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      opensearch-node1:
-        condition: service_healthy
+      - db
+      - redis
+      - minio
+      - zookeeper
+      - kafka
+      - opensearch-node1
     environment:
       APP_ENV: production
       APP_PORT: "8080"
@@ -219,11 +217,8 @@ services:
     networks:
       - audit_network
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # CLOUDFLARE TUNNEL (Zero Open Ports Security Model)
-  # ──────────────────────────────────────────────────────────────────────────
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: docker.io/cloudflare/cloudflared:latest
     container_name: audit_prod_cloudflared
     restart: always
     environment:

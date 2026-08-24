@@ -1,21 +1,8 @@
 name: audit
 
 services:
-  cloudflared:
-    image: docker.io/cloudflare/cloudflared:latest
-    container_name: cloudflared
-    restart: unless-stopped
-    command: tunnel --config /home/nonroot/.cloudflared/config.yml run system-audit
-    volumes:
-      - /home/wireroot/.cloudflared:/home/nonroot/.cloudflared:Z
-    networks:
-      - audit_network
-    depends_on:
-      - frontend
-      - backend
-
   db:
-    image: postgres:15-alpine
+    image: docker.io/library/postgres:15-alpine
     container_name: monitoring_db
     restart: always
     environment:
@@ -36,7 +23,7 @@ services:
       - audit_network
 
   minio:
-    image: minio/minio
+    image: docker.io/minio/minio:RELEASE.2023-09-20T22-40-07Z
     container_name: monitoring_minio
     restart: always
     ports:
@@ -96,14 +83,13 @@ services:
       - audit_network
 
   opensearch-node1:
-    image: opensearchproject/opensearch:2.11.0
+    image: docker.io/opensearchproject/opensearch:2.11.0
     container_name: monitoring_opensearch
     restart: unless-stopped
     environment:
       - cluster.name=opensearch-cluster
       - node.name=opensearch-node1
-      - discovery.type=single-node            # DIAKTIFKAN
-      # BARIS cluster.initial_master_nodes DI SINI SUDAH DIHAPUS AGAR TIDAK CRASH
+      - discovery.type=single-node
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
       - DISABLE_SECURITY_PLUGIN=true
@@ -129,7 +115,7 @@ services:
       - audit_network
 
   opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.11.0
+    image: docker.io/opensearchproject/opensearch-dashboards:2.11.0
     container_name: monitoring_opensearch_dashboards
     restart: unless-stopped
     ports:
@@ -143,7 +129,7 @@ services:
       - audit_network
 
   redis:
-    image: redis:7-alpine
+    image: docker.io/library/redis:7-alpine
     container_name: monitoring_redis
     restart: always
     ports:
@@ -166,16 +152,12 @@ services:
     container_name: monitoring_backend
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      opensearch-node1:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - db
+      - redis
+      - minio
+      - zookeeper
+      - kafka
+      - opensearch-node1
     ports:
       - "8080:8080"
     environment:
@@ -203,7 +185,7 @@ services:
     networks:
       - audit_network
 
-  frontend: 
+  frontend:
     build:
       context: ./frontend
       dockerfile: docker/frontend.Dockerfile
