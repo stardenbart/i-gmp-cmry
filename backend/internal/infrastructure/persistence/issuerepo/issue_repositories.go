@@ -97,22 +97,11 @@ func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID st
 			  FROM "Issue_Photo" ip 
 			  JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID" 
 			  WHERE ip."IssueID" = "Issue"."IssueID" 
-			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName",
-			(SELECT hm."HabitName" FROM "Issue_Photo" ip
-			  JOIN "Habit_Master" hm ON hm."HabitID" = ip."HabitID"
-			  WHERE ip."IssueID" = "Issue"."IssueID" AND ip."HabitID" IS NOT NULL AND ip."HabitID" != '' LIMIT 1) AS "HabitName",
-			(SELECT em."EquipmentName" FROM "Issue_Photo" ip
-			  JOIN "Equipment_Master" em ON em."EquipmentID" = ip."EquipmentID"
-			  WHERE ip."IssueID" = "Issue"."IssueID" AND ip."EquipmentID" IS NOT NULL AND ip."EquipmentID" != '' LIMIT 1) AS "EquipmentName",
-			(SELECT im."InfrastructureName" FROM "Issue_Photo" ip
-			  JOIN "Infrastructure_Master" im ON im."InfrastructureID" = ip."InfrastructureID"
-			  WHERE ip."IssueID" = "Issue"."IssueID" AND ip."InfrastructureID" IS NOT NULL AND ip."InfrastructureID" != '' LIMIT 1) AS "InfrastructureName"`).
+			  ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName"`).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order(`"PhotoCreatedAt" ASC`)
 		}).
-		Preload("HEI.Habit").
-		Preload("HEI.Equipment").
-		Preload("HEI.Infrastructure").
+		Preload("HEI.HEI").
 		Order(`"Issue"."IssueCreatedAt" DESC`).
 		Offset((page - 1) * limit).
 		Limit(limit).
@@ -143,9 +132,7 @@ func (r *issueRepository) FindByID(id string) (*issue.Issue, error) {
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order(`"PhotoCreatedAt" ASC`)
 		}).
-		Preload("HEI.Habit").
-		Preload("HEI.Equipment").
-		Preload("HEI.Infrastructure").
+		Preload("HEI.HEI").
 		Where(`"Issue"."IssueID" = ?`, id).
 		Take(&item).Error
 
@@ -267,16 +254,14 @@ func (r *issueHEIRepository) UpsertByIssueID(issueID string, hei *issue.IssueHEI
 	hei.IssueID = issueID
 	return r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "IssueID"}},
-		DoUpdates: clause.AssignmentColumns([]string{"HabitID", "EquipmentID", "InfrastructureID", "UpdatedAt"}),
+		DoUpdates: clause.AssignmentColumns([]string{"HEIID", "UpdatedAt"}),
 	}).Create(hei).Error
 }
 
 func (r *issueHEIRepository) FindByIssueID(issueID string) (*issue.IssueHEI, error) {
 	var item issue.IssueHEI
 	err := r.db.Where(`"IssueID" = ?`, issueID).
-		Preload("Habit").
-		Preload("Equipment").
-		Preload("Infrastructure").
+		Preload("HEI").
 		First(&item).Error
 	if err != nil {
 		return nil, err
