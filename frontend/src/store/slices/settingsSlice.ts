@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface SettingsState {
-  activeTab: "general" | "email" | "apikey";
+  activeTab: "general" | "smtp" | "email" | "apikey";
   plantFilter: string;
 }
 
@@ -14,7 +14,7 @@ export const settingsSlice = createSlice({
   name: "settings",
   initialState,
   reducers: {
-    setActiveTab: (state, action: PayloadAction<"general" | "email" | "apikey">) => {
+    setActiveTab: (state, action: PayloadAction<"general" | "smtp" | "email" | "apikey">) => {
       state.activeTab = action.payload;
     },
     setPlantFilter: (state, action: PayloadAction<string>) => {

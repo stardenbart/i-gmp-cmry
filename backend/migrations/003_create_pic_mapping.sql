@@ -3,10 +3,10 @@
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS "PIC_Mapping" (
-    "PICMapID"            VARCHAR(20) NOT NULL,
-    "AreaID"              VARCHAR(20),
-    "KawasanID"           VARCHAR(20) NOT NULL,
-    "UserID"              VARCHAR(20) NOT NULL,
+    "PICMapID"            VARCHAR(50) NOT NULL,
+    "AreaID"              VARCHAR(50),
+    "KawasanID"           VARCHAR(50) NOT NULL,
+    "UserID"              VARCHAR(50) NOT NULL,
     "KategoriPIC"         VARCHAR(50),
     "PICMappingCreatedAt" TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "PICMappingUpdatedAt" TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,

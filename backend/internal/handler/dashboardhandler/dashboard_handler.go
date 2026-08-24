@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
+	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/exporter"
 	"github.com/monitoring-system/backend/pkg/logger"
@@ -19,6 +19,44 @@ type DashboardHandler struct {
 	db        *gorm.DB
 	log       *logger.Logger
 	cryptoSvc *crypto.Service
+}
+
+type issueInitialPhoto struct {
+	IssueID  string `gorm:"column:issue_id"`
+	ImageURL string `gorm:"column:image_url"`
+}
+
+// loadInitialIssueImages returns every initial finding photo grouped by issue.
+// GMP rows represent an uraian/result, so follow-up and WO/WR photos must not
+// replace the original evidence shown for that uraian.
+func (h *DashboardHandler) loadInitialIssueImages(issueIDs []string) (map[string][]string, error) {
+	grouped := make(map[string][]string)
+	if len(issueIDs) == 0 {
+		return grouped, nil
+	}
+
+	var photos []issueInitialPhoto
+	err := h.db.Table(`"Issue_Photo"`).
+		Select(`"IssueID" as issue_id, "ImageUrl" as image_url`).
+		Where(`"IssueID" IN ? AND "PhotoType" = ?`, issueIDs, "Initial").
+		Order(`"IssueID" ASC, "PhotoCreatedAt" ASC`).
+		Scan(&photos).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, photo := range photos {
+		if photo.ImageURL == "" {
+			continue
+		}
+		imageURL := photo.ImageURL
+		if h.cryptoSvc != nil {
+			imageURL = h.cryptoSvc.DecryptWithFallback(imageURL)
+		}
+		grouped[photo.IssueID] = append(grouped[photo.IssueID], imageURL)
+	}
+
+	return grouped, nil
 }
 
 func NewDashboardHandler(db *gorm.DB, log *logger.Logger, cryptoSvc *crypto.Service) *DashboardHandler {
@@ -74,34 +112,48 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	}
 
 	qRunning := h.db.Model(&inspection.InspectionHeader{}).Where("\"InspectionHeaderStatus\" = ?", "Ongoing")
-	if allowedAreas != nil { qRunning = qRunning.Where("\"AreaID\" IN ?", allowedAreas) }
+	if allowedAreas != nil {
+		qRunning = qRunning.Where("\"AreaID\" IN ?", allowedAreas)
+	}
 	qRunning.Count(&totalInspectionsRunning)
 
 	qCompleted := h.db.Model(&inspection.InspectionHeader{}).Where("\"InspectionHeaderStatus\" = ?", "Completed")
-	if allowedAreas != nil { qCompleted = qCompleted.Where("\"AreaID\" IN ?", allowedAreas) }
+	if allowedAreas != nil {
+		qCompleted = qCompleted.Where("\"AreaID\" IN ?", allowedAreas)
+	}
 	qCompleted.Count(&inspectionsCompleted)
 
 	// Issue queries need join with Inspection_Header
 	qIssueBase := h.db.Table("\"Issue\" i").Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"")
 	qIssueOpen := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue')")
-	if allowedAreas != nil { qIssueOpen = qIssueOpen.Where("ih.\"AreaID\" IN ?", allowedAreas) }
+	if allowedAreas != nil {
+		qIssueOpen = qIssueOpen.Where("ih.\"AreaID\" IN ?", allowedAreas)
+	}
 	qIssueOpen.Count(&totalOpenIssues)
 
 	qIssueClosed := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" IN ('Closed', 'Verified', 'ClosedOverdue')")
-	if allowedAreas != nil { qIssueClosed = qIssueClosed.Where("ih.\"AreaID\" IN ?", allowedAreas) }
+	if allowedAreas != nil {
+		qIssueClosed = qIssueClosed.Where("ih.\"AreaID\" IN ?", allowedAreas)
+	}
 	qIssueClosed.Count(&picFollowupCompleted)
 
 	qIssueOverdue := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue') AND i.\"DueDate\" < NOW()")
-	if allowedAreas != nil { qIssueOverdue = qIssueOverdue.Where("ih.\"AreaID\" IN ?", allowedAreas) }
+	if allowedAreas != nil {
+		qIssueOverdue = qIssueOverdue.Where("ih.\"AreaID\" IN ?", allowedAreas)
+	}
 	qIssueOverdue.Count(&picFollowupOverdue)
 
 	qResultBase := h.db.Table("\"Inspection_Result\" ir").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"")
 	qCheck := qResultBase.Session(&gorm.Session{})
-	if allowedAreas != nil { qCheck = qCheck.Where("ih.\"AreaID\" IN ?", allowedAreas) }
+	if allowedAreas != nil {
+		qCheck = qCheck.Where("ih.\"AreaID\" IN ?", allowedAreas)
+	}
 	qCheck.Count(&totalCheck)
 
 	qOK := qResultBase.Session(&gorm.Session{}).Where("ir.\"Checking\" = ?", "OK")
-	if allowedAreas != nil { qOK = qOK.Where("ih.\"AreaID\" IN ?", allowedAreas) }
+	if allowedAreas != nil {
+		qOK = qOK.Where("ih.\"AreaID\" IN ?", allowedAreas)
+	}
 	qOK.Count(&totalOK)
 
 	inspectionsRunning = totalInspectionsRunning
@@ -144,7 +196,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		if r.TotalCheck > 0 {
 			compliance = float64(r.TotalOK) / float64(r.TotalCheck) * 100
 		}
-		
+
 		// For aesthetics, alternate between Store and Factory icons for different areas
 		icon := "Store"
 		typeStr := "Area Operasional"
@@ -399,6 +451,7 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 		IssueID         *string    `json:"issue_id"`
 		DueDate         *time.Time `json:"due_date"`
 		ImageURL        *string    `json:"image_url"`
+		ImageURLs       []string   `gorm:"-" json:"image_urls"`
 		FollowUpDate    *time.Time `json:"follow_up_date"`
 	}
 
@@ -421,10 +474,6 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
-			COALESCE(
-				(SELECT p3."ImageUrl" FROM "Issue_Photo" p3 WHERE p3."IssueID" = iss."IssueID" AND p3."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p3."PhotoCreatedAt" DESC LIMIT 1),
-				(SELECT p4."ImageUrl" FROM "Issue_Photo" p4 WHERE p4."IssueID" = iss."IssueID" ORDER BY p4."PhotoCreatedAt" ASC LIMIT 1)
-			) as image_url, 
 			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"`).
 		Joins(`JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
@@ -456,16 +505,28 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 	if allowedAreas != nil {
 		query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
 	}
-	
+
 	err := query.Order(`ih."InspectionHeaderCreatedAt" DESC`).Scan(&results).Error
 	if err != nil {
 		h.log.Error("Failed to fetch preview export data", logger.Error(err))
 		return response.InternalServerError(c, "Failed to load data", err.Error())
 	}
 
-	// Calculate TotalNilai & TotalTemuan per Kawasan and decrypt ImageURL
+	issueIDs := make([]string, 0)
+	for _, result := range results {
+		if result.IssueID != nil && *result.IssueID != "" {
+			issueIDs = append(issueIDs, *result.IssueID)
+		}
+	}
+	initialImages, err := h.loadInitialIssueImages(issueIDs)
+	if err != nil {
+		h.log.Error("Failed to fetch GMP initial issue photos", logger.Error(err))
+		return response.InternalServerError(c, "Failed to load issue photos", err.Error())
+	}
+
+	// TotalNilai remains an aggregate per kawasan. TotalTemuan is intentionally
+	// per uraian so the same kawasan count is not repeated on every row.
 	kawasanNilai := make(map[string]int)
-	kawasanTemuan := make(map[string]int)
 
 	for _, res := range results {
 		key := res.KawasanID
@@ -473,9 +534,6 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			key = res.Kawasan
 		}
 		kawasanNilai[key] += res.Nilai
-		if res.IssueID != nil && *res.IssueID != "" {
-			kawasanTemuan[key]++
-		}
 	}
 
 	for i := range results {
@@ -484,11 +542,14 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			key = results[i].Kawasan
 		}
 		results[i].TotalNilai = kawasanNilai[key]
-		results[i].TotalTemuan = kawasanTemuan[key]
-
-		if h.cryptoSvc != nil && results[i].ImageURL != nil && *results[i].ImageURL != "" {
-			decrypted := h.cryptoSvc.DecryptWithFallback(*results[i].ImageURL)
-			results[i].ImageURL = &decrypted
+		results[i].TotalTemuan = 0
+		if results[i].IssueID != nil && *results[i].IssueID != "" {
+			results[i].TotalTemuan = 1
+			results[i].ImageURLs = initialImages[*results[i].IssueID]
+			if len(results[i].ImageURLs) > 0 {
+				firstImage := results[i].ImageURLs[0]
+				results[i].ImageURL = &firstImage
+			}
 		}
 		if h.cryptoSvc != nil && results[i].Keterangan != "" {
 			results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
@@ -523,6 +584,7 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		IssueID         *string    `gorm:"column:issue_id" json:"issue_id"`
 		DueDate         *time.Time `gorm:"column:due_date" json:"due_date"`
 		ImageURL        *string    `gorm:"column:image_url" json:"image_url"`
+		ImageURLs       []string   `gorm:"-" json:"image_urls"`
 		FollowUpDate    *time.Time `gorm:"column:follow_up_date" json:"follow_up_date"`
 	}
 
@@ -544,10 +606,6 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
-			COALESCE(
-				(SELECT p3."ImageUrl" FROM "Issue_Photo" p3 WHERE p3."IssueID" = iss."IssueID" AND p3."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p3."PhotoCreatedAt" DESC LIMIT 1),
-				(SELECT p4."ImageUrl" FROM "Issue_Photo" p4 WHERE p4."IssueID" = iss."IssueID" ORDER BY p4."PhotoCreatedAt" ASC LIMIT 1)
-			) as image_url, 
 			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"`).
 		Joins(`JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
@@ -600,7 +658,20 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	totalNilai := 0
 	totalTemuan := 0
 	kawasanNilai := make(map[string]int)
-	kawasanTemuan := make(map[string]int)
+	issueIDs := make([]string, 0)
+	for _, result := range results {
+		if result.IssueID != nil && *result.IssueID != "" {
+			issueIDs = append(issueIDs, *result.IssueID)
+		}
+	}
+	initialImages, err := h.loadInitialIssueImages(issueIDs)
+	if err != nil {
+		h.log.Error("Failed to fetch GMP export issue photos", logger.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "failed to fetch issue photos",
+		})
+	}
 
 	for i := range results {
 		totalNilai += results[i].Nilai
@@ -611,14 +682,14 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		kawasanNilai[key] += results[i].Nilai
 		if results[i].IssueID != nil && *results[i].IssueID != "" {
 			totalTemuan++
-			kawasanTemuan[key]++
+			results[i].ImageURLs = initialImages[*results[i].IssueID]
+			if len(results[i].ImageURLs) > 0 {
+				firstImage := results[i].ImageURLs[0]
+				results[i].ImageURL = &firstImage
+			}
 		}
 
 		if h.cryptoSvc != nil {
-			if results[i].ImageURL != nil && *results[i].ImageURL != "" {
-				decrypted := h.cryptoSvc.DecryptWithFallback(*results[i].ImageURL)
-				results[i].ImageURL = &decrypted
-			}
 			if results[i].Keterangan != "" {
 				results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
 			}
@@ -641,12 +712,12 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	// Prepare payload for placeholder exporter
 	payload := &exporter.PlaceholderPayload{
 		Headers: map[string]interface{}{
-			"datetime.now()":      time.Now().Format("02-Jan-06"),
-			"AreaName":            areaName,
-			"PICName":             picName,
-			"DueDate":             headerDueDate,
-			"total_semua_nilai":   totalNilai,
-			"total_semua_temuan":  totalTemuan,
+			"datetime.now()":     time.Now().Format("02-Jan-06"),
+			"AreaName":           areaName,
+			"PICName":            picName,
+			"DueDate":            headerDueDate,
+			"total_semua_nilai":  totalNilai,
+			"total_semua_temuan": totalTemuan,
 		},
 		Items: make([]map[string]interface{}, 0, len(results)),
 	}
@@ -660,9 +731,13 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		if res.FollowUpDate != nil {
 			followUpStr = res.FollowUpDate.Format("02-Jan-2006 15:04")
 		}
-		imgUrl := ""
-		if res.ImageURL != nil && *res.ImageURL != "" {
-			imgUrl = *res.ImageURL
+		rowTemuan := 0
+		if res.IssueID != nil && *res.IssueID != "" {
+			rowTemuan = 1
+		}
+		var imageValue interface{} = ""
+		if len(res.ImageURLs) > 0 {
+			imageValue = res.ImageURLs
 		}
 
 		// Keterangan: try to decrypt again if it looks like it might still be encrypted
@@ -691,9 +766,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"uraian":                  res.Uraian,
 			"nilai":                   res.Nilai,
 			"total_nilai_perkawasan":  kawasanNilai[key],
-			"total_temuan_perkawasan": kawasanTemuan[key],
+			"total_temuan_perkawasan": rowTemuan,
 			"total_nilai_peraspek":    kawasanNilai[key],
-			"total_temuan_peraspek":   kawasanTemuan[key],
+			"total_temuan_peraspek":   rowTemuan,
 			"keterangan":              keterangan,
 			"dueDate":                 dueDateStr,
 			"due_date":                dueDateStr,
@@ -702,20 +777,20 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"follow_up":               followUpStr,
 			"follow_up_date":          followUpStr,
 			"FollowUpDate":            followUpStr,
-			"imageUrl":                imgUrl,
-			"image_url":               imgUrl,
+			"imageUrl":                imageValue,
+			"image_url":               imageValue,
 		})
 	}
 
-		buf, err := exporter.GenerateExcelWithPlaceholder("./templates/master_gmp.xlsx", "Rev 00", payload)
-		if err != nil {
-			h.log.Error("failed to generate excel with placeholder", logger.Error(err))
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"success": false,
-				"message": "failed to generate excel file",
-			})
-		}
-	
+	buf, err := exporter.GenerateExcelWithPlaceholder("./templates/master_gmp.xlsx", "Rev 00", payload)
+	if err != nil {
+		h.log.Error("failed to generate excel with placeholder", logger.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "failed to generate excel file",
+		})
+	}
+
 	fileNameArea := areaName
 	if fileNameArea == "Semua Area" {
 		fileNameArea = "Semua_Area"
@@ -913,7 +988,6 @@ func (h *DashboardHandler) GetPICDetail(c *fiber.Ctx) error {
 	})
 }
 
-
 // getAllowedAreas returns a slice of AreaIDs the user is allowed to access.
 // SuperAdmin can view all plants (nil) or filter by query parameter `plant_id`.
 // Non-SuperAdmin users (Admin Plant, Auditee) are strictly scoped to their assigned `userPlantID`.
@@ -985,32 +1059,34 @@ func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
 	allowedAreas := h.getAllowedAreas(c)
 
 	type WOWRReportItem struct {
-		IssueID           string     `json:"issue_id"`
-		WO_ID             string     `json:"wo_id"`
-		WR_ID             string     `json:"wr_id"`
-		NeedsWOWR         bool       `json:"needs_wo_wr"`
-		WOWRStatus        string     `json:"wowr_status"`
-		IssueStatus       string     `json:"issue_status"`
-		AreaID            string     `json:"area_id"`
-		AreaName          string     `json:"area_name"`
-		KawasanID         string     `json:"kawasan_id"`
-		KawasanName       string     `json:"kawasan_name"`
-		DetailKawasanID   string     `json:"detail_kawasan_id"`
-		DetailKawasanName string     `json:"detail_kawasan_name"`
-		PICName           string     `json:"pic_name"`
-		AspekName         string     `json:"aspek_name"`
-		DetailAspekName   string     `json:"detail_aspek_name"`
-		UraianText        string     `json:"uraian_text"`
-		HabitName         string     `json:"habit_name"`
-		EquipmentName     string     `json:"equipment_name"`
-		InfrastructureName string    `json:"infrastructure_name"`
-		Keterangan        string     `json:"keterangan"`
-		DueDate           *time.Time `json:"due_date"`
-		CreatedAt         time.Time  `json:"created_at"`
+		IssueID            string     `json:"issue_id"`
+		PhotoID            string     `json:"photo_id,omitempty"`
+		WO_ID              string     `json:"wo_id"`
+		WR_ID              string     `json:"wr_id"`
+		NeedsWOWR          bool       `json:"needs_wo_wr"`
+		WOWRStatus         string     `json:"wowr_status"`
+		IssueStatus        string     `json:"issue_status"`
+		AreaID             string     `json:"area_id"`
+		AreaName           string     `json:"area_name"`
+		KawasanID          string     `json:"kawasan_id"`
+		KawasanName        string     `json:"kawasan_name"`
+		DetailKawasanID    string     `json:"detail_kawasan_id"`
+		DetailKawasanName  string     `json:"detail_kawasan_name"`
+		PICName            string     `json:"pic_name"`
+		AspekName          string     `json:"aspek_name"`
+		DetailAspekName    string     `json:"detail_aspek_name"`
+		UraianText         string     `json:"uraian_text"`
+		HabitName          string     `json:"habit_name"`
+		EquipmentName      string     `json:"equipment_name"`
+		InfrastructureName string     `json:"infrastructure_name"`
+		Keterangan         string     `json:"keterangan"`
+		DueDate            *time.Time `json:"due_date"`
+		CreatedAt          time.Time  `json:"created_at"`
 	}
 
-	query := h.db.Table(`"Issue" i`).
+	issueQuery := h.db.Table(`"Issue" i`).
 		Select(`i."IssueID" as issue_id,
+			'' as photo_id,
 			COALESCE(i."WO_ID", '') as wo_id,
 			COALESCE(i."WR_ID", '') as wr_id,
 			i."NeedsWOWR" as needs_wo_wr,
@@ -1026,8 +1102,9 @@ func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
 			COALESCE(asp."AspekName", '') as aspek_name,
 			COALESCE(dm."DetailName", '') as detail_aspek_name,
 			COALESCE(um."UraianText", '') as uraian_text,
-			COALESCE(hm."HEIName", '') as hei_name,
-			COALESCE(hm."CategoryName", '') as hei_category,
+			'' as habit_name,
+			'' as equipment_name,
+			'' as infrastructure_name,
 			i."Keterangan" as keterangan,
 			i."DueDate" as due_date,
 			i."IssueCreatedAt" as created_at`).
@@ -1036,35 +1113,88 @@ func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
 		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
-		Joins(`LEFT JOIN "Issue_Photo" ip ON ip."IssueID" = i."IssueID" AND ip."HEIID" IS NOT NULL`).
+		Joins(`LEFT JOIN "Area_Master" am_area ON am_area."AreaID" = ih."AreaID"`).
+		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
+		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
+		Joins(`LEFT JOIN "Users" u_pic ON u_pic."UserID" = i."IssuePICUserID"`).
+		Where(`(i."NeedsWOWR" = true OR COALESCE(i."WO_ID", '') != '' OR COALESCE(i."WR_ID", '') != '')
+			AND NOT EXISTS (
+				SELECT 1 FROM "Issue_Photo" ip_request
+				WHERE ip_request."IssueID" = i."IssueID"
+				  AND ip_request."PhotoType" = 'Initial'
+				  AND (ip_request."NeedsWOWR" = true OR COALESCE(ip_request."WO_ID", '') != '' OR COALESCE(ip_request."WR_ID", '') != '')
+			)`)
+
+	photoQuery := h.db.Table(`"Issue_Photo" ip`).
+		Select(`i."IssueID" as issue_id,
+			ip."IssuePhotoID" as photo_id,
+			COALESCE(ip."WO_ID", '') as wo_id,
+			COALESCE(ip."WR_ID", '') as wr_id,
+			ip."NeedsWOWR" as needs_wo_wr,
+			COALESCE(NULLIF(ip."WOWRStatus", ''), 'None') as wowr_status,
+			i."IssueStatus" as issue_status,
+			ih."AreaID" as area_id,
+			COALESCE(am_area."AreaName", ih."AreaID") as area_name,
+			ih."KawasanID" as kawasan_id,
+			COALESCE(km."KawasanName", ih."KawasanID") as kawasan_name,
+			ih."DetailKawasanID" as detail_kawasan_id,
+			COALESCE(dkm."DetailKawasanName", ih."DetailKawasanID") as detail_kawasan_name,
+			COALESCE(u_pic."FullName", i."IssuePICUserID") as pic_name,
+			COALESCE(asp."AspekName", '') as aspek_name,
+			COALESCE(dm."DetailName", '') as detail_aspek_name,
+			COALESCE(um."UraianText", '') as uraian_text,
+			CASE WHEN LOWER(COALESCE(hm."CategoryName", ip."HEICategory", '')) = 'habit' THEN COALESCE(hm."HEIName", '') ELSE '' END as habit_name,
+			CASE WHEN LOWER(COALESCE(hm."CategoryName", ip."HEICategory", '')) = 'equipment' THEN COALESCE(hm."HEIName", '') ELSE '' END as equipment_name,
+			CASE WHEN LOWER(COALESCE(hm."CategoryName", ip."HEICategory", '')) = 'infrastructure' THEN COALESCE(hm."HEIName", '') ELSE '' END as infrastructure_name,
+			COALESCE(NULLIF(ip."Keterangan", ''), i."Keterangan") as keterangan,
+			i."DueDate" as due_date,
+			ip."PhotoUpdatedAt" as created_at`).
+		Joins(`JOIN "Issue" i ON i."IssueID" = ip."IssueID"`).
+		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Joins(`LEFT JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
+		Joins(`LEFT JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
+		Joins(`LEFT JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"`).
 		Joins(`LEFT JOIN "HEI_Master" hm ON hm."HEIID" = ip."HEIID"`).
 		Joins(`LEFT JOIN "Area_Master" am_area ON am_area."AreaID" = ih."AreaID"`).
 		Joins(`LEFT JOIN "Kawasan_Master" km ON km."KawasanID" = ih."KawasanID"`).
 		Joins(`LEFT JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih."DetailKawasanID"`).
 		Joins(`LEFT JOIN "Users" u_pic ON u_pic."UserID" = i."IssuePICUserID"`).
-		Where(`i."NeedsWOWR" = true OR (i."WO_ID" IS NOT NULL AND i."WO_ID" != '') OR (i."WR_ID" IS NOT NULL AND i."WR_ID" != '')`)
+		Where(`ip."PhotoType" = 'Initial'
+			AND (ip."NeedsWOWR" = true OR COALESCE(ip."WO_ID", '') != '' OR COALESCE(ip."WR_ID", '') != '')`)
 
 	if areaID != "" {
-		query = query.Where(`ih."AreaID" = ?`, areaID)
+		issueQuery = issueQuery.Where(`ih."AreaID" = ?`, areaID)
+		photoQuery = photoQuery.Where(`ih."AreaID" = ?`, areaID)
 	}
 	if kawasanID != "" {
-		query = query.Where(`ih."KawasanID" = ?`, kawasanID)
+		issueQuery = issueQuery.Where(`ih."KawasanID" = ?`, kawasanID)
+		photoQuery = photoQuery.Where(`ih."KawasanID" = ?`, kawasanID)
 	}
 	if startDate != "" {
-		query = query.Where(`i."IssueCreatedAt" >= ?`, startDate+" 00:00:00")
+		issueQuery = issueQuery.Where(`i."IssueCreatedAt" >= ?`, startDate+" 00:00:00")
+		photoQuery = photoQuery.Where(`ip."PhotoUpdatedAt" >= ?`, startDate+" 00:00:00")
 	}
 	if endDate != "" {
-		query = query.Where(`i."IssueCreatedAt" <= ?`, endDate+" 23:59:59")
+		issueQuery = issueQuery.Where(`i."IssueCreatedAt" <= ?`, endDate+" 23:59:59")
+		photoQuery = photoQuery.Where(`ip."PhotoUpdatedAt" <= ?`, endDate+" 23:59:59")
 	}
 	if allowedAreas != nil {
-		query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
+		issueQuery = issueQuery.Where(`ih."AreaID" IN ?`, allowedAreas)
+		photoQuery = photoQuery.Where(`ih."AreaID" IN ?`, allowedAreas)
 	}
 
 	var items []WOWRReportItem
-	if err := query.Order(`i."IssueCreatedAt" DESC`).Scan(&items).Error; err != nil {
+	if err := issueQuery.Order(`i."IssueCreatedAt" DESC`).Scan(&items).Error; err != nil {
 		h.log.Error("Failed to fetch WOWR report items", logger.Error(err))
 		return response.InternalServerError(c, "Failed to load WOWR report data", err.Error())
 	}
+	var photoItems []WOWRReportItem
+	if err := photoQuery.Order(`ip."PhotoUpdatedAt" DESC`).Scan(&photoItems).Error; err != nil {
+		h.log.Error("Failed to fetch photo WOWR report items", logger.Error(err))
+		return response.InternalServerError(c, "Failed to load photo WOWR report data", err.Error())
+	}
+	items = append(photoItems, items...)
 
 	var total, verified, pending, rejected, awaiting int64
 	total = int64(len(items))

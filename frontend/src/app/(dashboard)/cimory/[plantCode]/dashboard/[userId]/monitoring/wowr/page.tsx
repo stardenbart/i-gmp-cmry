@@ -63,6 +63,7 @@ export default function WOWRReportPage() {
 
   const rawItems: Array<{
     issue_id: string;
+    photo_id?: string;
     wo_id: string;
     wr_id: string;
     needs_wo_wr: boolean;
@@ -375,9 +376,14 @@ export default function WOWRReportPage() {
                 </tr>
               ) : (
                 filteredItems.map((item, idx) => (
-                  <tr key={`wowr-row-${item.issue_id}-${idx}`} className="hover:bg-muted/30 transition-colors">
+                  <tr key={`wowr-row-${item.issue_id}-${item.photo_id || idx}`} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-mono text-muted-foreground">{idx + 1}</td>
-                    <td className="px-4 py-3 font-mono font-semibold text-primary">{item.issue_id}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-primary">
+                      <span className="block">{item.issue_id}</span>
+                      {item.photo_id && (
+                        <span className="block text-[10px] font-normal text-muted-foreground">Foto: {item.photo_id}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-bold text-foreground">
                       {item.wo_id || item.wr_id ? (
                         <span>{item.wo_id || item.wr_id}</span>

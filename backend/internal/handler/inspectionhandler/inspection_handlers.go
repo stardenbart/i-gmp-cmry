@@ -236,7 +236,7 @@ func (h *InspectionHeaderHandler) Delete(c *fiber.Ctx) error {
 // @Security BearerAuth
 func (h *InspectionHeaderHandler) ExportExcel(c *fiber.Ctx) error {
 	id := c.Params("id")
-	
+
 	// 1. Fetch Header
 	header, err := h.uc.GetByID(id)
 	if err != nil {
@@ -353,10 +353,11 @@ func (h *InspectionResultHandler) BulkSave(c *fiber.Ctx) error {
 		return response.BadRequest(c, "invalid body", err.Error())
 	}
 	req.InspectionID = c.Params("id")
-	if err := h.uc.BulkSave(&req); err != nil {
+	items, err := h.uc.BulkSave(&req)
+	if err != nil {
 		return response.InternalServerError(c, err.Error(), nil)
 	}
-	return response.OK(c, "results saved", nil)
+	return response.OK(c, "results and issues synchronized", items)
 }
 
 // @Summary Update inspection result

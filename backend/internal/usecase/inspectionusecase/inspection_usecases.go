@@ -3,11 +3,13 @@ package inspectionusecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
+	"github.com/monitoring-system/backend/internal/domain/issue"
 	"github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/inspectionrepo"
 	"github.com/monitoring-system/backend/pkg/idgen"
@@ -177,11 +179,17 @@ func (uc *inspectionHeaderUseCase) Delete(id string) error { return uc.repo.Dele
 // ── Inspection Result UseCase ─────────────────────────────────────────────
 
 type inspectionResultUseCase struct {
-	repo inspection.InspectionResultRepository
+	repo     inspection.InspectionResultRepository
+	issueUC  issue.IssueUseCase
+	headerUC inspection.InspectionHeaderUseCase
 }
 
-func NewInspectionResultUseCase(repo inspection.InspectionResultRepository) inspection.InspectionResultUseCase {
-	return &inspectionResultUseCase{repo: repo}
+func NewInspectionResultUseCase(
+	repo inspection.InspectionResultRepository,
+	issueUC issue.IssueUseCase,
+	headerUC inspection.InspectionHeaderUseCase,
+) inspection.InspectionResultUseCase {
+	return &inspectionResultUseCase{repo: repo, issueUC: issueUC, headerUC: headerUC}
 }
 
 func (uc *inspectionResultUseCase) GetByInspectionID(id string) ([]inspection.InspectionResult, error) {
@@ -192,7 +200,7 @@ func (uc *inspectionResultUseCase) GetByID(id string) (*inspection.InspectionRes
 	return uc.repo.FindByID(id)
 }
 
-func (uc *inspectionResultUseCase) BulkSave(req *inspection.BulkSaveResultRequest) error {
+func (uc *inspectionResultUseCase) BulkSave(req *inspection.BulkSaveResultRequest) ([]inspection.InspectionResult, error) {
 	// Load existing results so we can re-use their ResultIDs (upsert by UraianID)
 	existing, _ := uc.repo.FindByInspectionID(req.InspectionID)
 	existingMap := make(map[string]string, len(existing)) // uraianID -> resultID
@@ -215,15 +223,50 @@ func (uc *inspectionResultUseCase) BulkSave(req *inspection.BulkSaveResultReques
 			Keterangan:   r.Keterangan,
 		})
 	}
-	err := uc.repo.BulkCreate(results)
-	if err == nil {
-		// Invalidasi cache agar GetChecklist + GetByID berikutnya fetch data fresh.
-		// Ini yang membuat cache 2 menit dan 5 menit AMAN — data basi langsung
-		// dihapus begitu auditor menyimpan, tidak perlu menunggu TTL habis.
-		inspectionrepo.InvalidateChecklistCache(req.InspectionID)
-		inspectionrepo.InvalidateHeaderCache(req.InspectionID)
+	if err := uc.repo.BulkCreate(results); err != nil {
+		return nil, err
 	}
-	return err
+
+	// Invalidasi cache agar GetChecklist + GetByID berikutnya fetch data fresh.
+	inspectionrepo.InvalidateChecklistCache(req.InspectionID)
+	inspectionrepo.InvalidateHeaderCache(req.InspectionID)
+
+	// Issue adalah bagian wajib dari finalisasi hasil NG. Jangan menelan error di
+	// sini: frontend tidak boleh melanjutkan status ke Completed bila sinkronisasi
+	// issue gagal. Operasi ini idempotent sehingga bulk-save aman untuk diulang.
+	if uc.issueUC == nil || uc.headerUC == nil {
+		return nil, errors.New("issue synchronization is not configured")
+	}
+
+	header, err := uc.headerUC.GetByID(req.InspectionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load inspection owner for issue synchronization: %w", err)
+	}
+	if header == nil {
+		return nil, errors.New("inspection not found during issue synchronization")
+	}
+	if header.InspectorID == "" {
+		return nil, errors.New("inspection has no inspector for issue assignment")
+	}
+
+	for _, r := range results {
+		switch r.Checking {
+		case "NG":
+			if _, err := uc.issueUC.Create(header.InspectorID, &issue.CreateIssueRequest{
+				ResultID:       r.ResultID,
+				IssuePICUserID: header.InspectorID,
+				Keterangan:     r.Keterangan,
+			}); err != nil {
+				return nil, fmt.Errorf("failed to synchronize issue for result %s: %w", r.ResultID, err)
+			}
+		case "OK":
+			if err := uc.issueUC.CloseByResultID(r.ResultID, header.InspectorID); err != nil {
+				return nil, fmt.Errorf("failed to close issue for result %s: %w", r.ResultID, err)
+			}
+		}
+	}
+
+	return results, nil
 }
 
 func (uc *inspectionResultUseCase) Update(id string, req *inspection.SaveResultRequest) (*inspection.InspectionResult, error) {

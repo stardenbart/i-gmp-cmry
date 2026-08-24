@@ -158,6 +158,7 @@ type IssueHEIRepository interface {
 type IssueUseCase interface {
 	GetAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
 	GetByID(id string) (*Issue, error)
+	GetByResultID(resultID string) (*Issue, error)
 	Create(actorID string, req *CreateIssueRequest) (*Issue, error)
 	Update(id string, actorID string, req *UpdateIssueRequest) (*Issue, error)
 	ExtendDueDate(id string, actorID string, newDueDate time.Time) (*Issue, error)

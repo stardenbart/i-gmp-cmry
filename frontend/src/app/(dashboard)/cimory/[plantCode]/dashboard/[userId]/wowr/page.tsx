@@ -22,7 +22,6 @@ import {
   BarChart3,
   Percent,
   Clock,
-  Wrench,
   Trash2
 } from "lucide-react";
 import { toast } from "sonner";
@@ -154,7 +153,6 @@ function UploadProofModal({
       <div className="w-[90vw] sm:w-[480px] bg-background rounded-2xl p-6 shadow-xl border border-border/50 animate-in fade-in zoom-in-95 duration-200 flex flex-col space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <h3 className="text-base font-bold flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-amber-500" />
             Upload Bukti &amp; Input Nomor WO/WR
           </h3>
           <Button variant="ghost" size="icon" onClick={onClose} disabled={isUploading} className="rounded-full h-8 w-8">
@@ -274,11 +272,17 @@ function IssueRow({
   // Dynamic permission controls (Database driven)
   const canValidate = hasPermission("PERM-WOWR-U") || hasPermission("PERM-INSP-A");
   const canUploadProof = hasPermission("PERM-ISS-U") || hasPermission("PERM-WOWR-R") || hasPermission("PERM-WOWR-U");
+  const hasWOWRProofImage = item.wowr_photos.some((photo) =>
+    Boolean(photo.image_url) && photo.pic_user_id === item.raw_issue.issue_pic_user_id
+  );
 
   const queryClient = useQueryClient();
   
   const approveMutation = useMutation({
     mutationFn: async () => {
+      if (!hasWOWRProofImage) {
+        throw new Error("Auditee belum mengunggah foto bukti penyelesaian WO/WR.");
+      }
       if (item.photo_id) {
         return issueApi.updatePhotoWOWR(item.photo_id, {
           needs_wo_wr: true,
@@ -297,7 +301,12 @@ function IssueRow({
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Bukti WO/WR berhasil diverifikasi & temuan diselesaikan!");
     },
-    onError: () => toast.error("Gagal memverifikasi bukti.")
+    onError: (error: unknown) => {
+      const apiMessage = typeof error === "object" && error !== null && "response" in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined;
+      toast.error(apiMessage || (error instanceof Error ? error.message : "Gagal memverifikasi bukti."));
+    }
   });
 
   const rejectMutation = useMutation({
@@ -381,7 +390,8 @@ function IssueRow({
                   size="sm" 
                   variant="default"
                   className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold"
-                  disabled={approveMutation.isPending || rejectMutation.isPending}
+                  disabled={approveMutation.isPending || rejectMutation.isPending || !hasWOWRProofImage}
+                  title={!hasWOWRProofImage ? "Auditee belum mengunggah foto bukti WO/WR" : "Verifikasi WO/WR"}
                   onClick={(e) => {
                     e.stopPropagation();
                     approveMutation.mutate();
@@ -404,6 +414,11 @@ function IssueRow({
                   Tolak
                 </Button>
               </>
+            )}
+            {canValidate && item.wowr_status === "PendingValidation" && !hasWOWRProofImage && (
+              <span className="max-w-40 text-right text-[10px] font-semibold leading-tight text-red-500">
+                Belum ada foto bukti WO/WR
+              </span>
             )}
 
             {/* Actions for Auditee / PIC (Dynamic permission: PERM-ISS-U or PERM-WOWR-R) */}
@@ -674,8 +689,18 @@ export default function WOWRPage() {
     const items: WOWRItem[] = [];
     allIssues.forEach((issue) => {
       const initialPhotos = issue.photos?.filter((p) => p.photo_type === "Initial") || [];
-      if (initialPhotos.length > 0) {
-        initialPhotos.forEach((photo) => {
+      const issueRequestsWOWR = Boolean(issue.needs_wo_wr || issue.wo_id || issue.wr_id);
+      const photoWOWRRequests = initialPhotos.filter((photo) =>
+        Boolean(photo.needs_wo_wr || photo.wo_id || photo.wr_id)
+      );
+      const requestedInitialPhotos = photoWOWRRequests.length > 0
+        ? photoWOWRRequests
+        : issueRequestsWOWR
+          ? initialPhotos
+          : [];
+
+      if (requestedInitialPhotos.length > 0) {
+        requestedInitialPhotos.forEach((photo) => {
           const specificWOWRPhotos = issue.photos?.filter(
             (p) =>
               p.photo_type === "WOWR" &&
@@ -709,7 +734,7 @@ export default function WOWRPage() {
             raw_issue: issue,
           });
         });
-      } else {
+      } else if (issueRequestsWOWR) {
         const specificWOWRPhotos = issue.photos?.filter(
           (p) => p.photo_type === "WOWR"
         ) || [];

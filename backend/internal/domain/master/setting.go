@@ -27,7 +27,23 @@ const (
 	SettingKeyEmailTemplateInspectionConfirmed = "EMAIL_TEMPLATE_INSPECTION_CONFIRMED"
 	SettingKeyIssueDeadlineDays                = "ISSUE_DEADLINE_DAYS"
 	SettingKeyIssueAutoApproveDays             = "ISSUE_AUTO_APPROVE_DAYS"
+	SettingKeySMTPEnabled                      = "SMTP_ENABLED"
+	SettingKeySMTPHost                         = "SMTP_HOST"
+	SettingKeySMTPPort                         = "SMTP_PORT"
+	SettingKeySMTPUser                         = "SMTP_USER"
+	SettingKeySMTPPassword                     = "SMTP_PASSWORD"
+	SettingKeySMTPSenderEmail                  = "SMTP_SENDER_EMAIL"
 )
+
+func IsSMTPSettingKey(key string) bool {
+	switch key {
+	case SettingKeySMTPEnabled, SettingKeySMTPHost, SettingKeySMTPPort,
+		SettingKeySMTPUser, SettingKeySMTPPassword, SettingKeySMTPSenderEmail:
+		return true
+	default:
+		return false
+	}
+}
 
 // ── DTOs ──────────────────────────────────────────────────────────────────
 

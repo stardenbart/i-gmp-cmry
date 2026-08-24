@@ -53,7 +53,37 @@ func (r *issueRepository) FindAll(page, limit int, plantID, status, picUserID st
 		)
 	}
 	if needsWOWR != nil {
-		q = q.Where(`"Issue"."NeedsWOWR" = ?`, *needsWOWR)
+		if *needsWOWR {
+			q = q.Where(`
+				"Issue"."NeedsWOWR" = TRUE
+				OR COALESCE("Issue"."WO_ID", '') <> ''
+				OR COALESCE("Issue"."WR_ID", '') <> ''
+				OR EXISTS (
+					SELECT 1 FROM "Issue_Photo" ip_wowr
+					WHERE ip_wowr."IssueID" = "Issue"."IssueID"
+					  AND (
+						ip_wowr."NeedsWOWR" = TRUE
+						OR COALESCE(ip_wowr."WO_ID", '') <> ''
+						OR COALESCE(ip_wowr."WR_ID", '') <> ''
+					  )
+				)
+			`)
+		} else {
+			q = q.Where(`
+				"Issue"."NeedsWOWR" = FALSE
+				AND COALESCE("Issue"."WO_ID", '') = ''
+				AND COALESCE("Issue"."WR_ID", '') = ''
+				AND NOT EXISTS (
+					SELECT 1 FROM "Issue_Photo" ip_wowr
+					WHERE ip_wowr."IssueID" = "Issue"."IssueID"
+					  AND (
+						ip_wowr."NeedsWOWR" = TRUE
+						OR COALESCE(ip_wowr."WO_ID", '') <> ''
+						OR COALESCE(ip_wowr."WR_ID", '') <> ''
+					  )
+				)
+			`)
+		}
 	}
 
 	// Count distinct before pagination
@@ -169,11 +199,15 @@ func (r *issueRepository) FindActiveByResultContext(resultID string) (*issue.Iss
 	if detailKawasanID != "" {
 		var item issue.Issue
 		err := r.db.Model(&issue.Issue{}).Where(`"DetailKawasanID" = ?`, detailKawasanID).Order(`"IssueCreatedAt" ASC`).First(&item).Error
-		if err == nil { return &item, nil }
+		if err == nil {
+			return &item, nil
+		}
 	}
 	var item issue.Issue
 	err := r.db.Model(&issue.Issue{}).Select(`"Issue".*`).Joins(`JOIN "Inspection_Result" ir_target ON ir_target."ResultID" = ?`, resultID).Joins(`JOIN "Inspection_Header" ih_target ON ih_target."InspectionID" = ir_target."InspectionID"`).Joins(`JOIN "Inspection_Result" ir_existing ON ir_existing."ResultID" = "Issue"."ResultID"`).Joins(`JOIN "Inspection_Header" ih_existing ON ih_existing."InspectionID" = ir_existing."InspectionID"`).Where(`ih_existing."DetailKawasanID" = ih_target."DetailKawasanID"`).Order(`"Issue"."IssueCreatedAt" ASC`).First(&item).Error
-	if err != nil { return nil, nil }
+	if err != nil {
+		return nil, nil
+	}
 	return &item, err
 }
 
@@ -235,7 +269,19 @@ func (r *issueRepository) ConsolidateDuplicateActiveIssues() error {
 	return nil
 }
 
-func (r *issueRepository) Create(i *issue.Issue) error { return r.db.Create(i).Error }
+func (r *issueRepository) Create(i *issue.Issue) error {
+	// Persist the location context together with the issue. This keeps an issue
+	// visible and deduplicatable even if its original inspection result is later
+	// removed.
+	if i.DetailKawasanID == "" && i.ResultID != "" {
+		_ = r.db.Table(`"Inspection_Result" ir`).
+			Select(`ih."DetailKawasanID"`).
+			Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+			Where(`ir."ResultID" = ?`, i.ResultID).
+			Scan(&i.DetailKawasanID).Error
+	}
+	return r.db.Create(i).Error
+}
 func (r *issueRepository) Update(i *issue.Issue) error { return r.db.Save(i).Error }
 func (r *issueRepository) Delete(id string) error {
 	return r.db.Where("\"IssueID\" = ?", id).Delete(&issue.Issue{}).Error
@@ -336,6 +382,8 @@ func (r *issuePhotoRepository) Delete(id string) error {
 func (r *issueRepository) FindByDetailKawasanID(detailKawasanID string) (*issue.Issue, error) {
 	var item issue.Issue
 	err := r.db.Model(&issue.Issue{}).Where(`"DetailKawasanID" = ?`, detailKawasanID).Order(`"IssueCreatedAt" ASC`).First(&item).Error
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return &item, nil
 }

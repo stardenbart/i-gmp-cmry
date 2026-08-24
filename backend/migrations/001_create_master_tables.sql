@@ -3,7 +3,7 @@
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS "Department_Master" (
-    "DepartmentID"        VARCHAR(20)  NOT NULL,
+    "DepartmentID"        VARCHAR(50)  NOT NULL,
     "DepartmentName"      VARCHAR(100) NOT NULL,
     "DepartmentCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "DepartmentUpdatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS "Department_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Area_Master" (
-    "AreaID"        VARCHAR(20)  NOT NULL,
+    "AreaID"        VARCHAR(50)  NOT NULL,
     "AreaName"      VARCHAR(100) NOT NULL,
     "AreaCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "AreaUpdatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS "Area_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Kawasan_Master" (
-    "KawasanID"        VARCHAR(20)  NOT NULL,
-    "AreaID"           VARCHAR(20)  NOT NULL,
+    "KawasanID"        VARCHAR(50)  NOT NULL,
+    "AreaID"           VARCHAR(50)  NOT NULL,
     "KawasanName"      VARCHAR(100) NOT NULL,
     "LastInspection"   TIMESTAMP,
     "KawasanCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS "Kawasan_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "DetailKawasan_Master" (
-    "DetailKawasanID"        VARCHAR(20)  NOT NULL,
-    "KawasanID"              VARCHAR(20)  NOT NULL,
+    "DetailKawasanID"        VARCHAR(50)  NOT NULL,
+    "KawasanID"              VARCHAR(50)  NOT NULL,
     "DetailKawasanName"      VARCHAR(100) NOT NULL,
     "LastInspection"         TIMESTAMP,
     "DetailKawasanCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

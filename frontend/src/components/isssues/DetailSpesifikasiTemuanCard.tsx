@@ -1,28 +1,27 @@
-import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import {
-  Wrench,
-  User,
-  Calendar,
-  Clock,
-  MapPin,
-  FileText,
-  Tag,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Lock,
-} from "lucide-react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Issue, IssuePhoto, issueApi, WOWRStatus } from "@/lib/api/issue.api";
 import { cn } from "@/lib/utils";
+
+type MutationError = {
+  response?: { data?: { message?: string; error?: string } };
+};
+
+const getMutationErrorMessage = (error: unknown, fallback: string) => {
+  const mutationError = error as MutationError;
+  return mutationError.response?.data?.message || mutationError.response?.data?.error ||
+    (error instanceof Error ? error.message : fallback);
+};
 
 interface DetailSpesifikasiTemuanCardProps {
   issue: Issue;
   photo?: IssuePhoto;
+  photos?: IssuePhoto[];
   dueDate?: Date | null;
   isAuditor: boolean;
   canEditWOWR?: boolean;
@@ -32,63 +31,62 @@ interface DetailSpesifikasiTemuanCardProps {
 export const DetailSpesifikasiTemuanCard = ({
   issue,
   photo,
+  photos = [],
   dueDate,
   isAuditor,
   canEditWOWR,
   onRefresh,
 }: DetailSpesifikasiTemuanCardProps) => {
   const queryClient = useQueryClient();
-
   const activeTarget = photo || issue;
-
-  const [type, setType] = useState<"WOWR" | "None" | "">(
+  const [type, setType] = useState<"WOWR" | "None">(
     activeTarget.needs_wo_wr || activeTarget.wo_id || activeTarget.wr_id ? "WOWR" : "None"
   );
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState(activeTarget.wo_id || activeTarget.wr_id || "");
   const [validationError, setValidationError] = useState("");
+  const hasWOWRProofImage = photos.some((proof) =>
+    proof.photo_type === "WOWR" &&
+    Boolean(proof.image_url) &&
+    proof.pic_user_id === issue.issue_pic_user_id &&
+    (photo?.issue_photo_id ? proof.ref_photo_id === photo.issue_photo_id : true)
+  );
+
+  const refreshQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ["issue", issue.issue_id] });
+    queryClient.invalidateQueries({ queryKey: ["issue-photos", issue.issue_id] });
+    queryClient.invalidateQueries({ queryKey: ["issues"] });
+    onRefresh?.();
+  };
 
   const wowrMutation = useMutation({
-    mutationFn: (data: {
-      needs_wo_wr: boolean;
-      wo_id: string;
-      wr_id: string;
-      wowr_status?: WOWRStatus;
-    }) => issueApi.update(issue.issue_id, data),
+    mutationFn: (data: { needs_wo_wr: boolean; wo_id: string; wr_id: string; wowr_status?: WOWRStatus }) =>
+      issueApi.update(issue.issue_id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issue", issue.issue_id] });
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      toast.success("Data Maintenance WO/WR berhasil disimpan. Harap tunggu konfirmasi Auditor.");
-      if (onRefresh) onRefresh();
+      refreshQueries();
+      toast.success("Data Maintenance WO/WR berhasil disimpan.");
     },
-    onError: (err: any) => {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        "Gagal menyimpan data WO/WR.";
-      toast.error(msg);
-    },
+    onError: (error: unknown) =>
+      toast.error(getMutationErrorMessage(error, "Gagal menyimpan data WO/WR.")),
   });
 
   const photoWowrMutation = useMutation({
-    mutationFn: ({ photoId, data }: { photoId: string; data: any }) =>
-      issueApi.updatePhotoWOWR(photoId, data),
+    mutationFn: ({ photoId, data }: {
+      photoId: string;
+      data: { needs_wo_wr: boolean; wo_id: string; wr_id: string; wowr_status?: WOWRStatus };
+    }) => issueApi.updatePhotoWOWR(photoId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issue-photos", issue.issue_id] });
-      queryClient.invalidateQueries({ queryKey: ["issue", issue.issue_id] });
-      toast.success("Data Maintenance WO/WR foto berhasil disimpan. Harap tunggu konfirmasi Auditor.");
-      if (onRefresh) onRefresh();
+      refreshQueries();
+      toast.success("Data Maintenance WO/WR foto berhasil disimpan.");
     },
-    onError: (err: any) => {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        "Gagal menyimpan data WO/WR foto.";
-      toast.error(msg);
-    },
+    onError: (error: unknown) =>
+      toast.error(getMutationErrorMessage(error, "Gagal menyimpan data WO/WR foto.")),
   });
 
   const wowrValidationMutation = useMutation({
     mutationFn: (status: WOWRStatus) => {
+      if (status === "Verified" && !hasWOWRProofImage) {
+        return Promise.reject(new Error("Auditee belum mengunggah foto bukti penyelesaian WO/WR."));
+      }
       if (photo?.issue_photo_id) {
         return issueApi.updatePhotoWOWR(photo.issue_photo_id, {
           needs_wo_wr: true,
@@ -102,72 +100,32 @@ export const DetailSpesifikasiTemuanCard = ({
         ...(status === "Verified" ? { issue_status: "Closed" } : {}),
       });
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["issue-photos", issue.issue_id] });
-      queryClient.invalidateQueries({ queryKey: ["issue", issue.issue_id] });
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      if (variables === "Verified") {
-        toast.success("Bukti WO/WR terisolasi foto berhasil diverifikasi!");
-      } else {
-        toast.error("Bukti WO/WR ditolak.");
-      }
-      if (onRefresh) onRefresh();
+    onSuccess: (_, status) => {
+      refreshQueries();
+      toast.success(status === "Verified" ? "Bukti WO/WR berhasil diverifikasi." : "Bukti WO/WR ditolak.");
     },
-    onError: (err: any) => {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        "Gagal memperbarui status validasi WO/WR.";
-      toast.error(msg);
-    },
+    onError: (error: unknown) =>
+      toast.error(getMutationErrorMessage(error, "Gagal memperbarui status validasi WO/WR.")),
   });
 
-  useEffect(() => {
-    const target = photo || issue;
-    if (target.needs_wo_wr || target.wo_id || target.wr_id) {
-      setType("WOWR");
-      setInputValue(target.wo_id || target.wr_id || "");
-    } else {
-      setType("None");
-      setInputValue("");
-    }
-    setValidationError("");
-  }, [issue, photo]);
-
   const handleSave = () => {
-    if (!type) {
-      setValidationError("Harap pilih jenis penggunaan Maintenance (WO/WR).");
-      toast.error("Gagal: Harap pilih jenis penggunaan Maintenance (WO/WR).");
-      return;
-    }
-
     if (type === "WOWR" && !inputValue.trim()) {
-      setValidationError("Nomor referensi WO / WR wajib diisi jika memilih Fu WO / WR.");
-      toast.error("Gagal: Nomor referensi WO / WR wajib diisi jika memilih Fu WO / WR.");
+      setValidationError("Nomor referensi WO / WR wajib diisi.");
       return;
     }
 
     setValidationError("");
+    const data = {
+      needs_wo_wr: type === "WOWR",
+      wo_id: type === "WOWR" ? inputValue.trim().toUpperCase() : "",
+      wr_id: "",
+      wowr_status: (type === "WOWR" ? "PendingValidation" : "None") as WOWRStatus,
+    };
 
-    const upperValue = inputValue.trim().toUpperCase();
-
-    if (photo && photo.issue_photo_id) {
-      photoWowrMutation.mutate({
-        photoId: photo.issue_photo_id,
-        data: {
-          needs_wo_wr: type === "WOWR",
-          wo_id: type === "WOWR" ? upperValue : "",
-          wr_id: "",
-          wowr_status: type === "WOWR" ? "PendingValidation" : "None",
-        },
-      });
+    if (photo?.issue_photo_id) {
+      photoWowrMutation.mutate({ photoId: photo.issue_photo_id, data });
     } else {
-      wowrMutation.mutate({
-        needs_wo_wr: type === "WOWR",
-        wo_id: type === "WOWR" ? upperValue : "",
-        wr_id: "",
-        wowr_status: type === "WOWR" ? "PendingValidation" : "None",
-      });
+      wowrMutation.mutate(data);
     }
   };
 
@@ -180,9 +138,32 @@ export const DetailSpesifikasiTemuanCard = ({
       issue.issue_status !== "Closed" &&
       issue.issue_status !== "Verified");
 
-  const habitName = photo?.habit_name || issue.hei?.habit?.habit_name || issue.habit_name;
-  const equipmentName = photo?.equipment_name || issue.hei?.equipment?.equipment_name || issue.equipment_name;
-  const infrastructureName = photo?.infrastructure_name || issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name;
+  const heiSources = photo ? [photo] : photos.length > 0 ? photos : issue.photos || [];
+  const heiLabels = new Map<string, { category: string; name: string }>();
+
+  const addHEI = (category?: string, name?: string) => {
+    if (!category?.trim() && !name?.trim()) return;
+    const cleanCategory = category?.trim() || "HEI";
+    const cleanName = name?.trim() || cleanCategory;
+    heiLabels.set(`${cleanCategory.toLowerCase()}::${cleanName.toLowerCase()}`, {
+      category: cleanCategory,
+      name: cleanName,
+    });
+  };
+
+  heiSources.forEach((source) => {
+    addHEI(source.hei_category, source.hei_name);
+    if (source.habit_name) addHEI("Habit", source.habit_name);
+    if (source.equipment_name) addHEI("Equipment", source.equipment_name);
+    if (source.infrastructure_name) addHEI("Infrastructure", source.infrastructure_name);
+  });
+
+  if (heiLabels.size === 0) {
+    addHEI(issue.hei_category, issue.hei_name);
+    if (issue.hei?.habit?.habit_name || issue.habit_name) addHEI("Habit", issue.hei?.habit?.habit_name || issue.habit_name);
+    if (issue.hei?.equipment?.equipment_name || issue.equipment_name) addHEI("Equipment", issue.hei?.equipment?.equipment_name || issue.equipment_name);
+    if (issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name) addHEI("Infrastructure", issue.hei?.infrastructure?.infrastructure_name || issue.infrastructure_name);
+  }
 
   return (
     <Card className="p-6 bg-card/60 backdrop-blur-md space-y-6 border-border/80 shadow-sm rounded-2xl">
@@ -241,27 +222,30 @@ export const DetailSpesifikasiTemuanCard = ({
         </div>
 
         {/* Output Klasifikasi HEI */}
-        {(habitName || equipmentName || infrastructureName || photo?.hei_category || issue.hei_category) && (
+        {heiLabels.size > 0 && (
           <div className="pt-2 border-t border-border/60 space-y-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
              Kategori HEI (Hasil Inspeksi)
             </span>
             <div className="flex flex-wrap gap-2">
-              {habitName && (
-                <span className="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20 text-[11px]">
-                  [Habit] {habitName}
-                </span>
-              )}
-              {equipmentName && (
-                <span className="px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold border border-blue-500/20 text-[11px]">
-                  [Equipment] {equipmentName}
-                </span>
-              )}
-              {infrastructureName && (
-                <span className="px-2.5 py-1 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold border border-purple-500/20 text-[11px]">
-                  [Infrastructure] {infrastructureName}
-                </span>
-              )}
+              {Array.from(heiLabels.values()).map(({ category, name }) => {
+                const normalizedCategory = category.toLowerCase();
+                const color = normalizedCategory === "habit"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  : normalizedCategory === "equipment"
+                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                    : normalizedCategory === "infrastructure"
+                      ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+                      : "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20";
+                return (
+                  <span
+                    key={`${category}-${name}`}
+                    className={cn("px-2.5 py-1 rounded-xl font-semibold border text-[11px]", color)}
+                  >
+                    [{category}] {name !== category ? name : ""}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
@@ -290,63 +274,50 @@ export const DetailSpesifikasiTemuanCard = ({
         </div>
       </div>
 
-      {/* ── Section 2: Maintenance (WO / WR) Selection & Validation (Isolated Per Photo) ──── */}
       <div className="pt-4 border-t border-border space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h4 className="font-bold text-sm">
-              Maintenance (WO / WR) {photo ? "Terisolasi Foto" : ""}
-            </h4>
-          </div>
-          {isReadOnly ? (
-            <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold border border-amber-500/20 flex items-center gap-1">
-              Terkunci
-            </span>
-          ) : (
-            <span className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-semibold border border-green-500/20">
-              Dapat Diisi
-            </span>
-          )}
+          <h4 className="font-bold text-sm">
+            Maintenance (WO / WR) {photo ? "Terisolasi Foto" : ""}
+          </h4>
+          <span className={cn(
+            "text-[10px] px-2 py-0.5 rounded-full font-semibold border",
+            isReadOnly
+              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+              : "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+          )}>
+            {isReadOnly ? "Terkunci" : "Dapat Diisi"}
+          </span>
         </div>
 
-        {/* Radio Options */}
         <div className="flex flex-col gap-2.5 text-xs">
-          <label
-            className={cn(
-              "flex items-center gap-2.5 p-3 rounded-xl border border-border/80 transition-all",
-              type === "WOWR" ? "bg-primary/5 border-primary/40 font-semibold" : "bg-card/40",
-              !isReadOnly && "cursor-pointer hover:bg-muted/40",
-              isReadOnly && "opacity-75 cursor-not-allowed"
-            )}
-          >
+          <label className={cn(
+            "flex items-center gap-2.5 p-3 rounded-xl border transition-all",
+            type === "WOWR" ? "bg-primary/5 border-primary/40 font-semibold" : "bg-card/40 border-border/80",
+            isReadOnly ? "opacity-75 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"
+          )}>
             <input
               type="radio"
-              name="wowr_type_detail"
-              value="WOWR"
+              name={`wowr_type_${photo?.issue_photo_id || issue.issue_id}`}
               checked={type === "WOWR"}
               onChange={() => {
                 setType("WOWR");
-                if (!inputValue) setInputValue(activeTarget.wo_id || activeTarget.wr_id || "");
+                setInputValue(activeTarget.wo_id || activeTarget.wr_id || "");
                 setValidationError("");
               }}
               disabled={isReadOnly}
               className="accent-primary h-4 w-4"
             />
-            <span className="text-xs font-medium">Fu WO / WR</span>
+            <span>Fu WO / WR</span>
           </label>
 
-          <label
-            className={cn(
-              "flex items-center gap-2.5 p-3 rounded-xl border border-border/80 transition-all",
-              type === "None" ? "bg-muted/30 border-border font-semibold" : "bg-card/40",
-              !isReadOnly && "cursor-pointer hover:bg-muted/40",
-              isReadOnly && "opacity-75 cursor-not-allowed"
-            )}
-          >
+          <label className={cn(
+            "flex items-center gap-2.5 p-3 rounded-xl border transition-all",
+            type === "None" ? "bg-muted/30 border-border font-semibold" : "bg-card/40 border-border/80",
+            isReadOnly ? "opacity-75 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"
+          )}>
             <input
               type="radio"
-              name="wowr_type_detail"
-              value="None"
+              name={`wowr_type_${photo?.issue_photo_id || issue.issue_id}`}
               checked={type === "None"}
               onChange={() => {
                 setType("None");
@@ -356,51 +327,39 @@ export const DetailSpesifikasiTemuanCard = ({
               disabled={isReadOnly}
               className="accent-primary h-4 w-4"
             />
-            <span className="text-xs font-medium">Tidak Menggunakan WO / WR</span>
+            <span>Tidak Menggunakan WO / WR</span>
           </label>
         </div>
 
-        {/* Input Text & Strict Validation Message */}
         {type === "WOWR" && (
-          <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
-            <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-              <span>Nomor Referensi WO / WR <span className="text-red-500">*</span></span>
-              {activeTarget.wo_id || activeTarget.wr_id ? (
-                <span className="text-[11px] font-mono text-emerald-600 font-bold">
-                  Tersimpan: {activeTarget.wo_id || activeTarget.wr_id}
-                </span>
-              ) : null}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-foreground">
+              Nomor Referensi WO / WR <span className="text-red-500">*</span>
             </label>
             <Input
               value={inputValue}
-              onChange={(e) => {
-                const upperVal = e.target.value.toUpperCase();
-                setInputValue(upperVal);
-                if (upperVal.trim()) setValidationError("");
+              onChange={(event) => {
+                setInputValue(event.target.value.toUpperCase());
+                setValidationError("");
               }}
               disabled={isReadOnly}
-              placeholder="MASUKKAN NOMOR REFERENSI WO / WR UNTUK FOTO INI..."
+              placeholder="MASUKKAN NOMOR REFERENSI WO / WR..."
               className={cn(
                 "h-11 rounded-xl text-xs uppercase font-mono tracking-wider font-semibold",
-                validationError ? "border-red-500 focus-visible:ring-red-500" : ""
+                validationError && "border-red-500 focus-visible:ring-red-500"
               )}
             />
-            {validationError && (
-              <p className="text-red-500 text-xs font-medium pl-1 animate-in fade-in">
-                {validationError}
-              </p>
-            )}
+            {validationError && <p className="text-red-500 text-xs font-medium">{validationError}</p>}
           </div>
         )}
 
-        {/* Auditor Validation Controls */}
         {isAuditor && activeTarget.wowr_status === "PendingValidation" && (
           <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-400">
               <span>Validasi Bukti WO / WR Auditor</span>
               <span className="font-mono text-[11px]">{activeTarget.wo_id || activeTarget.wr_id}</span>
             </div>
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2">
               <Button
                 size="sm"
                 variant="destructive"
@@ -412,32 +371,37 @@ export const DetailSpesifikasiTemuanCard = ({
               </Button>
               <Button
                 size="sm"
-                className="w-1/2 text-xs bg-green-600 hover:bg-green-700 text-white rounded-xl h-9 font-semibold"
+                className="w-1/2 text-xs bg-green-600 hover:bg-green-700 text-white rounded-xl h-9"
                 isLoading={wowrValidationMutation.isPending}
+                disabled={!hasWOWRProofImage}
                 onClick={() => wowrValidationMutation.mutate("Verified")}
+                title={!hasWOWRProofImage ? "Auditee belum mengunggah foto bukti WO/WR" : "Setujui WO/WR"}
               >
                 <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Setujui
               </Button>
             </div>
+            {!hasWOWRProofImage && (
+              <p className="text-[11px] font-semibold text-red-500">
+                Verifikasi terkunci: Auditee belum mengunggah foto bukti WO/WR.
+              </p>
+            )}
           </div>
         )}
 
-        {/* Save Button for Maintenance WO / WR */}
         {!isReadOnly && (
           <Button
             onClick={handleSave}
             isLoading={wowrMutation.isPending || photoWowrMutation.isPending}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold rounded-xl h-11 text-xs shadow-md transition-all mt-2"
+            className="w-full rounded-xl h-11 text-xs font-semibold"
           >
-            {wowrMutation.isPending || photoWowrMutation.isPending ? (
+            {(wowrMutation.isPending || photoWowrMutation.isPending) && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <span>Simpan Data Maintenance Foto</span>
             )}
-            
+            Simpan Data Maintenance
           </Button>
         )}
       </div>
+
     </Card>
   );
 };

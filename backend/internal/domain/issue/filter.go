@@ -37,14 +37,15 @@ type IssueFilter struct {
 	SortOrder string
 	Q         string
 
-	Status       string
-	StatusIn     []string
-	PICUserID    string
-	PICUserIDIn  []string
-	WOWRStatus   string
-	WOWRStatusIn []string
-	NeedsWOWR    *bool
-	Label        string
+	Status          string
+	StatusIn        []string
+	PICUserID       string
+	PICUserIDIn     []string
+	WOWRStatus      string
+	WOWRStatusIn    []string
+	NeedsWOWR       *bool
+	Label           string
+	DetailKawasanID string
 
 	DateFrom *time.Time
 	DateTo   *time.Time
@@ -86,7 +87,9 @@ func escapeLike(q string) string {
 
 // ApplyTo builds a GORM query for the issue filter.
 func (f *IssueFilter) ApplyTo(q *gorm.DB) *gorm.DB {
-	// Plant scope enforcement: non-SuperAdmin users can only see issues from their plant's areas
+	// Plant scope enforcement: non-SuperAdmin users can only see issues from their plant's areas.
+	// Issues whose ResultID has no matching Inspection_Result row are also included (orphan issues
+	// created from real inspections where the result data may have been deleted).
 	if f.PlantID != "" {
 		q = q.Where(
 			`"IssueID" IN (
@@ -95,6 +98,9 @@ func (f *IssueFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
 				JOIN "Area_Master" am ON ih."AreaID" = am."AreaID"
 				WHERE am."PlantID" = ? OR am."PlantID" IS NULL OR am."PlantID" = ''
+			) OR "IssueID" NOT IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"
 			)`,
 			f.PlantID,
 		)
@@ -138,6 +144,22 @@ func (f *IssueFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 		q = q.Where(`"NeedsWOWR" = ?`, *f.NeedsWOWR)
 	}
 
+	if f.DetailKawasanID != "" {
+		q = q.Where(
+			`"Issue"."DetailKawasanID" = ? OR "Issue"."IssueID" IN (
+				SELECT location_issue."IssueID"
+				FROM "Issue" location_issue
+				JOIN "Inspection_Result" location_result
+				  ON location_result."ResultID" = location_issue."ResultID"
+				JOIN "Inspection_Header" location_header
+				  ON location_header."InspectionID" = location_result."InspectionID"
+				WHERE location_header."DetailKawasanID" = ?
+			)`,
+			f.DetailKawasanID,
+			f.DetailKawasanID,
+		)
+	}
+
 	if f.Label != "" {
 		q = q.Where(`LOWER("Label") LIKE ?`, escapeLike(f.Label))
 	}
@@ -147,25 +169,25 @@ func (f *IssueFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 		likePattern := escapeLike(f.Q)
 		q = q.Where(
 			`LOWER("Issue"."IssueID") LIKE ? OR `+
-			`LOWER(COALESCE("Issue"."Label", '')) LIKE ? OR `+
-			`LOWER(COALESCE("Issue"."WO_ID", '')) LIKE ? OR `+
-			`LOWER(COALESCE("Issue"."WR_ID", '')) LIKE ? OR `+
-			`LOWER(COALESCE((SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID"), '')) LIKE ? OR `+
-			`LOWER(COALESCE((
+				`LOWER(COALESCE("Issue"."Label", '')) LIKE ? OR `+
+				`LOWER(COALESCE("Issue"."WO_ID", '')) LIKE ? OR `+
+				`LOWER(COALESCE("Issue"."WR_ID", '')) LIKE ? OR `+
+				`LOWER(COALESCE((SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID"), '')) LIKE ? OR `+
+				`LOWER(COALESCE((
 				SELECT am."AreaName" 
 				FROM "Inspection_Result" ir
 				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
 				JOIN "Area_Master" am ON ih."AreaID" = am."AreaID"
 				WHERE ir."ResultID" = "Issue"."ResultID"
 			), '')) LIKE ? OR `+
-			`LOWER(COALESCE((
+				`LOWER(COALESCE((
 				SELECT km."KawasanName" 
 				FROM "Inspection_Result" ir
 				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
 				JOIN "Kawasan_Master" km ON ih."KawasanID" = km."KawasanID"
 				WHERE ir."ResultID" = "Issue"."ResultID"
 			), '')) LIKE ? OR `+
-			`LOWER(COALESCE((
+				`LOWER(COALESCE((
 				SELECT dkm."DetailKawasanName" 
 				FROM "Inspection_Result" ir
 				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
@@ -220,6 +242,9 @@ func (f *IssueFilter) FiltersApplied() map[string]interface{} {
 	}
 	if f.Q != "" {
 		applied["q"] = f.Q
+	}
+	if f.DetailKawasanID != "" {
+		applied["detail_kawasan_id"] = []string{f.DetailKawasanID}
 	}
 	if f.DateFrom != nil {
 		applied["date_from"] = f.DateFrom.Format(time.RFC3339)
@@ -286,15 +311,16 @@ func NewIssueFilter(c *fiber.Ctx) *IssueFilter {
 	p := pagination.FromQuery(c)
 
 	f := &IssueFilter{
-		Page:       p.Page,
-		Limit:      p.Limit,
-		SortBy:     c.Query("sort_by", "created_at"),
-		SortOrder:  c.Query("sort_order", "desc"),
-		Q:          c.Query("q"),
-		Status:     c.Query("status"),
-		PICUserID:  c.Query("issue_pic_user_id"),
-		WOWRStatus: c.Query("wowr_status"),
-		Label:      c.Query("label"),
+		Page:            p.Page,
+		Limit:           p.Limit,
+		SortBy:          c.Query("sort_by", "created_at"),
+		SortOrder:       c.Query("sort_order", "desc"),
+		Q:               c.Query("q"),
+		Status:          c.Query("status"),
+		PICUserID:       c.Query("issue_pic_user_id"),
+		WOWRStatus:      c.Query("wowr_status"),
+		Label:           c.Query("label"),
+		DetailKawasanID: c.Query("detail_kawasan_id"),
 	}
 
 	if v := c.Query("status__in"); v != "" {

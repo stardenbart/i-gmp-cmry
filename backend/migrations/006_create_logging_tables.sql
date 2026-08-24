@@ -3,8 +3,8 @@
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS "Login_Log" (
-    "LoginLogID"   VARCHAR(20)  NOT NULL,
-    "UserID"       VARCHAR(20),
+    "LoginLogID"   VARCHAR(50)  NOT NULL,
+    "UserID"       VARCHAR(50),
     "LoginAt"      TIMESTAMP    NOT NULL,
     "LogoutAt"     TIMESTAMP,
     "IPAddress"    VARCHAR(50),
@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS "Login_Log" (
 );
 
 CREATE TABLE IF NOT EXISTS "Activity_Log" (
-    "ActivityLogID"       VARCHAR(20)  NOT NULL,
-    "UserID"              VARCHAR(20)  NOT NULL,
-    "ModuleID"            VARCHAR(20),
-    "PermissionID"        VARCHAR(20),
+    "ActivityLogID"       VARCHAR(50)  NOT NULL,
+    "UserID"              VARCHAR(50)  NOT NULL,
+    "ModuleID"            VARCHAR(50),
+    "PermissionID"        VARCHAR(50),
     "ActivityAction"      VARCHAR(50)  NOT NULL,
     "TableAffected"       VARCHAR(100),
     "RecordID"            VARCHAR(50),

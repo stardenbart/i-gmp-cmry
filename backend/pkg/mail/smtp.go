@@ -11,39 +11,87 @@ import (
 type Mailer interface {
 	Send(to []string, subject, body string) error
 	SendTemplate(to []string, subject string, tmpl string, data interface{}) error
+	SendForPlant(plantID string, to []string, subject, body string) error
+	SendTemplateForPlant(plantID string, to []string, subject string, tmpl string, data interface{}) error
 }
 
+// SMTPConfig is the effective SMTP configuration used for one send attempt.
+// A provider can reload it from System_Setting, allowing changes without an
+// application restart. Environment values remain available as fallbacks.
+type SMTPConfig struct {
+	Enabled     bool
+	Host        string
+	Port        int
+	User        string
+	Password    string
+	SenderEmail string
+}
+
+type SMTPConfigProvider func(plantID string) (SMTPConfig, error)
+
 type smtpMailer struct {
-	host        string
-	port        int
-	user        string
-	password    string
-	senderEmail string
+	fallback SMTPConfig
+	provider SMTPConfigProvider
 }
 
 // NewSMTPMailer creates a new instance of SMTP Mailer.
 func NewSMTPMailer(host string, port int, user, password, senderEmail string) Mailer {
 	return &smtpMailer{
-		host:        host,
-		port:        port,
-		user:        user,
-		password:    password,
-		senderEmail: senderEmail,
+		fallback: SMTPConfig{Enabled: true, Host: host, Port: port, User: user, Password: password, SenderEmail: senderEmail},
 	}
+}
+
+// NewDynamicSMTPMailer creates a mailer that reloads SMTP settings for every
+// email and plant. This makes changes from the Settings page effective immediately.
+func NewDynamicSMTPMailer(fallback SMTPConfig, provider SMTPConfigProvider) Mailer {
+	return &smtpMailer{fallback: fallback, provider: provider}
+}
+
+func (m *smtpMailer) currentConfig(plantID string) (SMTPConfig, error) {
+	if m.provider == nil {
+		return m.fallback, nil
+	}
+	return m.provider(plantID)
 }
 
 // Send sends a plain text email.
 func (m *smtpMailer) Send(to []string, subject, body string) error {
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", m.senderEmail, join(to), subject, body)
+	return m.SendForPlant("", to, subject, body)
+}
 
-	auth := smtp.PlainAuth("", m.user, m.password, m.host)
-	addr := fmt.Sprintf("%s:%d", m.host, m.port)
+func (m *smtpMailer) SendForPlant(plantID string, to []string, subject, body string) error {
+	cfg, err := m.currentConfig(plantID)
+	if err != nil {
+		return fmt.Errorf("failed to load SMTP settings: %w", err)
+	}
+	if err := validateSMTPConfig(cfg); err != nil {
+		return err
+	}
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", cfg.SenderEmail, join(to), subject, body)
 
-	return smtp.SendMail(addr, auth, m.senderEmail, to, []byte(msg))
+	var auth smtp.Auth
+	if cfg.User != "" {
+		auth = smtp.PlainAuth("", cfg.User, cfg.Password, cfg.Host)
+	}
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+
+	return smtp.SendMail(addr, auth, cfg.SenderEmail, to, []byte(msg))
 }
 
 // SendTemplate sends an HTML email parsed from a template string.
 func (m *smtpMailer) SendTemplate(to []string, subject string, tmpl string, data interface{}) error {
+	return m.SendTemplateForPlant("", to, subject, tmpl, data)
+}
+
+func (m *smtpMailer) SendTemplateForPlant(plantID string, to []string, subject string, tmpl string, data interface{}) error {
+	cfg, err := m.currentConfig(plantID)
+	if err != nil {
+		return fmt.Errorf("failed to load SMTP settings: %w", err)
+	}
+	if err := validateSMTPConfig(cfg); err != nil {
+		return err
+	}
+
 	t, err := template.New("email").Parse(tmpl)
 	if err != nil {
 		return fmt.Errorf("failed to parse email template: %w", err)
@@ -55,12 +103,28 @@ func (m *smtpMailer) SendTemplate(to []string, subject string, tmpl string, data
 	}
 
 	mimeHeaders := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s\r\n%s", m.senderEmail, join(to), subject, mimeHeaders, body.String())
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s\r\n%s", cfg.SenderEmail, join(to), subject, mimeHeaders, body.String())
 
-	auth := smtp.PlainAuth("", m.user, m.password, m.host)
-	addr := fmt.Sprintf("%s:%d", m.host, m.port)
+	var auth smtp.Auth
+	if cfg.User != "" {
+		auth = smtp.PlainAuth("", cfg.User, cfg.Password, cfg.Host)
+	}
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
-	return smtp.SendMail(addr, auth, m.senderEmail, to, []byte(msg))
+	return smtp.SendMail(addr, auth, cfg.SenderEmail, to, []byte(msg))
+}
+
+func validateSMTPConfig(cfg SMTPConfig) error {
+	if !cfg.Enabled {
+		return fmt.Errorf("SMTP is disabled in system settings")
+	}
+	if cfg.Host == "" || cfg.Port < 1 || cfg.Port > 65535 {
+		return fmt.Errorf("SMTP host or port is invalid")
+	}
+	if cfg.SenderEmail == "" {
+		return fmt.Errorf("SMTP sender email is required")
+	}
+	return nil
 }
 
 func join(s []string) string {

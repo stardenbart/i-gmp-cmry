@@ -55,6 +55,9 @@ func (h *SettingHandler) Update(c *fiber.Ctx) error {
 	}
 
 	plantID := getPlantID(c)
+	// Never trust a body-level PlantID over the scope established by auth/query.
+	// This prevents a plant admin from updating another plant's configuration.
+	req.PlantID = plantID
 	updatedBy := middleware.GetUserID(c)
 	item, err := h.uc.Update(c.Params("key"), &req, updatedBy, plantID)
 	if err != nil {

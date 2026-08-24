@@ -101,6 +101,7 @@ export interface Issue {
   area_name?: string;
   kawasan_name?: string;
   detail_kawasan_name?: string;
+  detail_kawasan_id?: string;
   aspek_name?: string;
   detail_aspek_name?: string;
   uraian_text?: string;
@@ -127,6 +128,11 @@ export const issueApi = {
 
   closeByResultId: async (result_id: string) => {
     const res = await api.post("/issues/close-by-result", { result_id });
+    return res.data;
+  },
+
+  getByResultId: async (result_id: string) => {
+    const res = await api.get(`/issues/by-result/${result_id}`);
     return res.data;
   },
 

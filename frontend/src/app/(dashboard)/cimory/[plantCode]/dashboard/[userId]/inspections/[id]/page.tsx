@@ -32,7 +32,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { inspectionApi } from "@/lib/api/inspection.api";
+import { inspectionApi, InspectionResult } from "@/lib/api/inspection.api";
 import { issueApi, IssuePhoto } from "@/lib/api/issue.api";
 import { picApi } from "@/lib/api/pic.api";
 import { api } from "@/lib/api/axios";
@@ -657,7 +657,11 @@ export default function InspectionDetailPage() {
 
     try {
       // 1. Bulk Save Results to PostgreSQL DB Core
-      await inspectionApi.bulkSaveResults(id, resultsPayload);
+      const bulkSaveResponse = await inspectionApi.bulkSaveResults(id, resultsPayload);
+      const savedResults = Array.isArray(bulkSaveResponse?.data) ? bulkSaveResponse.data : [];
+      const savedResultIds = new Map<string, string>(
+        savedResults.map((result: InspectionResult) => [result.uraian_id, result.result_id])
+      );
 
       // 2. Process NG Issues & Upload Photos with Per-Photo Keterangan
       const picUserId = picData?.items?.[0]?.user_id || user?.id || "";
@@ -666,31 +670,42 @@ export default function InspectionDetailPage() {
         const updatedChecklistRes = await inspectionApi.getChecklist(id);
         const updatedChecklist = updatedChecklistRes?.data;
 
-        // Track all valid photo IDs across all tasks in this session to protect them from deletion
-        const validSessionPhotoIds = new Set<string>();
-        let activeIssueIdForSession = "";
+        // Aggregate photos across every uraian before cleanup. This remains safe
+        // even when an older backend returns the same IssueID for multiple NGs.
+        const validPhotoIdsByIssue = new Map<string, Set<string>>();
+        const existingPhotosByIssue = new Map<string, IssuePhoto[]>();
 
         for (const task of ngUraianTasks) {
-          let savedResultId = "";
-          updatedChecklist?.aspeks?.forEach((a: any) => {
-            a.details?.forEach((d: any) => {
-              d.uraians?.forEach((u: any) => {
-                if (u.uraian_id === task.uraian.uraian_id && u.result) {
-                  savedResultId = u.result.result_id;
-                }
-              });
-            });
-          });
+          const savedResultId = savedResultIds.get(task.uraian.uraian_id) || "";
+
+          if (!savedResultId) {
+            throw new Error(`Result ID untuk uraian ${task.uraian.uraian_id} tidak ditemukan`);
+          }
 
           if (savedResultId) {
-            const issueRes = await issueApi.create({
-              result_id: savedResultId,
-              issue_pic_user_id: picUserId,
-              keterangan: task.keterangan || "Temuan NG pada inspeksi",
-            });
+            let createdIssueId = "";
+            try {
+              const issueRes = await issueApi.create({
+                result_id: savedResultId,
+                issue_pic_user_id: picUserId,
+                keterangan: task.keterangan || "Temuan NG pada inspeksi",
+              });
+              createdIssueId = issueRes?.data?.issue_id;
+            } catch (e: any) {
+              // Jika issue sudah ada, coba ambil via search/getByResultId atau abaikan error jika duplikat
+              console.warn("Issue creation failed or already exists for result:", savedResultId, e);
+              try {
+                const existingIssue = await issueApi.getByResultId(savedResultId);
+                createdIssueId = existingIssue?.data?.issue_id;
+              } catch (innerErr) {
+                console.warn("Failed to fetch existing issue by result id:", innerErr);
+                throw new Error(`Issue untuk hasil ${savedResultId} gagal disinkronkan`);
+              }
+            }
 
-            const createdIssueId = issueRes?.data?.issue_id;
-            if (createdIssueId) activeIssueIdForSession = createdIssueId;
+            if (!createdIssueId) {
+              throw new Error(`Issue untuk hasil ${savedResultId} tidak tersedia`);
+            }
 
             if (createdIssueId && task.photos.length > 0) {
               let existingPhotos: IssuePhoto[] = [];
@@ -700,6 +715,17 @@ export default function InspectionDetailPage() {
               } catch (e) {
                 console.warn("Failed to fetch existing photos for issue:", e);
               }
+
+              const accumulatedExisting = existingPhotosByIssue.get(createdIssueId) || [];
+              for (const photo of existingPhotos) {
+                if (!accumulatedExisting.some((item) => item.issue_photo_id === photo.issue_photo_id)) {
+                  accumulatedExisting.push(photo);
+                }
+              }
+              existingPhotosByIssue.set(createdIssueId, accumulatedExisting);
+
+              const validIssuePhotoIds = validPhotoIdsByIssue.get(createdIssueId) || new Set<string>();
+              validPhotoIdsByIssue.set(createdIssueId, validIssuePhotoIds);
 
               for (const photoItem of task.photos) {
                 let photoFile = photoItem.file;
@@ -713,7 +739,7 @@ export default function InspectionDetailPage() {
                 );
 
                 if (matchedExistingPhoto) {
-                  validSessionPhotoIds.add(matchedExistingPhoto.issue_photo_id);
+                  validIssuePhotoIds.add(matchedExistingPhoto.issue_photo_id);
                   if (photoItem.hei_id || photoItem.hei_category) {
                     await issueApi.updatePhotoHEI(matchedExistingPhoto.issue_photo_id, {
                       hei_id: photoItem.hei_id || "",
@@ -748,6 +774,7 @@ export default function InspectionDetailPage() {
 
                 if (photoFile && photoFile.size > 0) {
                   const fd = new FormData();
+                  
                   fd.append("photo", photoFile);
                   fd.append("photo_type", "Initial");
                   fd.append("keterangan", photoItem.keterangan || "");
@@ -755,28 +782,30 @@ export default function InspectionDetailPage() {
                   if (photoItem.hei_category) fd.append("hei_category", photoItem.hei_category);
                   const uploadRes = await issueApi.uploadPhoto(createdIssueId, fd);
                   if (uploadRes?.data?.issue_photo_id) {
-                    validSessionPhotoIds.add(uploadRes.data.issue_photo_id);
+                    validIssuePhotoIds.add(uploadRes.data.issue_photo_id);
                   }
                 }
               }
+
             }
           }
         }
 
-        // Clean up photos removed by auditor across the entire session
-        if (activeIssueIdForSession && validSessionPhotoIds.size > 0) {
+        // Cleanup once per Issue after all NG uraian have contributed their
+        // valid photo IDs. Never delete another uraian's photos mid-loop.
+        for (const [issueId, existingPhotos] of existingPhotosByIssue) {
+          const validPhotoIds = validPhotoIdsByIssue.get(issueId) || new Set<string>();
           try {
-            const finalPhotosRes = await issueApi.getPhotos(activeIssueIdForSession);
-            const finalExistingPhotos: IssuePhoto[] = finalPhotosRes?.data || [];
-            for (const ep of finalExistingPhotos) {
-              if (ep.photo_type === "Initial" && !validSessionPhotoIds.has(ep.issue_photo_id)) {
-                await issueApi.deletePhoto(activeIssueIdForSession, ep.issue_photo_id);
+            for (const photo of existingPhotos) {
+              if (photo.photo_type === "Initial" && !validPhotoIds.has(photo.issue_photo_id)) {
+                await issueApi.deletePhoto(issueId, photo.issue_photo_id);
               }
             }
-          } catch (e) {
-            console.warn("Failed to perform final session photo cleanup:", e);
+          } catch (error) {
+            console.warn("Failed to perform photo cleanup for issue:", issueId, error);
           }
         }
+
         // Auto-close any existing issue for items changed from NG to OK
         updatedChecklist?.aspeks?.forEach((a: any) => {
           a.details?.forEach((d: any) => {
@@ -798,7 +827,7 @@ export default function InspectionDetailPage() {
       // 5. Release active aspect lock
       await releaseLock();
 
-      toast.success("Inspeksi berhasil diselesaikan dan disinkronkan ke DB Core!");
+      toast.success("Inspeksi berhasil diselesaikan!");
       await queryClient.invalidateQueries({ queryKey: ["inspection", id] });
       await queryClient.invalidateQueries({ queryKey: ["inspection_checklist", id] });
       await queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
@@ -808,7 +837,7 @@ export default function InspectionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["issue"] });
       await queryClient.invalidateQueries({ queryKey: ["issue-photos"] });
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Gagal menyelesaikan inspeksi");
+      toast.error(err.response?.data?.message || err.message || "Gagal menyelesaikan inspeksi");
     } finally {
       setIsSaving(false);
       setIsFinalizing(false);

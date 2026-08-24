@@ -4,10 +4,10 @@
 
 -- 1. Create Table Issue_HEI
 CREATE TABLE IF NOT EXISTS "Issue_HEI" (
-    "IssueHEIID"         VARCHAR(30)  NOT NULL,
-    "IssueID"            VARCHAR(30)  NOT NULL,
-    "HabitID"            VARCHAR(20),
-    "EquipmentID"        VARCHAR(20),
+    "IssueHEIID"         VARCHAR(50)  NOT NULL,
+    "IssueID"            VARCHAR(50)  NOT NULL,
+    "HabitID"            VARCHAR(50),
+    "EquipmentID"        VARCHAR(50),
     "InfrastructureID"   VARCHAR(20),
     "CreatedAt"          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UpdatedAt"          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -96,6 +96,7 @@ func (r *settingRepository) Update(key, value, updatedBy, plantID string) error 
 		SettingKey:   key,
 		PlantID:      targetPlantID,
 		SettingValue: value,
+		IsEncrypted:  globalDef.IsEncrypted,
 		Description:  desc,
 	}
 	if updatedBy != "" {

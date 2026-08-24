@@ -203,11 +203,13 @@ func CleanupDummyData(db *gorm.DB) {
 	// 4. Delete Issues (Only dummy ISSUE-*, preserve ISSUE-REAL-*)
 	db.Exec(`DELETE FROM "Issue" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')`)
 
-	// 5. Delete Inspection Results (Only dummy RES-*, preserve RES-REAL-*)
-	db.Exec(`DELETE FROM "Inspection_Result" WHERE "ResultID" NOT LIKE 'RES-REAL-%' AND ("ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%' OR "InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%')`)
+	// 5. Delete Inspection Results (Only dummy RES-*, preserve RES-REAL-* and any system-generated RES-YYMMDD-* or RES-<uuid> records)
+	// Only delete results whose InspectionID also starts with dummy prefix (INS-* or HIST-*)
+	db.Exec(`DELETE FROM "Inspection_Result" WHERE "ResultID" NOT LIKE 'RES-REAL-%' AND "InspectionID" NOT LIKE 'INSP-REAL-%' AND ("InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%')`)
 
-	// 6. Delete Inspection Headers (Only dummy INS-*, preserve INSP-REAL-*)
-	db.Exec(`DELETE FROM "Inspection_Header" WHERE "InspectionID" NOT LIKE 'INSP-REAL-%' AND ("InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%')`)
+	// 6. Delete Inspection Headers (Only dummy INS-*, preserve INSP-REAL-* and real system-generated INSP-* headers)
+	// Only delete headers that have no associated real Issues to prevent orphaning them
+	db.Exec(`DELETE FROM "Inspection_Header" WHERE "InspectionID" NOT LIKE 'INSP-REAL-%' AND "InspectionID" LIKE 'HIST-%'`)
 
 	// 7. Delete HEI Master dummy records
 	db.Exec(`DELETE FROM "HEI_Master" WHERE "HEIID" NOT LIKE 'HEI-%' AND "HEIID" NOT LIKE 'HEI-HAB-%' AND "HEIID" NOT LIKE 'HEI-EQP-%' AND "HEIID" NOT LIKE 'HEI-INF-%'`)

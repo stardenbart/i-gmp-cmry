@@ -36,15 +36,7 @@ func NewInspectionEmailNotifier(
 
 // SendInspectionSummary is called when an Area's status becomes Confirmed
 func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress inspection.AreaProgress) error {
-	// 1. Get the dynamic email template from Settings
-	setting, err := n.settingRepo.FindByKey(master.SettingKeyEmailTemplateInspectionConfirmed, "")
-	if err != nil {
-		log.Printf("[EmailNotifier] Error retrieving template: %v", err)
-		return err
-	}
-	templateStr := setting.SettingValue
-
-	// 2. Find PICs for this Area (Manager, Auditor, or Area PIC)
+	// 1. Find PICs for this Area (Manager, Auditor, or Area PIC)
 	pics, err := n.picRepo.FindByAreaAndKawasan(areaID, "")
 	if err != nil {
 		log.Printf("[EmailNotifier] Error retrieving PICs for Area %s: %v", areaID, err)
@@ -53,9 +45,13 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 
 	var targetEmails []string
 	emailSet := make(map[string]bool)
+	plantID := ""
 	for _, p := range pics {
 		user, err := n.authRepo.FindByID(p.UserID)
 		if err == nil && user != nil && user.Email != "" {
+			if plantID == "" && user.PlantID != nil {
+				plantID = *user.PlantID
+			}
 			if !emailSet[user.Email] {
 				emailSet[user.Email] = true
 				targetEmails = append(targetEmails, user.Email)
@@ -68,6 +64,14 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 		return nil
 	}
 
+	// 2. Load the matching plant template (with global fallback).
+	setting, err := n.settingRepo.FindByKey(master.SettingKeyEmailTemplateInspectionConfirmed, plantID)
+	if err != nil {
+		log.Printf("[EmailNotifier] Error retrieving template: %v", err)
+		return err
+	}
+	templateStr := setting.SettingValue
+
 	// 3. Prepare data for the template
 	data := map[string]interface{}{
 		"AreaID":                 areaID,
@@ -78,7 +82,7 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 
 	// 4. Send Email via Mailer
 	subject := "✅ Inspeksi Area Selesai: " + areaID
-	err = n.mailer.SendTemplate(targetEmails, subject, templateStr, data)
+	err = n.mailer.SendTemplateForPlant(plantID, targetEmails, subject, templateStr, data)
 	if err != nil {
 		log.Printf("[EmailNotifier] Failed to send email to %v: %v", targetEmails, err)
 		return err

@@ -102,12 +102,17 @@ func runAutoApprove(uc issue.IssueUseCase) {
 					}
 
 					// Re-use assignment template or fallback
+					plantID := ""
+					if pic.PlantID != nil {
+						plantID = *pic.PlantID
+					}
 					tmpl := mail.TmplIssueAssignment
-					if s, errSet := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, ""); errSet == nil && s.SettingValue != "" {
+					if s, errSet := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, plantID); errSet == nil && s.SettingValue != "" {
 						tmpl = s.SettingValue
 					}
 
-					_ = usecaseImpl.mailer.SendTemplate(
+					_ = usecaseImpl.mailer.SendTemplateForPlant(
+						plantID,
 						[]string{pic.Email},
 						"[Monitoring Audit] Issue Telah Disetujui (Auto-Approve)",
 						tmpl,

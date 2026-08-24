@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	// @title           Monitoring Audit API
@@ -26,6 +27,7 @@ import (
 
 	"github.com/monitoring-system/backend/config"
 	"github.com/monitoring-system/backend/internal/domain/events"
+	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	kafkainfra "github.com/monitoring-system/backend/internal/infrastructure/kafka"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/loggingrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
@@ -63,9 +65,6 @@ func main() {
 	// ── Prepare ActivityLog repo (still used for DB writes from Consumer) ──
 	actLogRepo := loggingrepo.NewActivityLogRepository(db)
 	_ = actLogRepo // used by OpenSearch indexer worker via direct DB writes (optional future path)
-
-	// ── Setup SMTP Mailer ───────────────────────────────────────────────
-	mailer := mail.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPSenderEmail)
 
 	// ── Setup Kafka Producer ───────────────────────────────────────────
 	kafkaBrokers := []string{cfg.KafkaBrokers}
@@ -117,6 +116,57 @@ func main() {
 	} else {
 		log.Info("WARNING: SETTING_ENCRYPTION_KEY not set, encrypted settings will not be protected")
 	}
+
+	// ── Setup dynamic SMTP Mailer ──────────────────────────────────────
+	// Each send reloads the matching plant's System_Setting values. Missing
+	// plant values fall back to global settings, then environment configuration.
+	smtpFallback := mail.SMTPConfig{
+		Enabled:     true,
+		Host:        cfg.SMTPHost,
+		Port:        cfg.SMTPPort,
+		User:        cfg.SMTPUser,
+		Password:    cfg.SMTPPassword,
+		SenderEmail: cfg.SMTPSenderEmail,
+	}
+	mailer := mail.NewDynamicSMTPMailer(smtpFallback, func(plantID string) (mail.SMTPConfig, error) {
+		effective := smtpFallback
+		read := func(key string) (*masterdomain.Setting, bool) {
+			setting, findErr := settingRepo.FindByKey(key, plantID)
+			return setting, findErr == nil && setting.SettingValue != ""
+		}
+
+		if setting, ok := read(masterdomain.SettingKeySMTPEnabled); ok {
+			enabled, parseErr := strconv.ParseBool(setting.SettingValue)
+			if parseErr != nil {
+				return effective, parseErr
+			}
+			effective.Enabled = enabled
+		}
+		if setting, ok := read(masterdomain.SettingKeySMTPHost); ok {
+			effective.Host = setting.SettingValue
+		}
+		if setting, ok := read(masterdomain.SettingKeySMTPPort); ok {
+			port, parseErr := strconv.Atoi(setting.SettingValue)
+			if parseErr != nil {
+				return effective, parseErr
+			}
+			effective.Port = port
+		}
+		if setting, ok := read(masterdomain.SettingKeySMTPUser); ok {
+			effective.User = setting.SettingValue
+		}
+		if setting, ok := read(masterdomain.SettingKeySMTPPassword); ok {
+			password := setting.SettingValue
+			if setting.IsEncrypted && cryptoSvc != nil {
+				password = cryptoSvc.DecryptWithFallback(password)
+			}
+			effective.Password = password
+		}
+		if setting, ok := read(masterdomain.SettingKeySMTPSenderEmail); ok {
+			effective.SenderEmail = setting.SettingValue
+		}
+		return effective, nil
+	})
 
 	// ── Setup Image Processing Consumer ────────────────────────────────
 	uploadRepo := uploadrepo.NewUploadRepository(db)

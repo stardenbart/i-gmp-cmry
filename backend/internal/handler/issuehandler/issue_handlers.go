@@ -133,6 +133,28 @@ func (h *IssueHandler) CloseByResult(c *fiber.Ctx) error {
 	return response.OK(c, "issue closed if existed", nil)
 }
 
+// @Summary Get issue by result ID
+// @Description Retrieve an issue associated with a specific inspection result
+// @Tags issues
+// @Accept json
+// @Produce json
+// @Param result_id path string true "Result ID"
+// @Success 200 {object} response.APIResponse "success"
+// @Failure 404 {object} response.APIResponse "issue not found"
+// @Router /api/v1/issues/by-result/{result_id} [get]
+// @Security BearerAuth
+func (h *IssueHandler) GetByResultID(c *fiber.Ctx) error {
+	resultID := c.Params("result_id")
+	if resultID == "" {
+		return response.BadRequest(c, "result_id is required", nil)
+	}
+	item, err := h.uc.GetByResultID(resultID)
+	if err != nil || item == nil {
+		return response.NotFound(c, "issue not found for this result")
+	}
+	return response.OK(c, "success", item)
+}
+
 // @Summary Update an issue
 // @Description Update an existing issue by its ID
 // @Tags issues
@@ -425,6 +447,10 @@ func (h *IssuePhotoHandler) UpdateWOWR(c *fiber.Ctx) error {
 	var req issue.UpdatePhotoWOWRRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid body", err.Error())
+	}
+	if (req.WOWRStatus == issue.WOWRStatusVerified || req.WOWRStatus == issue.WOWRStatusRejected) &&
+		!middleware.IsAuditorRole(middleware.GetRoleID(c)) {
+		return response.Forbidden(c, "hanya Admin atau Auditor yang dapat memvalidasi WO/WR")
 	}
 	photo, err := h.uc.UpdateWOWR(c.UserContext(), c.Params("photo_id"), &req)
 	if err != nil {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Trash2, CheckCircle2,
@@ -11,14 +11,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { issueApi, IssuePhoto, IssueStatus } from "@/lib/api/issue.api";
+import { Card } from "@/components/ui/card";
+import { issueApi, Issue, IssuePhoto, IssueStatus } from "@/lib/api/issue.api";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { InfoCard } from "@/components/isssues/InfoCard";
 import { PhotoSection } from "@/components/isssues/PhotosCard";
-import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
 import { usePolling } from "@/hooks/usePolling";
+import { filterApi } from "@/lib/api/filter.api";
 
 const statusConfig: Record<IssueStatus, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   Open: { label: "Open", icon: CircleDashed, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -34,11 +35,9 @@ const statusConfig: Record<IssueStatus, { label: string; icon: React.ElementType
 const STATUS_TRANSITIONS: Record<IssueStatus, { label: string; next: IssueStatus; color: string }[]> = {
   Open: [{ label: "Mulai Kerjakan", next: "InProgress", color: "bg-amber-500 hover:bg-amber-600" }],
   InProgress: [
-    { label: "Selesaikan Temuan", next: "Closed", color: "bg-green-600 hover:bg-green-700" }
+    { label: "Ajukan Validasi", next: "PendingValidation", color: "bg-purple-600 hover:bg-purple-700" }
   ],
-  PendingValidation: [
-    { label: "Selesaikan Temuan", next: "Closed", color: "bg-green-600 hover:bg-green-700" }
-  ],
+  PendingValidation: [],
   Closed: [],
   Verified: [],
   Overdue: [{ label: "Mulai Kerjakan", next: "InProgress", color: "bg-amber-500 hover:bg-amber-600" }],
@@ -46,10 +45,20 @@ const STATUS_TRANSITIONS: Record<IssueStatus, { label: string; next: IssueStatus
   ClosedOverdue: [],
 };
 
+function getMutationErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = (error as { response?: { data?: { message?: string; error?: string } } }).response;
+    return response?.data?.message || response?.data?.error || fallback;
+  }
+  return fallback;
+}
+
 import { useRouter } from "next/navigation";
 
 export default function IssueDetailPage() {
   const { id, plantCode, userId } = useParams() as { id: string; plantCode?: string; userId?: string };
+  const searchParams = useSearchParams();
+  const detailKawasanId = searchParams.get("detail_kawasan_id") || "";
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -59,8 +68,6 @@ export default function IssueDetailPage() {
   const user = useAuthStore((state) => state.user);
   const { hasPermission } = usePermissions();
 
-  const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: id });
-
   const { data, isLoading } = useQuery({
     queryKey: ["issue", id],
     queryFn: () => issueApi.getById(id),
@@ -69,9 +76,27 @@ export default function IssueDetailPage() {
     refetchInterval: 5000,
   });
 
+  const issue = data?.data;
+  const resolvedDetailKawasanId = detailKawasanId || issue?.detail_kawasan_id || "";
+
   const { data: photosData } = useQuery({
     queryKey: ["issue-photos", id],
     queryFn: () => issueApi.getPhotos(id),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 5000,
+  });
+
+  const { data: locationIssuesData, isLoading: isLocationIssuesLoading } = useQuery({
+    queryKey: ["issues-location", resolvedDetailKawasanId],
+    queryFn: () => filterApi.issues({
+      detail_kawasan_id: resolvedDetailKawasanId,
+      page: 1,
+      limit: 100,
+      sort_by: "created_at",
+      sort_order: "desc",
+    }),
+    enabled: Boolean(resolvedDetailKawasanId),
     staleTime: 0,
     refetchOnMount: "always",
     refetchInterval: 5000,
@@ -84,9 +109,8 @@ export default function IssueDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Status temuan diperbarui");
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal memperbarui status";
-      toast.error(msg);
+    onError: (error: unknown) => {
+      toast.error(getMutationErrorMessage(error, "Gagal memperbarui status"));
     },
   });
 
@@ -96,13 +120,14 @@ export default function IssueDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["issue-photos", id] });
       toast.success("Foto dihapus");
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal menghapus foto";
-      toast.error(msg);
+    onError: (error: unknown) => {
+      toast.error(getMutationErrorMessage(error, "Gagal menghapus foto"));
     },
   });
 
-  const issue = data?.data;
+  const locationIssues: Issue[] = resolvedDetailKawasanId
+    ? (locationIssuesData?.items || [])
+    : (issue ? [issue] : []);
   const photos: IssuePhoto[] = photosData?.data || [];
   const initialPhotos = photos.filter((p) => p.photo_type === "Initial");
   const followUpPhotos = photos.filter((p) => p.photo_type === "FollowUp");
@@ -136,7 +161,7 @@ export default function IssueDetailPage() {
     if (rawStatus === "Open" || rawStatus === "Overdue" || rawStatus === "OpenOverdue") {
       transitions = transitions.filter(t => t.next === "InProgress");
     } else if (rawStatus === "InProgress") {
-      transitions = transitions.filter(t => t.next === "Closed");
+      transitions = transitions.filter(t => t.next === "PendingValidation");
     } else {
       // Closed, Verified: Auditee cannot perform status changes
       transitions = [];
@@ -145,12 +170,6 @@ export default function IssueDetailPage() {
     // For Auditor during PendingValidation, approval/rejection buttons are displayed in the dedicated purple banner below
     transitions = [];
   }
-
-  // Hak akses edit untuk WO/WR & Foto FollowUp
-  const isClosed = rawStatus === "Closed" || rawStatus === "Verified" || currentStatus === "Closed" || currentStatus === "Verified";
-  const isWorkStarted = rawStatus === "InProgress" || rawStatus === "PendingValidation";
-  const canAuditeeUploadFollowUp = !isPIC || isWorkStarted;
-  const canEditWOWR = !isClosed && (isAuditor || isWorkStarted);
 
   const dueDate = issue.due_date ? new Date(issue.due_date) : null;
 
@@ -178,12 +197,32 @@ export default function IssueDetailPage() {
         return;
       }
 
+      const initialPhotosUsingWOWR = initialPhotos.filter(
+        (photo) => photo.needs_wo_wr || photo.wo_id || photo.wr_id
+      );
+      const initialPhotoWithoutWOWRNumber = initialPhotosUsingWOWR.find(
+        (photo) => !photo.wo_id && !photo.wr_id
+      );
+      if (initialPhotoWithoutWOWRNumber) {
+        toast.error("Gagal: Foto temuan menggunakan WO/WR tetapi Nomor WO/WR belum diisi.");
+        return;
+      }
+
+      const isFinalApproval = nextStatus === "Closed" || nextStatus === "Verified";
+      const unverifiedWOWRPhoto = initialPhotosUsingWOWR.find(
+        (photo) => photo.wowr_status !== "Verified"
+      );
+      if (isFinalApproval && unverifiedWOWRPhoto) {
+        toast.error("Gagal menutup temuan: masih ada WO/WR foto yang belum diverifikasi Auditor/Admin.");
+        return;
+      }
+
       if (issue.needs_wo_wr || issue.wo_id || issue.wr_id) {
         if (!issue.wo_id && !issue.wr_id) {
           toast.error("Gagal: Temuan ini menggunakan WO/WR. Harap input Nomor WO atau WR dan simpan terlebih dahulu.");
           return;
         }
-        if (issue.wowr_status !== "Verified") {
+        if (isFinalApproval && issue.wowr_status !== "Verified") {
           toast.error("Gagal: Temuan ini menggunakan WO/WR. Harap tunggu persetujuan (konfirmasi) WO/WR oleh Auditor terlebih dahulu.");
           return;
         }
@@ -258,7 +297,7 @@ export default function IssueDetailPage() {
             <Button
               className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-md"
               isLoading={updateMutation.isPending}
-              onClick={() => updateMutation.mutate("Closed")}
+              onClick={() => handleStatusTransition("Closed")}
             >
               ✓ Setujui — Tutup Temuan
             </Button>
@@ -283,28 +322,79 @@ export default function IssueDetailPage() {
         </div>
       )}
 
+      {/* Singleton location card expands into every independent NG finding. */}
+      <Card className="p-5 bg-card/60 backdrop-blur-md border-border/80 shadow-sm space-y-4">
+          <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
+            <div>
+              <h3 className="font-bold text-base">Semua Temuan di Lokasi Ini</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {issue.area_name || "Tanpa Area"} · {issue.kawasan_name || "Tanpa Kawasan"} · {issue.detail_kawasan_name || "Tanpa Detail Kawasan"}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+              {locationIssues.length} temuan
+            </span>
+          </div>
+
+          {isLocationIssuesLoading ? (
+            <div className="flex justify-center py-5">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {locationIssues.map((locationIssue, index) => {
+                const locationStatus = locationIssue.computed_status || locationIssue.issue_status;
+                const locationConfig = statusConfig[locationStatus] || statusConfig.Open;
+                const isSelected = locationIssue.issue_id === id;
+                return (
+                  <Link
+                    key={locationIssue.issue_id}
+                    href={`/cimory/${plantCode || "all"}/dashboard/${userId || user?.id}/issues/${locationIssue.issue_id}${resolvedDetailKawasanId ? `?detail_kawasan_id=${encodeURIComponent(resolvedDetailKawasanId)}` : ""}`}
+                    className={cn(
+                      "rounded-xl border p-3 transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary/10"
+                        : "border-border/70 bg-background/50 hover:border-primary/40 hover:bg-muted/40"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[10px] font-mono text-muted-foreground">Temuan {index + 1}</span>
+                      <span className={cn("text-[10px] font-bold", locationConfig.color)}>{locationConfig.label}</span>
+                    </div>
+                    <p className="mt-1.5 line-clamp-2 text-xs font-semibold leading-relaxed text-foreground">
+                      {locationIssue.uraian_text || locationIssue.keterangan || "Tanpa uraian temuan"}
+                    </p>
+                    <p className="mt-2 text-[10px] text-muted-foreground">
+                      {locationIssue.photos?.length || 0} foto · {locationIssue.issue_id}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-1">
           {/* Information Card */}
           <InfoCard issue={issue} dueDate={dueDate} />
         </div>
 
-        {/* Photos Card */}
-        <PhotoSection 
-          initialPhotos={initialPhotos}
-          followUpPhotos={followUpPhotos}
-          uploadMutation={uploadMutation}
-          deleteMutation={deleteMutation}
-          setSelectedImage={setSelectedImage}
-          onNavigateDetail={(photoId) =>
-            router.push(`/cimory/${plantCode || "all"}/dashboard/${userId || user?.id}/issues/${id}/photos/${photoId}`)
-          }
-          uploadProgress={uploadProgress}
-          isAuditor={isAuditor}
-          canUploadFollowUp={canAuditeeUploadFollowUp}
-          isClosed={rawStatus === "Closed" || rawStatus === "Verified" || currentStatus === "Closed" || currentStatus === "Verified"}
-          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["issue-photos", id] })}
-        />
+        <div className="space-y-6 lg:col-span-2">
+          {/* Photos Card */}
+          <PhotoSection
+            initialPhotos={initialPhotos}
+            proofPhotos={[...followUpPhotos, ...wowrPhotos]}
+            deleteMutation={deleteMutation}
+            setSelectedImage={setSelectedImage}
+            onNavigateDetail={(photoId) =>
+              router.push(`/cimory/${plantCode || "all"}/dashboard/${userId || user?.id}/issues/${id}/photos/${photoId}`)
+            }
+            isAuditor={isAuditor}
+            isClosed={rawStatus === "Closed" || rawStatus === "Verified" || currentStatus === "Closed" || currentStatus === "Verified"}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ["issue-photos", id] })}
+          />
+        </div>
       </div>
 
       {/* Image Lightbox */}

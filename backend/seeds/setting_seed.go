@@ -55,6 +55,32 @@ func SeedSettings(db *gorm.DB) {
 			SettingValue: "3",
 			Description:  "Batas waktu (hari) bagi auditor untuk memvalidasi follow up PIC sebelum auto-approve",
 		},
+		{
+			SettingKey:   master.SettingKeySMTPEnabled,
+			SettingValue: "true",
+			Description:  "Aktifkan atau nonaktifkan pengiriman email SMTP",
+		},
+		{
+			SettingKey:  master.SettingKeySMTPHost,
+			Description: "Hostname server SMTP; kosong menggunakan environment",
+		},
+		{
+			SettingKey:  master.SettingKeySMTPPort,
+			Description: "Port server SMTP; kosong menggunakan environment",
+		},
+		{
+			SettingKey:  master.SettingKeySMTPUser,
+			Description: "Username autentikasi SMTP; kosong menggunakan environment",
+		},
+		{
+			SettingKey:  master.SettingKeySMTPPassword,
+			IsEncrypted: true,
+			Description: "Password atau app password SMTP (terenkripsi)",
+		},
+		{
+			SettingKey:  master.SettingKeySMTPSenderEmail,
+			Description: "Alamat email pengirim; kosong menggunakan environment",
+		},
 	}
 
 	for _, setting := range settings {

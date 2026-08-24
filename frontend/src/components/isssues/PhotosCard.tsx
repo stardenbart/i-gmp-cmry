@@ -1,16 +1,17 @@
-import { useState, useRef } from "react";
-import { Upload, ImageIcon, Eye, Trash2, Edit, Check, X, Loader2, User, Calendar, Activity, Wrench, Warehouse, Tag } from "lucide-react";
+import { useState } from "react";
+import { ImageIcon, Eye, Trash2, Edit, Check, X, Loader2, User, Calendar, Tag } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
-import { formatImageUrl } from "@/lib/utils";
-import { issueApi, IssuePhoto } from "@/lib/api/issue.api";
+import { cn, formatImageUrl } from "@/lib/utils";
+import { issueApi } from "@/lib/api/issue.api";
 import { toast } from "sonner";
-import Image from "next/image";
 
 // 1. Interface untuk tipe data foto
 interface PhotoItem {
   issue_photo_id: string;
+  ref_photo_id?: string;
+  photo_type?: "Initial" | "FollowUp" | "WOWR";
   image_url: string;
   keterangan?: string;
   file_name?: string;
@@ -41,6 +42,7 @@ interface PhotoCardProps {
   isInitialPhoto?: boolean;
   canDelete?: boolean;
   isClosed?: boolean;
+  hasFollowUp?: boolean;
 }
 
 // Komponen Kecil: Menampilkan item foto satuan dengan keterangan, tombol Edit, dan tombol Delete
@@ -55,6 +57,7 @@ const PhotoCard = ({
   isInitialPhoto = false,
   canDelete = true,
   isClosed = false,
+  hasFollowUp = false,
 }: PhotoCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [keteranganText, setKeteranganText] = useState(photo.keterangan || "");
@@ -74,7 +77,7 @@ const PhotoCard = ({
       toast.success("Keterangan foto berhasil diperbarui");
       setIsEditing(false);
       if (onUpdateSuccess) onUpdateSuccess();
-    } catch (err: any) {
+    } catch {
       toast.error("Gagal memperbarui keterangan foto");
     } finally {
       setIsSaving(false);
@@ -97,7 +100,14 @@ const PhotoCard = ({
   };
 
   return (
-    <div className="group relative flex flex-col rounded-2xl border border-border bg-card overflow-hidden shadow-xs hover:border-primary/50 transition-all focus-within:ring-2 focus-within:ring-primary/40 [content-visibility:auto] [contain-intrinsic-size:1px_280px]">
+    <div className={cn(
+      "group relative flex flex-col rounded-2xl border bg-card overflow-hidden shadow-xs transition-all focus-within:ring-2 focus-within:ring-primary/40 [content-visibility:auto] [contain-intrinsic-size:1px_280px]",
+      isInitialPhoto && hasFollowUp
+        ? "border-green-500/70 hover:border-green-500 ring-1 ring-green-500/10"
+        : isInitialPhoto
+          ? "border-red-500/70 hover:border-red-500 ring-1 ring-red-500/10"
+          : "border-border hover:border-primary/50"
+    )}>
       {/* Thumbnail Container with Keyboard Access & Performance Props */}
       <div
         className="relative aspect-square w-full overflow-hidden bg-muted cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
@@ -115,6 +125,16 @@ const PhotoCard = ({
           onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
           className="h-full w-full object-cover transition-transform group-hover:scale-105"
         />
+        {isInitialPhoto && (
+          <span className={cn(
+            "absolute left-2 top-2 z-10 rounded-full border px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm",
+            hasFollowUp
+              ? "border-green-400/60 bg-green-600/90 text-white"
+              : "border-red-400/60 bg-red-600/90 text-white"
+          )}>
+            {hasFollowUp ? "Sudah Follow Up" : "Belum Follow Up"}
+          </span>
+        )}
         {/* Overlay Menu Saat Hover / Focus (Selalu Terlihat di Mobile Touchscreen) */}
         <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
           <Button
@@ -262,14 +282,11 @@ const PhotoCard = ({
 // 3. Props untuk komponen kontainer utama
 interface PhotoSectionProps {
   initialPhotos: PhotoItem[];
-  followUpPhotos: PhotoItem[];
-  uploadMutation: { isPending: boolean; mutate: (data: { file: File; type: "Initial" | "FollowUp" }) => void };
+  proofPhotos?: PhotoItem[];
   deleteMutation: { isPending: boolean; mutate: (id: string) => void };
   setSelectedImage: (url: string) => void;
   onNavigateDetail?: (photoId: string) => void;
-  uploadProgress?: number;
   isAuditor?: boolean;
-  canUploadFollowUp?: boolean;
   isClosed?: boolean;
   onRefresh?: () => void;
 }
@@ -277,47 +294,23 @@ interface PhotoSectionProps {
 // Komponen Utama: Kontainer Dokumentasi Foto
 export const PhotoSection = ({
   initialPhotos = [],
-  followUpPhotos = [],
-  uploadMutation,
+  proofPhotos = [],
   deleteMutation,
   setSelectedImage,
   onNavigateDetail,
-  uploadProgress = 0,
   isAuditor = true,
-  canUploadFollowUp = true,
   isClosed = false,
   onRefresh,
 }: PhotoSectionProps) => {
-  const [photoType, setPhotoType] = useState<"Initial" | "FollowUp">(isAuditor ? "Initial" : "FollowUp");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      uploadMutation.mutate({ file, type: photoType });
-      e.target.value = "";
-    }
-  };
-
-  const isUploadDisabled = uploadMutation.isPending || (!isAuditor && !canUploadFollowUp) || isClosed;
+  const followedUpPhotoIds = new Set(
+    proofPhotos.map((photo) => photo.ref_photo_id).filter((photoId): photoId is string => Boolean(photoId))
+  );
 
   return (
     <Card className="p-6 bg-card/60 backdrop-blur-md lg:col-span-2 space-y-5 shadow-sm border-border/80">
       <div className="flex items-center justify-between border-b border-border pb-3">
         <h3 className="font-bold text-base">Dokumentasi Bukti Foto & Keterangan</h3>
-
       </div>
-
-      {/* Progress Bar */}
-      {uploadMutation.isPending && uploadProgress > 0 && (
-        <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
-          <div
-            className="bg-primary h-2.5 rounded-full transition-all duration-300"
-            style={{ width: `${uploadProgress}%` }}
-          ></div>
-          <p className="text-[10px] text-right mt-1 text-muted-foreground">{uploadProgress}%</p>
-        </div>
-      )}
 
       {/* Initial Photos */}
       <div className="space-y-3">
@@ -345,13 +338,13 @@ export const PhotoSection = ({
                 isDeleting={deleteMutation.isPending}
                 isAuditor={isAuditor}
                 isInitialPhoto={true}
+                hasFollowUp={followedUpPhotoIds.has(photo.issue_photo_id)}
                 isClosed={isClosed}
               />
             ))}
           </div>
         )}
       </div>
-
 
     </Card>
   );

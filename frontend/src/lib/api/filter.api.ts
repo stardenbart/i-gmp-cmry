@@ -66,6 +66,7 @@ export interface IssueFilterParams {
   wowr_status__in?: string;
   needs_wo_wr?: string;
   label?: string;
+  detail_kawasan_id?: string;
   date_from?: string;
   date_to?: string;
   due_from?: string;

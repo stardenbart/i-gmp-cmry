@@ -6,13 +6,16 @@ import (
 	"github.com/monitoring-system/backend/internal/handler/inspectionhandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/inspectionrepo"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/issuerepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/picrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/uploadrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/authusecase"
 	"github.com/monitoring-system/backend/internal/usecase/inspectionusecase"
+	"github.com/monitoring-system/backend/internal/usecase/issueusecase"
 	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
+	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/kafka"
 	"github.com/monitoring-system/backend/pkg/logger"
@@ -22,7 +25,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase, minioStorage *storage.MinioStorage, rdb *redis.Client) {
+func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase, minioStorage *storage.MinioStorage, rdb *redis.Client, cryptoSvc *crypto.Service) {
 	headerRepo := inspectionrepo.NewInspectionHeaderRepository(db)
 	resultRepo := inspectionrepo.NewInspectionResultRepository(db)
 
@@ -35,7 +38,15 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, settingRepo)
 
 	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, kawasanRepo, emailNotifier)
-	resultUC := inspectionusecase.NewInspectionResultUseCase(resultRepo)
+
+	// Build IssueUseCase for auto-sync Issues on BulkSave
+	issueRepo := issuerepo.NewIssueRepository(db)
+	issuePhotoRepo := issuerepo.NewIssuePhotoRepository(db)
+	issueHEIRepo := issuerepo.NewIssueHEIRepository(db)
+	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, issuePhotoRepo, issueHEIRepo, minioStorage, producer, mailer, authRepo, settingRepo, issueDelegateRepo, cryptoSvc, rdb)
+
+	resultUC := inspectionusecase.NewInspectionResultUseCase(resultRepo, issueUC, headerUC)
 
 	// Filter
 	filterRepo := inspectionrepo.NewInspectionFilterRepository(db)

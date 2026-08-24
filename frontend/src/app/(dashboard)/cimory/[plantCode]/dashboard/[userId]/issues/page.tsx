@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useDeferredValue, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDeferredValue, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -15,13 +15,10 @@ import {
   Image as ImageIcon,
   ShieldAlert,
   CircleDot,
-  ChevronLeft,
   X,
-  Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
 
-import { Issue, IssueStatus, issueApi } from "@/lib/api/issue.api";
+import { Issue, IssueStatus } from "@/lib/api/issue.api";
 import { filterApi, IssueFilterParams } from "@/lib/api/filter.api";
 import { Button } from "@/components/ui/button";
 import { cn, formatImageUrl, isEncryptedBase64 } from "@/lib/utils";
@@ -55,7 +52,7 @@ const statusConfig: Record<
 };
 
 /* ── Issue Card ────────────────────────────────────────────────────────── */
-function IssueCard({ issue, targetUrl, index = 1 }: { issue: Issue; targetUrl?: string; index?: number }) {
+function IssueCard({ issue, issueCount, targetUrl, index = 1 }: { issue: Issue; issueCount: number; targetUrl?: string; index?: number }) {
   const displayStatus = issue.computed_status || issue.issue_status;
   const cfg = statusConfig[displayStatus] ?? statusConfig["Open"];
   const StatusIcon = cfg.icon;
@@ -69,9 +66,9 @@ function IssueCard({ issue, targetUrl, index = 1 }: { issue: Issue; targetUrl?: 
       issue.issue_status !== "Verified");
 
   const href = targetUrl || `issues/${issue.issue_id}`;
-  const initialPhotos = issue.photos?.filter((p) => p.photo_type === "Initial") || issue.photos || [];
-  const firstPhoto = initialPhotos.length > 0 ? initialPhotos[0] : (issue.photos && issue.photos.length > 0 ? issue.photos[0] : null);
-  const totalPhotoCount = issue.photos?.length || 0;
+  const initialPhotos = issue.photos?.filter((photo) => photo.photo_type === "Initial") ?? [];
+  const firstPhoto = initialPhotos[0] ?? null;
+  const totalPhotoCount = initialPhotos.length;
   const isLcp = index === 0;
 
   return (
@@ -100,9 +97,9 @@ function IssueCard({ issue, targetUrl, index = 1 }: { issue: Issue; targetUrl?: 
               height={80}
               className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
-            {totalPhotoCount > 1 && (
+            {totalPhotoCount > 0 && (
               <span className="absolute bottom-1 right-1 text-[9px] font-bold bg-black/80 text-white px-1.5 py-0.5 rounded-md backdrop-blur-xs">
-                +{totalPhotoCount - 1}
+                {totalPhotoCount} foto
               </span>
             )}
           </div>
@@ -136,6 +133,9 @@ function IssueCard({ issue, targetUrl, index = 1 }: { issue: Issue; targetUrl?: 
             >
               {cfg.label}
             </span>
+            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary">
+              {issueCount} temuan
+            </span>
           </div>
 
           {/* Meta row */}
@@ -143,7 +143,7 @@ function IssueCard({ issue, targetUrl, index = 1 }: { issue: Issue; targetUrl?: 
             {/* Issue ID */}
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
               <StatusIcon className={cn("h-3 w-3 shrink-0", cfg.color)} />
-              ID: {issue.issue_id}
+              Lokasi: {issue.detail_kawasan_id || issue.detail_kawasan_name || issue.issue_id}
             </span>
 
             {/* HEI Category Badge */}
@@ -210,7 +210,6 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   setActiveStatus,
   setSearch,
-  setPage,
   resetFilters,
 } from "@/store/slices/issueFilterSlice";
 
@@ -227,17 +226,16 @@ export default function IssuesPage() {
   usePolling();
 
   const dispatch = useAppDispatch();
-  const { activeStatus, search, page } = useAppSelector((state) => state.issueFilter);
+  const { activeStatus, search } = useAppSelector((state) => state.issueFilter);
 
   // Debounce search via React 18 useDeferredValue
   const deferredSearch = useDeferredValue(search);
 
   const params: IssueFilterParams = {
-    page,
-    limit: 20,
+    page: 1,
+    limit: 100,
     sort_by: "created_at",
     sort_order: "desc",
-    ...(activeStatus !== "all" && { status: activeStatus }),
     ...(deferredSearch && { q: deferredSearch }),
   };
 
@@ -250,19 +248,45 @@ export default function IssuesPage() {
     refetchInterval: 5000,
   });
 
-  const rawItems: Issue[] = data?.items ?? [];
-  const issues: Issue[] = useMemo(() => {
-    const map = new Map<string, Issue>();
+  const rawItems: Issue[] = useMemo(() => data?.items ?? [], [data?.items]);
+  const allLocationGroups = useMemo(() => {
+    const map = new Map<string, { key: string; representative: Issue; items: Issue[] }>();
     for (const item of rawItems) {
-      if (item.issue_id && !map.has(item.issue_id)) {
-        map.set(item.issue_id, item);
+      const hasLocationName = [item.area_name, item.kawasan_name, item.detail_kawasan_name]
+        .some((value) => Boolean(value?.trim()));
+      if (!hasLocationName) continue;
+
+      const key = item.detail_kawasan_id || [item.area_name, item.kawasan_name, item.detail_kawasan_name].join("|") || item.issue_id;
+      const existing = map.get(key);
+      if (existing) {
+        existing.items.push(item);
+        existing.representative = {
+          ...existing.representative,
+          photos: [...(existing.representative.photos || []), ...(item.photos || [])],
+        };
+      } else {
+        map.set(key, { key, representative: { ...item }, items: [item] });
       }
     }
     return Array.from(map.values());
   }, [rawItems]);
-  const facets = data?.facets;
-  const total = data?.total ?? 0;
-  const totalPages = data?.total_pages ?? 1;
+  const statusCardCounts = useMemo(() => {
+    const counts: Partial<Record<IssueStatus, number>> = {};
+    for (const group of allLocationGroups) {
+      const status = group.representative.computed_status || group.representative.issue_status;
+      counts[status] = (counts[status] || 0) + 1;
+    }
+    return counts;
+  }, [allLocationGroups]);
+  const locationGroups = useMemo(
+    () => activeStatus === "all"
+      ? allLocationGroups
+      : allLocationGroups.filter((group) =>
+          (group.representative.computed_status || group.representative.issue_status) === activeStatus
+        ),
+    [activeStatus, allLocationGroups]
+  );
+  const totalIssues = allLocationGroups.length;
 
   if (!isPermLoading && !canAccess) {
     return (
@@ -287,15 +311,15 @@ export default function IssuesPage() {
         <div>
           <h2 className="text-xl font-bold tracking-tight">Temuan</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {isLoading ? "Memuat..." : `${total} temuan ditemukan`}
+            {isLoading ? "Memuat..." : `${locationGroups.length} dari ${totalIssues} kartu lokasi`}
           </p>
         </div>
         {/* Summary pill */}
-        {!isLoading && (facets?.status?.["Open"] ?? 0) > 0 && (
+        {!isLoading && (statusCardCounts.Open ?? 0) > 0 && (
           <div className="flex items-center gap-1.5 rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1">
             <div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
             <span className="text-xs font-semibold text-red-400">
-              {facets!.status["Open"]} Perlu Tindakan
+              {statusCardCounts.Open} Perlu Tindakan
             </span>
           </div>
         )}
@@ -338,8 +362,8 @@ export default function IssuesPage() {
         {STATUS_OPTIONS.map((opt) => {
           // Use real facet counts from API, not local computation
           const count = opt.value === "all"
-            ? total
-            : (facets?.status?.[opt.value] ?? 0);
+            ? totalIssues
+            : (statusCardCounts[opt.value] ?? 0);
           const isActive = activeStatus === opt.value;
           return (
             <button
@@ -380,7 +404,7 @@ export default function IssuesPage() {
             <IssueSkeleton />
             <IssueSkeleton />
           </>
-        ) : issues.length === 0 ? (
+        ) : locationGroups.length === 0 ? (
           <div className="w-full rounded-3xl border border-dashed border-border/70 bg-gradient-to-b from-card/80 via-card/40 to-background p-8 sm:p-12 text-center shadow-sm">
             <div className="mx-auto w-full max-w-md text-center space-y-4" style={{ width: "100%", maxWidth: "28rem", marginLeft: "auto", marginRight: "auto" }}>
               <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-inner mx-auto mb-2">
@@ -414,39 +438,17 @@ export default function IssuesPage() {
             </div>
           </div>
         ) : (
-          issues.map((issue, index) => (
-            <IssueCard 
-              key={issue.issue_id} 
-              issue={issue} 
+          locationGroups.map((group, index) => (
+            <IssueCard
+              key={group.key}
+              issue={group.representative}
+              issueCount={group.items.length}
               index={index}
-              targetUrl={`/cimory/${plantCode}/dashboard/${userId}/issues/${issue.issue_id}`} 
+              targetUrl={`/cimory/${plantCode}/dashboard/${userId}/issues/${group.representative.issue_id}?detail_kawasan_id=${encodeURIComponent(group.representative.detail_kawasan_id || group.key)}`}
             />
           ))
         )}
       </div>
-
-      {/* ── Pagination (server-driven) ── */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2">
-          <p className="text-xs text-muted-foreground">Hal {page} dari {totalPages} ({total} total)</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => dispatch(setPage(Math.max(1, page - 1)))}
-              disabled={page === 1}
-              className="p-1.5 rounded-lg border border-border/60 disabled:opacity-40 hover:bg-muted transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => dispatch(setPage(Math.min(totalPages, page + 1)))}
-              disabled={page >= totalPages}
-              className="p-1.5 rounded-lg border border-border/60 disabled:opacity-40 hover:bg-muted transition-colors"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -235,7 +235,8 @@ func (uc *userUseCase) ForgotPassword(req *authdomain.ForgotPasswordRequest) err
 			tmpl = s.SettingValue
 		}
 
-		_ = uc.mailer.SendTemplate(
+		_ = uc.mailer.SendTemplateForPlant(
+			plantID,
 			[]string{user.Email},
 			"[Monitoring Audit] Reset Password Anda",
 			tmpl,

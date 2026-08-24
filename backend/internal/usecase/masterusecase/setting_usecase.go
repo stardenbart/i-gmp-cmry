@@ -3,6 +3,9 @@ package masterusecase
 import (
 	"context"
 	"fmt"
+	netmail "net/mail"
+	"strconv"
+	"strings"
 
 	"github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/pkg/crypto"
@@ -57,9 +60,20 @@ func (uc *settingUseCase) Update(key string, req *master.UpdateSettingRequest, u
 	}
 
 	valueToStore := req.SettingValue
+	if err := validateDynamicSetting(key, req.SettingValue); err != nil {
+		return nil, err
+	}
 
 	// If this setting is marked as encrypted, encrypt before persisting
-	if existing.IsEncrypted && uc.crypto != nil {
+	if existing.IsEncrypted {
+		// The mask is a display-only value. Treating it as a new password would
+		// overwrite the real SMTP credential with "***".
+		if req.SettingValue == "***" {
+			return uc.GetByKey(key, targetPlantID)
+		}
+		if uc.crypto == nil {
+			return nil, fmt.Errorf("encryption service is unavailable; encrypted setting was not saved")
+		}
 		encrypted, err := uc.crypto.Encrypt(req.SettingValue)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt value: %w", err)
@@ -89,7 +103,7 @@ func (uc *settingUseCase) Update(key string, req *master.UpdateSettingRequest, u
 // Encrypted values are masked from the API response.
 func (uc *settingUseCase) toResponse(s *master.Setting) master.SettingResponse {
 	value := s.SettingValue
-	if s.IsEncrypted {
+	if s.IsEncrypted && value != "" {
 		value = "***" // never expose encrypted values in API responses
 	}
 	return master.SettingResponse{
@@ -101,4 +115,28 @@ func (uc *settingUseCase) toResponse(s *master.Setting) master.SettingResponse {
 		UpdatedAt:    s.UpdatedAt,
 		UpdatedBy:    s.UpdatedBy,
 	}
+}
+
+func validateDynamicSetting(key, value string) error {
+	trimmed := strings.TrimSpace(value)
+	switch key {
+	case master.SettingKeySMTPEnabled:
+		if _, err := strconv.ParseBool(trimmed); err != nil {
+			return fmt.Errorf("SMTP_ENABLED harus bernilai true atau false")
+		}
+	case master.SettingKeySMTPPort:
+		port, err := strconv.Atoi(trimmed)
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("SMTP_PORT harus berada di antara 1 dan 65535")
+		}
+	case master.SettingKeySMTPHost:
+		if trimmed == "" {
+			return fmt.Errorf("SMTP_HOST wajib diisi")
+		}
+	case master.SettingKeySMTPSenderEmail:
+		if _, err := netmail.ParseAddress(trimmed); err != nil {
+			return fmt.Errorf("SMTP_SENDER_EMAIL tidak valid")
+		}
+	}
+	return nil
 }

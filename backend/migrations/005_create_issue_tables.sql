@@ -3,9 +3,9 @@
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS "Issue" (
-    "IssueID"        VARCHAR(20) NOT NULL,
-    "ResultID"       VARCHAR(20) NOT NULL,
-    "IssuePICUserID" VARCHAR(20) NOT NULL,
+    "IssueID"        VARCHAR(50) NOT NULL,
+    "ResultID"       VARCHAR(50) NOT NULL,
+    "IssuePICUserID" VARCHAR(50) NOT NULL,
     "DueDate"        DATE,
     "IssueStatus"    VARCHAR(30) NOT NULL DEFAULT 'Open',
     "Keterangan"     VARCHAR(255),
@@ -17,10 +17,10 @@ CREATE TABLE IF NOT EXISTS "Issue" (
 );
 
 CREATE TABLE IF NOT EXISTS "Issue_Photo" (
-    "IssuePhotoID"   VARCHAR(20) NOT NULL,
-    "IssueID"        VARCHAR(20) NOT NULL,
-    "PICUserID"      VARCHAR(20) NOT NULL,
-    "PhotoType"      VARCHAR(20) NOT NULL, -- Initial | FollowUp
+    "IssuePhotoID"   VARCHAR(50) NOT NULL,
+    "IssueID"        VARCHAR(50) NOT NULL,
+    "PICUserID"      VARCHAR(50) NOT NULL,
+    "PhotoType"      VARCHAR(50) NOT NULL, -- Initial | FollowUp
     "ImageUrl"       VARCHAR(255),
     "FileName"       VARCHAR(255),
     "FollowUpDate"   DATE,

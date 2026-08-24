@@ -3,16 +3,20 @@ package exporter
 import (
 	"bytes"
 	"fmt"
+	"image"
 	_ "image/gif"
 	_ "image/jpeg"
-	_ "image/png"
+	"image/png"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
+	_ "golang.org/x/image/webp"
 )
 
 // PlaceholderPayload menyimpan data statis (Header) dan dinamis (Items)
@@ -117,10 +121,11 @@ func GenerateExcelWithPlaceholder(templatePath, sheetName string, payload *Place
 					}
 
 					if matched {
+						imagePaths := getImagePaths(v)
 						strVal := fmt.Sprintf("%v", v)
 						if cellValue == matchedPlaceholder {
-							if isImagePath(strVal) {
-								insertImage(f, sheetName, cellAxis, strVal, excelRow)
+							if len(imagePaths) > 0 {
+								insertImages(f, sheetName, cellAxis, imagePaths, excelRow)
 								newVal = ""
 							} else {
 								matchedExact = true
@@ -128,8 +133,8 @@ func GenerateExcelWithPlaceholder(templatePath, sheetName string, payload *Place
 							}
 							break
 						} else if strings.Contains(newVal, matchedPlaceholder) {
-							if isImagePath(strVal) {
-								insertImage(f, sheetName, cellAxis, strVal, excelRow)
+							if len(imagePaths) > 0 {
+								insertImages(f, sheetName, cellAxis, imagePaths, excelRow)
 								newVal = strings.ReplaceAll(newVal, matchedPlaceholder, "")
 							} else {
 								newVal = strings.ReplaceAll(newVal, matchedPlaceholder, strVal)
@@ -171,6 +176,34 @@ func GenerateExcelWithPlaceholder(templatePath, sheetName string, payload *Place
 	return buf, nil
 }
 
+// getImagePaths normalizes a placeholder value so one template cell can
+// contain all evidence photos belonging to an uraian.
+func getImagePaths(value interface{}) []string {
+	var candidates []string
+	switch typed := value.(type) {
+	case string:
+		candidates = []string{typed}
+	case []string:
+		candidates = typed
+	case []interface{}:
+		for _, item := range typed {
+			if path, ok := item.(string); ok {
+				candidates = append(candidates, path)
+			}
+		}
+	}
+
+	paths := make([]string, 0, len(candidates))
+	seen := make(map[string]bool)
+	for _, candidate := range candidates {
+		if isImagePath(candidate) && !seen[candidate] {
+			paths = append(paths, candidate)
+			seen[candidate] = true
+		}
+	}
+	return paths
+}
+
 // Fungsi helper mendeteksi apakah suatu string adalah path gambar
 func isImagePath(path string) bool {
 	if path == "" {
@@ -192,22 +225,91 @@ func isImagePath(path string) bool {
 	return false
 }
 
-// Fungsi helper untuk menyisipkan gambar
-func insertImage(f *excelize.File, sheet, cellAxis, imagePath string, excelRow int) {
-	// Set row height to give picture room to display
-	_ = f.SetRowHeight(sheet, excelRow, 60)
+// insertImages stacks all evidence photos vertically in the template's image
+// cell. The row grows with the number of photos, keeping other report columns
+// and the user-provided Excel layout intact.
+func insertImages(f *excelize.File, sheet, cellAxis string, imagePaths []string, excelRow int) {
+	if len(imagePaths) == 0 {
+		return
+	}
+	_ = f.SetRowHeight(sheet, excelRow, float64(len(imagePaths))*60)
+	for index, imagePath := range imagePaths {
+		insertImageAt(f, sheet, cellAxis, imagePath, index*80)
+	}
+}
+
+func insertImageAt(f *excelize.File, sheet, cellAxis, imagePath string, offsetY int) {
+	data, extension, ok := loadImageData(imagePath)
+	if !ok {
+		return
+	}
+	data, extension, ok = normalizeExcelImage(data, extension)
+	if !ok {
+		return
+	}
+
+	scale := 0.15
+	if config, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil && config.Width > 0 && config.Height > 0 {
+		widthScale := 105.0 / float64(config.Width)
+		heightScale := 70.0 / float64(config.Height)
+		scale = widthScale
+		if heightScale < scale {
+			scale = heightScale
+		}
+	}
 
 	picFormat := &excelize.GraphicOptions{
-		AutoFit:         true,
 		OffsetX:         5,
-		OffsetY:         5,
+		OffsetY:         5 + offsetY,
+		ScaleX:          scale,
+		ScaleY:          scale,
 		PrintObject:     func() *bool { b := true; return &b }(),
 		Locked:          func() *bool { b := false; return &b }(),
 		LockAspectRatio: true,
+		Positioning:     "oneCell",
 	}
 
-	if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
-		urlsToTry := []string{imagePath}
+	_ = f.AddPictureFromBytes(sheet, cellAxis, &excelize.Picture{
+		Extension: extension,
+		File:      data,
+		Format:    picFormat,
+	})
+}
+
+// normalizeExcelImage detects the binary format instead of trusting the file
+// name. Existing MinIO objects can have a .jpg name while containing WebP
+// bytes; Excel does not support WebP pictures, so they are converted to PNG.
+func normalizeExcelImage(data []byte, extension string) ([]byte, string, bool) {
+	_, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return data, extension, extension != ""
+	}
+
+	switch strings.ToLower(format) {
+	case "webp":
+		decoded, _, decodeErr := image.Decode(bytes.NewReader(data))
+		if decodeErr != nil {
+			return nil, "", false
+		}
+		var converted bytes.Buffer
+		if encodeErr := png.Encode(&converted, decoded); encodeErr != nil {
+			return nil, "", false
+		}
+		return converted.Bytes(), ".png", true
+	case "jpeg":
+		return data, ".jpg", true
+	case "png":
+		return data, ".png", true
+	case "gif":
+		return data, ".gif", true
+	default:
+		return data, extension, extension != ""
+	}
+}
+
+func loadImageData(imagePath string) ([]byte, string, bool) {
+	urlsToTry := imageURLsToTry(imagePath)
+	if len(urlsToTry) > 0 {
 		// Add host fallbacks for Docker vs local environment
 		if strings.Contains(imagePath, "localhost:9000") {
 			urlsToTry = append(urlsToTry, strings.ReplaceAll(imagePath, "localhost:9000", "minio:9000"))
@@ -217,55 +319,96 @@ func insertImage(f *excelize.File, sheet, cellAxis, imagePath string, excelRow i
 			urlsToTry = append(urlsToTry, strings.ReplaceAll(imagePath, "minio:9000", "127.0.0.1:9000"))
 		}
 
+		client := &http.Client{Timeout: 15 * time.Second}
 		for _, targetURL := range urlsToTry {
-			resp, err := http.Get(targetURL)
+			resp, err := client.Get(targetURL)
 			if err == nil {
-				defer resp.Body.Close()
+				body, readErr := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
 				if resp.StatusCode == 200 {
-					body, readErr := io.ReadAll(resp.Body)
 					if readErr == nil && len(body) > 0 {
-						cleanPath := targetURL
-						if idx := strings.Index(cleanPath, "?"); idx != -1 {
-							cleanPath = cleanPath[:idx]
-						}
-						ext := strings.ToLower(filepath.Ext(cleanPath))
-						if ext == "" {
-							ct := resp.Header.Get("Content-Type")
-							switch {
-							case strings.Contains(ct, "jpeg") || strings.Contains(ct, "jpg"):
-								ext = ".jpg"
-							case strings.Contains(ct, "png"):
-								ext = ".png"
-							case strings.Contains(ct, "gif"):
-								ext = ".gif"
-							case strings.Contains(ct, "webp"):
-								ext = ".webp"
-							default:
-								ext = ".png"
-							}
-						}
-
-						errPic := f.AddPictureFromBytes(sheet, cellAxis, &excelize.Picture{
-							Extension: ext,
-							File:      body,
-							Format:    picFormat,
-						})
-						if errPic == nil {
-							return
-						}
+						ext := imageExtension(targetURL, resp.Header.Get("Content-Type"))
+						return body, ext, true
 					}
 				}
 			}
 		}
+		return nil, "", false
 	}
 
-	// Try relative or local filesystem path
 	localPath := imagePath
 	if strings.HasPrefix(localPath, "/") {
 		localPath = "." + localPath
 	}
-	if err := f.AddPicture(sheet, cellAxis, localPath, picFormat); err != nil && localPath != imagePath {
-		_ = f.AddPicture(sheet, cellAxis, imagePath, picFormat)
+	data, err := os.ReadFile(localPath)
+	if err != nil && localPath != imagePath {
+		data, err = os.ReadFile(imagePath)
 	}
+	if err != nil || len(data) == 0 {
+		return nil, "", false
+	}
+	return data, imageExtension(imagePath, ""), true
 }
 
+// imageURLsToTry resolves both absolute image URLs and the relative MinIO URLs
+// stored in Issue_Photo (for example /monitoring-audit-bucket/issues/...).
+// The browser resolves the latter through a Next.js proxy, while an Excel
+// export must fetch the object directly from MinIO inside the backend service.
+func imageURLsToTry(imagePath string) []string {
+	if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
+		return []string{imagePath}
+	}
+
+	bucket := strings.TrimSpace(os.Getenv("MINIO_BUCKET"))
+	if bucket == "" {
+		bucket = "monitoring-audit-bucket"
+	}
+	bucketPath := "/" + strings.Trim(bucket, "/") + "/"
+	pathIndex := strings.Index(imagePath, bucketPath)
+	if pathIndex == -1 {
+		return nil
+	}
+	objectPath := imagePath[pathIndex:]
+
+	endpoint := strings.TrimSpace(os.Getenv("MINIO_ENDPOINT"))
+	if endpoint == "" {
+		endpoint = "localhost:9000"
+	}
+	baseURL := strings.TrimRight(endpoint, "/")
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		scheme := "http://"
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("MINIO_USE_SSL")), "true") {
+			scheme = "https://"
+		}
+		baseURL = scheme + baseURL
+	}
+
+	urls := []string{baseURL + objectPath}
+	if strings.Contains(baseURL, "minio:9000") {
+		urls = append(urls, strings.Replace(baseURL, "minio:9000", "localhost:9000", 1)+objectPath)
+	} else if strings.Contains(baseURL, "localhost:9000") {
+		urls = append(urls, strings.Replace(baseURL, "localhost:9000", "minio:9000", 1)+objectPath)
+	}
+	return urls
+}
+
+func imageExtension(path, contentType string) string {
+	cleanPath := path
+	if idx := strings.Index(cleanPath, "?"); idx != -1 {
+		cleanPath = cleanPath[:idx]
+	}
+	ext := strings.ToLower(filepath.Ext(cleanPath))
+	if ext != "" {
+		return ext
+	}
+	switch {
+	case strings.Contains(contentType, "jpeg") || strings.Contains(contentType, "jpg"):
+		return ".jpg"
+	case strings.Contains(contentType, "gif"):
+		return ".gif"
+	case strings.Contains(contentType, "webp"):
+		return ".webp"
+	default:
+		return ".png"
+	}
+}

@@ -111,8 +111,11 @@ export default function InitialPhotoDetailPage() {
       await issueApi.update(id, { issue_status: "InProgress" });
       await queryClient.invalidateQueries({ queryKey: ["issue", id] });
       toast.success("Status temuan diubah menjadi In Progress (Sedang Dikerjakan)");
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Gagal mengubah status temuan");
+    } catch (error: unknown) {
+      const message = typeof error === "object" && error !== null && "response" in error
+        ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined;
+      toast.error(message || "Gagal mengubah status temuan");
     }
   };
 
@@ -187,6 +190,7 @@ export default function InitialPhotoDetailPage() {
           <DetailSpesifikasiTemuanCard
             issue={issue}
             photo={currentPhoto}
+            photos={allPhotos}
             dueDate={issue.due_date ? new Date(issue.due_date) : null}
             isAuditor={isAuditor}
             canEditWOWR={!isClosed}

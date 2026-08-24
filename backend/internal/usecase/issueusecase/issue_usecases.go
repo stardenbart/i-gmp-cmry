@@ -40,7 +40,6 @@ type issueUseCase struct {
 }
 
 func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, heiRepo issue.IssueHEIRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssueUseCase {
-	_ = repo.ConsolidateDuplicateActiveIssues()
 	return &issueUseCase{repo: repo, photoRepo: photoRepo, heiRepo: heiRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb}
 }
 
@@ -97,6 +96,19 @@ func (uc *issueUseCase) GetByID(id string) (*issue.Issue, error) {
 	return item, err
 }
 
+func (uc *issueUseCase) GetByResultID(resultID string) (*issue.Issue, error) {
+	item, err := uc.repo.FindByResultID(resultID)
+	if err == nil && item != nil {
+		item.ComputedIssueStatus = item.ComputedStatus(time.Now())
+		item.Keterangan = uc.cryptoSvc.DecryptWithFallback(item.Keterangan)
+		pic, errPic := uc.userRepo.FindByID(item.IssuePICUserID)
+		if errPic == nil && pic != nil {
+			item.PICName = pic.FullName
+		}
+	}
+	return item, err
+}
+
 func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*issue.Issue, error) {
 	dueDate := req.DueDate
 	if dueDate == nil {
@@ -128,15 +140,12 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 		}
 	}
 
-	_ = uc.repo.ConsolidateDuplicateActiveIssues()
-
-	// Check if an issue already exists for this ResultID or if an active issue exists for the same Uraian & DetailKawasan to prevent duplicates
+	// A finding is uniquely identified by its inspection ResultID. Different NG
+	// uraian in the same location must remain separate issues so their photos and
+	// follow-up histories cannot overwrite each other.
 	var existing *issue.Issue
 	if item, errExist := uc.repo.FindByResultID(req.ResultID); errExist == nil && item != nil {
 		existing = item
-	} else if activeItem, errActive := uc.repo.FindActiveByResultContext(req.ResultID); errActive == nil && activeItem != nil {
-		existing = activeItem
-		existing.ResultID = req.ResultID
 	}
 
 	if existing != nil {
@@ -179,6 +188,8 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 			_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, existing.IssueID, event)
 			eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 			return existing, nil
+		} else {
+			return nil, fmt.Errorf("failed to update existing issue: %w", errUpdate)
 		}
 	}
 
@@ -223,12 +234,17 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 				dueDate = issueSnapshot.DueDate.Format("02 January 2006")
 			}
 
+			plantID := ""
+			if pic.PlantID != nil {
+				plantID = *pic.PlantID
+			}
 			tmpl := mail.TmplIssueAssignment
-			if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, ""); err == nil && s.SettingValue != "" {
+			if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, plantID); err == nil && s.SettingValue != "" {
 				tmpl = s.SettingValue
 			}
 
-			_ = uc.mailer.SendTemplate(
+			_ = uc.mailer.SendTemplateForPlant(
+				plantID,
 				[]string{pic.Email},
 				"[Monitoring Audit] Issue Baru Ditugaskan kepada Anda",
 				tmpl,
@@ -278,6 +294,42 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	i, err := uc.repo.FindByID(id)
 	if err != nil {
 		return nil, errors.New("issue not found")
+	}
+
+	actorIsAuditor := false
+	if actorID != "" {
+		if actor, actorErr := uc.userRepo.FindByID(actorID); actorErr == nil && actor != nil {
+			roleID := strings.ToUpper(strings.TrimSpace(actor.RoleID))
+			actorIsAuditor = roleID == "ROLE-000" || roleID == "ROLE-001" || roleID == "ROLE-002" ||
+				roleID == "SUPERADMIN" || roleID == "ADMIN" || roleID == "AUDITOR"
+		}
+	}
+
+	if (req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified) && !actorIsAuditor {
+		return nil, errors.New("hanya Admin atau Auditor yang dapat menyetujui dan menutup temuan")
+	}
+	if (req.WOWRStatus == issue.WOWRStatusVerified || req.WOWRStatus == issue.WOWRStatusRejected) && !actorIsAuditor {
+		return nil, errors.New("hanya Admin atau Auditor yang dapat memvalidasi WO/WR")
+	}
+	if req.WOWRStatus == issue.WOWRStatusVerified {
+		if uc.photoRepo == nil {
+			return nil, errors.New("WO/WR tidak dapat diverifikasi: layanan foto bukti tidak tersedia")
+		}
+		photos, photoErr := uc.photoRepo.FindByIssueID(i.IssueID)
+		if photoErr != nil {
+			return nil, errors.New("gagal memeriksa foto bukti WO/WR")
+		}
+		hasWOWRProof := false
+		for _, photo := range photos {
+			if photo.PhotoType == issue.PhotoTypeWOWR && photo.PICUserID == i.IssuePICUserID &&
+				(photo.ImageUrl != "" || photo.FileName != "") {
+				hasWOWRProof = true
+				break
+			}
+		}
+		if !hasWOWRProof {
+			return nil, errors.New("WO/WR tidak dapat diverifikasi: Auditee belum mengunggah foto bukti penyelesaian WO/WR")
+		}
 	}
 
 	// Validation logic for Follow Up
@@ -357,10 +409,19 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 			followUpCount := 0
 			initialPhotosMap := make(map[string]bool)
 
+			isFinalApproval := req.IssueStatus == issue.IssueStatusClosed || req.IssueStatus == issue.IssueStatusVerified
 			for _, p := range photosToCheck {
 				if p.PhotoType == issue.PhotoTypeInitial {
 					initialCount++
 					initialPhotosMap[p.IssuePhotoID] = false
+					if p.NeedsWOWR || p.WO_ID != "" || p.WR_ID != "" {
+						if p.WO_ID == "" && p.WR_ID == "" {
+							return nil, errors.New("gagal mengajukan temuan: terdapat foto yang menggunakan WO/WR tetapi Nomor WO/WR belum diisi")
+						}
+						if isFinalApproval && p.WOWRStatus != issue.WOWRStatusVerified {
+							return nil, errors.New("gagal menutup temuan: terdapat WO/WR foto yang belum diverifikasi Admin atau Auditor")
+						}
+					}
 				} else if p.PhotoType == issue.PhotoTypeFollowUp || p.PhotoType == issue.PhotoTypeWOWR {
 					followUpCount++
 					if p.RefPhotoID != nil && *p.RefPhotoID != "" {
@@ -389,7 +450,7 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 				if i.WO_ID == "" && i.WR_ID == "" {
 					return nil, errors.New("gagal menyelesaikan temuan: Nomor WO/WR wajib diisi terlebih dahulu")
 				}
-				if i.WOWRStatus != issue.WOWRStatusVerified {
+				if isFinalApproval && i.WOWRStatus != issue.WOWRStatusVerified {
 					return nil, errors.New("gagal menyelesaikan temuan: temuan ini menggunakan WO/WR. Harap tunggu konfirmasi (persetujuan) WO/WR oleh Auditor terlebih dahulu")
 				}
 			}
@@ -598,16 +659,21 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 
 	// 4. STEP POSTGRESQL: Save record into PostgreSQL database (store clean public URL and object name)
 	p := &issue.IssuePhoto{
-		IssuePhotoID:     idgen.GenerateRandom(idgen.PrefixIssuePhoto),
-		IssueID:          req.IssueID,
-		RefPhotoID:       req.RefPhotoID,
-		PICUserID:        req.PICUserID,
-		PhotoType:        req.PhotoType,
-		ImageUrl:         publicURL,
-		FileName:         objectName,
-		Keterangan:       req.Keterangan,
-		HEIID:            req.HEIID,
-		HEICategory:      func() string { if req.HEICategory != nil { return *req.HEICategory }; return "" }(),
+		IssuePhotoID: idgen.GenerateRandom(idgen.PrefixIssuePhoto),
+		IssueID:      req.IssueID,
+		RefPhotoID:   req.RefPhotoID,
+		PICUserID:    req.PICUserID,
+		PhotoType:    req.PhotoType,
+		ImageUrl:     publicURL,
+		FileName:     objectName,
+		Keterangan:   req.Keterangan,
+		HEIID:        req.HEIID,
+		HEICategory: func() string {
+			if req.HEICategory != nil {
+				return *req.HEICategory
+			}
+			return ""
+		}(),
 		HabitID:          req.HabitID,
 		EquipmentID:      req.EquipmentID,
 		InfrastructureID: req.InfrastructureID,
@@ -708,6 +774,32 @@ func (uc *issuePhotoUseCase) UpdateWOWR(ctx context.Context, photoID string, req
 	photo, err := uc.repo.FindByID(photoID)
 	if err != nil {
 		return nil, errors.New("photo not found")
+	}
+
+	if req.WOWRStatus == issue.WOWRStatusVerified {
+		if uc.issueRepo == nil {
+			return nil, errors.New("WO/WR tidak dapat diverifikasi: data PIC/Auditee tidak tersedia")
+		}
+		parentIssue, issueErr := uc.issueRepo.FindByID(photo.IssueID)
+		if issueErr != nil || parentIssue == nil {
+			return nil, errors.New("WO/WR tidak dapat diverifikasi: Issue tidak ditemukan")
+		}
+		photos, proofErr := uc.repo.FindByIssueID(photo.IssueID)
+		if proofErr != nil {
+			return nil, errors.New("gagal memeriksa foto bukti WO/WR")
+		}
+		hasLinkedWOWRProof := false
+		for _, proof := range photos {
+			if proof.PhotoType == issue.PhotoTypeWOWR && proof.PICUserID == parentIssue.IssuePICUserID &&
+				proof.RefPhotoID != nil && *proof.RefPhotoID == photoID &&
+				(proof.ImageUrl != "" || proof.FileName != "") {
+				hasLinkedWOWRProof = true
+				break
+			}
+		}
+		if !hasLinkedWOWRProof {
+			return nil, errors.New("WO/WR tidak dapat diverifikasi: Auditee belum mengunggah foto bukti penyelesaian untuk temuan ini")
+		}
 	}
 
 	if req.NeedsWOWR != nil {

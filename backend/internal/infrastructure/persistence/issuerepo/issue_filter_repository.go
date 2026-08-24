@@ -17,9 +17,6 @@ func NewIssueFilterRepository(db *gorm.DB) issue.IssueFilterRepository {
 }
 
 func (r *issueFilterRepository) FindFiltered(f *issue.IssueFilter) ([]issue.Issue, int64, error) {
-	// Consolidate duplicate active issues in real-time before querying
-	_ = NewIssueRepository(r.db).ConsolidateDuplicateActiveIssues()
-
 	var items []issue.Issue
 	var total int64
 
@@ -75,11 +72,12 @@ func (r *issueFilterRepository) FindFacets(f *issue.IssueFilter) (issue.IssueFac
 	// Helper: build base query excluding a particular field's filter
 	baseWithout := func(excludeStatus, excludePIC, excludeWOWR, excludeDate, excludeDue bool) *gorm.DB {
 		tmp := &issue.IssueFilter{
-			Q:           f.Q,
-			ScopeUserID: f.ScopeUserID,
-			PlantID:     f.PlantID,
-			NeedsWOWR:   f.NeedsWOWR,
-			Label:       f.Label,
+			Q:               f.Q,
+			ScopeUserID:     f.ScopeUserID,
+			PlantID:         f.PlantID,
+			NeedsWOWR:       f.NeedsWOWR,
+			Label:           f.Label,
+			DetailKawasanID: f.DetailKawasanID,
 		}
 		if !excludeStatus {
 			tmp.Status = f.Status

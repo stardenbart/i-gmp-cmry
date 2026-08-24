@@ -3,9 +3,9 @@
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS "kawasan_aspek" (
-    "KawasanAspekID" VARCHAR(36) NOT NULL,
-    "KawasanID"       VARCHAR(20) NOT NULL,
-    "AspekID"         VARCHAR(20) NOT NULL,
+    "KawasanAspekID" VARCHAR(50) NOT NULL,
+    "KawasanID"       VARCHAR(50) NOT NULL,
+    "AspekID"         VARCHAR(50) NOT NULL,
     "IsRequired"      BOOLEAN     NOT NULL DEFAULT TRUE,
     "CreatedAt"       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("KawasanAspekID"),
@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS "kawasan_aspek" (
 );
 
 CREATE TABLE IF NOT EXISTS "inspeksi_session" (
-    "SessionID"      VARCHAR(36) NOT NULL,
-    "KawasanID"      VARCHAR(20) NOT NULL,
+    "SessionID"      VARCHAR(50) NOT NULL,
+    "KawasanID"      VARCHAR(50) NOT NULL,
     "Periode"        DATE        NOT NULL,
     "Status"         VARCHAR(30) NOT NULL DEFAULT 'InProgress',
     "TotalAspek"     INT         NOT NULL DEFAULT 0,
@@ -30,11 +30,11 @@ CREATE TABLE IF NOT EXISTS "inspeksi_session" (
 );
 
 CREATE TABLE IF NOT EXISTS "inspeksi_aspek_result" (
-    "ResultID"     VARCHAR(36) NOT NULL,
-    "SessionID"    VARCHAR(36) NOT NULL,
-    "KawasanID"    VARCHAR(20) NOT NULL,
-    "AspekID"      VARCHAR(20) NOT NULL,
-    "UserID"       VARCHAR(20) NOT NULL,
+    "ResultID"     VARCHAR(50) NOT NULL,
+    "SessionID"    VARCHAR(50) NOT NULL,
+    "KawasanID"    VARCHAR(50) NOT NULL,
+    "AspekID"      VARCHAR(50) NOT NULL,
+    "UserID"       VARCHAR(50) NOT NULL,
     "DataInspeksi" JSONB       NOT NULL,
     "Skor"         NUMERIC(5,2),
     "Catatan"      TEXT,
@@ -49,10 +49,10 @@ CREATE TABLE IF NOT EXISTS "inspeksi_aspek_result" (
 );
 
 CREATE TABLE IF NOT EXISTS "inspeksi_audit_log" (
-    "LogID"     VARCHAR(36) NOT NULL,
-    "SessionID" VARCHAR(36) NOT NULL,
-    "AspekID"   VARCHAR(20) NOT NULL,
-    "UserID"    VARCHAR(20) NOT NULL,
+    "LogID"     VARCHAR(50) NOT NULL,
+    "SessionID" VARCHAR(50) NOT NULL,
+    "AspekID"   VARCHAR(50) NOT NULL,
+    "UserID"    VARCHAR(50) NOT NULL,
     "Action"    VARCHAR(50) NOT NULL,
     "Meta"      JSONB,
     "CreatedAt" TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,

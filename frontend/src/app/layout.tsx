@@ -10,9 +10,9 @@ export const metadata: Metadata = {
   description: "Sistem Monitoring Audit Internal",
   manifest: "/manifest.json",
   icons: {
-    icon: "/Logo_Cimory.png",
-    shortcut: "/favicon.ico",
-    apple: "/Logo_Cimory.png",
+    icon: [{ url: "/Logo_plant_New.png", type: "image/png" }],
+    shortcut: [{ url: "/Logo_plant_New.png", type: "image/png" }],
+    apple: [{ url: "/Logo_plant_New.png", type: "image/png" }],
   },
 };
 

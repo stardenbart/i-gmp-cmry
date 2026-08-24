@@ -70,6 +70,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 		issues.Get("/filter", permReadIss, issueFilterH.GetFiltered)
 		issues.Get("/followup/filter", permReadIss, followupFilterH.GetFiltered)
 		issues.Post("/close-by-result", permUpdateIss, issueH.CloseByResult)
+		issues.Get("/by-result/:result_id", permReadIss, issueH.GetByResultID)
 
 		issues.Get("/:id", permReadIss, issueH.GetByID)
 		issues.Put("/:id", permUpdateIss, issueH.Update)

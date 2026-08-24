@@ -388,8 +388,8 @@ export default function GmpDataAdminPage() {
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Uraian ID</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Nilai per Detail Kawasan">Nilai</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai per Kawasan">Total Nilai (Kawasan)</th>
-                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Temuan per Kawasan">Total Temuan (Kawasan)</th>
-                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Visual Gambar per Detail Kawasan">Visual Gambar</th>
+                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="1 jika uraian ini memiliki issue, 0 jika tidak">Temuan (Uraian)</th>
+                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti temuan awal pada uraian">Visual Gambar</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan per Detail Kawasan">Keterangan</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Follow Up Datetime per Detail Kawasan">Follow Up Datetime</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Due Date per Detail Kawasan">Due Date</th>
@@ -500,26 +500,47 @@ export default function GmpDataAdminPage() {
                     </td>
 
                     {/* Visual Gambar (Issue) */}
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {row.image_url ? (
-                        <div 
-                          className="relative group h-12 w-16 mx-auto overflow-hidden rounded-lg border border-border/60 shadow-sm cursor-pointer bg-muted"
-                          onClick={() => setPreviewImage(formatImageUrl(row.image_url))}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img 
-                            src={formatImageUrl(row.image_url) || "/placeholder.png"} 
-                            alt="Issue Photo" 
-                            onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
-                            className="h-full w-full object-cover transition-transform group-hover:scale-110" 
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                            <Eye className="h-3.5 w-3.5" />
+                    <td className="px-4 py-3 text-center">
+                      {(() => {
+                        const images = Array.from(new Set(
+                          (Array.isArray(row.image_urls) && row.image_urls.length > 0
+                            ? row.image_urls
+                            : row.image_url ? [row.image_url] : []
+                          ).filter(Boolean)
+                        )) as string[];
+
+                        if (images.length === 0) {
+                          return <span className="text-xs text-muted-foreground italic">-</span>;
+                        }
+
+                        return (
+                          <div className="flex min-w-max items-center justify-center gap-1.5">
+                            {images.map((imageUrl, imageIndex) => (
+                              <button
+                                type="button"
+                                key={`${row.issue_id || row.uraian_id}-${imageIndex}-${imageUrl}`}
+                                className="relative group h-12 w-16 shrink-0 overflow-hidden rounded-lg border border-border/60 shadow-sm cursor-pointer bg-muted"
+                                onClick={() => setPreviewImage(formatImageUrl(imageUrl))}
+                                title={`Buka foto bukti ${imageIndex + 1} dari ${images.length}`}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={formatImageUrl(imageUrl) || "/placeholder.png"}
+                                  alt={`Foto bukti temuan ${imageIndex + 1}`}
+                                  onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
+                                  className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                                />
+                                <span className="absolute left-1 top-1 rounded bg-black/65 px-1 text-[9px] font-semibold text-white">
+                                  {imageIndex + 1}/{images.length}
+                                </span>
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                  <Eye className="h-3.5 w-3.5" />
+                                </div>
+                              </button>
+                            ))}
                           </div>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">-</span>
-                      )}
+                        );
+                      })()}
                     </td>
 
                     {/* Keterangan */}

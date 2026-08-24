@@ -16,6 +16,7 @@ require (
 	github.com/valyala/fasthttp v1.52.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.53.0
+	golang.org/x/image v0.38.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.25.10
 )

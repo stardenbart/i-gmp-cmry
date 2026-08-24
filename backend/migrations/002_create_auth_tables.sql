@@ -3,7 +3,7 @@
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS "Role_Master" (
-    "RoleID"          VARCHAR(20)  NOT NULL,
+    "RoleID"          VARCHAR(50)  NOT NULL,
     "RoleName"        VARCHAR(50)  NOT NULL,
     "RoleDescription" VARCHAR(255),
     "RoleCreatedAt"   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -12,9 +12,9 @@ CREATE TABLE IF NOT EXISTS "Role_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Users" (
-    "UserID"           VARCHAR(20)  NOT NULL,
-    "DepartmentID"     VARCHAR(20)  NOT NULL,
-    "RoleID"           VARCHAR(20)  NOT NULL,
+    "UserID"           VARCHAR(50)  NOT NULL,
+    "DepartmentID"     VARCHAR(50)  NOT NULL,
+    "RoleID"           VARCHAR(50)  NOT NULL,
     "Username"         VARCHAR(50)  NOT NULL,
     "FullName"         VARCHAR(100) NOT NULL,
     "Email"            VARCHAR(100) NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "Users" (
 );
 
 CREATE TABLE IF NOT EXISTS "Module_Master" (
-    "ModuleID"        VARCHAR(20)  NOT NULL,
+    "ModuleID"        VARCHAR(50)  NOT NULL,
     "ModuleName"      VARCHAR(100) NOT NULL,
     "ModuleCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "ModuleUpdatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS "Module_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Permission_Master" (
-    "PermissionID"        VARCHAR(20) NOT NULL,
-    "ModuleID"            VARCHAR(20) NOT NULL,
+    "PermissionID"        VARCHAR(50) NOT NULL,
+    "ModuleID"            VARCHAR(50) NOT NULL,
     "PermissionCode"      VARCHAR(50) NOT NULL,
     "PermissionName"      VARCHAR(100) NOT NULL,
     "PermissionCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS "Permission_Master" (
 
 CREATE TABLE IF NOT EXISTS "Role_Permission" (
     "RolePermissionID"        VARCHAR(50) NOT NULL,
-    "RoleID"                  VARCHAR(20) NOT NULL,
-    "PermissionID"            VARCHAR(20) NOT NULL,
+    "RoleID"                  VARCHAR(50) NOT NULL,
+    "PermissionID"            VARCHAR(50) NOT NULL,
     "IsAllowed"               BOOLEAN     NOT NULL DEFAULT TRUE,
     "RolePermissionCreatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "RolePermissionUpdatedAt" TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

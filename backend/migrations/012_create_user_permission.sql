@@ -4,8 +4,8 @@
 
 CREATE TABLE IF NOT EXISTS "User_Permission" (
     "UserPermissionID"        VARCHAR(50) NOT NULL,
-    "UserID"                  VARCHAR(20) NOT NULL,
-    "PermissionID"            VARCHAR(20) NOT NULL,
+    "UserID"                  VARCHAR(50) NOT NULL,
+    "PermissionID"            VARCHAR(50) NOT NULL,
     "IsAllowed"               BOOLEAN     NOT NULL DEFAULT TRUE,
     "UserPermissionCreatedAt" TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "UserPermissionUpdatedAt" TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,

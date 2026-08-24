@@ -47,7 +47,7 @@ type InspectionResultRepository interface {
 type InspectionResultUseCase interface {
 	GetByInspectionID(inspectionID string) ([]InspectionResult, error)
 	GetByID(id string) (*InspectionResult, error)
-	BulkSave(req *BulkSaveResultRequest) error
+	BulkSave(req *BulkSaveResultRequest) ([]InspectionResult, error)
 	Update(id string, req *SaveResultRequest) (*InspectionResult, error)
 	Delete(id string) error
 }
