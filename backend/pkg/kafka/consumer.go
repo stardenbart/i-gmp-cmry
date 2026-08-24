@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/monitoring-system/backend/pkg/logger"
@@ -54,8 +55,11 @@ func (c *EventConsumer) Start(ctx context.Context, handler MessageHandler) {
 				if err != nil {
 					// Don't log if it's just a context cancellation
 					if ctx.Err() == nil {
+						errStr := err.Error()
 						if errors.Is(err, io.EOF) {
 							c.log.Warn("Kafka consumer connection EOF, retrying in 2 seconds...", logger.String("topic", c.reader.Config().Topic))
+						} else if containsAny(errStr, "Rebalance In Progress", "Leader Not Available", "Group Coordinator Not Available") {
+							c.log.Info("Kafka cluster initializing/rebalancing, retrying in 2 seconds...", logger.String("topic", c.reader.Config().Topic))
 						} else {
 							c.log.Error("Error fetching message", logger.Error(err))
 						}
@@ -82,4 +86,13 @@ func (c *EventConsumer) Start(ctx context.Context, handler MessageHandler) {
 			}
 		}
 	}()
+}
+
+func containsAny(s string, substrings ...string) bool {
+	for _, sub := range substrings {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
