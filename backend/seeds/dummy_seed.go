@@ -207,8 +207,14 @@ func CleanupDummyData(db *gorm.DB) {
 	// 6. Delete Inspection Headers (Only dummy INS-*, preserve INSP-REAL-*)
 	db.Exec(`DELETE FROM "Inspection_Header" WHERE "InspectionID" NOT LIKE 'INSP-REAL-%' AND ("InspectionID" LIKE 'INS-%' OR "InspectionID" LIKE 'HIST-%')`)
 
-	// 7. Delete Equipment Master dummy records
-	db.Exec(`DELETE FROM "Equipment_Master" WHERE "EquipmentID" LIKE 'EQ%' AND ("EquipmentCode" LIKE 'EQ-CODE-%' OR "KawasanID" LIKE 'K%')`)
+	// 7. Delete Equipment Master dummy records (only if table exists)
+	db.Exec(`
+		DO $$ BEGIN
+			IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'Equipment_Master') THEN
+				DELETE FROM "Equipment_Master" WHERE "EquipmentID" LIKE 'EQ%' AND ("EquipmentCode" LIKE 'EQ-CODE-%' OR "KawasanID" LIKE 'K%');
+			END IF;
+		END $$
+	`)
 
 	// 8. Delete Checklist Uraian (Only dummy UR0xx records, preserve URN-REAL-*)
 	db.Exec(`DELETE FROM "Uraian_Master" WHERE "UraianID" NOT LIKE 'URN-REAL-%' AND ("UraianID" LIKE 'UR%' OR "UraianText" LIKE 'Lantai bersih dari genangan air%')`)
@@ -228,24 +234,38 @@ func CleanupDummyData(db *gorm.DB) {
 	// 13. Delete Area (Only dummy A0xx records, preserve AREA-*)
 	db.Exec(`DELETE FROM "Area_Master" WHERE "AreaID" NOT LIKE 'AREA-%' AND ("AreaID" LIKE 'A%' AND "AreaName" LIKE 'Area Pabrik%')`)
 
-	// 14. Recalculate and sync LastInspection for remaining DetailKawasan and Kawasan
+	// 14. Recalculate and sync LastInspection for remaining DetailKawasan and Kawasan (only if column exists)
 	db.Exec(`
-		UPDATE "DetailKawasan_Master" 
-		SET "LastInspection" = (
-			SELECT MAX("InspectionHeaderCreatedAt") 
-			FROM "Inspection_Header" 
-			WHERE "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID" 
-			  AND "InspectionHeaderStatus" IN ('Completed', 'Approved')
-		)
+		DO $$ BEGIN
+			IF EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_name = 'DetailKawasan_Master' AND column_name = 'LastInspection'
+			) THEN
+				UPDATE "DetailKawasan_Master"
+				SET "LastInspection" = (
+					SELECT MAX("InspectionHeaderCreatedAt")
+					FROM "Inspection_Header"
+					WHERE "Inspection_Header"."DetailKawasanID" = "DetailKawasan_Master"."DetailKawasanID"
+					  AND "InspectionHeaderStatus" IN ('Completed', 'Approved')
+				);
+			END IF;
+		END $$
 	`)
 	db.Exec(`
-		UPDATE "Kawasan_Master" 
-		SET "LastInspection" = (
-			SELECT MAX("InspectionHeaderCreatedAt") 
-			FROM "Inspection_Header" 
-			WHERE "Inspection_Header"."KawasanID" = "Kawasan_Master"."KawasanID" 
-			  AND "InspectionHeaderStatus" IN ('Completed', 'Approved')
-		)
+		DO $$ BEGIN
+			IF EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_name = 'Kawasan_Master' AND column_name = 'LastInspection'
+			) THEN
+				UPDATE "Kawasan_Master"
+				SET "LastInspection" = (
+					SELECT MAX("InspectionHeaderCreatedAt")
+					FROM "Inspection_Header"
+					WHERE "Inspection_Header"."KawasanID" = "Kawasan_Master"."KawasanID"
+					  AND "InspectionHeaderStatus" IN ('Completed', 'Approved')
+				);
+			END IF;
+		END $$
 	`)
 
 	log.Println("✅ All dummy seed records successfully cleaned up!")

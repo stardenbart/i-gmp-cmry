@@ -70,8 +70,15 @@ func SeedRealMasterData(db *gorm.DB) {
 			AreaID:      areaID,
 			KawasanName: k.Name,
 		}
-		db.Where("LOWER(\"KawasanName\") = LOWER(?)", k.Name).FirstOrCreate(&kawasan)
+		db.Where(`LOWER("KawasanName") = LOWER(?)`, k.Name).FirstOrCreate(&kawasan)
 		kawasanMap[k.Name] = kawasan.KawasanID
+	}
+
+	// Reload kawasanMap from DB to pick up any pre-existing records
+	var allKawasan []masterdomain.Kawasan
+	db.Find(&allKawasan)
+	for _, k := range allKawasan {
+		kawasanMap[k.KawasanName] = k.KawasanID
 	}
 
 	// ── 3. Detail Kawasan ─────────────────────────────────────────────────────
@@ -316,55 +323,62 @@ func SeedRealMasterData(db *gorm.DB) {
 		{Area: "Area Lab QC & Inline", Kawasan: "Lab R&I", PICName: "Nadya Audyra Rahardy"},
 	}
 
+	// Drop fk_picmap_area constraint if exists (may block seeding on existing DBs)
+	db.Exec(`ALTER TABLE "PIC_Mapping" DROP CONSTRAINT IF EXISTS "fk_picmap_area"`)
+	db.Exec(`ALTER TABLE "PIC_Mapping" ALTER COLUMN "AreaID" DROP NOT NULL`)
+
+	// Step 1: build unique PIC names and create/find their user records
 	userMap := make(map[string]string) // PICName -> UserID
+	uniqueNames := []string{}
+	seenNames := make(map[string]bool)
+	for _, picDef := range picDefs {
+		if !seenNames[picDef.PICName] {
+			seenNames[picDef.PICName] = true
+			uniqueNames = append(uniqueNames, picDef.PICName)
+		}
+	}
+
+	for i, name := range uniqueNames {
+		var u authdomain.User
+		if err := db.Where(`LOWER("FullName") = LOWER(?)`, name).First(&u).Error; err == nil {
+			userMap[name] = u.UserID
+		} else {
+			cleanUsername := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(name, " ", "_"), ".", ""))
+			cleanUsername = strings.ReplaceAll(cleanUsername, "__", "_")
+			hashedPassword, _ := password.Hash("pic123")
+			userID := fmt.Sprintf("USR-PIC-%03d", i+1)
+			u = authdomain.User{
+				UserID:       userID,
+				DepartmentID: "DEPT-002",
+				RoleID:       "ROLE-003",
+				PlantID:      &defaultPlantID,
+				Username:     cleanUsername,
+				FullName:     name,
+				Email:        fmt.Sprintf("%s@cimory.com", cleanUsername),
+				PasswordHash: hashedPassword,
+				UserStatus:   authdomain.UserStatusActive,
+			}
+			db.Where(`"Username" = ?`, u.Username).FirstOrCreate(&u)
+			userMap[name] = u.UserID
+		}
+	}
+
+	// Step 2: create PIC Mappings with nil AreaID (column is nullable)
 	for i, picDef := range picDefs {
-		areaID := areaMap[picDef.Area]
 		kawID := kawasanMap[picDef.Kawasan]
-		if areaID == "" || kawID == "" {
+		userID := userMap[picDef.PICName]
+		if kawID == "" || userID == "" {
 			continue
 		}
-
-		// Check if user exists or create user record
-		userID, exists := userMap[picDef.PICName]
-		if !exists {
-			var u authdomain.User
-			err := db.Where("LOWER(\"FullName\") = LOWER(?)", picDef.PICName).First(&u).Error
-			if err == nil {
-				userID = u.UserID
-			} else {
-				// Generate clean username from full name
-				cleanUsername := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(picDef.PICName, " ", "_"), ".", ""))
-				cleanUsername = strings.ReplaceAll(cleanUsername, "__", "_")
-				userID = fmt.Sprintf("USR-PIC-%03d", i+1)
-				hashedPassword, _ := password.Hash("pic123")
-
-				u = authdomain.User{
-					UserID:       userID,
-					DepartmentID: "DEPT-002",
-					RoleID:       "ROLE-003", // Auditee / PIC
-					PlantID:      &defaultPlantID,
-					Username:     cleanUsername,
-					FullName:     picDef.PICName,
-					Email:        fmt.Sprintf("%s@cimory.com", cleanUsername),
-					PasswordHash: hashedPassword,
-					UserStatus:   authdomain.UserStatusActive,
-				}
-				db.Where("\"Username\" = ?", u.Username).FirstOrCreate(&u)
-				userID = u.UserID
-			}
-			userMap[picDef.PICName] = userID
-		}
-
-		// Create PIC Mapping entry
 		pmID := fmt.Sprintf("PICMAP-%03d", i+1)
 		picMap := picdomain.PICMapping{
 			PICMapID:    pmID,
-			AreaID:      &areaID,
+			AreaID:      nil,
 			KawasanID:   kawID,
 			UserID:      userID,
 			KategoriPIC: "Primary PIC",
 		}
-		db.Where("\"KawasanID\" = ? AND \"UserID\" = ?", kawID, userID).FirstOrCreate(&picMap)
+		db.Where(`"KawasanID" = ? AND "UserID" = ?`, kawID, userID).FirstOrCreate(&picMap)
 	}
 
 	// ── 7. Uraian Master ───────────────────────────────────────────────────────

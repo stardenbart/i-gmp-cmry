@@ -59,9 +59,16 @@ func RunMigrations(db *gorm.DB, migrationsDir string) error {
 			return fmt.Errorf("failed to read migration file %s: %w", file, readErr)
 		}
 
+		statements := splitSQLStatements(string(content))
 		err = db.Transaction(func(tx *gorm.DB) error {
-			if execErr := tx.Exec(string(content)).Error; execErr != nil {
-				return fmt.Errorf("failed to execute migration %s: %w", file, execErr)
+			for _, stmt := range statements {
+				stmt = strings.TrimSpace(stmt)
+				if stmt == "" {
+					continue
+				}
+				if execErr := tx.Exec(stmt).Error; execErr != nil {
+					return fmt.Errorf("failed to execute statement in %s: %w\nStatement: %s", file, execErr, stmt)
+				}
 			}
 			return tx.Exec("INSERT INTO schema_migrations (version) VALUES (?)", file).Error
 		})
@@ -73,4 +80,46 @@ func RunMigrations(db *gorm.DB, migrationsDir string) error {
 	}
 
 	return nil
+}
+
+// splitSQLStatements splits a multi-statement SQL script into individual executable statements,
+// respecting PL/pgSQL dollar-quoted blocks ($$).
+func splitSQLStatements(script string) []string {
+	var statements []string
+	var current strings.Builder
+	inDollarQuote := false
+
+	lines := strings.Split(script, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Toggle dollar quote mode if line contains $$
+		if strings.Contains(line, "$$") {
+			inDollarQuote = !inDollarQuote
+		}
+
+		// Skip pure comment lines outside dollar quotes
+		if !inDollarQuote && strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+
+		current.WriteString(line)
+		current.WriteString("\n")
+
+		// End statement if not inside dollar quote and line ends with semicolon
+		if !inDollarQuote && strings.HasSuffix(trimmed, ";") {
+			stmt := strings.TrimSpace(current.String())
+			if stmt != "" {
+				statements = append(statements, stmt)
+			}
+			current.Reset()
+		}
+	}
+
+	remainder := strings.TrimSpace(current.String())
+	if remainder != "" {
+		statements = append(statements, remainder)
+	}
+
+	return statements
 }

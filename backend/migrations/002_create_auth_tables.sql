@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS "Permission_Master" (
 );
 
 CREATE TABLE IF NOT EXISTS "Role_Permission" (
-    "RolePermissionID"        VARCHAR(20) NOT NULL,
+    "RolePermissionID"        VARCHAR(50) NOT NULL,
     "RoleID"                  VARCHAR(20) NOT NULL,
     "PermissionID"            VARCHAR(20) NOT NULL,
     "IsAllowed"               BOOLEAN     NOT NULL DEFAULT TRUE,
