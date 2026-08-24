@@ -3,7 +3,11 @@
 -- =========================================================
 
 -- 1. Create Enum issue_category_enum
-CREATE TYPE issue_category_enum AS ENUM ('Habit', 'Equipment', 'Infrastructure');
+DO $$ BEGIN
+    CREATE TYPE issue_category_enum AS ENUM ('Habit', 'Equipment', 'Infrastructure');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- 2. Create Table Plant_Master
 CREATE TABLE IF NOT EXISTS "Plant_Master" (
