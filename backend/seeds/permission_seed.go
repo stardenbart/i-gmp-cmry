@@ -1,7 +1,9 @@
 package seeds
 
 import (
+	"fmt"
 	"log"
+	"strings"
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"gorm.io/gorm"
