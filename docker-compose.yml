@@ -2,7 +2,7 @@ name: audit
 
 services:
   db:
-    image: docker.io/library/postgres:15-alpine
+    image: postgres:15-alpine # JIka menggunakan versi lain, pastikan untuk menyesuaikan konfigurasi dan pengaturan yang diperlukan. library/
     container_name: monitoring_db
     restart: always
     environment:
@@ -23,7 +23,7 @@ services:
       - audit_network
 
   minio:
-    image: docker.io/minio/minio:RELEASE.2023-09-20T22-40-07Z
+    image: minio/minio:latest # minio:RELEASE.2023-09-20T22-40-07Z #docker.io/minio/
     container_name: monitoring_minio
     restart: always
     ports:
@@ -44,9 +44,9 @@ services:
       - audit_network
 
   zookeeper:
-    image: docker.io/bitnamilegacy/zookeeper:3.8
+    image: bitnamilegacy/zookeeper:3.8
     container_name: monitoring_zookeeper
-    restart: unless-stopped
+    restart: always
     ports:
       - "2181:2181"
     environment:
@@ -55,9 +55,9 @@ services:
       - audit_network
 
   kafka:
-    image: docker.io/bitnamilegacy/kafka:3.4
+    image: bitnamilegacy/kafka:3.4
     container_name: kafka
-    restart: unless-stopped
+    restart: always
     ports:
       - "9092:9092"
       - "29092:29092"
@@ -83,9 +83,9 @@ services:
       - audit_network
 
   opensearch-node1:
-    image: docker.io/opensearchproject/opensearch:2.11.0
+    image: opensearchproject/opensearch:2.11.0
     container_name: monitoring_opensearch
-    restart: unless-stopped
+    restart: always
     environment:
       - cluster.name=opensearch-cluster
       - node.name=opensearch-node1
@@ -115,9 +115,9 @@ services:
       - audit_network
 
   opensearch-dashboards:
-    image: docker.io/opensearchproject/opensearch-dashboards:2.11.0
+    image: opensearchproject/opensearch-dashboards:2.11.0
     container_name: monitoring_opensearch_dashboards
-    restart: unless-stopped
+    restart: always
     ports:
       - "5601:5601"
     environment:
@@ -129,7 +129,7 @@ services:
       - audit_network
 
   redis:
-    image: docker.io/library/redis:7-alpine
+    image: library/redis:7-alpine
     container_name: monitoring_redis
     restart: always
     ports:
@@ -150,7 +150,7 @@ services:
       dockerfile: docker/backend.Dockerfile
     image: system-audit-backend:latest
     container_name: monitoring_backend
-    restart: unless-stopped
+    restart: always
     depends_on:
       - db
       - redis
@@ -193,7 +193,7 @@ services:
         INTERNAL_BACKEND_URL: http://backend:8080
     image: system-audit-frontend:latest
     container_name: frontend
-    restart: unless-stopped
+    restart: always
     depends_on:
       - backend
     ports:

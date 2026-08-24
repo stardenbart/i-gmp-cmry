@@ -51,7 +51,7 @@ services:
       - audit_network
 
   minio:
-    image: docker.io/minio/minio:RELEASE.2023-09-20T22-40-07Z
+    image: minio/minio:latest
     container_name: audit_prod_minio
     restart: always
     environment:
