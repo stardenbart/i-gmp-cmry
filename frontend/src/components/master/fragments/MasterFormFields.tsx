@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { fetchItems } from "../master.api";
 import { useAuthStore } from "@/stores/authStore";
 import { isSuperAdminUser } from "@/lib/useAdminGuard";
+import type { Plant, Area, Kawasan, Aspek, Detail } from "@/types/api";
 
 interface MasterFormFieldsProps {
   activeTab: string;
@@ -17,32 +18,27 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
   // Fetch lookups for forms
   const { data: plantLookup } = useQuery({
     queryKey: ["master", "plants", "lookup"],
-    queryFn: () => fetchItems("/master/plants", 1, "", 500),
+    queryFn: () => fetchItems<Plant>("/master/plants", 1, "", 500),
     enabled: activeTab === "areas" && isSuperAdmin,
-  });
-  const { data: deptLookup } = useQuery({
-    queryKey: ["master", "departments", "lookup"],
-    queryFn: () => fetchItems("/master/departments", 1, "", 500),
-    enabled: activeTab === "areas",
   });
   const { data: areaLookup } = useQuery({
     queryKey: ["master", "area", "lookup"],
-    queryFn: () => fetchItems("/master/area", 1, "", 500),
+    queryFn: () => fetchItems<Area>("/master/area", 1, "", 500),
     enabled: activeTab === "kawasans" || activeTab === "aspeks",
   });
   const { data: kawasanLookup } = useQuery({
     queryKey: ["master", "kawasan", "lookup"],
-    queryFn: () => fetchItems("/master/kawasan", 1, "", 500),
+    queryFn: () => fetchItems<Kawasan>("/master/kawasan", 1, "", 500),
     enabled: activeTab === "detail-kawasans",
   });
   const { data: aspekLookup } = useQuery({
     queryKey: ["master", "aspek", "lookup"],
-    queryFn: () => fetchItems("/master/aspek", 1, "", 500),
+    queryFn: () => fetchItems<Aspek>("/master/aspek", 1, "", 500),
     enabled: activeTab === "details",
   });
   const { data: detailLookup } = useQuery({
     queryKey: ["master", "details", "lookup"],
-    queryFn: () => fetchItems("/master/details", 1, "", 500),
+    queryFn: () => fetchItems<Detail>("/master/details", 1, "", 500),
     enabled: activeTab === "urains",
   });
 
@@ -100,7 +96,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
             <div className="relative">
               <select name="plant_id" defaultValue={editingItem?.plant_id as string} className={selectClass}>
                 <option value="">Pilih Plant (Opsional)...</option>
-                {plantLookup?.items?.map((p: any) => (
+                {plantLookup?.items?.map((p) => (
                   <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>
                 ))}
               </select>
@@ -169,7 +165,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           <div className="relative">
             <select name="kawasan_id" defaultValue={editingItem?.kawasan_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Kawasan...</option>
-              {kawasanLookup?.items?.map((k: any) => (
+              {kawasanLookup?.items?.map((k) => (
                 <option key={k.kawasan_id} value={k.kawasan_id}>{k.kawasan_name || k.name}</option>
               ))}
             </select>
@@ -210,7 +206,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           <div className="relative">
             <select name="kawasan_id" defaultValue={editingItem?.kawasan_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Kawasan...</option>
-              {kawasanLookup?.items?.map((k: any) => (
+              {kawasanLookup?.items?.map((k) => (
                 <option key={k.kawasan_id} value={k.kawasan_id}>{k.kawasan_name || k.name}</option>
               ))}
             </select>
@@ -251,7 +247,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           <div className="relative">
             <select name="area_id" defaultValue={editingItem?.area_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Area...</option>
-              {areaLookup?.items?.map((a: any) => (
+              {areaLookup?.items?.map((a) => (
                 <option key={a.area_id} value={a.area_id}>{a.area_name}</option>
               ))}
             </select>
@@ -276,7 +272,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           <div className="relative">
             <select name="kawasan_id" defaultValue={editingItem?.kawasan_id as string} className={selectClass} required>
               <option value="">Pilih Kawasan...</option>
-              {kawasanLookup?.items?.map((k: any) => (
+              {kawasanLookup?.items?.map((k) => (
                 <option key={k.kawasan_id} value={k.kawasan_id}>
                   {k.kawasan_name || k.name} {k.area?.area_name ? `(Area: ${k.area.area_name})` : k.area_name ? `(Area: ${k.area_name})` : ""}
                 </option>
@@ -303,7 +299,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           <div className="relative">
             <select name="area_id" defaultValue={editingItem?.area_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Area...</option>
-              {areaLookup?.items?.map((a: any) => (
+              {areaLookup?.items?.map((a) => (
                 <option key={a.area_id} value={a.area_id}>{a.area_name}</option>
               ))}
             </select>
@@ -328,7 +324,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           <div className="relative">
             <select name="aspek_id" defaultValue={editingItem?.aspek_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Aspek...</option>
-              {aspekLookup?.items?.map((a: any) => (
+              {aspekLookup?.items?.map((a) => (
                 <option key={a.aspek_id} value={a.aspek_id}>
                   {a.aspek_name} {a.area?.area_name ? `(Area: ${a.area.area_name})` : ""}
                 </option>
@@ -355,7 +351,7 @@ export function MasterFormFields({ activeTab, editingItem }: MasterFormFieldsPro
           <div className="relative">
             <select name="detail_id" defaultValue={editingItem?.detail_id as string} className={selectClass} required>
               <option value="" disabled>Pilih Detail...</option>
-              {detailLookup?.items?.map((d: any) => (
+              {detailLookup?.items?.map((d) => (
                 <option key={d.detail_id} value={d.detail_id}>
                   {d.detail_name} {d.aspek?.aspek_name ? `(Aspek: ${d.aspek.aspek_name})` : ""}
                 </option>

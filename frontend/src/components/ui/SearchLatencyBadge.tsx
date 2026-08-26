@@ -6,8 +6,8 @@ import { Zap, Play, BarChart2, X, RefreshCw } from "lucide-react";
 import { Button } from "./button";
 import { api } from "@/lib/api/axios";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
+import { useMounted } from "@/lib/useMounted";
 
 interface SearchLatencyBadgeProps {
   searchQuery: string;
@@ -24,15 +24,10 @@ export function SearchLatencyBadge({
 }: SearchLatencyBadgeProps) {
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [isTesterOpen, setIsTesterOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const startTimeRef = useRef<number | null>(null);
   const showSearchLatencyButton = useSettingsStore((state) => state.showSearchLatencyButton);
-  const user = useAuthStore((state) => state.user);
   const { hasPermission } = usePermissions();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Track start time when searchQuery changes or fetching begins
   useEffect(() => {
@@ -43,7 +38,8 @@ export function SearchLatencyBadge({
     } else {
       if (startTimeRef.current) {
         const elapsed = performance.now() - startTimeRef.current;
-        setLatencyMs(Math.round(elapsed));
+        const roundedElapsed = Math.round(elapsed);
+        requestAnimationFrame(() => setLatencyMs(roundedElapsed));
         startTimeRef.current = null;
       }
     }
@@ -115,18 +111,18 @@ function SearchLatencyModalPortaled({
   defaultPageName: string;
   defaultApiPath: string;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const [selectedPage, setSelectedPage] = useState(
-    TEST_PAGES.find(p => p.name === defaultPageName) || TEST_PAGES[0]
+    TEST_PAGES.find(p => p.name === defaultPageName) || {
+      name: defaultPageName,
+      path: defaultApiPath,
+      sampleQueries: [],
+    }
   );
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<number[]>([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [progressPct, setProgressPct] = useState(0);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const runTest = async () => {
     setIsRunning(true);
@@ -274,7 +270,7 @@ function SearchLatencyModalPortaled({
           {isRunning && (
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--muted-foreground, #64748b)" }}>
-                <span>Menguji Kata Kunci: <strong>"{currentQuery}"</strong></span>
+                <span>Menguji Kata Kunci: <strong>&quot;{currentQuery}&quot;</strong></span>
                 <span style={{ fontFamily: "monospace" }}>{progressPct}%</span>
               </div>
               <div style={{ width: "100%", height: "8px", backgroundColor: "rgba(100, 116, 139, 0.2)", borderRadius: "9999px", overflow: "hidden" }}>

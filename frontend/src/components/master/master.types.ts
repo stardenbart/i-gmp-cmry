@@ -8,9 +8,6 @@ import {
   ClipboardList,
   FileText,
   CheckSquare,
-  Activity,
-  Wrench,
-  Warehouse,
 } from "lucide-react";
 
 export interface MasterTabConfig {

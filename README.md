@@ -68,6 +68,8 @@ Cara termudah dan tercepat untuk menjalankan seluruh ekosistem aplikasi (Databas
 
 2. **Jalankan Docker Compose**:
    ```bash
+   cp .env.example .env
+   # Ganti seluruh nilai CHANGE_ME dengan secret acak sebelum melanjutkan.
    docker compose up -d --build
    ```
 
@@ -157,11 +159,13 @@ docker compose up -d db minio zookeeper kafka opensearch-node1
 
 Setelah seeder dijalankan, Anda dapat login menggunakan akun berikut:
 
-| Role | Username / User ID | Password | Akses Utama |
+| Role | Username / User ID | Sumber Password | Akses Utama |
 | :--- | :--- | :--- | :--- |
-| **Admin** | `USR-ADMIN-001` | `admin123` | Full Access & Master Data & API Key Manager |
-| **Auditor** | `USR-AUDITOR-001` | `auditor123` | Inspeksi, Pelaporan Issue, & Verifikasi |
-| **Auditee** | `USR-AUDITEE-001` | `auditee123` | Tindak Lanjut Issue (*Follow-Up*) |
+| **Admin** | `USR-ADMIN-001` | `SEED_ADMIN_PASSWORD` | Full Access & Master Data & API Key Manager |
+| **Auditor** | `USR-AUDITOR-001` | `SEED_AUDITOR_PASSWORD` | Inspeksi, Pelaporan Issue, & Verifikasi |
+| **Auditee** | `USR-AUDITEE-001` | `SEED_AUDITEE_PASSWORD` | Tindak Lanjut Issue (*Follow-Up*) |
+
+Seeder menolak password yang panjangnya kurang dari 32 karakter dan tidak pernah mencetak password ke log.
 
 ---
 

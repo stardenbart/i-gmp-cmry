@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -30,33 +30,21 @@ export const AUDITOR_ROLES = ["ROLE-002", "AUDITOR", "auditor", "2", ...ADMIN_RO
  * }
  */
 export function useAdminGuard(redirectTo?: string) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const isAdmin = user ? isAdminUser(user.role_id) : false;
 
   useEffect(() => {
-    if (!user) {
-      // User store not loaded yet or completely logged out, assume loading/false
-      setIsLoading(false);
-      return;
-    }
-
-    const hasAdminRole = isAdminUser(user.role_id);
-    setIsAdmin(hasAdminRole);
-    
-    if (!hasAdminRole) {
+    if (user && !isAdmin) {
       const plantCode = user.plant_id || "global";
       const target = redirectTo || `/cimory/${plantCode}/dashboard/${user.id}`;
       router.replace(target);
-    } else {
-      setIsLoading(false);
     }
-  }, [user, router, redirectTo]);
+  }, [user, isAdmin, router, redirectTo]);
 
   return {
     isAdmin,
-    isLoading,
+    isLoading: Boolean(user && !isAdmin),
   };
 }
 
@@ -102,32 +90,21 @@ export function isAuditorUser(roleId?: string, roleName?: string, username?: str
  * Redirects non-auditor users (e.g. auditee/PIC) to the issues page or dashboard.
  */
 export function useAuditorGuard(redirectTo?: string) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuditor, setIsAuditor] = useState(false);
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const isAuditor = user ? isAuditorUser(user.role_id) : false;
 
   useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
-      return;
-    }
-
-    const hasAuditorRole = isAuditorUser(user.role_id);
-    setIsAuditor(hasAuditorRole);
-    
-    if (!hasAuditorRole) {
+    if (user && !isAuditor) {
       const plantCode = user.plant_id || "global";
       const target = redirectTo || `/cimory/${plantCode}/dashboard/${user.id}/issues`;
       router.replace(target);
-    } else {
-      setIsLoading(false);
     }
-  }, [user, router, redirectTo]);
+  }, [user, isAuditor, router, redirectTo]);
 
   return {
     isAuditor,
-    isLoading,
+    isLoading: Boolean(user && !isAuditor),
   };
 }
 
@@ -136,34 +113,20 @@ export function useAuditorGuard(redirectTo?: string) {
  * Redirects auditor users to the issues page or dashboard.
  */
 export function useAuditeeGuard(redirectTo?: string) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuditee, setIsAuditee] = useState(false);
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const isAuditee = user ? !isAuditorUser(user.role_id) : false;
 
   useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
-      return;
-    }
-
-    const hasAuditorRole = isAuditorUser(user.role_id);
-    // If they are NOT an auditor, they are an auditee (PIC)
-    const hasAuditeeRole = !hasAuditorRole;
-    
-    setIsAuditee(hasAuditeeRole);
-    
-    if (!hasAuditeeRole) {
+    if (user && !isAuditee) {
       const plantCode = user.plant_id || "global";
       const target = redirectTo || `/cimory/${plantCode}/dashboard/${user.id}/issues`;
       router.replace(target);
-    } else {
-      setIsLoading(false);
     }
-  }, [user, router, redirectTo]);
+  }, [user, isAuditee, router, redirectTo]);
 
   return {
     isAuditee,
-    isLoading,
+    isLoading: Boolean(user && !isAuditee),
   };
 }

@@ -1,15 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { 
-  ClipboardCheck, 
-  CheckCircle, 
-  AlertTriangle, 
-  RefreshCw,
-  Loader2,
-  Clock,
-  ArrowRight
-} from "lucide-react";
+import { CheckCircle, RefreshCw, Loader2, ArrowRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { issueApi, Issue } from "@/lib/api/issue.api";
 import { useAuthStore } from "@/stores/authStore";

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  Users,
   Search,
   Plus,
   Edit2,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { api } from "@/lib/api/axios";
 import { filterApi, UserFilterParams } from "@/lib/api/filter.api";
 import { useMounted } from "@/lib/useMounted";
@@ -35,15 +35,38 @@ import {
   setStatusFilter,
   setPage,
 } from "@/store/slices/userFilterSlice";
+import type { User as UserRecord } from "@/types/api";
+
+interface RoleRecord { role_id: string; role_name: string }
+interface DepartmentRecord { department_id: string; department_name: string }
+interface LookupResponse<T> { data: { items: T[] } }
+
+interface FormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}
+
+interface ActionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  isLoading: boolean;
+  title: string;
+  description: string;
+  confirmText: string;
+  isDestructive?: boolean;
+}
 
 // --- API Functions (CRUD only, filter uses filterApi) ---
 const fetchRoles = async () => {
-  const res = await api.get("/master/roles", { params: { limit: 100 } });
+  const res = await api.get<LookupResponse<RoleRecord>>("/master/roles", { params: { limit: 100 } });
   return res.data;
 };
 
 const fetchDepartments = async () => {
-  const res = await api.get("/master/departments", { params: { limit: 100 } });
+  const res = await api.get<LookupResponse<DepartmentRecord>>("/master/departments", { params: { limit: 100 } });
   return res.data;
 };
 
@@ -70,8 +93,8 @@ const resetPassword = async (id: string, newPassword: string) => {
 
 // --- Modals ---
 function FormModal({
-  isOpen, onClose, title, onSubmit, isLoading, children,
-}: any) {
+  isOpen, onClose, title, children,
+}: FormModalProps) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -93,7 +116,7 @@ function FormModal({
 
 function ActionModal({
   isOpen, onClose, onConfirm, isLoading, title, description, confirmText, isDestructive = false
-}: any) {
+}: ActionModalProps) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -147,7 +170,7 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<UserRecord | null>(null);
   const [activeTab, setActiveTab] = useState<"profile" | "permissions">("profile");
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [resetPassId, setResetPassId] = useState<string | null>(null);
@@ -157,18 +180,28 @@ export default function UsersPage() {
   const [picKawasanIds, setPicKawasanIds] = useState<string[]>([]);
   const [picKategori, setPicKategori] = useState<string>("");
 
-  // Sync PIC state when editingItem changes
-  useEffect(() => {
-    if (editingItem) {
-      const kawasanIds = editingItem.pic_mappings?.map((m: any) => m.kawasan_id) || [];
-      const kategori = editingItem.pic_mappings?.[0]?.kategori_pic || "";
-      setPicKawasanIds(kawasanIds);
-      setPicKategori(kategori);
-    } else {
-      setPicKawasanIds([]);
-      setPicKategori("");
-    }
-  }, [editingItem, isFormOpen]);
+  const openCreateForm = () => {
+    setEditingItem(null);
+    setActiveTab("profile");
+    setPicKawasanIds([]);
+    setPicKategori("");
+    setIsFormOpen(true);
+  };
+
+  const openEditForm = (item: UserRecord) => {
+    setEditingItem(item);
+    setActiveTab("profile");
+    setPicKawasanIds(item.pic_mappings?.map((mapping) => mapping.kawasan_id) || []);
+    setPicKategori(item.pic_mappings?.[0]?.kategori_pic || "");
+    setIsFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setEditingItem(null);
+    setPicKawasanIds([]);
+    setPicKategori("");
+  };
 
   // Data Fetching via /users/filter endpoint
   const filterParams: UserFilterParams = {
@@ -220,7 +253,6 @@ export default function UsersPage() {
     limit: usersRes?.limit ?? 10,
     total_pages: usersRes?.total_pages ?? 1,
   };
-  const facets = usersRes?.facets;
   const rolesList = rolesRes?.data?.items || [];
   const deptsList = deptsRes?.data?.items || [];
   const plantsList = plantsRes || [];
@@ -234,18 +266,18 @@ export default function UsersPage() {
       setIsFormOpen(false);
       toast.success("User berhasil ditambahkan");
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || "Gagal menambah user"),
+    onError: (err) => toast.error(getApiErrorMessage(err, "Gagal menambah user")),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => updateUser(editingItem.user_id, data),
+    mutationFn: (data: Record<string, unknown>) => updateUser(editingItem!.user_id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users-filter"] });
       setIsFormOpen(false);
       setEditingItem(null);
       toast.success("User berhasil diperbarui");
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || "Gagal memperbarui user"),
+    onError: (err) => toast.error(getApiErrorMessage(err, "Gagal memperbarui user")),
   });
 
   const deleteMutation = useMutation({
@@ -255,7 +287,7 @@ export default function UsersPage() {
       setDeleteItemId(null);
       toast.success("User berhasil dihapus");
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || "Gagal menghapus user"),
+    onError: (err) => toast.error(getApiErrorMessage(err, "Gagal menghapus user")),
   });
 
   const resetPassMutation = useMutation({
@@ -265,7 +297,7 @@ export default function UsersPage() {
       setNewPassword("");
       toast.success("Password berhasil direset");
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || "Gagal reset password"),
+    onError: (err) => toast.error(getApiErrorMessage(err, "Gagal reset password")),
   });
 
   // Handlers
@@ -352,7 +384,7 @@ export default function UsersPage() {
                 onChange={(e) => dispatch(setRoleFilter(e.target.value))}
               >
                 <option value="ALL">Semua Role</option>
-                {rolesList.map((r: any) => (
+                {rolesList.map((r) => (
                   <option key={r.role_id} value={r.role_id}>{r.role_name}</option>
                 ))}
               </select>
@@ -367,7 +399,7 @@ export default function UsersPage() {
                 >
                   <option value="ALL">Semua Plant</option>
                   <option value="GLOBAL">Global (SuperAdmin)</option>
-                  {plantsList.map((p: any) => (
+                  {plantsList.map((p) => (
                     <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
                   ))}
                 </select>
@@ -389,7 +421,7 @@ export default function UsersPage() {
             </div>
           </div>
         </div>
-        <Button onClick={() => { setEditingItem(null); setActiveTab("profile"); setIsFormOpen(true); }} className="w-full md:w-auto" disabled={!canWrite}>
+        <Button onClick={openCreateForm} className="w-full md:w-auto" disabled={!canWrite}>
           <Plus className="h-4 w-4 mr-2" /> Tambah User
         </Button>
       </div>
@@ -413,7 +445,7 @@ export default function UsersPage() {
               ) : usersList.length === 0 ? (
                 <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Tidak ada user ditemukan</td></tr>
               ) : (
-                usersList.map((u: any) => (
+                usersList.map((u) => (
                   <tr key={u.user_id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -426,11 +458,11 @@ export default function UsersPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-medium">{rolesList.find((r:any) => r.role_id === u.role_id)?.role_name || u.role_id}</td>
+                    <td className="px-4 py-3 font-medium">{rolesList.find((r) => r.role_id === u.role_id)?.role_name || u.role_id}</td>
                     <td className="px-4 py-3 text-xs">
                       {u.plant_id ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20">
-                          {plantsList.find((p: any) => p.plant_id === u.plant_id)?.plant_name || u.plant_id}
+                          {plantsList.find((p) => p.plant_id === u.plant_id)?.plant_name || u.plant_id}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 font-semibold border border-purple-500/20">
@@ -438,11 +470,11 @@ export default function UsersPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{deptsList.find((d:any) => d.department_id === u.department_id)?.department_name || u.department_id}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{deptsList.find((d) => d.department_id === u.department_id)?.department_name || u.department_id}</td>
                     <td className="px-4 py-3 text-center">{getStatusBadge(u.user_status)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingItem(u); setActiveTab("profile"); setIsFormOpen(true); }} className="h-8 w-8 p-0" title="Edit" disabled={!canWrite}>
+                        <Button variant="ghost" size="sm" onClick={() => openEditForm(u)} className="h-8 w-8 p-0" title="Edit" disabled={!canWrite}>
                           <Edit2 className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setResetPassId(u.user_id)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-600" title="Reset Password" disabled={!canWrite}>
@@ -475,7 +507,7 @@ export default function UsersPage() {
       {/* CREATE/EDIT MODAL */}
       <FormModal
         isOpen={isFormOpen}
-        onClose={() => { setIsFormOpen(false); setEditingItem(null); }}
+        onClose={closeForm}
         title={editingItem ? "Edit User" : "Tambah User Baru"}
       >
         {editingItem && (
@@ -517,7 +549,7 @@ export default function UsersPage() {
                 <div className="relative">
                   <select name="role_id" defaultValue={editingItem?.role_id || ""} required className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                     <option value="" disabled>Pilih Role</option>
-                    {rolesList.map((r: any) => <option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}
+                    {rolesList.map((r) => <option key={r.role_id} value={r.role_id}>{r.role_name}</option>)}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
@@ -527,7 +559,7 @@ export default function UsersPage() {
                 <div className="relative">
                   <select name="department_id" defaultValue={editingItem?.department_id || ""} required className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                     <option value="" disabled>Pilih Departemen</option>
-                    {deptsList.map((d: any) => <option key={d.department_id} value={d.department_id}>{d.department_name}</option>)}
+                    {deptsList.map((d) => <option key={d.department_id} value={d.department_id}>{d.department_name}</option>)}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
@@ -539,7 +571,7 @@ export default function UsersPage() {
                   <div className="relative">
                     <select name="plant_id" defaultValue={editingItem?.plant_id || ""} className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                       <option value="">Semua Plant (Global / SuperAdmin)</option>
-                      {plantsList.map((p: any) => <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>)}
+                      {plantsList.map((p) => <option key={p.plant_id} value={p.plant_id}>{p.plant_name} ({p.plant_code})</option>)}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   </div>
@@ -590,7 +622,7 @@ export default function UsersPage() {
                   }}
                   className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  {kawasansList.map((k: any) => <option key={k.kawasan_id} value={k.kawasan_id}>{k.kawasan_name}</option>)}
+                  {kawasansList.map((k) => <option key={k.kawasan_id} value={k.kawasan_id}>{k.kawasan_name}</option>)}
                 </select>
                 <p className="text-[10px] text-muted-foreground mt-1">Tahan Ctrl/Cmd untuk memilih lebih dari satu kawasan</p>
               </div>
@@ -619,7 +651,7 @@ export default function UsersPage() {
         onClose={() => { setResetPassId(null); setNewPassword(""); }}
         title="Reset Password"
       >
-        <form onSubmit={(e: any) => { e.preventDefault(); resetPassMutation.mutate(); }}>
+        <form onSubmit={(e) => { e.preventDefault(); resetPassMutation.mutate(); }}>
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-1 block">Password Baru</label>

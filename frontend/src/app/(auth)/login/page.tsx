@@ -7,11 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import Image from "next/image";
-import { ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/axios";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { useAuthStore } from "@/stores/authStore";
 
 const loginSchema = z.object({
@@ -52,9 +52,9 @@ export default function LoginPage() {
       
       toast.success("Login berhasil!");
       router.push(`/cimory/${plantCode}/dashboard/${user.id}`);
-    } catch (error: any) {
+    } catch (error) {
       toast.error(
-        error.response?.data?.message || "Login gagal. Periksa kembali email dan password Anda."
+        getApiErrorMessage(error, "Login gagal. Periksa kembali username dan password Anda.")
       );
     } finally {
       setIsLoading(false);

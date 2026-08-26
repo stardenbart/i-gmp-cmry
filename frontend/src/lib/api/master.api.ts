@@ -91,7 +91,7 @@ export const masterApi = {
   },
 
   updateSetting: async (key: string, data: { setting_value: string; plant_id?: string }, plant_id?: string): Promise<SystemSetting> => {
-    const params: Record<string, any> = {};
+    const params: Record<string, string> = {};
     if (plant_id) params.plant_id = plant_id;
     const res = await api.put<{ data: SystemSetting }>(`/master/settings/${key}`, data, { params });
     return res.data.data;

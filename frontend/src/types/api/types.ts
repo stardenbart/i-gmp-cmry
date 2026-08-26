@@ -53,6 +53,7 @@ export interface User {
   full_name: string;
   email: string;
   department_id: string;
+  plant_id?: string;
   role_id: string;
   user_status: "Active" | "Inactive" | "Suspended";
   created_at?: string;
@@ -76,6 +77,13 @@ export interface UpdateProfileRequest {
 }
 
 // ─── Department Types ───────────────────────────────────────────────────────
+
+export interface Plant {
+  plant_id: string;
+  plant_code: string;
+  plant_name: string;
+  address?: string;
+}
 
 export interface Department {
   department_id: string;
@@ -102,6 +110,7 @@ export interface Area {
   area_name: string;
   area_code: string;
   department_id?: string;
+  plant_id?: string;
   department_name?: string;
   created_at?: string;
   updated_at?: string;
@@ -125,6 +134,8 @@ export interface Kawasan {
   kawasan_code: string;
   area_id: string;
   area_name?: string;
+  name?: string;
+  area?: { area_id: string; area_name?: string };
   created_at?: string;
   updated_at?: string;
 }
@@ -135,7 +146,7 @@ export interface CreateKawasanRequest {
   area_id: string;
 }
 
-export interface UpdateKawasanRequest extends Partial<CreateKawasanRequest> {}
+export type UpdateKawasanRequest = Partial<CreateKawasanRequest>;
 
 // ─── Detail Kawasan Types ───────────────────────────────────────────────────
 
@@ -155,7 +166,7 @@ export interface CreateDetailKawasanRequest {
   kawasan_id: string;
 }
 
-export interface UpdateDetailKawasanRequest extends Partial<CreateDetailKawasanRequest> {}
+export type UpdateDetailKawasanRequest = Partial<CreateDetailKawasanRequest>;
 
 // ─── Aspek Types ───────────────────────────────────────────────────────────
 
@@ -166,6 +177,7 @@ export interface Aspek {
   aspek_weight: number;
   area_id?: string;
   area_name?: string;
+  area?: { area_id: string; area_name?: string };
   created_at?: string;
   updated_at?: string;
 }
@@ -177,7 +189,7 @@ export interface CreateAspekRequest {
   area_id?: string;
 }
 
-export interface UpdateAspekRequest extends Partial<CreateAspekRequest> {}
+export type UpdateAspekRequest = Partial<CreateAspekRequest>;
 
 // ─── Detail Types ──────────────────────────────────────────────────────────
 
@@ -186,6 +198,7 @@ export interface Detail {
   detail_name: string;
   detail_code: string;
   aspek_id: string;
+  aspek?: { aspek_id: string; aspek_name?: string };
   aspek_name?: string;
   created_at?: string;
   updated_at?: string;
@@ -197,7 +210,7 @@ export interface CreateDetailRequest {
   aspek_id: string;
 }
 
-export interface UpdateDetailRequest extends Partial<CreateDetailRequest> {}
+export type UpdateDetailRequest = Partial<CreateDetailRequest>;
 
 // ─── Uraian Types ──────────────────────────────────────────────────────────
 
@@ -217,7 +230,7 @@ export interface CreateUraianRequest {
   detail_id: string;
 }
 
-export interface UpdateUraianRequest extends Partial<CreateUraianRequest> {}
+export type UpdateUraianRequest = Partial<CreateUraianRequest>;
 
 // ─── Inspection Types ───────────────────────────────────────────────────────
 

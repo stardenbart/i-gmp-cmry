@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/config"
 	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
 	"github.com/monitoring-system/backend/internal/handler/issuehandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
@@ -23,17 +24,18 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
+func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase, cfg *config.Config) {
 	issueRepo := issuerepo.NewIssueRepository(db)
 	photoRepo := issuerepo.NewIssuePhotoRepository(db)
 	heiRepo := issuerepo.NewIssueHEIRepository(db)
 	userRepo := authrepo.NewUserRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
 	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
+	notificationUC := buildNotificationUseCase(db, cfg)
 
-	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, heiRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, heiRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient, notificationUC)
 	issueDelegateUC := issueusecase.NewIssueDelegateUseCase(issueDelegateRepo)
-	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, redisClient, producer)
+	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, redisClient, producer, issueUC)
 
 	// Filter usecases
 	issueFilterRepo := issuerepo.NewIssueFilterRepository(db)

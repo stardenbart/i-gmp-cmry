@@ -11,6 +11,7 @@ import { useMounted } from "@/lib/useMounted";
 import { usePermissions } from "@/lib/usePermissions";
 import { useAuthStore } from "@/stores/authStore";
 import { useDebounce } from "@/hooks/useDebounce";
+import { getApiErrorMessage } from "@/lib/api/error";
 
 import { MASTER_TABS } from "../master.types";
 import { fetchItems, createItem, updateItem, deleteItem } from "../master.api";
@@ -57,8 +58,8 @@ export function MasterLayout() {
       setIsModalOpen(false);
       toast.success("Data berhasil ditambahkan");
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Gagal menambahkan data");
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Gagal menambahkan data"));
     },
   });
 
@@ -74,8 +75,8 @@ export function MasterLayout() {
       setEditingItem(null);
       toast.success("Data berhasil diperbarui");
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Gagal memperbarui data");
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Gagal memperbarui data"));
     },
   });
 
@@ -86,8 +87,8 @@ export function MasterLayout() {
       setDeleteItemId(null);
       toast.success("Data berhasil dihapus");
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Gagal menghapus data");
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Gagal menghapus data"));
     },
   });
 
@@ -227,7 +228,7 @@ export function MasterLayout() {
           Anda tidak memiliki izin untuk mengakses halaman Master Data. Hanya administrator yang dapat mengakses halaman ini.
         </p>
         {mounted && user && (
-          <Link href={`/cimory/${user.plant_id || 'global'}/dashboard/${user.id || (user as any).user_id}`}>
+          <Link href={`/cimory/${user.plant_id || 'global'}/dashboard/${user.id}`}>
             <Button variant="outline" className="rounded-xl px-6">Kembali ke Dashboard</Button>
           </Link>
         )}

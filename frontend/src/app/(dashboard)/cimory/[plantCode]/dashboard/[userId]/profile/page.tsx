@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/incompatible-library -- React Hook Form watch provides live password-strength feedback. */
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { authApi } from "@/lib/api/auth.api";
 import { api } from "@/lib/api/axios";
+import { getApiErrorMessage } from "@/lib/api/error";
 
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,21 @@ const passwordSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
+interface RoleLookup { role_id: string; role_name: string }
+interface DepartmentLookup { department_id: string; department_name: string }
+interface ProfileUserShape {
+  role_id?: string;
+  department_id?: string;
+  full_name?: string;
+  email?: string;
+  username?: string;
+  user_status?: string;
+  role_name?: string;
+  department_name?: string;
+  role?: { role_name?: string };
+  department?: { department_name?: string };
+}
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { user, setAuth, token, logout } = useAuthStore();
@@ -55,8 +72,8 @@ export default function ProfilePage() {
     queryFn: async () => {
       try {
         const res = await api.get("/master/roles", { params: { limit: 100 } });
-        return res.data?.data?.items || res.data?.items || res.data || [];
-      } catch (e) {
+        return (res.data?.data?.items || res.data?.items || res.data || []) as RoleLookup[];
+      } catch {
         return [];
       }
     },
@@ -69,26 +86,26 @@ export default function ProfilePage() {
     queryFn: async () => {
       try {
         const res = await api.get("/master/departments", { params: { limit: 100 } });
-        return res.data?.data?.items || res.data?.items || res.data || [];
-      } catch (e) {
+        return (res.data?.data?.items || res.data?.items || res.data || []) as DepartmentLookup[];
+      } catch {
         return [];
       }
     },
     staleTime: 10 * 60 * 1000,
   });
 
-  const currentUser = meData?.data || user;
+  const currentUser = (meData?.data || user) as ProfileUserShape | null;
 
   // Format Role Name directly aligned with backend database master records
   const getRoleDisplayName = () => {
-    if ((currentUser as any)?.role?.role_name) return (currentUser as any).role.role_name;
-    if ((currentUser as any)?.role_name) return (currentUser as any).role_name;
+    if (currentUser?.role?.role_name) return currentUser.role.role_name;
+    if (currentUser?.role_name) return currentUser.role_name;
     
     const id = currentUser?.role_id;
     if (!id) return "–";
 
     // Match role_id with backend master roles table
-    const foundRole = masterRoles.find((r: any) => r.role_id === id);
+    const foundRole = masterRoles.find((r) => r.role_id === id);
     if (foundRole?.role_name) return foundRole.role_name;
 
     // Standard fallback mapping
@@ -105,14 +122,14 @@ export default function ProfilePage() {
 
   // Format Department Name directly aligned with backend database master records
   const getDeptDisplayName = () => {
-    if ((currentUser as any)?.department?.department_name) return (currentUser as any).department.department_name;
-    if ((currentUser as any)?.department_name) return (currentUser as any).department_name;
+    if (currentUser?.department?.department_name) return currentUser.department.department_name;
+    if (currentUser?.department_name) return currentUser.department_name;
     
     const id = currentUser?.department_id;
     if (!id) return "–";
 
     // Match department_id with backend master departments table
-    const foundDept = masterDepts.find((d: any) => d.department_id === id);
+    const foundDept = masterDepts.find((d) => d.department_id === id);
     if (foundDept?.department_name) return foundDept.department_name;
 
     return id;
@@ -159,8 +176,8 @@ export default function ProfilePage() {
       toast.success("Password berhasil diubah");
       passwordForm.reset();
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message || "Gagal mengubah password"),
+    onError: (err) =>
+      toast.error(getApiErrorMessage(err, "Gagal mengubah password")),
   });
 
   const handleLogout = () => {

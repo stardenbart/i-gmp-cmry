@@ -1,4 +1,7 @@
 import { api } from "./axios";
+import type { InspectionHeader } from "./inspection.api";
+import type { Issue } from "./issue.api";
+import type { User } from "@/types/api/types";
 
 // ─── Shared Filter Types ─────────────────────────────────────────────────
 
@@ -14,7 +17,7 @@ export interface FilterResult<T, F> {
   page: number;
   limit: number;
   total_pages: number;
-  filters_applied: Record<string, any>;
+  filters_applied: Record<string, string | number | boolean | string[] | undefined>;
   facets: F;
 }
 
@@ -122,21 +125,21 @@ export interface UserFilterParams {
 export const filterApi = {
   inspections: async (params?: InspectionFilterParams) => {
     const res = await api.get("/inspections/filter", { params });
-    return res.data.data as FilterResult<any, InspectionFacets>;
+    return res.data.data as FilterResult<InspectionHeader, InspectionFacets>;
   },
 
   issues: async (params?: IssueFilterParams) => {
     const res = await api.get("/issues/filter", { params });
-    return res.data.data as FilterResult<any, IssueFacets>;
+    return res.data.data as FilterResult<Issue, IssueFacets>;
   },
 
   followup: async (params?: FollowupFilterParams) => {
     const res = await api.get("/issues/followup/filter", { params });
-    return res.data.data as FilterResult<any, FollowupFacets>;
+    return res.data.data as FilterResult<Issue, FollowupFacets>;
   },
 
   users: async (params?: UserFilterParams) => {
     const res = await api.get("/users/filter", { params });
-    return res.data.data as FilterResult<any, UserFacets>;
+    return res.data.data as FilterResult<User, UserFacets>;
   },
 };

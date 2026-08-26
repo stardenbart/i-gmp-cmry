@@ -68,3 +68,41 @@ func (h *NotificationHandler) MarkAllAsRead(c *fiber.Ctx) error {
 
 	return response.OK(c, "All notifications marked as read", nil)
 }
+
+// Subscribe registers a browser Web Push subscription for the authenticated
+// user, so future notifications also show up as OS-level push notifications.
+func (h *NotificationHandler) Subscribe(c *fiber.Ctx) error {
+	userIDVal := c.Locals("user_id")
+	if userIDVal == nil {
+		return response.Unauthorized(c, "Unauthorized")
+	}
+	userID := userIDVal.(string)
+
+	var req notification.PushSubscriptionRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body", err.Error())
+	}
+
+	if err := h.usecase.Subscribe(userID, &req); err != nil {
+		return response.BadRequest(c, "Failed to save push subscription", err.Error())
+	}
+
+	return response.OK(c, "Push subscription saved", nil)
+}
+
+// Unsubscribe removes a Web Push subscription (e.g. the user disabled
+// notifications, or the browser's subscription rotated/expired).
+func (h *NotificationHandler) Unsubscribe(c *fiber.Ctx) error {
+	var req struct {
+		Endpoint string `json:"endpoint" validate:"required"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body", err.Error())
+	}
+
+	if err := h.usecase.Unsubscribe(req.Endpoint); err != nil {
+		return response.BadRequest(c, "Failed to remove push subscription", err.Error())
+	}
+
+	return response.OK(c, "Push subscription removed", nil)
+}

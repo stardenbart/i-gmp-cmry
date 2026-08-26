@@ -11,7 +11,8 @@ RUN go mod download
 COPY . .
 
 # Build aplikasi
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server/main.go
+RUN mkdir -p /out && CGO_ENABLED=0 GOOS=linux go build -o /out/ \
+    ./cmd/server ./cmd/migrate ./cmd/rotate-encryption-key ./cmd/rotate-seeded-passwords
 
 # ─────────────────────────────────────────────
 # Runner stage (image kecil tanpa toolchain go)
@@ -23,7 +24,10 @@ WORKDIR /app
 RUN apk add --no-cache tzdata
 
 # Copy binary & config file dari builder
-COPY --from=builder /app/main .
+COPY --from=builder /out/server ./main
+COPY --from=builder /out/migrate ./migrate
+COPY --from=builder /out/rotate-encryption-key ./rotate-encryption-key
+COPY --from=builder /out/rotate-seeded-passwords ./rotate-seeded-passwords
 # Copy direktori migrasi dan foto upload jika dibutuhkan (opsional)
 COPY --from=builder /app/migrations ./migrations
 # Copy templates Excel untuk fitur export laporan

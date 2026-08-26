@@ -1,7 +1,6 @@
 "use client";
 
 import { lazy, Suspense } from "react";
-import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { Loader2 } from "lucide-react";
 
@@ -19,7 +18,6 @@ const DashboardPanelAuditee = lazy(() =>
 );
 
 export default function DashboardPage() {
-  const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
   const { hasPermission, isLoading: isPermLoading } = usePermissions();
 

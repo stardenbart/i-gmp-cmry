@@ -24,6 +24,17 @@ interface MasterTableProps {
   onDelete: (id: string, name: string) => void;
 }
 
+interface MasterRelation {
+  plant_name?: string;
+  department_name?: string;
+  area_name?: string;
+  kawasan_name?: string;
+  aspek_name?: string;
+  detail_name?: string;
+  area?: MasterRelation;
+  aspek?: MasterRelation;
+}
+
 export function MasterTable({
   items,
   columns,
@@ -88,16 +99,22 @@ export function MasterTable({
                           val = String(raw);
                         } else {
                           // Lookups for 1-level and 2-level parent relations
+                          const plant = item.plant as MasterRelation | undefined;
+                          const department = item.department as MasterRelation | undefined;
+                          const area = item.area as MasterRelation | undefined;
+                          const kawasan = item.kawasan as MasterRelation | undefined;
+                          const aspek = item.aspek as MasterRelation | undefined;
+                          const detail = item.detail as MasterRelation | undefined;
                           const lookupMap: Record<string, () => string | undefined> = {
-                            "plant_name":        () => (item.plant as any)?.plant_name,
-                            "department_name":   () => (item.department as any)?.department_name,
-                            "area_name":         () => (item.area as any)?.area_name || (item.kawasan as any)?.area?.area_name || (item.aspek as any)?.area?.area_name,
-                            "kawasan_name":      () => (item.kawasan as any)?.kawasan_name,
-                            "aspek_name":        () => (item.aspek as any)?.aspek_name,
-                            "detail_name":       () => (item.detail as any)?.detail_name,
-                            "kawasan_area_name": () => (item.kawasan as any)?.area?.area_name,
-                            "aspek_area_name":   () => (item.aspek as any)?.area?.area_name,
-                            "detail_aspek_name": () => (item.detail as any)?.aspek?.aspek_name,
+                            "plant_name":        () => plant?.plant_name,
+                            "department_name":   () => department?.department_name,
+                            "area_name":         () => area?.area_name || kawasan?.area?.area_name || aspek?.area?.area_name,
+                            "kawasan_name":      () => kawasan?.kawasan_name,
+                            "aspek_name":        () => aspek?.aspek_name,
+                            "detail_name":       () => detail?.detail_name,
+                            "kawasan_area_name": () => kawasan?.area?.area_name,
+                            "aspek_area_name":   () => aspek?.area?.area_name,
+                            "detail_aspek_name": () => detail?.aspek?.aspek_name,
                           };
 
                           val = lookupMap[col.key]?.() || "-";

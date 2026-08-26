@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Bell,
+  BellRing,
+  BellOff,
   Check,
   CheckCheck,
   AlertCircle,
@@ -14,13 +16,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/lib/useMounted";
-import { toast } from "sonner";
-
-import { notificationApi, Notification, NotificationResponse } from "@/lib/api/notification.api";
+import { notificationApi, Notification } from "@/lib/api/notification.api";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 // Helper to get icon based on notification type
 const getNotificationIcon = (type: Notification["type"]) => {
@@ -127,7 +127,8 @@ export function NotificationBell() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+  const push = usePushNotifications();
+
   const plantCode = (params?.plantCode as string) || user?.plant_id || "global";
   const basePath = `/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}`;
 
@@ -239,6 +240,30 @@ export function NotificationBell() {
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="font-semibold text-sm">Notifikasi</h3>
             <div className="flex items-center gap-1">
+              {push.state === "denied" ? (
+                <span
+                  className="p-1.5 text-muted-foreground/50"
+                  title="Notifikasi push diblokir di pengaturan browser"
+                >
+                  <BellOff className="h-3.5 w-3.5" />
+                </span>
+              ) : push.state !== "unsupported" ? (
+                <button
+                  onClick={() => (push.isSubscribed ? push.unsubscribe() : push.subscribe())}
+                  disabled={push.isBusy}
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-md transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary"
+                  title={push.isSubscribed ? "Matikan notifikasi push di perangkat ini" : "Aktifkan notifikasi push di perangkat ini"}
+                  aria-label={push.isSubscribed ? "Matikan notifikasi push" : "Aktifkan notifikasi push"}
+                >
+                  {push.isBusy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : push.isSubscribed ? (
+                    <BellRing className="h-3 w-3" />
+                  ) : (
+                    <Bell className="h-3 w-3" />
+                  )}
+                </button>
+              ) : null}
               {unreadCount > 0 && (
                 <button
                   onClick={() => markAllAsReadMutation.mutate()}

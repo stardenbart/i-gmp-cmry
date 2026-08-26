@@ -93,10 +93,10 @@ func SeedPermissions(db *gorm.DB) {
 	// Non-Admin roles receive PERM-MSTR-R so they can view Master Data dropdowns (Area, Department, Kawasan, etc.)
 	defaultRolePerms := map[string][]string{
 		"ROLE-002": {"PERM-MSTR-R", "PERM-INSP-C", "PERM-INSP-R", "PERM-INSP-U", "PERM-INSP-A", "PERM-INSP-E", "PERM-ISS-C", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"}, // Auditor
-		"ROLE-003": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"},                                                                                       // Auditee
-		"ROLE-004": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                                     // Supervisor
-		"ROLE-005": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-INSP-E", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                       // Manager
-		"ROLE-006": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R"},                                                                                                       // Staff
+		"ROLE-003": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"},                                                                                          // Auditee
+		"ROLE-004": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                                        // Supervisor
+		"ROLE-005": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-INSP-E", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                         // Manager
+		"ROLE-006": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R"},                                                                                                         // Staff
 	}
 
 	for roleID, permIDs := range defaultRolePerms {
@@ -110,7 +110,7 @@ func SeedPermissions(db *gorm.DB) {
 					RoleID:                  roleID,
 					PermissionID:            permID,
 					IsAllowed:               true,
-					RolePermissionUpdatedBy: "SYSTEM",
+					RolePermissionUpdatedBy: "USR-ADMIN-001",
 				})
 			} else if !rp.IsAllowed {
 				_ = db.Model(&rp).Update("IsAllowed", true).Error

@@ -14,6 +14,11 @@ interface MetricState {
   rating: "good" | "needs-improvement" | "poor";
 }
 
+interface LayoutShiftEntry extends PerformanceEntry {
+  hadRecentInput: boolean;
+  value: number;
+}
+
 export function CoreWebVitalsOverlay() {
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
@@ -64,7 +69,7 @@ export function CoreWebVitalsOverlay() {
 
       let clsValue = 0;
       const clsObs = new PerformanceObserver((entryList) => {
-        for (const entry of entryList.getEntries() as any[]) {
+        for (const entry of entryList.getEntries() as LayoutShiftEntry[]) {
           if (!entry.hadRecentInput) {
             clsValue += entry.value;
             const rating = clsValue <= 0.1 ? "good" : clsValue <= 0.25 ? "needs-improvement" : "poor";
@@ -78,7 +83,7 @@ export function CoreWebVitalsOverlay() {
         lcpObs.disconnect();
         clsObs.disconnect();
       };
-    } catch (e) {
+    } catch {
       // Browser safety fallback
     }
   }, [mounted, user, isAdmin, showCoreWebVitalsMonitor]);

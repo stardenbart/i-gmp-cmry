@@ -1,9 +1,12 @@
 package config
 
 import (
+	"encoding/base64"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -49,6 +52,12 @@ type Config struct {
 
 	// Encryption
 	SettingEncryptionKey string // Base64-encoded 32-byte AES-256 key
+
+	// Web Push (VAPID) — generate a pair once with webpush.GenerateVAPIDKeys
+	// and keep VAPIDPrivateKey secret. Empty keys disable push sending.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	VAPIDSubject    string // e.g. "mailto:ops@example.com"
 
 	// Kafka Config
 	KafkaBrokers       string
@@ -97,7 +106,7 @@ func Load() *Config {
 		DBPort:     getEnv("DB_PORT", "5434"),
 		DBName:     getEnv("DB_NAME", "monitoring_audit"),
 		DBUser:     getEnv("DB_USER", "postgres"),
-		DBPassword: getEnv("DB_PASSWORD", "secret"),
+		DBPassword: getEnv("DB_PASSWORD", ""),
 		DBTimezone: getEnv("DB_TIMEZONE", "Asia/Jakarta"),
 		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
 
@@ -113,22 +122,26 @@ func Load() *Config {
 		SMTPSenderEmail: getEnv("SMTP_SENDER_EMAIL", "noreply@monitoring-audit.local"),
 
 		MinioEndpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		MinioAccessKey:  getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-		MinioSecretKey:  getEnv("MINIO_SECRET_KEY", "minioadmin"),
+		MinioAccessKey:  getEnv("MINIO_ACCESS_KEY", ""),
+		MinioSecretKey:  getEnv("MINIO_SECRET_KEY", ""),
 		MinioBucket:     getEnv("MINIO_BUCKET", "monitoring-audit-bucket"),
 		MinioUseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 		MinioAllowedIPs: getEnv("MINIO_ALLOWED_IPS", "127.0.0.1/32,10.0.0.0/8,192.168.0.0/16"),
 
-		SettingEncryptionKey: getEnv("SETTING_ENCRYPTION_KEY", "sCb2UdNCSu3RBEYLF6IG/18C6VAVuYftUhFB1lzRoyw="),
+		SettingEncryptionKey: getEnv("SETTING_ENCRYPTION_KEY", ""),
+
+		VAPIDPublicKey:  getEnv("VAPID_PUBLIC_KEY", ""),
+		VAPIDPrivateKey: getEnv("VAPID_PRIVATE_KEY", ""),
+		VAPIDSubject:    getEnv("VAPID_SUBJECT", ""),
 
 		KafkaBrokers:       getEnv("KAFKA_BROKERS", "localhost:9092"),
 		KafkaConsumerGroup: getEnv("KAFKA_CONSUMER_GROUP", "monitoring-audit-group"),
 
 		OpenSearchURL:      getEnv("OPENSEARCH_URL", "http://localhost:9200"),
 		OpenSearchUsername: getEnv("OPENSEARCH_USERNAME", "admin"),
-		OpenSearchPassword: getEnv("OPENSEARCH_PASSWORD", "admin"),
+		OpenSearchPassword: getEnv("OPENSEARCH_PASSWORD", ""),
 
-		JWTSecret:       getEnv("JWT_SECRET", "super-secret-key-12345"),
+		JWTSecret:       getEnv("JWT_SECRET", ""),
 		JWTExpiredHours: getEnvAsInt("JWT_EXPIRED_HOURS", 24),
 
 		StorageDriver:    getEnv("STORAGE_DRIVER", "local"),
@@ -141,6 +154,41 @@ func Load() *Config {
 		LogOutput:   getEnv("LOG_OUTPUT", "console"),
 		LogFilePath: getEnv("LOG_FILE_PATH", "./logs/app.log"),
 	}
+}
+
+// ValidateServer rejects missing or known-development credentials before the
+// API starts. Keeping this separate from Load allows maintenance utilities to
+// load only the credentials they actually need.
+func (c *Config) ValidateServer() error {
+	required := map[string]string{
+		"DB_PASSWORD":            c.DBPassword,
+		"MINIO_ACCESS_KEY":       c.MinioAccessKey,
+		"MINIO_SECRET_KEY":       c.MinioSecretKey,
+		"SETTING_ENCRYPTION_KEY": c.SettingEncryptionKey,
+		"JWT_SECRET":             c.JWTSecret,
+	}
+	for name, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is required", name)
+		}
+	}
+
+	weak := map[string]bool{
+		"secret": true, "minioadmin": true, "admin": true,
+	}
+	for name, value := range required {
+		if weak[strings.ToLower(strings.TrimSpace(value))] {
+			return fmt.Errorf("%s uses a known insecure default", name)
+		}
+	}
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters")
+	}
+	key, err := base64.StdEncoding.DecodeString(c.SettingEncryptionKey)
+	if err != nil || len(key) != 32 {
+		return fmt.Errorf("SETTING_ENCRYPTION_KEY must be a base64-encoded 32-byte key")
+	}
+	return nil
 }
 
 func getEnv(key, defaultVal string) string {

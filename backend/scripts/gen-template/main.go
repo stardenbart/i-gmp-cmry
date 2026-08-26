@@ -1,11 +1,22 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/xuri/excelize/v2"
 )
 
 func main() {
+	output := flag.String("output", "templates/master_gmp.xlsx", "output XLSX path")
+	flag.Parse()
+	if err := os.MkdirAll(filepath.Dir(*output), 0o755); err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
 	f := excelize.NewFile()
 	defer f.Close()
 
@@ -25,7 +36,7 @@ func main() {
 	f.SetCellValue(sheetName, "G9", "Nilai")
 	f.SetCellValue(sheetName, "K9", "Keterangan")
 
-	if err := f.SaveAs("../templates/master_gmp.xlsx"); err != nil {
+	if err := f.SaveAs(*output); err != nil {
 		fmt.Println("Error:", err)
 		return
 	}

@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const subscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 /**
  * Hook to track when a component has been mounted on the client.
@@ -18,11 +22,5 @@ import { useEffect, useState } from "react";
  * const basePath = `/dashboard/${mounted ? user?.id : 'default'}`;
  */
 export function useMounted(): boolean {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  return mounted;
+  return useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot);
 }

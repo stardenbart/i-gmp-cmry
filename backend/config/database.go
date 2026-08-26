@@ -9,8 +9,9 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NewDatabase creates and validates a GORM database connection using PostgreSQL.
-func NewDatabase(cfg *Config) (*gorm.DB, error) {
+// OpenDatabase creates and validates a GORM database connection without
+// applying schema changes. Maintenance tools should use this function.
+func OpenDatabase(cfg *Config) (*gorm.DB, error) {
 	// DSN format: host=localhost user=gorm password=gorm dbname=gorm port=9920 sslmode=disable TimeZone=Asia/Jakarta
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s statement_timeout=3000 connect_timeout=5",
 		cfg.DBHost,
@@ -59,6 +60,16 @@ func NewDatabase(cfg *Config) (*gorm.DB, error) {
 	// Verify connection
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("ping database: %w", err)
+	}
+	return db, nil
+}
+
+// NewDatabase opens the database and ensures legacy bootstrap indexes exist.
+// Application startup retains this behavior for backward compatibility.
+func NewDatabase(cfg *Config) (*gorm.DB, error) {
+	db, err := OpenDatabase(cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Ensure high-performance indexes and uploads table exist

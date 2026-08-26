@@ -117,6 +117,8 @@ const PhotoCard = ({
         role="button"
         aria-label={isInitialPhoto ? `Foto temuan: ${photo.keterangan || "Detail Spesifikasi Foto"}` : `Foto follow-up: ${photo.keterangan || "Lihat Full"}`}
       >
+        {/* Dynamic authenticated upload URLs intentionally use a native image element. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={formatImageUrl(photo.image_url) || "/placeholder.png"}
           alt={photo.keterangan || "Foto bukti temuan audit"}

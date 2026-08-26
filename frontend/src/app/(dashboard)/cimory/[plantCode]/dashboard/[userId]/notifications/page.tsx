@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { notificationApi } from "@/lib/api/notification.api";
+import { notificationApi, type Notification } from "@/lib/api/notification.api";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import {
@@ -17,7 +17,6 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 
 // Helper to get icon based on notification type
@@ -70,7 +69,7 @@ export default function NotificationsPage() {
   const notifications = data?.data?.items || [];
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  const handleNotificationClick = (notification: any) => {
+  const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       markAsReadMutation.mutate(notification.id);
     }

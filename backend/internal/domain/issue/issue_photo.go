@@ -24,9 +24,9 @@ type IssuePhoto struct {
 	RefPhotoID       *string    `gorm:"column:RefPhotoID;size:20" json:"ref_photo_id,omitempty"`
 	PICUserID        string     `gorm:"column:PICUserID;not null" json:"pic_user_id"`
 	PhotoType        PhotoType  `gorm:"column:PhotoType;size:20;not null" json:"photo_type"`
-	ImageUrl         string     `gorm:"column:ImageUrl;size:255" json:"image_url"`
-	FileName         string     `gorm:"column:FileName;size:255" json:"file_name"`
-	Keterangan       string     `gorm:"column:Keterangan;size:255" json:"keterangan,omitempty"`
+	ImageUrl         string     `gorm:"column:ImageUrl;type:text" json:"image_url"`
+	FileName         string     `gorm:"column:FileName;type:text" json:"file_name"`
+	Keterangan       string     `gorm:"column:Keterangan;type:text" json:"keterangan,omitempty"`
 	HEIID            *string    `gorm:"column:HEIID;size:50" json:"hei_id,omitempty"`
 	HEICategory      string     `gorm:"column:HEICategory;size:50" json:"hei_category,omitempty"`
 	HabitID          *string    `gorm:"column:HabitID;size:50" json:"habit_id,omitempty"`

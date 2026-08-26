@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SerwistProvider } from "@serwist/turbopack/react";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
@@ -6,8 +7,8 @@ const geistSans = { variable: "font-sans" };
 const geistMono = { variable: "font-mono" };
 
 export const metadata: Metadata = {
-  title: "Audit Monitoring System",
-  description: "Sistem Monitoring Audit Internal",
+  title: "I-GMP Website",
+  description: "Sistem Monitoring I-GMP Website",
   manifest: "/manifest.json",
   icons: {
     icon: [{ url: "/Logo_plant_New.png", type: "image/png" }],
@@ -34,9 +35,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <Providers>
-          {children}
-        </Providers>
+        <SerwistProvider swUrl="/serwist/sw.js" disable={process.env.NODE_ENV === "development"}>
+          <Providers>
+            {children}
+          </Providers>
+        </SerwistProvider>
       </body>
     </html>
   );

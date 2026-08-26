@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -48,6 +49,9 @@ import (
 func main() {
 	// ── Load config & env ──────────────────────────────────────────────
 	cfg := config.Load()
+	if err := cfg.ValidateServer(); err != nil {
+		log.Fatalf("invalid server configuration: %v", err)
+	}
 
 	// ── Initialize logger ──────────────────────────────────────────────
 	log := logger.New(cfg.LogLevel, cfg.LogOutput, cfg.LogFilePath)

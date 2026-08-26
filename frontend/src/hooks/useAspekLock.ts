@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { inspectionApi } from "@/lib/api/inspection.api";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { getApiErrorMessage } from "@/lib/api/error";
 
 interface UseAspekLockProps {
   scopeId: string;
@@ -16,6 +17,7 @@ export function useAspekLock({ scopeId, aspekId, enabled = true }: UseAspekLockP
   const [isLockedByMe, setIsLockedByMe] = useState(false);
   const [lockError, setLockError] = useState<string | null>(null);
   const [isAcquiring, setIsAcquiring] = useState(false);
+  const [activeAspekId, setActiveAspekId] = useState<string | null>(null);
 
   const activeAspekRef = useRef<string | null>(null);
   const lockTokenRef = useRef<string | null>(null);
@@ -51,12 +53,13 @@ export function useAspekLock({ scopeId, aspekId, enabled = true }: UseAspekLockP
           setLockToken(newToken);
           setIsLockedByMe(true);
           activeAspekRef.current = targetAspekId;
+          setActiveAspekId(targetAspekId);
           setIsAcquiring(false);
           return true;
         }
         throw new Error(res?.error || "Gagal mengunci aspek");
-      } catch (err: any) {
-        const msg = err?.response?.data?.error || err?.message || "Aspek sedang dikunci oleh auditor lain";
+      } catch (err) {
+        const msg = getApiErrorMessage(err, "Aspek sedang dikunci oleh auditor lain");
         setLockError(msg);
         setLockToken(null);
         setIsLockedByMe(false);
@@ -78,6 +81,7 @@ export function useAspekLock({ scopeId, aspekId, enabled = true }: UseAspekLockP
       setLockToken(null);
       setIsLockedByMe(false);
       activeAspekRef.current = null;
+      setActiveAspekId(null);
       lockTokenRef.current = null;
     }
   }, [scopeId]);
@@ -86,6 +90,7 @@ export function useAspekLock({ scopeId, aspekId, enabled = true }: UseAspekLockP
   const handleLockExpired = useCallback(() => {
     setLockToken(null);
     setIsLockedByMe(false);
+    setActiveAspekId(null);
     setLockError("Sesi edit aspek Anda telah berakhir (expired)");
     toast.error("Waktu penguncian aspek habis. Klik tab aspek untuk mengunci kembali.");
   }, []);
@@ -93,9 +98,9 @@ export function useAspekLock({ scopeId, aspekId, enabled = true }: UseAspekLockP
   // Maintain heartbeat every 10s via existing useHeartbeat hook
   useHeartbeat({
     kawasanId: scopeId,
-    aspekId: activeAspekRef.current || aspekId || "",
+    aspekId: activeAspekId || aspekId || "",
     lockToken,
-    enabled: enabled && isLockedByMe && !!activeAspekRef.current,
+    enabled: enabled && isLockedByMe && !!activeAspekId,
     onLockExpired: handleLockExpired,
   });
 

@@ -2,7 +2,7 @@
 
 import { useTheme } from "@/components/providers";
 import { useMounted } from "@/lib/useMounted";
-import { Sun, Moon, Laptop } from "lucide-react";
+import { Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {

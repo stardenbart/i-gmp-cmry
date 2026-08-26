@@ -9,10 +9,12 @@ import (
 
 func main() {
 	cfg := config.Load()
-	db, err := config.NewDatabase(cfg)
+	db, err := config.OpenDatabase(cfg)
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
 
-	seeds.Run(db)
+	if err := seeds.Run(db); err != nil {
+		log.Fatalf("❌ Failed to seed database: %v", err)
+	}
 }

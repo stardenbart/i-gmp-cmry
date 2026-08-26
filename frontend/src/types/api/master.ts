@@ -6,6 +6,7 @@
 import { api } from "@/lib/api/axios";
 import type {
   Department,
+  Plant,
   CreateDepartmentRequest,
   UpdateDepartmentRequest,
   Area,
@@ -254,6 +255,6 @@ export const plantApi = {
     page = 1,
     limit = 100,
     search = ""
-  ): Promise<any> =>
+  ): Promise<PaginatedResponse<Plant>> =>
     fetchMasterData("/master/plants", page, limit, search),
 };

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/config"
 	logdomain "github.com/monitoring-system/backend/internal/domain/logging"
 	"github.com/monitoring-system/backend/internal/handler/inspectionhandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
@@ -25,7 +26,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase, minioStorage *storage.MinioStorage, rdb *redis.Client, cryptoSvc *crypto.Service) {
+func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.EventProducer, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase, minioStorage *storage.MinioStorage, rdb *redis.Client, cryptoSvc *crypto.Service, cfg *config.Config) {
 	headerRepo := inspectionrepo.NewInspectionHeaderRepository(db)
 	resultRepo := inspectionrepo.NewInspectionResultRepository(db)
 
@@ -34,8 +35,9 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	picRepo := picrepo.NewPICMappingRepository(db)
 	authRepo := authrepo.NewUserRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
+	notificationUC := buildNotificationUseCase(db, cfg)
 
-	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, settingRepo)
+	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, settingRepo, notificationUC)
 
 	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, kawasanRepo, emailNotifier)
 
@@ -44,7 +46,7 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	issuePhotoRepo := issuerepo.NewIssuePhotoRepository(db)
 	issueHEIRepo := issuerepo.NewIssueHEIRepository(db)
 	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
-	issueUC := issueusecase.NewIssueUseCase(issueRepo, issuePhotoRepo, issueHEIRepo, minioStorage, producer, mailer, authRepo, settingRepo, issueDelegateRepo, cryptoSvc, rdb)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, issuePhotoRepo, issueHEIRepo, minioStorage, producer, mailer, authRepo, settingRepo, issueDelegateRepo, cryptoSvc, rdb, notificationUC)
 
 	resultUC := inspectionusecase.NewInspectionResultUseCase(resultRepo, issueUC, headerUC)
 

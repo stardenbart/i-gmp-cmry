@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/config"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/apikeyrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/loggingrepo"
 	"github.com/monitoring-system/backend/internal/usecase/apikeyusecase"
@@ -19,7 +20,7 @@ import (
 
 // Register mounts all v1 route groups onto the given RouterGroup.
 // Each route file is responsible for wiring its own repositories, use cases, and handlers.
-func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, log *logger.Logger) {
+func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, mailer mail.Mailer, producer kafka.EventProducer, osClient *opensearch.Client, jwtManager *jwt.Manager, log *logger.Logger, cfg *config.Config) {
 	// Bootstrap shared ActivityLog UseCase — passed to all route groups for activity tracking
 	actLogRepo := loggingrepo.NewActivityLogRepository(db)
 	actLogUC := loggingusecase.NewActivityLogUseCase(actLogRepo, producer)
@@ -38,12 +39,12 @@ func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.C
 	RegisterAuthRoutes(rg, db, mailer, jwtManager, log, actLogUC)
 	RegisterMasterRoutes(rg, db, minioStorage, cryptoSvc, jwtManager, log, actLogUC)
 	RegisterPICRoutes(rg, db, jwtManager, log, actLogUC)
-	RegisterInspectionRoutes(rg, db, producer, mailer, jwtManager, log, actLogUC, minioStorage, redisClient, cryptoSvc)
+	RegisterInspectionRoutes(rg, db, producer, mailer, jwtManager, log, actLogUC, minioStorage, redisClient, cryptoSvc, cfg)
 	RegisterDistributedInspectionRoutes(app, rg, db, redisClient, producer, jwtManager, log)
-	RegisterIssueRoutes(rg, db, redisClient, minioStorage, cryptoSvc, producer, mailer, jwtManager, log, actLogUC)
+	RegisterIssueRoutes(rg, db, redisClient, minioStorage, cryptoSvc, producer, mailer, jwtManager, log, actLogUC, cfg)
 	RegisterLoggingRoutes(rg, db, producer, jwtManager, log)
 	RegisterSearchRoutes(rg, osClient, jwtManager, log)
 	RegisterUploadRoutes(rg, db, minioStorage, producer, jwtManager, log, actLogUC)
-	RegisterNotificationRoutes(rg, db, jwtManager, log)
+	RegisterNotificationRoutes(rg, db, jwtManager, log, cfg)
 	RegisterDashboardRoutes(rg, db, cryptoSvc, jwtManager, log)
 }

@@ -45,23 +45,28 @@ func (IssueHEI) TableName() string { return "Issue_HEI" }
 
 // Issue represents the Issue table.
 type Issue struct {
-	DetailKawasanID  string      `gorm:"column:DetailKawasanID" json:"detail_kawasan_id"`
-	IssueID             string        `gorm:"column:IssueID;primaryKey" json:"issue_id"`
-	ResultID            string        `gorm:"column:ResultID;not null" json:"result_id"`
-	IssuePICUserID      string        `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`
-	DueDate             *time.Time    `gorm:"column:DueDate" json:"due_date"`
-	IssueStatus         IssueStatus   `gorm:"column:IssueStatus;not null;default:Open" json:"issue_status"`
-	ComputedIssueStatus IssueStatus   `gorm:"-" json:"computed_status,omitempty"`
-	FollowUpDelay       *int          `gorm:"column:FollowUpDelay" json:"follow_up_delay,omitempty"`
-	Label               string        `gorm:"column:Label;size:100" json:"label"`
-	NeedsWOWR           bool          `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
-	WO_ID               string        `gorm:"column:WO_ID;size:100" json:"wo_id"`
-	WR_ID               string        `gorm:"column:WR_ID;size:100" json:"wr_id"`
-	WOWRStatus          WOWRStatus    `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
-	Keterangan          string        `gorm:"column:Keterangan;size:255" json:"keterangan"`
-	PICName             string        `gorm:"-" json:"pic_name"`
-	IssueCreatedAt      time.Time     `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
-	IssueUpdatedAt      time.Time     `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
+	DetailKawasanID     string      `gorm:"column:DetailKawasanID" json:"detail_kawasan_id"`
+	IssueID             string      `gorm:"column:IssueID;primaryKey" json:"issue_id"`
+	ResultID            string      `gorm:"column:ResultID;not null" json:"result_id"`
+	IssuePICUserID      string      `gorm:"column:IssuePICUserID;not null" json:"issue_pic_user_id"`
+	DueDate             *time.Time  `gorm:"column:DueDate" json:"due_date"`
+	IssueStatus         IssueStatus `gorm:"column:IssueStatus;not null;default:Open" json:"issue_status"`
+	ComputedIssueStatus IssueStatus `gorm:"-" json:"computed_status,omitempty"`
+	FollowUpDelay       *int        `gorm:"column:FollowUpDelay" json:"follow_up_delay,omitempty"`
+	// WOWRSubmittedAt marks when WOWRStatus last became PendingValidation, kept
+	// separate from IssueUpdatedAt so the WO/WR auto-approve timeout (its own
+	// setting, distinct from the regular follow-up timeout) counts from the
+	// moment the PIC actually submitted WO/WR proof, not from unrelated edits.
+	WOWRSubmittedAt *time.Time `gorm:"column:WOWRSubmittedAt" json:"wowr_submitted_at,omitempty"`
+	Label               string      `gorm:"column:Label;size:100" json:"label"`
+	NeedsWOWR           bool        `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
+	WO_ID               string      `gorm:"column:WO_ID;size:100" json:"wo_id"`
+	WR_ID               string      `gorm:"column:WR_ID;size:100" json:"wr_id"`
+	WOWRStatus          WOWRStatus  `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
+	Keterangan          string      `gorm:"column:Keterangan;type:text" json:"keterangan"`
+	PICName             string      `gorm:"-" json:"pic_name"`
+	IssueCreatedAt      time.Time   `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
+	IssueUpdatedAt      time.Time   `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Joined Name Fields (not saved to DB)
 	AreaName           string `gorm:"column:AreaName;->" json:"area_name,omitempty"`

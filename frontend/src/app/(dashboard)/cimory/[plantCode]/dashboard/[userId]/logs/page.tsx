@@ -27,6 +27,33 @@ import { useAuthStore } from "@/stores/authStore";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
 import { ChevronDown, Filter } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
+import type { User as UserRecord } from "@/types/api";
+
+interface LogRecord {
+  activity_log_id?: string;
+  login_log_id?: string;
+  user_id: string;
+  created_at?: string;
+  login_at?: string;
+  logout_at?: string;
+  ip_address?: string;
+  device_info?: string;
+  login_status?: string;
+  activity_action?: string;
+  table_affected?: string;
+  module_id?: string;
+  record_id?: string;
+  activity_description?: string;
+  old_value?: string;
+  new_value?: string;
+}
+
+interface LogsResponse {
+  data: {
+    items: LogRecord[];
+    pagination: { total: number; page: number; limit: number; total_pages: number };
+  };
+}
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -38,25 +65,25 @@ import {
 } from "@/store/slices/logFilterSlice";
 
 const fetchActivityLogs = async (page = 1, search = "", userId = "", plantId = "") => {
-  const params: Record<string, any> = { page, limit: 10 };
+  const params: Record<string, string | number> = { page, limit: 10 };
   if (search) params.search = search;
   if (userId && userId !== "ALL") params.user_id = userId;
   if (plantId && plantId !== "ALL") params.plant_id = plantId;
   const res = await api.get("/logs/activity", { params });
-  return res.data;
+  return res.data as LogsResponse;
 };
 
 const fetchLoginLogs = async (page = 1, userId = "", plantId = "") => {
-  const params: Record<string, any> = { page, limit: 10 };
+  const params: Record<string, string | number> = { page, limit: 10 };
   if (userId && userId !== "ALL") params.user_id = userId;
   if (plantId && plantId !== "ALL") params.plant_id = plantId;
   const res = await api.get("/logs/login", { params });
-  return res.data;
+  return res.data as LogsResponse;
 };
 
 const fetchAllUsers = async () => {
   const res = await api.get("/users", { params: { limit: 1000 } });
-  return res.data?.items || [];
+  return (res.data?.items || []) as UserRecord[];
 };
 
 export default function LogsPage() {
@@ -72,7 +99,7 @@ export default function LogsPage() {
   const { activeTab, page, searchQuery, userFilter, plantFilter } = useAppSelector(
     (state) => state.logFilter
   );
-  const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [selectedLog, setSelectedLog] = useState<LogRecord | null>(null);
 
   const [searchInputValue, setSearchInputValue] = useState(searchQuery || "");
   const debouncedSearchValue = useDebounce(searchInputValue, 400);
@@ -115,11 +142,11 @@ export default function LogsPage() {
   const pagination = currentData?.pagination || { total: 0, page: 1, limit: 10, total_pages: 1 };
 
   const getUserName = (id: string) => {
-    const found = usersList.find((u: any) => u.user_id === id);
+    const found = usersList.find((u) => u.user_id === id);
     return found ? `${found.full_name} (${found.user_id})` : id;
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
     if (!dateString) return "-";
     return new Date(dateString).toLocaleString('id-ID', {
       year: 'numeric', month: 'short', day: 'numeric',
@@ -214,7 +241,7 @@ export default function LogsPage() {
               >
                 <option value="ALL">Semua Plant</option>
                 <option value="GLOBAL">Global (SuperAdmin)</option>
-                {plantsList.map((p: any) => (
+                {plantsList.map((p) => (
                   <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
                 ))}
               </select>
@@ -229,7 +256,7 @@ export default function LogsPage() {
               onChange={(e) => dispatch(setUserFilter(e.target.value))}
             >
               <option value="ALL">Semua User</option>
-              {usersList.map((u: any) => (
+              {usersList.map((u) => (
                 <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
               ))}
             </select>
@@ -269,7 +296,7 @@ export default function LogsPage() {
               ) : items.length === 0 ? (
                 <tr><td colSpan={7} className="p-12 text-center text-muted-foreground">Tidak ada riwayat log ditemukan</td></tr>
               ) : (
-                items.map((log: any, idx: number) => (
+                items.map((log, idx: number) => (
                   <tr key={log.activity_log_id || log.login_log_id || idx} className="hover:bg-muted/30 transition-colors">
                     {activeTab === "activity" ? (
                       <>

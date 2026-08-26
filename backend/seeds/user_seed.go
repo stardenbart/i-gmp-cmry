@@ -1,7 +1,9 @@
 package seeds
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/pkg/password"
@@ -16,7 +18,6 @@ type SeedUserDef struct {
 	Username     string
 	FullName     string
 	Email        string
-	Password     string
 }
 
 func strPtr(s string) *string {
@@ -33,7 +34,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "superadmin",
 		FullName:     "Global Super Admin",
 		Email:        "superadmin@cimory.com",
-		Password:     "admin123",
 	},
 
 	// ─── 1. PLANT SENTUL (PLT-SENTUL) ─────────────────────────────────────────
@@ -45,7 +45,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "admin",
 		FullName:     "Admin Sentul",
 		Email:        "admin@cimory.com",
-		Password:     "admin123",
 	},
 	{
 		UserID:       "USR-ADMIN-SENTUL",
@@ -55,7 +54,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "admin_sentul",
 		FullName:     "Admin Plant Sentul",
 		Email:        "admin.sentul@cimory.com",
-		Password:     "admin123",
 	},
 	{
 		UserID:       "USR-AUDIT-001",
@@ -65,7 +63,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditor",
 		FullName:     "Inspektur Auditor Sentul",
 		Email:        "auditor@cimory.com",
-		Password:     "auditor123",
 	},
 	{
 		UserID:       "USR-AUDIT-SENTUL",
@@ -75,7 +72,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditor_sentul",
 		FullName:     "Auditor Plant Sentul",
 		Email:        "auditor.sentul@cimory.com",
-		Password:     "auditor123",
 	},
 	{
 		UserID:       "USR-AUDITEE-001",
@@ -85,7 +81,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditee",
 		FullName:     "PIC Auditee Sentul",
 		Email:        "auditee@cimory.com",
-		Password:     "auditee123",
 	},
 	{
 		UserID:       "USR-AUDITEE-SENTUL",
@@ -95,7 +90,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditee_sentul",
 		FullName:     "PIC Auditee Plant Sentul",
 		Email:        "auditee.sentul@cimory.com",
-		Password:     "auditee123",
 	},
 	{
 		UserID:       "USR-SUPERVISOR-001",
@@ -105,7 +99,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "supervisor",
 		FullName:     "Supervisor Sentul",
 		Email:        "supervisor@cimory.com",
-		Password:     "supervisor123",
 	},
 	{
 		UserID:       "USR-MANAGER-001",
@@ -115,7 +108,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "manager",
 		FullName:     "Manager QA Sentul",
 		Email:        "manager@cimory.com",
-		Password:     "manager123",
 	},
 	{
 		UserID:       "USR-STAFF-001",
@@ -125,7 +117,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "staff",
 		FullName:     "Staff Operasional Sentul",
 		Email:        "staff@cimory.com",
-		Password:     "staff123",
 	},
 
 	// ─── 2. PLANT CICURUG (PLT-CICURUG) ───────────────────────────────────────
@@ -137,7 +128,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "admin_cicurug",
 		FullName:     "Admin Plant Cicurug",
 		Email:        "admin.cicurug@cimory.com",
-		Password:     "admin123",
 	},
 	{
 		UserID:       "USR-AUDIT-CICURUG",
@@ -147,7 +137,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditor_cicurug",
 		FullName:     "Auditor Plant Cicurug",
 		Email:        "auditor.cicurug@cimory.com",
-		Password:     "auditor123",
 	},
 	{
 		UserID:       "USR-AUDITEE-CICURUG",
@@ -157,7 +146,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditee_cicurug",
 		FullName:     "PIC Auditee Plant Cicurug",
 		Email:        "auditee.cicurug@cimory.com",
-		Password:     "auditee123",
 	},
 	{
 		UserID:       "USR-SPV-CICURUG",
@@ -167,7 +155,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "supervisor_cicurug",
 		FullName:     "Supervisor Plant Cicurug",
 		Email:        "supervisor.cicurug@cimory.com",
-		Password:     "supervisor123",
 	},
 	{
 		UserID:       "USR-MANAGER-CICURUG",
@@ -177,7 +164,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "manager_cicurug",
 		FullName:     "Manager QA Plant Cicurug",
 		Email:        "manager.cicurug@cimory.com",
-		Password:     "manager123",
 	},
 	{
 		UserID:       "USR-STAFF-CICURUG",
@@ -187,7 +173,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "staff_cicurug",
 		FullName:     "Staff Operasional Cicurug",
 		Email:        "staff.cicurug@cimory.com",
-		Password:     "staff123",
 	},
 
 	// ─── 3. PLANT PASURUAN (PLT-PASURUAN) ────────────────────────────────────
@@ -199,7 +184,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "admin_pasuruan",
 		FullName:     "Admin Plant Pasuruan",
 		Email:        "admin.pasuruan@cimory.com",
-		Password:     "admin123",
 	},
 	{
 		UserID:       "USR-AUDIT-PASURUAN",
@@ -209,7 +193,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditor_pasuruan",
 		FullName:     "Auditor Plant Pasuruan",
 		Email:        "auditor.pasuruan@cimory.com",
-		Password:     "auditor123",
 	},
 	{
 		UserID:       "USR-AUDITEE-PASURUAN",
@@ -219,7 +202,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "auditee_pasuruan",
 		FullName:     "PIC Auditee Plant Pasuruan",
 		Email:        "auditee.pasuruan@cimory.com",
-		Password:     "auditee123",
 	},
 	{
 		UserID:       "USR-SPV-PASURUAN",
@@ -229,7 +211,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "supervisor_pasuruan",
 		FullName:     "Supervisor Plant Pasuruan",
 		Email:        "supervisor.pasuruan@cimory.com",
-		Password:     "supervisor123",
 	},
 	{
 		UserID:       "USR-MANAGER-PASURUAN",
@@ -239,7 +220,6 @@ var defaultUsers = []SeedUserDef{
 		Username:     "manager_pasuruan",
 		FullName:     "Manager QA Plant Pasuruan",
 		Email:        "manager.pasuruan@cimory.com",
-		Password:     "manager123",
 	},
 	{
 		UserID:       "USR-STAFF-PASURUAN",
@@ -249,17 +229,37 @@ var defaultUsers = []SeedUserDef{
 		Username:     "staff_pasuruan",
 		FullName:     "Staff Operasional Pasuruan",
 		Email:        "staff.pasuruan@cimory.com",
-		Password:     "staff123",
 	},
 }
 
+func seedPassword(roleID string) (string, error) {
+	envName := map[string]string{
+		"ROLE-000": "SEED_ADMIN_PASSWORD",
+		"ROLE-001": "SEED_ADMIN_PASSWORD",
+		"ROLE-002": "SEED_AUDITOR_PASSWORD",
+		"ROLE-003": "SEED_AUDITEE_PASSWORD",
+		"ROLE-004": "SEED_SUPERVISOR_PASSWORD",
+		"ROLE-005": "SEED_MANAGER_PASSWORD",
+		"ROLE-006": "SEED_STAFF_PASSWORD",
+	}[roleID]
+	value := os.Getenv(envName)
+	if envName == "" || len(value) < 32 {
+		return "", fmt.Errorf("%s must be set to at least 32 characters", envName)
+	}
+	return value, nil
+}
+
 // SeedUsers creates default users for all roles across all plants.
-func SeedUsers(db *gorm.DB) {
+func SeedUsers(db *gorm.DB) error {
 	for _, u := range defaultUsers {
 		var count int64
 		db.Model(&authdomain.User{}).Where("\"Username\" = ?", u.Username).Count(&count)
 		if count == 0 {
-			hashed, err := password.Hash(u.Password)
+			plainPassword, err := seedPassword(u.RoleID)
+			if err != nil {
+				return err
+			}
+			hashed, err := password.Hash(plainPassword)
 			if err != nil {
 				log.Printf("Failed to hash password for %s: %v", u.Username, err)
 				continue
@@ -280,7 +280,7 @@ func SeedUsers(db *gorm.DB) {
 			if err := db.Create(&user).Error; err != nil {
 				log.Printf("❌ Failed to seed user %s: %v", u.Username, err)
 			} else {
-				log.Printf("   ✔ User seeded (username: %s, password: %s, plant: %v)", u.Username, u.Password, u.PlantID)
+				log.Printf("   ✔ User seeded (username: %s, plant: %v)", u.Username, u.PlantID)
 			}
 		} else {
 			// Update PlantID if missing on existing user
@@ -289,9 +289,37 @@ func SeedUsers(db *gorm.DB) {
 			}
 		}
 	}
+	return nil
+}
+
+// RotateDefaultUserPasswords updates only the well-known accounts managed by
+// this seeder. It never logs plaintext credentials and commits atomically.
+func RotateDefaultUserPasswords(db *gorm.DB) (int64, error) {
+	var updated int64
+	err := db.Transaction(func(tx *gorm.DB) error {
+		for _, u := range defaultUsers {
+			plainPassword, err := seedPassword(u.RoleID)
+			if err != nil {
+				return err
+			}
+			hashed, err := password.Hash(plainPassword)
+			if err != nil {
+				return fmt.Errorf("hash password for %s: %w", u.Username, err)
+			}
+			result := tx.Model(&authdomain.User{}).
+				Where("\"UserID\" = ? AND \"Username\" = ?", u.UserID, u.Username).
+				Update("PasswordHash", hashed)
+			if result.Error != nil {
+				return fmt.Errorf("update password for %s: %w", u.Username, result.Error)
+			}
+			updated += result.RowsAffected
+		}
+		return nil
+	})
+	return updated, err
 }
 
 // Backwards compatibility wrappers
-func SeedAdminUser(db *gorm.DB)   { SeedUsers(db) }
+func SeedAdminUser(db *gorm.DB)   { _ = SeedUsers(db) }
 func SeedAuditorUser(db *gorm.DB) {}
 func SeedAuditeeUser(db *gorm.DB) {}

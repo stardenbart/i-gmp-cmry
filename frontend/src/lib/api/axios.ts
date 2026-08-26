@@ -1,6 +1,5 @@
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
-import { decryptApiResponseData } from "@/lib/crypto";
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
@@ -29,14 +28,10 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor to handle 401 Unauthorized globally & auto-decrypt encrypted API payloads
+// Interceptor to handle 401 Unauthorized globally. Sensitive fields are always
+// decrypted by the backend; encryption keys must never be shipped to browsers.
 api.interceptors.response.use(
-  async (response) => {
-    if (response.data) {
-      response.data = await decryptApiResponseData(response.data);
-    }
-    return response;
-  },
+  (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       // Clear token and redirect to login

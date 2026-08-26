@@ -1,14 +1,7 @@
 "use client";
 
-import { useState, useCallback, lazy, Suspense } from "react";
-import { 
-  ClipboardCheck, 
-  CheckCircle, 
-  AlertTriangle, 
-  RefreshCw,
-  Loader2,
-  ListTodo
-} from "lucide-react";
+import { useCallback, lazy, Suspense } from "react";
+import { RefreshCw, Loader2, ListTodo } from "lucide-react";
 
 // Lazy load heavy chart components
 const AreaChart = lazy(() => import("@/components/ui/area-chart").then(mod => ({ default: mod.AreaChart })));
@@ -20,7 +13,6 @@ import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { format, isPast } from "date-fns";
 import { usePolling } from "@/hooks/usePolling";
 
 export const DashboardPanelAuditor = () => {
@@ -74,8 +66,8 @@ export const DashboardPanelAuditor = () => {
   // Calculate metrics
   const inspections = inspectionsData?.items || [];
   const totalInspections = inspections.length;
-  const completedInspections = inspections.filter((i: any) => i.status === "Completed" || i.status === "Approved").length;
-  const ongoingInspections = inspections.filter((i: any) => i.status === "Ongoing" || i.status === "Draft").length;
+  const completedInspections = inspections.filter((i) => i.status === "Completed" || i.status === "Approved").length;
+  const ongoingInspections = inspections.filter((i) => i.status === "Ongoing" || i.status === "Draft").length;
 
   const issues = Array.isArray(issuesData?.items)
     ? issuesData.items
@@ -84,12 +76,12 @@ export const DashboardPanelAuditor = () => {
     : [];
 
   const pendingValidationList = issues.filter(
-    (i: any) => i.issue_status === "PendingValidation" || i.computed_status === "PendingValidation"
+    (i) => i.issue_status === "PendingValidation" || i.computed_status === "PendingValidation"
   );
   const pendingValidationCount = pendingValidationList.length;
 
   const openIssues = issues.filter(
-    (i: any) =>
+    (i) =>
       i.computed_status === "Open" ||
       i.computed_status === "OpenOverdue" ||
       i.issue_status === "Open" ||
@@ -216,7 +208,7 @@ export const DashboardPanelAuditor = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-            {pendingValidationList.slice(0, 3).map((issue: any) => (
+            {pendingValidationList.slice(0, 3).map((issue) => (
               <Link key={issue.issue_id} href={`/cimory/${user?.plant_id || 'global'}/dashboard/${user?.id || 'overview'}/issues/${issue.issue_id}`}>
                 <div className="p-3.5 rounded-xl border border-purple-500/20 bg-card hover:border-purple-500/50 hover:shadow-md transition-all cursor-pointer space-y-2">
                   <div className="flex items-center justify-between">

@@ -1,24 +1,12 @@
 import type { NextConfig } from "next";
+import { withSerwist } from "@serwist/turbopack";
 
-const withPWA = require("next-pwa")({
-  dest: "public",
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === "production", //production
-  runtimeCaching: [
-    {
-      urlPattern: /\.(?:css|js)$/,
-      handler: "NetworkFirst",
-      options: {
-        cacheName: "static-resources",
-        expiration: {
-          maxEntries: 64,
-          maxAgeSeconds: 24 * 60 * 60, // 24 jam fallback offline
-        },
-      },
-    },
-  ],
-});
+// next-pwa was retired: it hooks into the webpack config, but Next.js 16
+// defaults `next build`/`next dev` to Turbopack, which ignores webpack()
+// entirely — so next-pwa's service worker was silently never generated.
+// @serwist/turbopack replaces it with a Turbopack-native equivalent: the
+// actual service worker is built by the Route Handler at
+// app/serwist/[path]/route.ts, with its source in app/sw.ts.
 
 const nextConfig: NextConfig = {
   compress: true,
@@ -46,9 +34,6 @@ const nextConfig: NextConfig = {
     "http://127.0.0.1:3000",
     "http://127.0.0.1:9000",
     "http://127.0.0.1:8080",
-    "pug-widow-rewind.ngrok-free.dev",
-    "*.ngrok-free.dev",
-    "*.ngrok.io",
   ],
   images: {
     unoptimized: true,
@@ -63,16 +48,6 @@ const nextConfig: NextConfig = {
         protocol: "http",
         hostname: "minio",
         port: "9000",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "*.ngrok-free.dev",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "*.ngrok.io",
         pathname: "/**",
       },
     ],
@@ -132,4 +107,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+export default withSerwist(nextConfig);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card } from "../ui/card";
@@ -7,6 +7,7 @@ import { Input } from "../ui/input";
 import { Wrench, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Issue, issueApi, WOWRStatus } from "@/lib/api/issue.api";
 import { cn } from "@/lib/utils";
+import { getApiErrorMessage } from "@/lib/api/error";
 
 interface WOWRCardProps {
   issue: Issue;
@@ -16,11 +17,18 @@ interface WOWRCardProps {
 
 export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
   const queryClient = useQueryClient();
-  const [type, setType] = useState<"WOWR" | "None" | "">(
-    issue.needs_wo_wr || issue.wo_id || issue.wr_id ? "WOWR" : "None"
-  );
-  
-  const [inputValue, setInputValue] = useState("");
+  const initialType = issue.needs_wo_wr || issue.wo_id || issue.wr_id ? "WOWR" : "None";
+  const [editor, setEditor] = useState<{
+    issueId: string;
+    type: "WOWR" | "None" | "";
+    inputValue: string;
+  }>({ issueId: issue.issue_id, type: initialType, inputValue: issue.wo_id || issue.wr_id || "" });
+  const type = editor.issueId === issue.issue_id ? editor.type : initialType;
+  const inputValue = editor.issueId === issue.issue_id ? editor.inputValue : issue.wo_id || issue.wr_id || "";
+  const setType = (value: "WOWR" | "None" | "") =>
+    setEditor({ issueId: issue.issue_id, type: value, inputValue });
+  const setInputValue = (value: string) =>
+    setEditor({ issueId: issue.issue_id, type, inputValue: value });
 
   const wowrMutation = useMutation({
     mutationFn: (data: { needs_wo_wr: boolean; wo_id: string; wr_id: string; wowr_status?: WOWRStatus }) => 
@@ -30,8 +38,8 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Data Maintenance WO/WR berhasil disimpan. Harap tunggu konfirmasi Auditor.");
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal menyimpan data WO/WR.";
+    onError: (err) => {
+      const msg = getApiErrorMessage(err, "Gagal menyimpan data WO/WR.");
       toast.error(msg);
     },
   });
@@ -52,22 +60,11 @@ export const WOWRCard = ({ issue, isAuditor, canEdit }: WOWRCardProps) => {
         toast.error("Bukti WO/WR ditolak. Foto bukti lama dibersihkan.");
       }
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.response?.data?.error || "Gagal memperbarui status validasi WO/WR.";
+    onError: (err) => {
+      const msg = getApiErrorMessage(err, "Gagal memperbarui status validasi WO/WR.");
       toast.error(msg);
     },
   });
-
-  useEffect(() => {
-    // Determine initial state based on data
-    if (issue.needs_wo_wr || issue.wo_id || issue.wr_id) {
-      setType("WOWR");
-      setInputValue(issue.wo_id || issue.wr_id || "");
-    } else {
-      setType("None");
-      setInputValue("");
-    }
-  }, [issue]);
 
   const handleSave = () => {
     if (!type) return;

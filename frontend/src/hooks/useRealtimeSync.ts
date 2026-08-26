@@ -1,33 +1,45 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api/axios";
 
 interface UseRealtimeSyncOptions {
   kawasanId?: string | null;
-  onEvent?: (event: any) => void;
+  onEvent?: (event: RealtimeEvent) => void;
   onIssueUpdated?: () => void;
   pollIntervalMs?: number;
+}
+
+export interface RealtimeEvent {
+  type?: string;
+  [key: string]: unknown;
 }
 
 export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
   const queryClient = useQueryClient();
   const token = useAuthStore((state) => state.token);
-  const user = useAuthStore((state) => state.user);
-  
+
   const [isConnected, setIsConnected] = useState(false);
   const [isWebSocketActive, setIsWebSocketActive] = useState(false);
 
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
-
-  const lastPollTimeRef = useRef<number>(Date.now() - 10000);
-  const wsRef = useRef<WebSocket | null>(null);
+  const lastPollTimeRef = useRef<number>(0);
 
   const kawasanId = options?.kawasanId;
   const pollIntervalMs = options?.pollIntervalMs ?? 5000;
+  const handleRealtimeEvent = useEffectEvent((data: RealtimeEvent) => {
+    options?.onEvent?.(data);
+
+    if (data.type === "ISSUE_UPDATED" || data.type === "INSPECTION_UPDATED") {
+      queryClient.invalidateQueries({ queryKey: ["auditee-issues"] });
+      queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      options?.onIssueUpdated?.();
+    }
+  });
 
   // 1. Primary WebSocket Real-time Push
   useEffect(() => {
@@ -52,7 +64,6 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
 
     try {
       socket = new WebSocket(wsUrl);
-      wsRef.current = socket;
 
       socket.onopen = () => {
         setIsConnected(true);
@@ -68,24 +79,11 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
 
       socket.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse(event.data) as RealtimeEvent;
           if (data.type === "pong") return;
 
-          if (optionsRef.current?.onEvent) {
-            optionsRef.current.onEvent(data);
-          }
-
-          if (data.type === "ISSUE_UPDATED" || data.type === "INSPECTION_UPDATED") {
-            queryClient.invalidateQueries({ queryKey: ["auditee-issues"] });
-            queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
-            queryClient.invalidateQueries({ queryKey: ["issues"] });
-            queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
-            queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-            if (optionsRef.current?.onIssueUpdated) {
-              optionsRef.current.onIssueUpdated();
-            }
-          }
-        } catch (e) {}
+          handleRealtimeEvent(data);
+        } catch {}
       };
 
       socket.onerror = () => {
@@ -96,13 +94,15 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
         setIsConnected(false);
         setIsWebSocketActive(false);
       };
-    } catch (e) {
-      setIsWebSocketActive(false);
-    }
+    } catch {}
 
     return () => {
       if (pingInterval) clearInterval(pingInterval);
       if (socket) {
+		socket.onopen = null;
+		socket.onmessage = null;
+		socket.onerror = null;
+		socket.onclose = null;
         socket.close();
       }
     };
@@ -112,6 +112,9 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
   useEffect(() => {
     // If WebSocket is actively pushing events, SKIP HTTP polling 100%!
     if (isWebSocketActive || !token) return;
+	if (lastPollTimeRef.current === 0) {
+		lastPollTimeRef.current = Date.now() - 10000;
+	}
 
     let isMounted = true;
 
@@ -130,7 +133,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
         if (res.data?.data?.server_time) {
           lastPollTimeRef.current = res.data.data.server_time;
         }
-      } catch (err) {}
+      } catch {}
     };
 
     poll();

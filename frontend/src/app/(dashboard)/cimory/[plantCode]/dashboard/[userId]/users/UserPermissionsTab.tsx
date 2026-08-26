@@ -1,22 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api/axios";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { Check, X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+interface PermissionRecord { permission_id: string; permission_name: string }
+interface ModuleRecord { module_id: string; module_name: string; permissions?: PermissionRecord[] }
+interface PermissionAssignment { permission_id: string; is_allowed: boolean }
 
 export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId: string }) {
   const queryClient = useQueryClient();
 
-  const [modifiedPerms, setModifiedPerms] = useState<Record<string, boolean | null>>({});
+  const [modifiedState, setModifiedState] = useState<{
+    userId: string;
+    permissions: Record<string, boolean | null>;
+  }>({ userId, permissions: {} });
+  const modifiedPerms = modifiedState.userId === userId ? modifiedState.permissions : {};
   
   // 1. Fetch Modules (to build matrix structure)
   const { data: modulesData, isLoading: modulesLoading } = useQuery({
     queryKey: ["modules"],
     queryFn: async () => {
-      const res = await api.get("/master/modules");
+      const res = await api.get<{ data: ModuleRecord[] }>("/master/modules");
       return res.data?.data || [];
     }
   });
@@ -25,7 +34,7 @@ export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId:
   const { data: rolePermsData, isLoading: rolePermsLoading } = useQuery({
     queryKey: ["role-permissions", roleId],
     queryFn: async () => {
-      const res = await api.get(`/master/roles/${roleId}/permissions`);
+      const res = await api.get<{ data: PermissionAssignment[] }>(`/master/roles/${roleId}/permissions`);
       return res.data?.data || [];
     },
     enabled: !!roleId
@@ -35,16 +44,11 @@ export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId:
   const { data: userPermsData, isLoading: userPermsLoading } = useQuery({
     queryKey: ["user-permissions", userId],
     queryFn: async () => {
-      const res = await api.get(`/users/${userId}/permissions`);
+      const res = await api.get<{ data: PermissionAssignment[] }>(`/users/${userId}/permissions`);
       return res.data?.data || [];
     },
     enabled: !!userId
   });
-
-  useEffect(() => {
-    // Reset modified perms when modal opens/data loads
-    setModifiedPerms({});
-  }, [userId, userPermsData]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -56,7 +60,7 @@ export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId:
       const currentOverrides = userPermsData || [];
       const overridesMap: Record<string, boolean> = {};
       
-      currentOverrides.forEach((up: any) => {
+      currentOverrides.forEach((up) => {
         overridesMap[up.permission_id] = up.is_allowed;
       });
 
@@ -82,10 +86,11 @@ export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId:
     },
     onSuccess: () => {
       toast.success("Pengecualian hak akses berhasil disimpan");
+      setModifiedState({ userId, permissions: {} });
       queryClient.invalidateQueries({ queryKey: ["user-permissions", userId] });
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Gagal menyimpan perubahan");
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Gagal menyimpan perubahan"));
     }
   });
 
@@ -95,12 +100,12 @@ export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId:
 
   // Create fast lookup maps
   const roleMap: Record<string, boolean> = {};
-  rolePermsData?.forEach((rp: any) => {
+  rolePermsData?.forEach((rp) => {
     roleMap[rp.permission_id] = rp.is_allowed;
   });
 
   const userMap: Record<string, boolean> = {};
-  userPermsData?.forEach((up: any) => {
+  userPermsData?.forEach((up) => {
     userMap[up.permission_id] = up.is_allowed;
   });
 
@@ -124,7 +129,13 @@ export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId:
       nextState = null;
     }
 
-    setModifiedPerms(prev => ({ ...prev, [permId]: nextState }));
+    setModifiedState((prev) => ({
+      userId,
+      permissions: {
+        ...(prev.userId === userId ? prev.permissions : {}),
+        [permId]: nextState,
+      },
+    }));
   };
 
   const hasChanges = Object.keys(modifiedPerms).length > 0;
@@ -147,13 +158,13 @@ export function UserPermissionsTab({ userId, roleId }: { userId: string, roleId:
       </div>
 
       <div className="max-h-[50vh] overflow-y-auto space-y-6 pr-2">
-        {modulesData?.map((module: any) => (
+        {modulesData?.map((module) => (
           <div key={module.module_id} className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="bg-muted/50 px-4 py-2 border-b border-border font-semibold text-sm">
               {module.module_name}
             </div>
             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {module.permissions?.map((perm: any) => {
+              {module.permissions?.map((perm) => {
                 const roleAllowed = roleMap[perm.permission_id] || false;
                 const hasUserOverride = userMap[perm.permission_id] !== undefined;
                 const userAllowed = userMap[perm.permission_id];

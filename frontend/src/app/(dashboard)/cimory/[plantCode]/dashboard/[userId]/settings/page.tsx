@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
@@ -14,16 +15,16 @@ import { EmailEditorModal } from "./EmailEditorModal";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 
-import { masterApi } from "@/lib/api/master.api";
+import { masterApi, type SystemSetting } from "@/lib/api/master.api";
 import { ChevronDown, Filter } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setActiveTab, setPlantFilter } from "@/store/slices/settingsSlice";
 
 // The keys we care about for email templates
 const EMAIL_TEMPLATES = [
-  { key: "EMAIL_TEMPLATE_FORGOT_PASSWORD", title: "Lupa Password", description: "Email yang dikirim saat user meminta reset password." },
-  { key: "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT", title: "Penugasan Temuan (Issue)", description: "Email notifikasi saat user ditugaskan memperbaiki suatu temuan." },
-  { key: "EMAIL_TEMPLATE_INSPECTION_CONFIRMED", title: "Konfirmasi Inspeksi", description: "Email saat jadwal inspeksi telah disetujui/dikonfirmasi." },
+  { key: "EMAIL_TEMPLATE_FORGOT_PASSWORD", title: "Lupa Password", description: "Email yang dikirim saat user meminta reset password.", variables: ["FullName", "Username", "TempPassword"] },
+  { key: "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT", title: "Penugasan Temuan (Issue)", description: "Email notifikasi saat user ditugaskan memperbaiki suatu temuan.", variables: ["PICName", "IssueID", "Keterangan", "Status", "DueDate"] },
+  { key: "EMAIL_TEMPLATE_INSPECTION_CONFIRMED", title: "Konfirmasi Inspeksi", description: "Email saat inspeksi area telah selesai dan dikonfirmasi.", variables: ["AreaID", "TotalDetailKawasan", "CompletedDetailKawasan", "Status"] },
 ];
 
 const GENERAL_SETTINGS = [
@@ -36,10 +37,13 @@ const GENERAL_SETTINGS = [
     { key: "MINIO_ALLOWED_IPS", label: "IP yang Diizinkan untuk Penyimpanan", type: "text", desc: "Daftar IP yang diizinkan mengakses storage Minio (pisahkan dengan koma)." },
   ]},
   { group: "Tenggat Waktu Temuan (Issue)", keys: [
-    { key: "ISSUE_DEADLINE_DAYS", label: "Tenggat Waktu Penyelesaian (Hari)", type: "number", desc: "Waktu default yang diberikan untuk menyelesaikan sebuah temuan." },
-    { key: "ISSUE_AUTO_APPROVE_DAYS", label: "Waktu Auto-Approve (Hari)", type: "number", desc: "Waktu sebelum perbaikan temuan disetujui otomatis jika tidak diulas." },
+    { key: "ISSUE_DEADLINE_DAYS", label: "Tenggat Waktu Penyelesaian (Hari)", type: "number", desc: "Waktu default yang diberikan kepada PIC untuk menyelesaikan sebuah temuan sejak issue dibuat, sebelum jadi 'Overdue'." },
+    { key: "ISSUE_AUTO_APPROVE_DAYS", label: "Waktu Auto-Approve Follow-Up (Hari)", type: "number", desc: "Waktu tunggu auditor untuk meninjau follow-up perbaikan temuan (foto bukti perbaikan) sebelum disetujui otomatis oleh sistem." },
+    { key: "ISSUE_WOWR_AUTO_APPROVE_DAYS", label: "Waktu Auto-Approve WO/WR (Hari)", type: "number", desc: "Waktu tunggu auditor untuk memvalidasi bukti WO/WR yang diunggah PIC sebelum disetujui otomatis oleh sistem. Terpisah dari waktu auto-approve follow-up di atas." },
   ]}
 ];
+
+type EmailTemplateConfig = (typeof EMAIL_TEMPLATES)[number];
 
 const SMTP_DEFAULTS: Record<string, string> = {
   SMTP_ENABLED: "true",
@@ -70,6 +74,7 @@ export default function SettingsPage() {
   const smtpPlantID = isSuperAdmin
     ? (plantFilter && plantFilter !== "ALL" ? plantFilter : "GLOBAL")
     : (user?.plant_id || "GLOBAL");
+  const settingsPlantID = smtpPlantID;
   
   useEffect(() => {
     if (!isSuperAdmin && user?.plant_id) {
@@ -99,18 +104,15 @@ export default function SettingsPage() {
 
   // Fetch all settings
   const { data: settingsData, isLoading: settingsLoading } = useQuery({
-    queryKey: ["settings", plantFilter],
+    queryKey: ["settings", settingsPlantID],
     queryFn: async () => {
-      const params: Record<string, any> = {};
-      if (plantFilter && plantFilter !== "ALL") {
-        params.plant_id = plantFilter;
-      }
-      const res = await api.get("/master/settings", { params });
+      const params = { plant_id: settingsPlantID };
+      const res = await api.get<{ data: SystemSetting[] }>("/master/settings", { params });
       
       // Initialize general values
       const fetched = res.data?.data || [];
       const initialGen: Record<string, string> = {};
-      fetched.forEach((s: any) => {
+      fetched.forEach((s) => {
         initialGen[s.setting_key] = s.setting_value;
       });
       setGeneralValues(initialGen);
@@ -123,11 +125,11 @@ export default function SettingsPage() {
   const { isLoading: smtpLoading } = useQuery({
     queryKey: ["settings-smtp", smtpPlantID],
     queryFn: async () => {
-      const res = await api.get("/master/settings", { params: { plant_id: smtpPlantID } });
+      const res = await api.get<{ data: SystemSetting[] }>("/master/settings", { params: { plant_id: smtpPlantID } });
       const fetched = res.data?.data || [];
       const nextValues = { ...SMTP_DEFAULTS };
       let passwordConfigured = false;
-      fetched.forEach((setting: any) => {
+      fetched.forEach((setting) => {
         if (!(setting.setting_key in nextValues)) return;
         if (setting.setting_key === "SMTP_PASSWORD") {
           passwordConfigured = setting.setting_value === "***";
@@ -139,7 +141,7 @@ export default function SettingsPage() {
       setSmtpValues(nextValues);
       setSmtpPasswordConfigured(passwordConfigured);
       setSmtpHasPlantOverride(
-        smtpPlantID !== "GLOBAL" && fetched.some((setting: any) =>
+        smtpPlantID !== "GLOBAL" && fetched.some((setting) =>
           setting.setting_key in SMTP_DEFAULTS && setting.plant_id === smtpPlantID
         )
       );
@@ -151,48 +153,43 @@ export default function SettingsPage() {
   // Save Mutation
   const saveSettingMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string, value: string }) => {
-      const params: Record<string, any> = {};
-      if (plantFilter && plantFilter !== "ALL") {
-        params.plant_id = plantFilter;
-      }
-      return api.put(`/master/settings/${key}`, { setting_value: value, plant_id: plantFilter !== "ALL" ? plantFilter : undefined }, { params });
+      const params = { plant_id: settingsPlantID };
+      return api.put(`/master/settings/${key}`, { setting_value: value, plant_id: settingsPlantID }, { params });
     },
     onSuccess: () => {
       toast.success("Pengaturan berhasil disimpan");
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       setEditorOpen(false);
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Gagal menyimpan pengaturan");
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Gagal menyimpan pengaturan"));
     }
   });
 
-  const handleOpenEditor = (template: any) => {
+  const handleOpenEditor = (template: EmailTemplateConfig) => {
     setEditorKey(template.key);
     setEditorTitle(`Edit Template: ${template.title}`);
     setEditorOpen(true);
   };
 
   // Derive initial data so it's always up to date even if settingsData updates in the background
-  const activeSetting = settingsData?.find((s: any) => s.setting_key === editorKey);
+  const activeSetting = settingsData?.find((s) => s.setting_key === editorKey);
   const derivedInitialData = activeSetting?.setting_value || "";
 
-  const handleSaveEmailTemplate = (html: string, design: any) => {
-    // Combine HTML and JSON design into a single JSON string
-    const payload = JSON.stringify({ html, design });
+  const handleSaveEmailTemplate = (html: string, design: unknown) => {
+    // Keep the editor design for future edits. The backend extracts only HTML
+    // from this versioned envelope before rendering and sending the email.
+    const payload = JSON.stringify({ version: 1, html, design });
     saveSettingMutation.mutate({ key: editorKey, value: payload });
   };
 
   const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();
-    const params: Record<string, any> = {};
-    if (plantFilter && plantFilter !== "ALL") {
-      params.plant_id = plantFilter;
-    }
+    const params = { plant_id: settingsPlantID };
     // Save all general settings sequentially
     const generalKeys = GENERAL_SETTINGS.flatMap(group => group.keys.map(item => item.key));
     const promises = generalKeys.map(key =>
-      api.put(`/master/settings/${key}`, { setting_value: generalValues[key], plant_id: plantFilter !== "ALL" ? plantFilter : undefined }, { params })
+      api.put(`/master/settings/${key}`, { setting_value: generalValues[key], plant_id: settingsPlantID }, { params })
     );
 
     toast.promise(Promise.all(promises), {
@@ -235,8 +232,8 @@ export default function SettingsPage() {
       if (smtpPlantID !== "GLOBAL") setSmtpHasPlantOverride(true);
       queryClient.invalidateQueries({ queryKey: ["settings-smtp"] });
       queryClient.invalidateQueries({ queryKey: ["settings"] });
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Gagal menyimpan konfigurasi SMTP");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Gagal menyimpan konfigurasi SMTP"));
     } finally {
       setIsSavingSmtp(false);
     }
@@ -276,9 +273,8 @@ export default function SettingsPage() {
                 value={plantFilter}
                 onChange={(e) => dispatch(setPlantFilter(e.target.value))}
               >
-                <option value="ALL">Semua Plant / Default Global</option>
-                <option value="GLOBAL">Global Only (Default)</option>
-                {plantsList.map((p: any) => (
+                <option value="ALL">Global (Default semua plant)</option>
+                {plantsList.map((p) => (
                   <option key={p.plant_id} value={p.plant_id}>{p.plant_name}</option>
                 ))}
               </select>
@@ -451,7 +447,7 @@ export default function SettingsPage() {
                     <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase text-primary">
                       {smtpPlantID === "GLOBAL"
                         ? "Default Global"
-                        : `Plant: ${plantsList.find((plant: any) => plant.plant_id === smtpPlantID)?.plant_name || smtpPlantID}${smtpHasPlantOverride ? "" : " · Fallback Global"}`}
+                        : `Plant: ${plantsList.find((plant) => plant.plant_id === smtpPlantID)?.plant_name || smtpPlantID}${smtpHasPlantOverride ? "" : " · Fallback Global"}`}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -583,7 +579,10 @@ export default function SettingsPage() {
               <div>
                 <div className="p-6 border-b border-border bg-muted/20">
                   <h3 className="text-lg font-semibold">Template Email</h3>
-                  <p className="text-sm text-muted-foreground">Sesuaikan tampilan dan konten email yang dikirim otomatis oleh sistem.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Scope aktif: <span className="font-semibold text-foreground">{settingsPlantID === "GLOBAL" ? "Global (fallback semua plant)" : plantsList.find((plant) => plant.plant_id === settingsPlantID)?.plant_name || settingsPlantID}</span>.
+                    {settingsPlantID !== "GLOBAL" && " Saat disimpan, template ini menjadi override khusus plant tersebut."}
+                  </p>
                 </div>
                 
                 {settingsLoading ? (
@@ -593,27 +592,34 @@ export default function SettingsPage() {
                 ) : (
                   <div className="divide-y divide-border">
                     {EMAIL_TEMPLATES.map((template) => {
-                      const existing = settingsData?.find((s: any) => s.setting_key === template.key);
+                      const existing = settingsData?.find((s) => s.setting_key === template.key);
                       const isConfigured = !!existing?.setting_value;
+                      const isPlantOverride = settingsPlantID !== "GLOBAL" && existing?.plant_id === settingsPlantID;
+                      const usesGlobalFallback = settingsPlantID !== "GLOBAL" && existing?.plant_id !== settingsPlantID;
 
                       return (
                         <div key={template.key} className="p-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between hover:bg-muted/10 transition-colors">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-semibold">{template.title}</h4>
-                              {isConfigured ? (
-                                <span className="bg-green-500/10 text-green-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Terkonfigurasi</span>
+                              {isPlantOverride ? (
+                                <span className="bg-green-500/10 text-green-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Khusus Plant</span>
+                              ) : usesGlobalFallback ? (
+                                <span className="bg-blue-500/10 text-blue-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Fallback Global</span>
+                              ) : isConfigured ? (
+                                <span className="bg-green-500/10 text-green-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Template Global</span>
                               ) : (
                                 <span className="bg-orange-500/10 text-orange-500 text-[10px] uppercase font-bold px-2 py-0.5 rounded">Bawaan Sistem</span>
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground">{template.description}</p>
+                            <p className="text-xs text-muted-foreground mt-2">Variabel: {template.variables.map((variable) => `{{.${variable}}}`).join(", ")}</p>
                             <p className="text-xs text-muted-foreground mt-2 font-mono bg-muted inline-block px-2 py-1 rounded">Key: {template.key}</p>
                           </div>
                           
                           <Button variant={isConfigured ? "outline" : "default"} onClick={() => handleOpenEditor(template)} className="shrink-0">
                             <PenSquare className="w-4 h-4 mr-2" />
-                            {isConfigured ? "Edit Template" : "Buat Template"}
+                            {usesGlobalFallback ? "Buat Override Plant" : isConfigured ? "Edit Template" : "Buat Template"}
                           </Button>
                         </div>
                       )
@@ -632,14 +638,17 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <EmailEditorModal
-        isOpen={editorOpen}
-        onClose={() => setEditorOpen(false)}
-        title={editorTitle}
-        initialData={derivedInitialData}
-        onSave={handleSaveEmailTemplate}
-        isSaving={saveSettingMutation.isPending}
-      />
+      {editorOpen && (
+        <EmailEditorModal
+          isOpen
+          onClose={() => setEditorOpen(false)}
+          title={editorTitle}
+          initialData={derivedInitialData}
+          variables={EMAIL_TEMPLATES.find((template) => template.key === editorKey)?.variables || []}
+          onSave={handleSaveEmailTemplate}
+          isSaving={saveSettingMutation.isPending}
+        />
+      )}
     </div>
   );
 }

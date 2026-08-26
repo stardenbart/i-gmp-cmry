@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
@@ -17,16 +17,13 @@ import {
   Check,
   X,
   Eye,
-  Filter,
-  History,
   BarChart3,
-  Percent,
-  Clock,
   Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { issueApi, Issue, IssuePhoto, WOWRStatus } from "@/lib/api/issue.api";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
@@ -79,11 +76,7 @@ function UploadProofModal({
 
   const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: item.issue_id });
   const queryClient = useQueryClient();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useMounted();
 
   const updateStatusMutation = useMutation({
     mutationFn: async () => {
@@ -108,8 +101,8 @@ function UploadProofModal({
       toast.success("Bukti WO/WR & Nomor Referensi berhasil disimpan. Menunggu validasi Auditor.");
       onSuccess();
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Gagal memperbarui data WO/WR.");
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Gagal memperbarui data WO/WR."));
     }
   });
 
@@ -336,8 +329,8 @@ function IssueRow({
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Foto berhasil dihapus");
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Gagal menghapus foto");
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Gagal menghapus foto"));
     },
   });
 
@@ -538,7 +531,7 @@ function IssueRow({
                                 url: p.image_url,
                                 keterangan: p.keterangan,
                                 photoType: "Foto Temuan Awal",
-                                uploaderName: (p as any).uploader_name,
+                                uploaderName: p.uploader_name,
                                 photoId: p.issue_photo_id,
                                 issueId: item.issue_id,
                               });
@@ -601,7 +594,7 @@ function IssueRow({
                                 url: p.image_url,
                                 keterangan: p.keterangan,
                                 photoType: "Bukti Penyelesaian WO/WR",
-                                uploaderName: (p as any).uploader_name,
+                                uploaderName: p.uploader_name,
                                 photoId: p.issue_photo_id,
                                 issueId: item.issue_id,
                               });
@@ -682,10 +675,9 @@ export default function WOWRPage() {
     enabled: mounted && !!user,
   });
 
-  const allIssues: Issue[] = Array.isArray(data?.items) ? data.items : [];
-
   // Transform allIssues into WOWRItems isolated per initial photo (IssuePhoto)
   const wowrItems = useMemo(() => {
+    const allIssues: Issue[] = Array.isArray(data?.items) ? data.items : [];
     const items: WOWRItem[] = [];
     allIssues.forEach((issue) => {
       const initialPhotos = issue.photos?.filter((p) => p.photo_type === "Initial") || [];
@@ -766,7 +758,7 @@ export default function WOWRPage() {
       }
     });
     return items;
-  }, [allIssues]);
+  }, [data]);
 
   // Summary statistics calculations based on isolated WOWRItems
   const totalCount = wowrItems.length;

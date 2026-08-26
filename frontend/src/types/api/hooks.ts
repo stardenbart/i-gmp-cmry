@@ -7,7 +7,6 @@ import {
   useQuery,
   useMutation,
   useQueryClient,
-  QueryClient,
 } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";

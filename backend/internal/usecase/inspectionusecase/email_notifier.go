@@ -1,11 +1,13 @@
 package inspectionusecase
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/domain/master"
+	notificationdomain "github.com/monitoring-system/backend/internal/domain/notification"
 	"github.com/monitoring-system/backend/internal/domain/pic"
 	"github.com/monitoring-system/backend/pkg/mail"
 )
@@ -16,6 +18,7 @@ type InspectionEmailNotifier struct {
 	authRepo       auth.UserRepository
 	inspectionRepo inspection.InspectionHeaderRepository
 	settingRepo    master.SettingRepository
+	notificationUC notificationdomain.NotificationUseCase // in-app bell notifications, alongside email
 }
 
 func NewInspectionEmailNotifier(
@@ -24,6 +27,7 @@ func NewInspectionEmailNotifier(
 	authRepo auth.UserRepository,
 	inspectionRepo inspection.InspectionHeaderRepository,
 	settingRepo master.SettingRepository,
+	notificationUC notificationdomain.NotificationUseCase,
 ) *InspectionEmailNotifier {
 	return &InspectionEmailNotifier{
 		mailer:         mailer,
@@ -31,6 +35,7 @@ func NewInspectionEmailNotifier(
 		authRepo:       authRepo,
 		inspectionRepo: inspectionRepo,
 		settingRepo:    settingRepo,
+		notificationUC: notificationUC,
 	}
 }
 
@@ -44,18 +49,33 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 	}
 
 	var targetEmails []string
+	var targetUserIDs []string
 	emailSet := make(map[string]bool)
+	userSet := make(map[string]bool)
 	plantID := ""
 	for _, p := range pics {
 		user, err := n.authRepo.FindByID(p.UserID)
-		if err == nil && user != nil && user.Email != "" {
+		if err == nil && user != nil {
 			if plantID == "" && user.PlantID != nil {
 				plantID = *user.PlantID
 			}
-			if !emailSet[user.Email] {
+			if user.Email != "" && !emailSet[user.Email] {
 				emailSet[user.Email] = true
 				targetEmails = append(targetEmails, user.Email)
 			}
+			if !userSet[user.UserID] {
+				userSet[user.UserID] = true
+				targetUserIDs = append(targetUserIDs, user.UserID)
+			}
+		}
+	}
+
+	// In-app bell notification, independent of whether the PIC has an email
+	// on file (email delivery is best-effort further down).
+	if n.notificationUC != nil {
+		message := fmt.Sprintf("Inspeksi Area %s telah selesai (%d/%d detail kawasan).", areaID, progress.CompletedDetailKawasan, progress.TotalDetailKawasan)
+		for _, userID := range targetUserIDs {
+			_ = n.notificationUC.CreateSystemNotification(userID, "success", "Inspeksi Area Selesai", message, "/inspections")
 		}
 	}
 

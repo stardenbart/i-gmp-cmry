@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { Loader2 } from "lucide-react";
@@ -10,7 +10,12 @@ export function ScopeGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
-  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  const userPlant = user?.plant_id || "global";
+  const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN";
+  const isInvalidPlant = Boolean(user && !isSuperAdmin && userPlant !== "global" && urlPlantCode !== userPlant);
+  const isInvalidUser = Boolean(user && user.id !== urlUserId);
+  const isAuthorized = Boolean(user && !isInvalidPlant && !isInvalidUser);
 
   useEffect(() => {
     if (!user) {
@@ -18,21 +23,12 @@ export function ScopeGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const userPlant = user.plant_id || "global";
-    const isSuperAdmin = user.role_id === "ROLE-000" || user.role_id === "SUPERADMIN";
-
-    // Validate plant scope if user is non-superadmin
-    const isInvalidPlant = !isSuperAdmin && userPlant !== "global" && urlPlantCode !== userPlant;
-    const isInvalidUser = user.id !== urlUserId;
-
     if (isInvalidPlant || isInvalidUser) {
       const targetPlant = isSuperAdmin ? urlPlantCode : userPlant;
       const newPath = pathname.replace(`/cimory/${urlPlantCode}/dashboard/${urlUserId}`, `/cimory/${targetPlant}/dashboard/${user.id}`);
       router.replace(newPath);
-    } else {
-      setIsAuthorized(true);
     }
-  }, [user, urlPlantCode, urlUserId, pathname, router]);
+  }, [user, urlPlantCode, urlUserId, pathname, router, userPlant, isSuperAdmin, isInvalidPlant, isInvalidUser]);
 
   if (!isAuthorized) {
     return (

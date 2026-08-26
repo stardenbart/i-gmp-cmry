@@ -47,7 +47,7 @@ export function usePermissions() {
 
     // 1. User override check (Highest priority in dynamic RBAC)
     if (userPermsData && Array.isArray(userPermsData)) {
-      const userOverride = userPermsData.find((up: any) => up.permission_id === permissionId);
+      const userOverride = userPermsData.find((up) => up.permission_id === permissionId);
       if (userOverride !== undefined) {
         return !!userOverride.is_allowed;
       }
@@ -55,7 +55,7 @@ export function usePermissions() {
 
     // 2. Role permission check from DB
     if (rolePermsData && Array.isArray(rolePermsData)) {
-      const rolePerm = rolePermsData.find((rp: any) => rp.permission_id === permissionId);
+      const rolePerm = rolePermsData.find((rp) => rp.permission_id === permissionId);
       if (rolePerm !== undefined) {
         return !!rolePerm.is_allowed;
       }

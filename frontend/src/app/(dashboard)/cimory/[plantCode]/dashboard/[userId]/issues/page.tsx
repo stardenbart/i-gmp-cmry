@@ -21,7 +21,7 @@ import {
 import { Issue, IssueStatus } from "@/lib/api/issue.api";
 import { filterApi, IssueFilterParams } from "@/lib/api/filter.api";
 import { Button } from "@/components/ui/button";
-import { cn, formatImageUrl, isEncryptedBase64 } from "@/lib/utils";
+import { cn, formatImageUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
@@ -87,6 +87,8 @@ function IssueCard({ issue, issueCount, targetUrl, index = 1 }: { issue: Issue; 
         {/* Thumbnail Image Preview */}
         {firstPhoto ? (
           <div className="relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-xl overflow-hidden bg-muted border border-border/80 ml-2">
+            {/* Dynamic authenticated upload URLs intentionally use a native image element. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={formatImageUrl(firstPhoto.image_url)}
               alt={`Foto temuan ${issue.area_name || "inspeksi"}`}
@@ -117,11 +119,7 @@ function IssueCard({ issue, issueCount, targetUrl, index = 1 }: { issue: Issue; 
               <h4 className="font-semibold text-xs sm:text-sm leading-snug text-foreground line-clamp-1">
                 {issue.area_name || "Tanpa Area"} · {issue.kawasan_name || "Tanpa Kawasan"} · {issue.detail_kawasan_name || "Tanpa Detail"}
               </h4>
-              <p className="text-xs text-muted-foreground mt-0.5 font-medium line-clamp-2">
-                {isEncryptedBase64(issue.keterangan)
-                  ? issue.uraian_text || "Deskripsi temuan inspeksi"
-                  : issue.keterangan || "Tanpa keterangan"}
-              </p>
+              
             </div>
             <span
               className={cn(

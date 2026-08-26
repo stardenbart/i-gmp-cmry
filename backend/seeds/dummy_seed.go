@@ -65,12 +65,12 @@ func SeedDummyData(db *gorm.DB) {
 			// 7. Current Month Inspection Header
 			inspID := fmt.Sprintf("INS-%03d", idx)
 			insp := inspectiondomain.InspectionHeader{
-				InspectionID:           inspID,
-				AreaID:                 areaID,
-				KawasanID:              kawasanID,
-				DetailKawasanID:        dkID,
-				InspectorID:            p.AdminID,
-				InspectionHeaderStatus: inspectiondomain.InspectionStatusCompleted,
+				InspectionID:              inspID,
+				AreaID:                    areaID,
+				KawasanID:                 kawasanID,
+				DetailKawasanID:           dkID,
+				InspectorID:               p.AdminID,
+				InspectionHeaderStatus:    inspectiondomain.InspectionStatusCompleted,
 				InspectionHeaderCreatedAt: now,
 			}
 			db.Where(&inspectiondomain.InspectionHeader{InspectionID: insp.InspectionID}).FirstOrCreate(&insp)
@@ -192,13 +192,13 @@ func CleanupDummyData(db *gorm.DB) {
 	log.Println("🧹 Cleaning up dummy seed data from database...")
 
 	// 1. Delete Issue Photos
-	db.Exec(`DELETE FROM "Issue_Photo" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')`)
+	db.Exec(`DELETE FROM "Issue_Photo" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')))`)
 
 	// 2. Delete Issue HEI
-	db.Exec(`DELETE FROM "Issue_HEI" WHERE "IssueHEIID" LIKE 'HEI-%' OR "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')`)
+	db.Exec(`DELETE FROM "Issue_HEI" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueHEIID" LIKE 'HEI-%' OR "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')))`)
 
 	// 3. Delete Issue Delegates
-	db.Exec(`DELETE FROM "Issue_Delegate" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')`)
+	db.Exec(`DELETE FROM "Issue_Delegate" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "IssueID" IN (SELECT "IssueID" FROM "Issue" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')))`)
 
 	// 4. Delete Issues (Only dummy ISSUE-*, preserve ISSUE-REAL-*)
 	db.Exec(`DELETE FROM "Issue" WHERE "IssueID" NOT LIKE 'ISSUE-REAL-%' AND ("IssueID" LIKE 'ISSUE-%' OR "IssueID" LIKE 'HIST-%' OR "ResultID" LIKE 'RES-%' OR "ResultID" LIKE 'HIST-%')`)
