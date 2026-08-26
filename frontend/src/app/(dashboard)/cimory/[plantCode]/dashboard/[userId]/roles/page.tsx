@@ -5,25 +5,31 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
 import { api } from "@/lib/api/axios";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { Save, ShieldAlert, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+interface RoleRecord { role_id: string; role_name: string }
+interface PermissionRecord { permission_id: string; permission_name: string }
+interface ModuleRecord { module_id: string; module_name: string; permissions?: PermissionRecord[] }
+interface RolePermissionRecord { permission_id: string; is_allowed: boolean }
 
 // --- API Functions ---
 const fetchRoles = async () => {
   const res = await api.get("/master/roles", { params: { limit: 100 } });
-  return res.data?.data?.items || [];
+  return (res.data?.data?.items || []) as RoleRecord[];
 };
 
 const fetchModules = async () => {
   const res = await api.get("/master/modules");
-  return res.data?.data || [];
+  return (res.data?.data || []) as ModuleRecord[];
 };
 
 const fetchRolePermissions = async (roleId: string) => {
   const res = await api.get(`/master/roles/${roleId}/permissions`);
-  return res.data?.data || [];
+  return (res.data?.data || []) as RolePermissionRecord[];
 };
 
 export default function RolesPermissionsPage() {
@@ -31,7 +37,6 @@ export default function RolesPermissionsPage() {
   const { hasPermission, isLoading: isGuardLoading } = usePermissions();
   const isAdmin = hasPermission("PERM-MSTR-R");
   const mounted = useMounted();
-  const queryClient = useQueryClient();
 
   // State to track modified permissions: { [roleId]: { [permissionId]: isAllowed } }
   const [modifiedPerms, setModifiedPerms] = useState<Record<string, Record<string, boolean>>>({});
@@ -52,7 +57,7 @@ export default function RolesPermissionsPage() {
   });
 
   // Fetch all permissions for all roles
-  const [allRolePerms, setAllRolePerms] = useState<Record<string, any[]>>({});
+  const [allRolePerms, setAllRolePerms] = useState<Record<string, RolePermissionRecord[]>>({});
   const [permsLoading, setPermsLoading] = useState(true);
 
   useEffect(() => {
@@ -60,23 +65,23 @@ export default function RolesPermissionsPage() {
       if (!roles || roles.length === 0) return;
       setPermsLoading(true);
       try {
-        const permsMap: Record<string, any[]> = {};
+        const permsMap: Record<string, RolePermissionRecord[]> = {};
         const effMap: Record<string, Record<string, boolean>> = {};
         
-        const promises = roles.map((r: any) => fetchRolePermissions(r.role_id));
+        const promises = roles.map((r) => fetchRolePermissions(r.role_id));
         const results = await Promise.all(promises);
         
-        roles.forEach((r: any, idx: number) => {
+        roles.forEach((r, idx: number) => {
           permsMap[r.role_id] = results[idx];
           effMap[r.role_id] = {};
-          results[idx].forEach((rp: any) => {
+          results[idx].forEach((rp) => {
             effMap[r.role_id][rp.permission_id] = rp.is_allowed;
           });
         });
         
         setAllRolePerms(permsMap);
         setEffectivePerms(effMap);
-      } catch (err) {
+      } catch {
         toast.error("Gagal memuat data permissions");
       } finally {
         setPermsLoading(false);
@@ -106,8 +111,8 @@ export default function RolesPermissionsPage() {
       setModifiedPerms({});
       // No need to refetch immediately, local state is accurate
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Gagal menyimpan perubahan");
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Gagal menyimpan perubahan"));
     }
   });
 
@@ -134,10 +139,10 @@ export default function RolesPermissionsPage() {
   const handleReset = () => {
     // Rebuild effective perms from backend state
     const effMap: Record<string, Record<string, boolean>> = {};
-    roles?.forEach((r: any) => {
+    roles?.forEach((r) => {
       effMap[r.role_id] = {};
       const rps = allRolePerms[r.role_id] || [];
-      rps.forEach((rp: any) => {
+      rps.forEach((rp) => {
         effMap[r.role_id][rp.permission_id] = rp.is_allowed;
       });
     });
@@ -194,7 +199,7 @@ export default function RolesPermissionsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {modules?.map((module: any) => (
+          {modules?.map((module) => (
             <div key={module.module_id} className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -203,7 +208,7 @@ export default function RolesPermissionsPage() {
                       <th className="px-6 py-4 text-left font-semibold text-foreground min-w-[200px]">
                         {module.module_name}
                       </th>
-                      {module.permissions?.map((perm: any) => (
+                      {module.permissions?.map((perm) => (
                         <th key={perm.permission_id} className="px-4 py-4 text-center font-medium text-muted-foreground whitespace-nowrap">
                           {perm.permission_name}
                         </th>
@@ -211,12 +216,12 @@ export default function RolesPermissionsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {roles?.map((role: any) => (
+                    {roles?.map((role) => (
                       <tr key={role.role_id} className="hover:bg-muted/10 transition-colors">
                         <td className="px-6 py-4 text-muted-foreground font-medium">
                           {role.role_name}
                         </td>
-                        {module.permissions?.map((perm: any) => {
+                        {module.permissions?.map((perm) => {
                           const isAllowed = effectivePerms[role.role_id]?.[perm.permission_id] || false;
                           
                           return (

@@ -10,7 +10,7 @@ export interface AreaSeries {
 }
 
 export interface AreaChartProps {
-  data: any[];
+  data: Array<Record<string, string | number>>;
   xAxisKey: string;
   series: AreaSeries[];
   height?: number;
@@ -56,8 +56,9 @@ export function AreaChart({ data, xAxisKey, series, height = 300, unit = "" }: A
             borderRadius: "8px",
           }}
           itemStyle={{ color: "#fafafa" }}
-          formatter={(value: any, name: any, item: any) => {
-            const seriesUnit = seriesUnitMap[item?.dataKey] !== undefined ? seriesUnitMap[item?.dataKey] : unit;
+          formatter={(value, name, item) => {
+            const dataKey = typeof item?.dataKey === "string" ? item.dataKey : "";
+            const seriesUnit = seriesUnitMap[dataKey] !== undefined ? seriesUnitMap[dataKey] : unit;
             return [`${value}${seriesUnit}`, name || "Nilai"];
           }}
         />

@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"os"
+
+	"github.com/monitoring-system/backend/config"
 )
 
 type InspectionHeader struct {
@@ -26,8 +26,7 @@ type InspectionResult struct {
 func (InspectionResult) TableName() string { return "Inspection_Result" }
 
 func main() {
-	dsn := "host=127.0.0.1 user=postgres password=secret dbname=monitoring_audit port=5434 sslmode=disable TimeZone=Asia/Jakarta"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := config.OpenDatabase(config.Load())
 	if err != nil {
 		fmt.Println("failed to connect database", err)
 		os.Exit(1)

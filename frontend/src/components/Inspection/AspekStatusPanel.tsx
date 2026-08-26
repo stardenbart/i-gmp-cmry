@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Lock, Unlock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { inspectionApi } from "@/lib/api/inspection.api";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { useCallback } from "react";
@@ -28,7 +28,7 @@ export function AspekStatusPanel({
   });
 
   const handleEvent = useCallback(
-    (_ev: any) => {
+    () => {
       refetch();
     },
     [refetch]

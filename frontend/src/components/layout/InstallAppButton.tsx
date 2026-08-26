@@ -6,8 +6,17 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+interface StandaloneNavigator extends Navigator {
+  standalone?: boolean;
+}
+
 export function InstallAppButton() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
 
@@ -15,15 +24,15 @@ export function InstallAppButton() {
     const checkStandalone = () => {
       const isStandaloneMode =
         window.matchMedia("(display-mode: standalone)").matches ||
-        (window.navigator as any).standalone === true;
+        (window.navigator as StandaloneNavigator).standalone === true;
       setIsStandalone(isStandaloneMode);
     };
 
     checkStandalone();
 
-    const handleBeforeInstallPrompt = (e: any) => {
+    const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -42,7 +51,7 @@ export function InstallAppButton() {
           setDeferredPrompt(null);
           toast.success("Aplikasi berhasil dipasang!");
         }
-      } catch (err) {
+      } catch {
         setShowGuideModal(true);
       }
     } else {

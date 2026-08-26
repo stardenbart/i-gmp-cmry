@@ -2,15 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { 
-  ClipboardCheck,  
-  AlertTriangle, 
-  AlertCircle,
-  Factory,
-  Store,
-  Loader2,
-  TrendingUp
-} from "lucide-react";
+import { Factory, Loader2 } from "lucide-react";
 import { AreaChart } from "@/components/ui/area-chart";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
@@ -18,19 +10,35 @@ import { areaApi } from "@/types/api/master";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
-import { StatsCards } from "../admin/StatCard";
+import { StatsCards, type DashboardStats as StatDashboardStats } from "../admin/StatCard";
 
 import { usePolling } from "@/hooks/usePolling";
 import { plantApi } from "@/types/api/master";
 
 import { useParams } from "next/navigation";
 
+interface AdminDashboardStats extends StatDashboardStats {
+  inspections_completed?: number;
+  inspections_running?: number;
+  issues_resolved?: number;
+  pic_followup_completed?: number;
+  pic_followup_overdue?: number;
+  wowr_total?: number;
+  wowr_verified?: number;
+  wowr_pending?: number;
+  wowr_rejected?: number;
+  wowr_awaiting?: number;
+  wowr_verified_rate?: number;
+  auditee_status?: Array<{ name: string; type: string; compliance: number; open_issues: number }>;
+  compliance_trend?: Array<{ rate: number; [key: string]: string | number }>;
+}
+
 // Fetch dashboard stats directly from backend API
 const fetchDashboardStats = async (areaId?: string, period: string = "6m", plantId?: string) => {
   const res = await api.get("/dashboard/stats", {
     params: { area_id: areaId, period, plant_id: plantId }
   });
-  return res.data.data;
+  return res.data.data as AdminDashboardStats;
 };
 
 export const DashboardPanelAdmin = () => {
@@ -69,7 +77,7 @@ export const DashboardPanelAdmin = () => {
   });
 
   // Filter area items based on plant
-  const filteredAreas = areasResponse?.data?.items?.filter((area: any) => {
+  const filteredAreas = areasResponse?.data?.items?.filter((area) => {
     if (!effectivePlant) return true;
     return area.plant_id === effectivePlant;
   }) || [];
@@ -120,7 +128,7 @@ export const DashboardPanelAdmin = () => {
               className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none min-h-[44px]"
             >
               <option value="all">Semua Plant</option>
-              {plantsResponse?.data?.items?.map((plant: any) => (
+              {plantsResponse?.data?.items?.map((plant) => (
                 <option key={plant.plant_id} value={plant.plant_id}>
                   {plant.plant_name}
                 </option>
@@ -141,7 +149,7 @@ export const DashboardPanelAdmin = () => {
             className="px-3 py-2 border border-border rounded-lg text-sm bg-card text-foreground font-medium focus:ring-2 focus:ring-primary/40 focus:outline-none min-h-[44px]"
           >
             <option value="">Semua Area</option>
-            {filteredAreas.map((area: any) => (
+            {filteredAreas.map((area) => (
               <option key={area.area_id} value={area.area_id}>
                 {area.area_name}
               </option>
@@ -221,11 +229,11 @@ export const DashboardPanelAdmin = () => {
 
             {/* Aktivitas Penanggung Jawab (PIC) */}
             {(() => {
-              const resolvedCount = (stats as any)?.issues_resolved ?? (stats as any)?.pic_followup_completed ?? 0;
+              const resolvedCount = stats?.issues_resolved ?? stats?.pic_followup_completed ?? 0;
               const openCount = stats?.total_open_issues || 0;
               const totalCount = openCount + resolvedCount;
               const resolvedRate = totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0;
-              const overdueCount = stats?.issue_overdue ?? (stats as any)?.pic_followup_overdue ?? 0;
+              const overdueCount = stats?.issue_overdue ?? stats?.pic_followup_overdue ?? 0;
               const overdueRate = totalCount > 0 ? Math.round((overdueCount / totalCount) * 100) : 0;
 
               return (
@@ -335,7 +343,7 @@ export const DashboardPanelAdmin = () => {
                 {(!stats?.auditee_status || stats?.auditee_status?.length === 0) ? (
                   <div className="p-6 text-center text-xs text-muted-foreground italic">Belum ada data status auditee</div>
                 ) : (
-                  stats?.auditee_status?.map((item: any, idx: number) => {
+                  stats?.auditee_status?.map((item, idx: number) => {
                     return (
                       <div key={idx} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border/70 hover:bg-muted/70 transition-colors">
                         <div>
@@ -369,7 +377,7 @@ export const DashboardPanelAdmin = () => {
       {(() => {
         const rawTrend = stats?.compliance_trend || [];
         const periodAvgNum = rawTrend.length > 0
-          ? Number((rawTrend.reduce((acc: number, curr: any) => acc + (Number(curr.rate) || 0), 0) / rawTrend.length).toFixed(1))
+          ? Number((rawTrend.reduce((acc: number, curr) => acc + (Number(curr.rate) || 0), 0) / rawTrend.length).toFixed(1))
           : 0;
         const currentRateNum = stats?.compliance_rate != null
           ? Number(Number(stats.compliance_rate).toFixed(1))
@@ -380,7 +388,7 @@ export const DashboardPanelAdmin = () => {
 
         const totalInspectionsCount = (stats?.inspections_completed || 0) + (stats?.inspections_running || 0);
 
-        const chartFormattedData = rawTrend.map((item: any) => ({
+        const chartFormattedData = rawTrend.map((item) => ({
           ...item,
           avg: periodAvgNum,
           totalCount: totalInspectionsCount

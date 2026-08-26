@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { api } from "@/lib/api/axios";
 
 export interface AspekKawasanEvent {
@@ -9,7 +9,7 @@ export interface AspekKawasanEvent {
   aspek_id?: string;
   user_id?: string;
   user_name?: string;
-  payload?: any;
+  payload?: unknown;
   timestamp: number;
 }
 
@@ -24,12 +24,16 @@ export function useKawasanPolling(
   onEvent?: (event: AspekKawasanEvent) => void,
   intervalMs = 3000
 ) {
-  const lastPollTimeRef = useRef<number>(Date.now() - 10000);
-  const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+  const lastPollTimeRef = useRef<number>(0);
+  const emitEvent = useEffectEvent((event: AspekKawasanEvent) => {
+    onEvent?.(event);
+  });
 
   useEffect(() => {
     if (!kawasanId) return;
+	if (lastPollTimeRef.current === 0) {
+		lastPollTimeRef.current = Date.now() - 10000;
+	}
 
     let isMounted = true;
 
@@ -52,12 +56,8 @@ export function useKawasanPolling(
         }
 
         const events = res.data?.events || [];
-        events.forEach((ev) => {
-          if (onEventRef.current) {
-            onEventRef.current(ev);
-          }
-        });
-      } catch (err) {
+        events.forEach(emitEvent);
+      } catch {
         // Silent catch during polling
       }
     };

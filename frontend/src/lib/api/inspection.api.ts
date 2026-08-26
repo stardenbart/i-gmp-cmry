@@ -1,4 +1,5 @@
 import { api } from "./axios";
+import { getApiErrorStatus } from "./error";
 
 export type InspectionStatus = "Draft" | "Ongoing" | "Completed" | "Approved";
 
@@ -14,6 +15,7 @@ export interface InspectionHeader {
   area_name?: string;
   kawasan_name?: string;
   detail_kawasan_name?: string;
+  inspector_name?: string;
   score?: number;
 }
 
@@ -28,13 +30,60 @@ export interface InspectionResult {
   updated_at: string;
 }
 
+export interface ChecklistPhoto {
+  issue_photo_id: string;
+  image_url: string;
+  keterangan?: string;
+  hei_id?: string;
+  hei_category?: string;
+}
+
+export interface ChecklistUraian {
+  uraian_id: string;
+  uraian_name?: string;
+  uraian_text?: string;
+  standard_score?: number;
+  checking?: "OK" | "NG" | "NA";
+  nilai?: string | number;
+  result?: {
+    result_id?: string;
+    checking?: "OK" | "NG" | "NA";
+    photos?: ChecklistPhoto[];
+  };
+}
+
+export interface ChecklistDetail {
+  detail_id?: string;
+  detail_name?: string;
+  detail_aspek_name?: string;
+  uraians?: ChecklistUraian[];
+}
+
+export interface ChecklistAspek {
+  aspek_id: string;
+  aspek_name: string;
+  aspek_weight?: number;
+  details?: ChecklistDetail[];
+}
+
+export interface InspectionChecklist {
+  aspeks: ChecklistAspek[];
+}
+
+export interface BulkInspectionResult {
+  uraian_id: string;
+  checking: "OK" | "NG";
+  nilai: number;
+  keterangan: string;
+}
+
 export const inspectionApi = {
   getAll: async (params?: { page?: number; limit?: number; status?: string; inspector_id?: string }) => {
     const res = await api.get("/inspections", { params });
     return res.data.data;
   },
   
-  getById: async (id: string) => {
+  getById: async (id: string): Promise<{ data: InspectionHeader & { plant_id?: string } }> => {
     const res = await api.get(`/inspections/${id}`);
     return res.data;
   },
@@ -44,12 +93,12 @@ export const inspectionApi = {
     return res.data;
   },
 
-  getChecklist: async (id: string) => {
+  getChecklist: async (id: string): Promise<{ data: InspectionChecklist }> => {
     const res = await api.get(`/inspections/${id}/checklist`);
     return res.data;
   },
 
-  bulkSaveResults: async (inspectionId: string, results: any[]) => {
+  bulkSaveResults: async (inspectionId: string, results: BulkInspectionResult[]) => {
     const res = await api.post(`/inspections/${inspectionId}/results/bulk`, {
       inspection_id: inspectionId,
       results
@@ -84,8 +133,9 @@ export const inspectionApi = {
         headers: { "X-Lock-Token": lockToken },
       });
       return res.data;
-    } catch (err: any) {
-      if (err?.response?.status === 403 || err?.response?.status === 404 || err?.response?.status === 409) {
+    } catch (err) {
+      const status = getApiErrorStatus(err);
+      if (status === 403 || status === 404 || status === 409) {
         return { success: true };
       }
       throw err;
@@ -97,7 +147,7 @@ export const inspectionApi = {
     aspekId: string,
     lockToken: string,
     payload: {
-      data: Record<string, any>;
+      data: Record<string, unknown>;
       skor?: number;
       is_final?: boolean;
       session_id?: string;

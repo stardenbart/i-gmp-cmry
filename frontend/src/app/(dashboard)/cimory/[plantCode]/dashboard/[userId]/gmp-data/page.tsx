@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, Filter, RotateCcw, Layers, ListChecks, AlertTriangle, Building2 } from "lucide-react";
+import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, RotateCcw, Layers, ListChecks, AlertTriangle, Building2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import { dashboardApi } from "@/types/api/dashboard";
 import { areaApi, plantApi } from "@/types/api/master";
+import type { Kawasan, DetailKawasan } from "@/types/api";
 import { fetchItems } from "@/components/master/master.api";
 import { usePermissions } from "@/lib/usePermissions";
 import { useMounted } from "@/lib/useMounted";
@@ -73,13 +74,7 @@ export default function GmpDataAdminPage() {
     enabled: mounted && isAdmin && isSuperAdmin,
   });
 
-  const plantItems = Array.isArray(plantsResponse?.items)
-    ? plantsResponse.items
-    : Array.isArray(plantsResponse?.data?.items)
-    ? plantsResponse.data.items
-    : Array.isArray(plantsResponse)
-    ? plantsResponse
-    : [];
+  const plantItems = plantsResponse?.data?.items || [];
 
   const { data: areasResponse } = useQuery({
     queryKey: ["areas-master-admin-gmp", activePlantId],
@@ -87,29 +82,29 @@ export default function GmpDataAdminPage() {
     enabled: mounted && isAdmin,
   });
 
-  const allAreaItems = areasResponse?.data?.items || (areasResponse as any)?.items || [];
-  const filteredAreaOptions = allAreaItems.filter((area: any) =>
+  const allAreaItems = areasResponse?.data?.items || [];
+  const filteredAreaOptions = allAreaItems.filter((area) =>
     !activePlantId || area.plant_id === activePlantId
   );
 
   const { data: kawasanLookup } = useQuery({
     queryKey: ["kawasan-master-admin-gmp"],
-    queryFn: () => fetchItems("/master/kawasan", 1, "", 500),
+    queryFn: () => fetchItems<Kawasan>("/master/kawasan", 1, "", 500),
     enabled: mounted && isAdmin,
   });
 
   const { data: detailKawasanLookup } = useQuery({
     queryKey: ["detail-kawasan-master-admin-gmp"],
-    queryFn: () => fetchItems("/master/detail-kawasan", 1, "", 500),
+    queryFn: () => fetchItems<DetailKawasan>("/master/detail-kawasan", 1, "", 500),
     enabled: mounted && isAdmin,
   });
 
   // Filtered dropdown options (cascading)
-  const kawasanOptions = kawasanLookup?.items?.filter((k: any) => 
-    !selectedArea || k.area_id === selectedArea || k.area?.area_id === selectedArea
+  const kawasanOptions = kawasanLookup?.items?.filter((k) => 
+    !selectedArea || k.area_id === selectedArea
   ) || [];
 
-  const detailKawasanOptions = detailKawasanLookup?.items?.filter((dk: any) => 
+  const detailKawasanOptions = detailKawasanLookup?.items?.filter((dk) => 
     !selectedKawasan || dk.kawasan_id === selectedKawasan
   ) || [];
 
@@ -165,7 +160,7 @@ export default function GmpDataAdminPage() {
         responseType: 'blob' 
       });
       
-      const areaName = areasResponse?.data?.items?.find((a: any) => a.area_id === selectedArea)?.area_name || "Semua Area";
+      const areaName = areasResponse?.data?.items?.find((a) => a.area_id === selectedArea)?.area_name || "Semua Area";
       const datetime = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '');
       const filename = `Report_${areaName.replace(/\s+/g, '_')}_${datetime}.xlsx`;
       
@@ -188,7 +183,7 @@ export default function GmpDataAdminPage() {
   if (!isAdmin) return null;
 
   // Search logic (Client side across all fields)
-  const filteredData = previewData?.data?.filter((row: any) => {
+  const filteredData = previewData?.data?.filter((row) => {
     if (!q) return true;
     const searchLower = q.toLowerCase();
     return (
@@ -266,7 +261,7 @@ export default function GmpDataAdminPage() {
                 className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary"
               >
                 <option value="">Semua Plant (Global)</option>
-                {plantItems.map((plant: any) => (
+                {plantItems.map((plant) => (
                   <option key={plant.plant_id || plant.plant_code} value={plant.plant_id || plant.plant_code}>
                     {plant.plant_name || plant.plant_code || plant.plant_id}
                   </option>
@@ -286,7 +281,7 @@ export default function GmpDataAdminPage() {
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary"
             >
               <option value="">Semua Area</option>
-              {filteredAreaOptions.map((area: any) => (
+              {filteredAreaOptions.map((area) => (
                 <option key={area.area_id} value={area.area_id}>
                   {area.area_name}
                 </option>
@@ -306,7 +301,7 @@ export default function GmpDataAdminPage() {
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary disabled:opacity-50"
             >
               <option value="">Semua Kawasan</option>
-              {kawasanOptions.map((kawasan: any) => (
+              {kawasanOptions.map((kawasan) => (
                 <option key={kawasan.kawasan_id} value={kawasan.kawasan_id}>
                   {kawasan.kawasan_name}
                 </option>
@@ -326,7 +321,7 @@ export default function GmpDataAdminPage() {
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary disabled:opacity-50"
             >
               <option value="">Semua Detail Kawasan</option>
-              {detailKawasanOptions.map((dk: any) => (
+              {detailKawasanOptions.map((dk) => (
                 <option key={dk.detail_kawasan_id} value={dk.detail_kawasan_id}>
                   {dk.detail_kawasan_name}
                 </option>
@@ -439,7 +434,7 @@ export default function GmpDataAdminPage() {
                   </td>
                 </tr>
               ) : (
-                filteredData.map((row: any, idx: number) => (
+                filteredData.map((row, idx: number) => (
                   <tr key={idx} className="hover:bg-muted/30 transition-colors">
                     {/* ID Inspeksi & Info Header */}
                     <td className="px-4 py-3 font-medium text-primary whitespace-nowrap">
@@ -472,11 +467,11 @@ export default function GmpDataAdminPage() {
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span className={cn(
                         "px-2.5 py-1 rounded-full text-xs font-bold border",
-                        row.nilai >= 80 ? "bg-green-500/10 text-green-600 border-green-500/20" :
-                        row.nilai >= 60 ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" :
+                        (row.nilai ?? 0) >= 80 ? "bg-green-500/10 text-green-600 border-green-500/20" :
+                        (row.nilai ?? 0) >= 60 ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" :
                         "bg-red-500/10 text-red-600 border-red-500/20"
                       )}>
-                        {row.nilai}
+                        {row.nilai ?? "-"}
                       </span>
                     </td>
 

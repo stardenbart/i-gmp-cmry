@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/incompatible-library -- React Hook Form watch is required for live inspection progress and draft synchronization. */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { convertToWebP } from "@/lib/utils/imageUtils";
@@ -8,10 +9,8 @@ import {
   ArrowLeft,
   ArrowUp,
   CheckCircle2,
-  FileDown,
   Trash2,
   Edit,
-  Play,
   AlertTriangle,
   Loader2,
   ChevronLeft,
@@ -20,9 +19,7 @@ import {
   ChevronUp,
   Info,
   Lock,
-  Unlock,
   Layers,
-  ListChecks,
 } from "lucide-react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -31,11 +28,17 @@ import { useEffect, useState, useCallback, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { inspectionApi, InspectionResult } from "@/lib/api/inspection.api";
+import {
+  inspectionApi,
+  InspectionResult,
+  type BulkInspectionResult,
+  type ChecklistAspek,
+  type ChecklistDetail,
+  type ChecklistUraian,
+} from "@/lib/api/inspection.api";
 import { issueApi, IssuePhoto } from "@/lib/api/issue.api";
 import { picApi } from "@/lib/api/pic.api";
-import { api } from "@/lib/api/axios";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { usePermissions } from "@/lib/usePermissions";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -45,7 +48,7 @@ import {
   dataURLtoFile,
   formatPhotoUrl,
 } from "@/components/Inspection/PhotoUploaderWithKeterangan";
-import { useDistributedDraft } from "@/hooks/useDistributedDraft";
+import { useDistributedDraft, type RedisDraftValue } from "@/hooks/useDistributedDraft";
 import { useAspekLock } from "@/hooks/useAspekLock";
 import { AspekStatusPanel } from "@/components/Inspection/AspekStatusPanel";
 
@@ -167,8 +170,8 @@ export default function InspectionDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       router.push(`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections`);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Gagal menghapus inspeksi");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Gagal menghapus inspeksi"));
     } finally {
       setIsDeletingInspection(false);
       setShowDeleteModal(false);
@@ -196,7 +199,6 @@ export default function InspectionDetailPage() {
   const inspectionScopeId = inspection?.inspection_id;
   const kawasanId = inspection?.kawasan_id; // kept for PIC query only
   const {
-    draftsByAspek,
     mergedUraianValues,
     mergedPhotosMap,
     isLoadingDrafts,
@@ -239,7 +241,7 @@ export default function InspectionDetailPage() {
     enabled: !!inspection?.area_id && !!inspection?.kawasan_id,
   });
 
-  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm();
+  const { register, handleSubmit, watch, reset } = useForm<Record<string, string>>();
 
   // Synchronize URL search params when active aspect or uraian changes
   const updateUrlParams = useCallback(
@@ -270,9 +272,9 @@ export default function InspectionDetailPage() {
     let foundDetailIndex: number | "all" = "all";
 
     if (targetUraianParam) {
-      checklist.aspeks.forEach((aspek: any, aIdx: number) => {
-        aspek.details?.forEach((detail: any, dIdx: number) => {
-          detail.uraians?.forEach((uraian: any) => {
+      checklist.aspeks.forEach((aspek, aIdx: number) => {
+        aspek.details?.forEach((detail, dIdx: number) => {
+          detail.uraians?.forEach((uraian) => {
             if (uraian.uraian_id === targetUraianParam) {
               foundAspekIndex = aIdx;
               foundDetailIndex = dIdx;
@@ -284,7 +286,7 @@ export default function InspectionDetailPage() {
 
     if (foundAspekIndex === -1 && targetAspekParam) {
       const aIdx = checklist.aspeks.findIndex(
-        (a: any) =>
+        (a) =>
           a.aspek_id === targetAspekParam ||
           a.aspek_name?.toLowerCase() === targetAspekParam.toLowerCase()
       );
@@ -317,7 +319,7 @@ export default function InspectionDetailPage() {
         clearTimeout(unhighlightTimer);
       };
     }
-  }, [checklist, targetAspekParam, targetUraianParam]);
+  }, [checklist, targetAspekParam, targetUraianParam, activeAspekIndex, dispatch]);
 
   // Helper to generate scoped photo map keys (isolated per Detail Aspek and Uraian)
   const getPhotoKey = useCallback((detailId: string | undefined | null, uraianId: string) => {
@@ -326,13 +328,13 @@ export default function InspectionDetailPage() {
 
   // Helper to calculate completion progress for a single Aspek
   const getAspekProgress = useCallback(
-    (aspek: any) => {
+    (aspek: ChecklistAspek) => {
       let total = 0;
       let answered = 0;
       const formValues = watch();
 
-      aspek?.details?.forEach((detail: any) => {
-        detail?.uraians?.forEach((uraian: any) => {
+      aspek?.details?.forEach((detail) => {
+        detail?.uraians?.forEach((uraian) => {
           total++;
           const pKey = getPhotoKey(detail.detail_id, uraian.uraian_id);
           const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uraian.uraian_id}`];
@@ -353,12 +355,12 @@ export default function InspectionDetailPage() {
 
   // Helper to calculate completion progress for a single Detail Aspek
   const getDetailProgress = useCallback(
-    (detail: any) => {
+    (detail: ChecklistDetail) => {
       let total = 0;
       let answered = 0;
       const formValues = watch();
 
-      detail?.uraians?.forEach((uraian: any) => {
+      detail?.uraians?.forEach((uraian) => {
         total++;
         const pKey = getPhotoKey(detail?.detail_id, uraian.uraian_id);
         const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uraian.uraian_id}`];
@@ -382,9 +384,9 @@ export default function InspectionDetailPage() {
     let answered = 0;
     const formValues = watch();
 
-    checklist?.aspeks?.forEach((aspek: any) => {
-      aspek?.details?.forEach((detail: any) => {
-        detail?.uraians?.forEach((uraian: any) => {
+    checklist?.aspeks?.forEach((aspek) => {
+      aspek?.details?.forEach((detail) => {
+        detail?.uraians?.forEach((uraian) => {
           total++;
           const pKey = getPhotoKey(detail.detail_id, uraian.uraian_id);
           const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uraian.uraian_id}`];
@@ -406,12 +408,12 @@ export default function InspectionDetailPage() {
   useEffect(() => {
     if (!checklist?.aspeks || isLoadingDrafts) return;
 
-    const defaultValues: Record<string, any> = {};
+    const defaultValues: Record<string, string> = {};
     const photoStateMap: Record<string, PhotoItem[]> = {};
 
-    checklist.aspeks.forEach((aspek: any) => {
-      aspek.details?.forEach((detail: any) => {
-        detail.uraians?.forEach((uraian: any) => {
+    checklist.aspeks.forEach((aspek) => {
+      aspek.details?.forEach((detail) => {
+        detail.uraians?.forEach((uraian) => {
           const uId = uraian.uraian_id;
           const pKey = getPhotoKey(detail.detail_id, uId);
 
@@ -438,7 +440,7 @@ export default function InspectionDetailPage() {
           // 3. Photos (scoped pKey takes precedence; un-scoped uId only used if detail_id is not set)
           const draftPhotos = mergedPhotosMap[pKey] || (!detail.detail_id ? mergedPhotosMap[uId] : undefined);
           if (draftPhotos && draftPhotos.length > 0) {
-            photoStateMap[pKey] = draftPhotos.map((p: any) => {
+            photoStateMap[pKey] = draftPhotos.map((p) => {
               // Prioritas: previewUrl dari Redis, fallback ke localStorage jika kosong
               let resolvedUrl = p.previewUrl || p.file_url || p.url || p.photo_url || p.image_url || "";
               if (!resolvedUrl && p.id) {
@@ -451,7 +453,7 @@ export default function InspectionDetailPage() {
               };
             });
           } else if (uraian.result?.photos && uraian.result.photos.length > 0) {
-            photoStateMap[pKey] = uraian.result.photos.map((p: any) => ({
+            photoStateMap[pKey] = uraian.result.photos.map((p) => ({
               id: p.issue_photo_id,
               existingPhotoId: p.issue_photo_id,
               previewUrl: formatPhotoUrl(p.image_url),
@@ -475,11 +477,11 @@ export default function InspectionDetailPage() {
     setTimeout(() => {
       isFormInitialized.current = true;
     }, 100);
-  }, [checklist, mergedUraianValues, mergedPhotosMap, isLoadingDrafts, reset, getPhotoKey]);
+  }, [checklist, mergedUraianValues, mergedPhotosMap, isLoadingDrafts, reset, getPhotoKey, dispatch, id]);
 
   // Save current active aspect changes to Redis
   const syncCurrentAspekToRedis = useCallback(
-    (formValues: any) => {
+    (formValues: Record<string, string | undefined>) => {
       if (
         !isFormInitialized.current ||
         !currentAspek ||
@@ -490,10 +492,10 @@ export default function InspectionDetailPage() {
       )
         return;
 
-      const aspekPayload: Record<string, any> = {};
+      const aspekPayload: Record<string, RedisDraftValue> = {};
 
-      currentAspek.details?.forEach((detail: any) => {
-        detail.uraians?.forEach((uraian: any) => {
+      currentAspek.details?.forEach((detail) => {
+        detail.uraians?.forEach((uraian) => {
           const uId = uraian.uraian_id;
           const pKey = getPhotoKey(detail.detail_id, uId);
           const val = formValues[`nilai_${pKey}`] ?? formValues[`nilai_${uId}`];
@@ -578,19 +580,19 @@ export default function InspectionDetailPage() {
   };
 
   // Submit Final ("Selesaikan Audit")
-  const onFinalSubmit = async (formData: any) => {
+  const onFinalSubmit = async (formData: Record<string, string>) => {
     if (!checklist?.aspeks || !inspection) return;
 
     let unansweredCount = 0;
     let missingPhotoInfoCount = 0;
     let missingHEICount = 0;
 
-    const resultsPayload: any[] = [];
-    const ngUraianTasks: { uraian: any; keterangan: string; photos: PhotoItem[] }[] = [];
+    const resultsPayload: BulkInspectionResult[] = [];
+    const ngUraianTasks: { uraian: ChecklistUraian; keterangan: string; photos: PhotoItem[] }[] = [];
 
-    checklist.aspeks.forEach((aspek: any) => {
-      aspek.details?.forEach((detail: any) => {
-        detail.uraians?.forEach((uraian: any) => {
+    checklist.aspeks.forEach((aspek) => {
+      aspek.details?.forEach((detail) => {
+        detail.uraians?.forEach((uraian) => {
           const uId = uraian.uraian_id;
           const pKey = getPhotoKey(detail.detail_id, uId);
           const val = formData[`nilai_${pKey}`] ?? formData[`nilai_${uId}`];
@@ -691,7 +693,7 @@ export default function InspectionDetailPage() {
                 keterangan: task.keterangan || "Temuan NG pada inspeksi",
               });
               createdIssueId = issueRes?.data?.issue_id;
-            } catch (e: any) {
+            } catch (e) {
               // Jika issue sudah ada, coba ambil via search/getByResultId atau abaikan error jika duplikat
               console.warn("Issue creation failed or already exists for result:", savedResultId, e);
               try {
@@ -731,7 +733,7 @@ export default function InspectionDetailPage() {
                 let photoFile = photoItem.file;
 
                 // 1. Match existing photo stored on server and sync HEI & keterangan updates
-                let matchedExistingPhoto = existingPhotos.find(
+                const matchedExistingPhoto = existingPhotos.find(
                   (ep) =>
                     (photoItem.existingPhotoId && ep.issue_photo_id === photoItem.existingPhotoId) ||
                     (photoItem.id && ep.issue_photo_id === photoItem.id) ||
@@ -807,9 +809,9 @@ export default function InspectionDetailPage() {
         }
 
         // Auto-close any existing issue for items changed from NG to OK
-        updatedChecklist?.aspeks?.forEach((a: any) => {
-          a.details?.forEach((d: any) => {
-            d.uraians?.forEach((u: any) => {
+        updatedChecklist?.aspeks?.forEach((a) => {
+          a.details?.forEach((d) => {
+            d.uraians?.forEach((u) => {
               if ((u.checking === "OK" || u.nilai === "1") && u.result?.result_id) {
                 issueApi.closeByResultId(u.result.result_id).catch(() => {});
               }
@@ -836,8 +838,8 @@ export default function InspectionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
       await queryClient.invalidateQueries({ queryKey: ["issue"] });
       await queryClient.invalidateQueries({ queryKey: ["issue-photos"] });
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || err.message || "Gagal menyelesaikan inspeksi");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Gagal menyelesaikan inspeksi"));
     } finally {
       setIsSaving(false);
       setIsFinalizing(false);
@@ -854,8 +856,8 @@ export default function InspectionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
       toast.success("Inspeksi telah dibatalkan dan kunci lokasi dilepas.");
       router.push(`/cimory/${plantCode || "all"|| "global"}/dashboard/${userId}/inspections`);
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Gagal membatalkan inspeksi");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Gagal membatalkan inspeksi"));
     } finally {
       setIsCanceling(false);
       dispatch(setShowCancelDialog(false));
@@ -875,8 +877,8 @@ export default function InspectionDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["inspection_checklist", id] });
       await queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
       await queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Gagal mengedit inspeksi");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Gagal mengedit inspeksi"));
     } finally {
       setIsReopening(false);
     }
@@ -925,9 +927,9 @@ export default function InspectionDetailPage() {
     ? "bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse"
     : "bg-zinc-500/10 text-zinc-500 border border-zinc-500/20";
 
-  const hasExistingResults = checklist?.aspeks?.some((a: any) =>
-    a.details?.some((d: any) =>
-      d.uraians?.some((u: any) => !!u.result)
+  const hasExistingResults = checklist?.aspeks?.some((a) =>
+    a.details?.some((d) =>
+      d.uraians?.some((u) => !!u.result)
     )
   );
 
@@ -1005,7 +1007,7 @@ export default function InspectionDetailPage() {
                       await inspectionApi.updateStatus(id, "Completed");
                       toast.info("Perubahan dibatalkan. Status dikembalikan ke Selesai.");
                       await queryClient.invalidateQueries({ queryKey: ["inspection", id] });
-                    } catch (err: any) {
+                    } catch {
                       toast.error("Gagal membatalkan edit");
                     } finally {
                       setIsSaving(false);
@@ -1064,11 +1066,11 @@ export default function InspectionDetailPage() {
       {kawasanId && (
         <AspekStatusPanel
           kawasanId={kawasanId}
-          aspeks={aspeksList.map((a: any) => ({ aspek_id: a.aspek_id, aspek_name: a.aspek_name }))}
+          aspeks={aspeksList.map((a) => ({ aspek_id: a.aspek_id, aspek_name: a.aspek_name }))}
           currentUserId={user?.id}
-          activeAspekId={currentAspekId}
+          activeAspekId={currentAspekId || undefined}
           onSelectAspek={(selectedAspekId) => {
-            const idx = aspeksList.findIndex((a: any) => a.aspek_id === selectedAspekId);
+            const idx = aspeksList.findIndex((a) => a.aspek_id === selectedAspekId);
             if (idx !== -1) {
               setActiveAspekIndex(idx);
               setActiveDetailIndex(0);
@@ -1182,7 +1184,7 @@ export default function InspectionDetailPage() {
                 </span>
                 <div className="relative">
                   <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 border-b border-border scrollbar-none snap-x snap-mandatory">
-                    {aspeksList.map((aspek: any, idx: number) => {
+                    {aspeksList.map((aspek, idx: number) => {
                       const isCurrent = idx === activeAspekIndex;
                       const { answered, total, isComplete } = getAspekProgress(aspek);
 
@@ -1307,7 +1309,7 @@ export default function InspectionDetailPage() {
 
                       <div className="relative">
                         <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory">
-                          {detailsList.map((detail: any, dIdx: number) => {
+                          {detailsList.map((detail, dIdx: number) => {
                             const isSelected = activeDetailIndex === dIdx;
                             const { answered, total, isComplete } = getDetailProgress(detail);
 
@@ -1345,7 +1347,7 @@ export default function InspectionDetailPage() {
                   )}
 
                   {/* LEVEL 3: Render Uraian Checklist Items under Selected Detail Aspek */}
-                  {displayedDetails.map((detail: any, dIndex: number) => (
+                  {displayedDetails.map((detail, dIndex: number) => (
                     <div
                       key={detail.detail_id || dIndex}
                       className="space-y-3 sm:space-y-4 bg-card/40 p-2.5 sm:p-5 rounded-2xl border border-border/80 animate-in fade-in duration-150 min-w-0"
@@ -1370,7 +1372,7 @@ export default function InspectionDetailPage() {
                       )}
 
                       <div className="space-y-3 sm:space-y-4">
-                        {detail.uraians?.map((uraian: any, uIndex: number) => {
+                        {detail.uraians?.map((uraian, uIndex: number) => {
                           const uId = uraian.uraian_id;
                           const pKey = getPhotoKey(detail.detail_id, uId);
                           const currentNilai = watch(`nilai_${pKey}`) ?? watch(`nilai_${uId}`);

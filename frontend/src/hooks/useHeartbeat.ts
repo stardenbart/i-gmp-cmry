@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { api } from "@/lib/api/axios";
-import { toast } from "sonner";
+import { getApiErrorStatus } from "@/lib/api/error";
 
 interface UseHeartbeatOptions {
   kawasanId: string;
@@ -33,8 +33,9 @@ export function useHeartbeat({ kawasanId, aspekId, lockToken, enabled, onLockExp
           {},
           { headers: { "X-Lock-Token": lockToken } }
         );
-      } catch (err: any) {
-        if (err?.response?.status === 409 || err?.response?.status === 401) {
+      } catch (err) {
+        const status = getApiErrorStatus(err);
+        if (status === 409 || status === 401) {
           if (onLockExpired) onLockExpired();
         }
       }

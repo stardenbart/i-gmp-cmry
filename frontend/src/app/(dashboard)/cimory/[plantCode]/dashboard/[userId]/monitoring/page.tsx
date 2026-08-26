@@ -6,16 +6,48 @@ import { api } from "@/lib/api/axios";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { cn } from "@/lib/utils";
-import { Loader2, UserCheck, ShieldCheck, AlertTriangle, Building2, CheckCircle2 } from "lucide-react";
+import { Loader2, UserCheck, ShieldCheck, Building2 } from "lucide-react";
 
 import { useParams } from "next/navigation";
+
+interface AuditorPerformance {
+  user_id: string;
+  full_name: string;
+  completion_rate: number;
+  completed: number;
+  ongoing: number;
+  draft: number;
+}
+
+interface PicPerformance {
+  user_id: string;
+  full_name: string;
+  completion_rate: number;
+  closed: number;
+  verified: number;
+  in_progress: number;
+  open: number;
+  overdue: number;
+}
+
+interface MonitoringStats {
+  total_inspections_running?: number;
+  compliance_rate?: number;
+  inspections_completed?: number;
+  auditee_status?: Array<{
+    name: string;
+    type: string;
+    compliance: number;
+    open_issues: number;
+  }>;
+}
 
 // Fetch Auditor statistics directly from backend API
 const fetchAuditorDetail = async (plantId?: string) => {
   const res = await api.get("/dashboard/auditor-detail", {
     params: plantId && plantId !== "all" && plantId !== "global" ? { plant_id: plantId } : {}
   });
-  return res.data?.data?.items || [];
+  return (res.data?.data?.items || []) as AuditorPerformance[];
 };
 
 // Fetch PIC statistics directly from backend API
@@ -23,7 +55,7 @@ const fetchPICDetail = async (plantId?: string) => {
   const res = await api.get("/dashboard/pic-detail", {
     params: plantId && plantId !== "all" && plantId !== "global" ? { plant_id: plantId } : {}
   });
-  return res.data?.data?.items || [];
+  return (res.data?.data?.items || []) as PicPerformance[];
 };
 
 // Fetch overall dashboard stats
@@ -31,7 +63,7 @@ const fetchDashboardStats = async (plantId?: string) => {
   const res = await api.get("/dashboard/stats", {
     params: plantId && plantId !== "all" && plantId !== "global" ? { plant_id: plantId } : {}
   });
-  return res.data?.data;
+  return res.data?.data as MonitoringStats;
 };
 
 export default function MonitoringPage() {
@@ -148,7 +180,7 @@ export default function MonitoringPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {auditors.map((auditor: any, idx: number) => (
+              {auditors.map((auditor, idx: number) => (
                 <div key={auditor.user_id || idx} className="bg-card border border-border rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col group">
                   <div className="p-4 flex justify-between items-start border-b border-border bg-muted/30 group-hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-3">
@@ -205,7 +237,7 @@ export default function MonitoringPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {pics.map((pic: any, idx: number) => (
+              {pics.map((pic, idx: number) => (
                 <div key={pic.user_id || idx} className="bg-card border border-border rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
                   <div className="p-4 flex justify-between items-start border-b border-border bg-muted/30">
                     <div className="flex items-center gap-3">
@@ -253,7 +285,7 @@ export default function MonitoringPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {stats?.auditee_status?.map((item: any, idx: number) => (
+              {stats?.auditee_status?.map((item, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border shadow-sm">
                   <div className="flex items-center gap-3">
                     <Building2 className="text-primary h-6 w-6" />

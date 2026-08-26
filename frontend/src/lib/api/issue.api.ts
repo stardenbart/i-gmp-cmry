@@ -111,7 +111,7 @@ export interface Issue {
 }
 
 export const issueApi = {
-  getAll: async (params?: { page?: number; limit?: number; status?: string; pic_user_id?: string; needs_wo_wr?: boolean }) => {
+  getAll: async (params?: { page?: number; limit?: number; status?: string; pic_user_id?: string; needs_wo_wr?: boolean }): Promise<{ items: Issue[] }> => {
     const res = await api.get("/issues", { params });
     return res.data.data;
   },

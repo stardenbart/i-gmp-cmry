@@ -1,6 +1,6 @@
 'use client'
 import { useState, useCallback, useDeferredValue, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import {
   Plus, Search, ClipboardCheck, ChevronLeft, ChevronRight,
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { inspectionApi, InspectionHeader } from "@/lib/api/inspection.api";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { filterApi, InspectionFilterParams, InspectionFacets } from "@/lib/api/filter.api";
 import { usePermissions } from "@/lib/usePermissions";
 import { useAuthStore } from "@/stores/authStore";
@@ -60,18 +61,15 @@ function MyTaskCard({
   plantCode,
   onDelete,
 }: {
-  inspection: any;
+  inspection: InspectionHeader;
   userId: string;
   plantCode?: string;
   onDelete?: (id: string, name: string) => void;
 }) {
-  const elapsed = (() => {
-    const diff = Date.now() - new Date(inspection.created_at).getTime();
-    const h = Math.floor(diff / 3_600_000);
-    const m = Math.floor((diff % 3_600_000) / 60_000);
-    if (h > 0) return `${h} jam ${m} menit`;
-    return `${m} menit`;
-  })();
+  const startedAt = new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(inspection.created_at));
 
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-card/60 to-orange-500/5 p-4 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-300">
@@ -96,7 +94,7 @@ function MyTaskCard({
             <div className="flex items-center gap-1.5 mt-2">
               <Clock className="h-3 w-3 text-amber-500/70" />
               <span className="text-label-sm text-amber-600 dark:text-amber-400 font-medium">
-                Berjalan {elapsed}
+                Dimulai {startedAt}
               </span>
             </div>
           </div>
@@ -168,8 +166,8 @@ export default function InspectionsPage() {
       queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
       queryClient.invalidateQueries({ queryKey: ["issues"] });
       setInspectionToDelete(null);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Gagal menghapus inspeksi");
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Gagal menghapus inspeksi"));
     } finally {
       setIsDeleting(false);
     }
@@ -201,7 +199,7 @@ export default function InspectionsPage() {
     staleTime: 0,
   });
 
-  const myTasks: any[] = myTasksData?.items ?? [];
+  const myTasks: InspectionHeader[] = myTasksData?.items ?? [];
 
   // ── Query: All inspections (filtered) ────────────────────────────────────
   const params: InspectionFilterParams = {
@@ -280,7 +278,7 @@ export default function InspectionsPage() {
             <div>
               <p className="text-sm font-medium text-muted-foreground">Tidak ada inspeksi aktif</p>
               <p className="text-xs text-muted-foreground/60 mt-0.5">
-                Klik "Buat Inspeksi" untuk memulai tugas audit baru.
+                Klik &quot;Buat Inspeksi&quot; untuk memulai tugas audit baru.
               </p>
             </div>
           </div>
@@ -465,7 +463,7 @@ export default function InspectionsPage() {
                         <span className="text-muted-foreground font-normal"> · </span>
                         {inspection.kawasan_name || "—"}
                         <span className="text-muted-foreground font-normal"> · </span>
-                        {(inspection as any).detail_kawasan_name || "—"}
+                        {inspection.detail_kawasan_name || "—"}
                       </h4>
                       <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 font-mono truncate">
                         ID: {inspection.inspection_id}
@@ -505,7 +503,7 @@ export default function InspectionsPage() {
                           e.stopPropagation();
                           setInspectionToDelete({
                             id: inspection.inspection_id,
-                            name: (inspection as any).detail_kawasan_name || inspection.inspection_id,
+                            name: inspection.detail_kawasan_name || inspection.inspection_id,
                           });
                         }}
                         className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"

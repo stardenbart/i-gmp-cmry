@@ -27,6 +27,7 @@ const (
 	SettingKeyEmailTemplateInspectionConfirmed = "EMAIL_TEMPLATE_INSPECTION_CONFIRMED"
 	SettingKeyIssueDeadlineDays                = "ISSUE_DEADLINE_DAYS"
 	SettingKeyIssueAutoApproveDays             = "ISSUE_AUTO_APPROVE_DAYS"
+	SettingKeyIssueWOWRAutoApproveDays         = "ISSUE_WOWR_AUTO_APPROVE_DAYS"
 	SettingKeySMTPEnabled                      = "SMTP_ENABLED"
 	SettingKeySMTPHost                         = "SMTP_HOST"
 	SettingKeySMTPPort                         = "SMTP_PORT"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { Camera, Trash2, Plus, Image as ImageIcon, AlertCircle, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,11 @@ export interface PhotoItem {
   existingPhotoId?: string; // If photo was already uploaded to server
   hei_id?: string;
   hei_category?: string;
+  file_url?: string;
+  file_path?: string;
+  photo_url?: string;
+  image_url?: string;
+  url?: string;
 }
 
 interface PhotoUploaderWithKeteranganProps {
@@ -201,7 +206,7 @@ export function PhotoUploaderWithKeterangan({
   const handleHEISelect = (id: string, selectedValue: string) => {
     const updated = photos.map((item) => {
       if (item.id === id) {
-        const matchedItem = heiItems.find((h: any) => h.hei_id === selectedValue || h.category_name === selectedValue);
+        const matchedItem = heiItems.find((h) => h.hei_id === selectedValue || h.category_name === selectedValue);
         if (matchedItem) {
           return {
             ...item,
@@ -245,13 +250,12 @@ export function PhotoUploaderWithKeterangan({
       {photos.length > 0 && (
         <div className="space-y-3">
           {photos.map((item, index) => {
-            const activeCategory = item.hei_category || "";
             const rawUrl = item.previewUrl ||
-              (item as any).file_url ||
-              (item as any).file_path ||
-              (item as any).photo_url ||
-              (item as any).image_url ||
-              (item as any).url ||
+              item.file_url ||
+              item.file_path ||
+              item.photo_url ||
+              item.image_url ||
+              item.url ||
               "";
             // base64 dan blob URL dipakai langsung tanpa formatPhotoUrl
             const displayUrl = rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")
@@ -268,7 +272,10 @@ export function PhotoUploaderWithKeterangan({
                 {/* Photo Thumbnail */}
                 <div className="relative group shrink-0 w-full sm:w-28 h-28 rounded-md overflow-hidden bg-muted border border-border">
                   {displayUrl ? (
-                    <img
+                    <>
+                      {/* Blob/data URLs from local uploads intentionally use a native image element. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                       src={displayUrl}
                       alt={`Bukti temuan ${index + 1}`}
                       className="w-full h-full object-cover"
@@ -307,7 +314,8 @@ export function PhotoUploaderWithKeterangan({
                           parentNode.appendChild(fallbackDiv);
                         }
                       }}
-                    />
+                      />
+                    </>
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-muted text-[10px] p-2 text-center gap-1">
                       <ImageIcon className="h-4 w-4 opacity-50" />
@@ -373,7 +381,7 @@ export function PhotoUploaderWithKeterangan({
                       >
                         <option value="">-- Pilih Kategori / Item HEI (Wajib) --</option>
                         {categories.map((cat) => {
-                          const itemsInCat = heiItems.filter((h: any) => h.category_name?.toLowerCase() === cat.toLowerCase());
+                          const itemsInCat = heiItems.filter((h) => h.category_name?.toLowerCase() === cat.toLowerCase());
                           if (itemsInCat.length === 0) {
                             return (
                               <option key={cat} value={cat}>
@@ -383,7 +391,7 @@ export function PhotoUploaderWithKeterangan({
                           }
                           return (
                             <optgroup key={cat} label={`Kategori: ${cat}`}>
-                              {itemsInCat.map((h: any) => (
+                              {itemsInCat.map((h) => (
                                 <option key={h.hei_id} value={h.hei_id}>
                                   {h.hei_code ? `[${h.hei_code}] ` : ""}{h.hei_name}
                                 </option>

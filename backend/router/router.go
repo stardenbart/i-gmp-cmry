@@ -68,7 +68,7 @@ func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStor
 
 	// ── API v1 routes ─────────────────────────────────────────────────
 	api := r.Group("/api/v1")
-	v1.Register(r, api, db, redisClient, minioStorage, cryptoSvc, mailer, producer, osClient, jwtManager, log)
+	v1.Register(r, api, db, redisClient, minioStorage, cryptoSvc, mailer, producer, osClient, jwtManager, log, cfg)
 
 	return r
 }

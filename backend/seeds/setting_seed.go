@@ -53,7 +53,12 @@ func SeedSettings(db *gorm.DB) {
 		{
 			SettingKey:   master.SettingKeyIssueAutoApproveDays,
 			SettingValue: "3",
-			Description:  "Batas waktu (hari) bagi auditor untuk memvalidasi follow up PIC sebelum auto-approve",
+			Description:  "Batas waktu (hari) bagi auditor untuk memvalidasi follow up perbaikan temuan sebelum auto-approve",
+		},
+		{
+			SettingKey:   master.SettingKeyIssueWOWRAutoApproveDays,
+			SettingValue: "3",
+			Description:  "Batas waktu (hari) bagi auditor untuk memvalidasi bukti WO/WR sebelum auto-approve",
 		},
 		{
 			SettingKey:   master.SettingKeySMTPEnabled,

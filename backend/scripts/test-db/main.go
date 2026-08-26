@@ -2,14 +2,13 @@ package main
 
 import (
 	"fmt"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"os"
+
+	"github.com/monitoring-system/backend/config"
 )
 
 func main() {
-	dsn := "host=127.0.0.1 user=postgres password=postgres dbname=postgres port=5432 sslmode=disable TimeZone=Asia/Jakarta"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := config.OpenDatabase(config.Load())
 	if err != nil {
 		fmt.Println("failed to connect database", err)
 		os.Exit(1)

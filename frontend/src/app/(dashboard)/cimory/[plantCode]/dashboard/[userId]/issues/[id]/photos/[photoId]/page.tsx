@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -13,18 +13,16 @@ import {
   X,
   Loader2,
   Eye,
-  Tag,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { issueApi, IssuePhoto, IssueStatus, IssueCategory } from "@/lib/api/issue.api";
+import { issueApi, IssuePhoto, IssueStatus } from "@/lib/api/issue.api";
 import { DetailSpesifikasiTemuanCard } from "@/components/isssues/DetailSpesifikasiTemuanCard";
 import { formatImageUrl } from "@/lib/utils";
 import { useChunkedUpload } from "@/hooks/useChunkedUpload";
-import { useAuthStore } from "@/stores/authStore";
 import { usePermissions } from "@/lib/usePermissions";
 
 export default function InitialPhotoDetailPage() {
@@ -34,12 +32,10 @@ export default function InitialPhotoDetailPage() {
     id: string;
     photoId: string;
   };
-  const router = useRouter();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const user = useAuthStore((state) => state.user);
   const { hasPermission } = usePermissions();
 
   const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: id });
@@ -99,8 +95,6 @@ export default function InitialPhotoDetailPage() {
   }
 
   const isAuditor = hasPermission("PERM-INSP-C") || hasPermission("PERM-WOWR-U");
-  const isPIC = !isAuditor;
-
   const rawStatus = issue.issue_status as IssueStatus;
   const isClosed = rawStatus === "Closed" || rawStatus === "Verified";
   const isWorkStarted = rawStatus === "InProgress" || rawStatus === "PendingValidation";
@@ -212,6 +206,8 @@ export default function InitialPhotoDetailPage() {
 
           {currentPhoto ? (
             <div className="relative aspect-4/3 w-full rounded-2xl overflow-hidden bg-black/90 group border border-border shadow-inner">
+              {/* Dynamic authenticated upload URLs intentionally use a native image element. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={formatImageUrl(currentPhoto.image_url)}
                 alt="Foto Temuan Awal"
@@ -376,6 +372,8 @@ export default function InitialPhotoDetailPage() {
             >
               <X className="h-7 w-7" />
             </Button>
+            {/* Dynamic preview URLs intentionally use a native image element. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={selectedImage}
               alt="Preview"
@@ -431,6 +429,8 @@ function FollowUpPhotoCard({
     <div className="group relative flex flex-col rounded-2xl border border-border bg-card overflow-hidden shadow-xs hover:border-primary/50 transition-all">
       {/* Thumbnail */}
       <div className="relative aspect-square w-full overflow-hidden bg-muted">
+        {/* Dynamic authenticated upload URLs intentionally use a native image element. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={formatImageUrl(photo.image_url)}
           alt="Foto Follow up"

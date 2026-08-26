@@ -11,6 +11,7 @@ import { ShieldCheck, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/axios";
+import { getApiErrorMessage } from "@/lib/api/error";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Format email tidak valid"),
@@ -38,9 +39,9 @@ export default function ForgotPasswordPage() {
       
       setIsSuccess(true);
       toast.success(res.data?.message || "Instruksi reset password telah dikirim");
-    } catch (error: any) {
+    } catch (error) {
       toast.error(
-        error.response?.data?.message || "Gagal mengirim permintaan reset password."
+        getApiErrorMessage(error, "Gagal mengirim permintaan reset password.")
       );
     } finally {
       setIsLoading(false);

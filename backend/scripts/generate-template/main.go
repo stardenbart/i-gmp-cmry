@@ -11,8 +11,8 @@ func main() {
 
 	// Corporate Header Styling
 	styleHeader, _ := f.NewStyle(&excelize.Style{
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"#0f172a"}, Pattern: 1},
-		Font: &excelize.Font{Bold: true, Family: "Arial", Size: 16, Color: "#ffffff"},
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"#0f172a"}, Pattern: 1},
+		Font:      &excelize.Font{Bold: true, Family: "Arial", Size: 16, Color: "#ffffff"},
 		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
 	})
 	f.SetCellStyle(sheet, "A1", "F2", styleHeader)

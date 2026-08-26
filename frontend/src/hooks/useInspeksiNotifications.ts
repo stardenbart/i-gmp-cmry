@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api/axios";
@@ -9,7 +9,7 @@ export interface InspeksiNotificationEvent {
   type: "SAVE_SUCCESS" | "SAVE_FAILED" | "LOCK_EXPIRED" | "KAWASAN_DONE" | "YIELD_REQUEST";
   aspek_id?: string;
   message?: string;
-  payload?: any;
+  payload?: unknown;
   timestamp: number;
 }
 
@@ -20,16 +20,21 @@ interface UserNotificationPollResponse {
 }
 
 export function useInspeksiNotifications(
-  onYieldRequest?: (payload: any) => void,
+  onYieldRequest?: (payload: unknown) => void,
   intervalMs = 2000
 ) {
   const user = useAuthStore((state) => state.user);
-  const lastPollTimeRef = useRef<number>(Date.now() - 10000);
-  const onYieldRequestRef = useRef(onYieldRequest);
-  onYieldRequestRef.current = onYieldRequest;
+  const lastPollTimeRef = useRef(0);
+  const handleYieldRequest = useEffectEvent((payload: unknown) => {
+    onYieldRequest?.(payload);
+  });
 
   useEffect(() => {
     if (!user?.id) return;
+
+    if (lastPollTimeRef.current === 0) {
+      lastPollTimeRef.current = Date.now() - 10000;
+    }
 
     let isMounted = true;
 
@@ -63,12 +68,10 @@ export function useInspeksiNotifications(
             toast.info("User lain meminta giliran untuk mengisi aspek yang sedang Anda edit.", {
               duration: 10000,
             });
-            if (onYieldRequestRef.current) {
-              onYieldRequestRef.current(n.payload);
-            }
+            handleYieldRequest(n.payload);
           }
         });
-      } catch (err) {
+      } catch {
         // Silent catch
       }
     };

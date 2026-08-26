@@ -147,7 +147,8 @@ Perubahan skema database PostgreSQL merupakan tahapan paling kritis dalam alur d
 Pengelolaan konfigurasi sistem memisahkan secara tegas antara kode aplikasi dan data rahasia (*secrets management*).
 
 ### 6.1 Server Environment File (`.env`)
-* **Strict Rule:** File `.env` **TIDAK BOLEH** dimasukkan (*committed*) ke dalam repositori Git. File `.gitignore` wajib mengecualikan `.env`.
+* **Strict Rule:** File `.env` **TIDAK BOLEH** dimasukkan (*committed*) ke dalam repositori Git. Salin `.env.example` menjadi `.env` hanya pada host deployment, ganti seluruh placeholder, lalu batasi permission ke `0600`.
+* Docker/Podman Compose tidak membaca `.env.example` secara otomatis. Deployment wajib memakai `.env` lokal host atau `--env-file` yang setara.
 * **Dilarang keras:** Menyimpan credential/secret secara *hardcoded* di dalam `docker-compose.yml`.
 
 ### 6.2 Variabel Lingkungan Kritis (*Critical Environment Variables*)

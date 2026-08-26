@@ -25,14 +25,14 @@ export interface CreateAPIKeyResponse {
 
 export const apiKeyApi = {
   list: async (plant_id?: string): Promise<APIKey[]> => {
-    const params: Record<string, any> = {};
+    const params: Record<string, string> = {};
     if (plant_id && plant_id !== "ALL") params.plant_id = plant_id;
     const res = await api.get("/api-keys", { params });
     return res.data.data;
   },
 
   create: async (name: string, isSingleUse: boolean = true, plant_id?: string): Promise<CreateAPIKeyResponse> => {
-    const payload: Record<string, any> = { name, is_single_use: isSingleUse };
+    const payload: Record<string, string | boolean> = { name, is_single_use: isSingleUse };
     if (plant_id && plant_id !== "ALL") payload.plant_id = plant_id;
     const res = await api.post("/api-keys", payload);
     return res.data.data;

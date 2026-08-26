@@ -1,16 +1,18 @@
 "use client";
+/* eslint-disable react-hooks/incompatible-library -- React Hook Form watch drives dependent location selectors. */
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Loader2, Play } from "lucide-react";
+import { ArrowLeft, Loader2, Play } from "lucide-react";
 import Link from "next/link";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { inspectionApi } from "@/lib/api/inspection.api";
+import { getApiErrorMessage, getApiErrorStatus } from "@/lib/api/error";
 import { masterApi, Area, Kawasan, DetailKawasan } from "@/lib/api/master.api";
 import { usePermissions } from "@/lib/usePermissions";
 
@@ -56,9 +58,9 @@ export default function CreateInspectionPage() {
         setIsAreasLoading(true);
         const data = await masterApi.getAreas({ limit: 100 });
         setAreas(data || []);
-      } catch (error: any) {
+      } catch (error) {
         console.error("Failed to fetch areas:", error);
-        if (error?.response?.status !== 403) {
+        if (getApiErrorStatus(error) !== 403) {
           toast.error("Gagal memuat data area");
         }
       } finally {
@@ -132,8 +134,8 @@ export default function CreateInspectionPage() {
       await queryClient.invalidateQueries({ queryKey: ["inspections-filter"] });
       await queryClient.invalidateQueries({ queryKey: ["my-ongoing-inspections"] });
       router.push(`/cimory/${plantCode || "all"}/dashboard/${userId}/inspections/${inspectionData.inspection_id}`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Gagal membuat inspeksi");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Gagal membuat inspeksi"));
     } finally {
       setIsLoading(false);
     }
@@ -294,7 +296,7 @@ export default function CreateInspectionPage() {
             </div>
             <div className="text-xs leading-relaxed text-muted-foreground">
               <strong className="font-semibold text-foreground block mb-0.5">Penguncian Lokasi Real-time:</strong>
-              Setelah Anda mengklik <span className="font-semibold text-primary">"Mulai Inspeksi"</span>, status lokasi (Kawasan & Detail Kawasan) akan berubah menjadi <span className="font-semibold text-amber-500 font-mono">Ongoing</span>. Auditor lain tidak dapat memulai inspeksi di lokasi yang sama sampai inspeksi Anda selesai atau dibatalkan.
+              Setelah Anda mengklik <span className="font-semibold text-primary">&quot;Mulai Inspeksi&quot;</span>, status lokasi (Kawasan & Detail Kawasan) akan berubah menjadi <span className="font-semibold text-amber-500 font-mono">Ongoing</span>. Auditor lain tidak dapat memulai inspeksi di lokasi yang sama sampai inspeksi Anda selesai atau dibatalkan.
             </div>
           </div>
 

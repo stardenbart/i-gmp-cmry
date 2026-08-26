@@ -45,17 +45,20 @@ export function useInspectionDraft(inspectionId: string | undefined) {
   useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
 
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as InspectionDraftData;
-        setDraftData(parsed);
-      } else {
-        setDraftData(null);
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as InspectionDraftData;
+          setDraftData(parsed);
+        } else {
+          setDraftData(null);
+        }
+      } catch (e) {
+        console.warn("Failed to load local inspection draft:", e);
       }
-    } catch (e) {
-      console.warn("Failed to load local inspection draft:", e);
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [storageKey]);
 
   // Save draft

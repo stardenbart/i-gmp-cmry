@@ -40,6 +40,10 @@ func (r *issueFilterRepository) FindFiltered(f *issue.IssueFilter) ([]issue.Issu
 			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
 			  JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih2."DetailKawasanID"
 			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
+			(SELECT dm."DetailName" FROM "Inspection_Result" ir2
+			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+			  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
+			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailAspekName",
 			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName"`).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order(`"PhotoCreatedAt" ASC`)

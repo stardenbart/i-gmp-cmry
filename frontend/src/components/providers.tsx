@@ -1,10 +1,11 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Toaster } from "sonner";
 
 import { StoreProvider } from "@/store/provider";
+import { useMounted } from "@/lib/useMounted";
 
 interface ThemeContextType {
   theme: string;
@@ -22,13 +23,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<string>("dark");
   const [resolvedTheme, setResolvedTheme] = useState<string>("dark");
 
-  useEffect(() => {
-    const stored = localStorage.getItem("theme") || "dark";
-    setThemeState(stored);
-    applyTheme(stored);
-  }, []);
-
-  const applyTheme = (t: string) => {
+  const applyTheme = useCallback((t: string) => {
     const root = document.documentElement;
     let actualTheme = t;
     if (t === "system") {
@@ -40,13 +35,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       root.classList.remove("dark");
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const stored = localStorage.getItem("theme") || "dark";
+      setThemeState(stored);
+      applyTheme(stored);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [applyTheme]);
 
   const setTheme = (newTheme: string) => {
     setThemeState(newTheme);
     try {
       localStorage.setItem("theme", newTheme);
-    } catch (e) {}
+    } catch {
+      // Storage can be unavailable in restricted browser contexts.
+    }
     applyTheme(newTheme);
   };
 
@@ -61,11 +67,7 @@ export const useTheme = () => useContext(ThemeContext);
 
 function ToasterWithTheme() {
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useMounted();
 
   if (!mounted) return null;
   return <Toaster position="top-center" theme={(resolvedTheme as "light" | "dark" | "system") || "dark"} />;

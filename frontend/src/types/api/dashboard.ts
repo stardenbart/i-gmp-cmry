@@ -6,6 +6,27 @@
 import { api } from "@/lib/api/axios";
 import type { DashboardStats, SingleItemResponse } from "./index";
 
+export interface PreviewExportRow {
+  inspection_id?: string;
+  area?: string;
+  kawasan?: string;
+  detail_kawasan?: string;
+  pic?: string;
+  aspek?: string;
+  detail?: string;
+  uraian_id?: string;
+  keterangan?: string;
+  nilai?: number;
+  total_nilai?: number;
+  total_temuan?: number;
+  image_url?: string;
+  image_urls?: string[];
+  issue_id?: string;
+  due_date?: string;
+  follow_up_date?: string;
+  [key: string]: string | number | boolean | string[] | null | undefined;
+}
+
 /**
  * Dashboard API
  */
@@ -38,8 +59,8 @@ export const dashboardApi = {
     start_date?: string;
     end_date?: string;
     plant_id?: string;
-  }) => {
-    const res = await api.get("/dashboard/preview-export", {
+  }): Promise<{ data: PreviewExportRow[] }> => {
+    const res = await api.get<{ data: PreviewExportRow[] }>("/dashboard/preview-export", {
       params: filters,
     });
     return res.data;

@@ -24,6 +24,7 @@ export type {
   UpdateProfileRequest,
 
   // Master Data
+  Plant,
   Department,
   CreateDepartmentRequest,
   UpdateDepartmentRequest,

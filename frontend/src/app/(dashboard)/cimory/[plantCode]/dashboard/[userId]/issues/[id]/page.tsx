@@ -5,9 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Trash2, CheckCircle2,
+  ArrowLeft, CheckCircle2,
   Loader2, XCircle, CircleDashed,
-  Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -362,7 +361,7 @@ export default function IssueDetailPage() {
                       <span className={cn("text-[10px] font-bold", locationConfig.color)}>{locationConfig.label}</span>
                     </div>
                     <p className="mt-1.5 line-clamp-2 text-xs font-semibold leading-relaxed text-foreground">
-                      {locationIssue.uraian_text || locationIssue.keterangan || "Tanpa uraian temuan"}
+                      {locationIssue.detail_aspek_name || "Tanpa uraian temuan"}
                     </p>
                     <p className="mt-2 text-[10px] text-muted-foreground">
                       {locationIssue.photos?.length || 0} foto · {locationIssue.issue_id}
@@ -412,6 +411,8 @@ export default function IssueDetailPage() {
             >
               <XCircle className="h-7 w-7" />
             </Button>
+            {/* Dynamic authenticated upload URLs intentionally use a native image element. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={formatImageUrl(selectedImage) || "/placeholder.png"}
               alt="Preview"
@@ -425,46 +426,3 @@ export default function IssueDetailPage() {
   );
 }
 
-function PhotoCard({
-  photo,
-  onPreview,
-  onDelete,
-  isDeleting,
-}: {
-  photo: IssuePhoto;
-  onPreview: () => void;
-  onDelete: () => void;
-  isDeleting: boolean;
-}) {
-  return (
-    <div className="relative group overflow-hidden rounded-2xl border border-border bg-muted aspect-square">
-      <img
-        src={formatImageUrl(photo.image_url) || "/placeholder.png"}
-        alt={photo.file_name}
-        onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
-        className="h-full w-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
-        onClick={onPreview}
-      />
-      <div className="absolute inset-0 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-        <button
-          onClick={onPreview}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 border border-white/20 text-white hover:bg-white hover:text-black transition-colors"
-          title="Lihat Foto"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={isDeleting}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-colors"
-          title="Hapus Foto"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 p-2 bg-linear-to-t from-black/60 to-transparent">
-        <p className="text-white text-[10px] truncate">{photo.file_name}</p>
-      </div>
-    </div>
-  );
-}

@@ -2,8 +2,10 @@ package mail
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/smtp"
+	"strings"
 	"text/template"
 )
 
@@ -92,7 +94,11 @@ func (m *smtpMailer) SendTemplateForPlant(plantID string, to []string, subject s
 		return err
 	}
 
-	t, err := template.New("email").Parse(tmpl)
+	// Settings stores both the exported HTML and the editor design in a JSON
+	// envelope. Only the HTML belongs in the outgoing email. Raw HTML remains
+	// supported for seeded and legacy templates.
+	templateHTML := resolveTemplateHTML(tmpl)
+	t, err := template.New("email").Parse(templateHTML)
 	if err != nil {
 		return fmt.Errorf("failed to parse email template: %w", err)
 	}
@@ -112,6 +118,23 @@ func (m *smtpMailer) SendTemplateForPlant(plantID string, to []string, subject s
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
 	return smtp.SendMail(addr, auth, cfg.SenderEmail, to, []byte(msg))
+}
+
+type storedEmailTemplate struct {
+	HTML string `json:"html"`
+}
+
+func resolveTemplateHTML(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if !strings.HasPrefix(trimmed, "{") {
+		return value
+	}
+
+	var stored storedEmailTemplate
+	if err := json.Unmarshal([]byte(trimmed), &stored); err != nil || strings.TrimSpace(stored.HTML) == "" {
+		return value
+	}
+	return stored.HTML
 }
 
 func validateSMTPConfig(cfg SMTPConfig) error {

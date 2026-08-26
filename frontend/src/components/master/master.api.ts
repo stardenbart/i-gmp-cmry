@@ -1,13 +1,46 @@
 import { api } from "@/lib/api/axios";
 
-export const fetchItems = async (endpoint: string, page = 1, search = "", limit = 10) => {
+interface MasterListResult<T> {
+  items: T[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+  };
+}
+
+interface RawMasterResponse<T> {
+  data?: T[] | {
+    items?: T[];
+    total?: number;
+    page?: number;
+    limit?: number;
+    total_pages?: number;
+  };
+  meta?: {
+    total?: number;
+    page?: number;
+    limit?: number;
+    total_pages?: number;
+  };
+}
+
+export const fetchItems = async <T = Record<string, unknown>>(
+  endpoint: string,
+  page = 1,
+  search = "",
+  limit = 10
+): Promise<MasterListResult<T>> => {
   const res = await api.get(endpoint, { params: { page, limit, search } });
-  const rawData = res.data;
+  const rawData = res.data as RawMasterResponse<T>;
   const responseData = rawData.data;
 
   const items = Array.isArray(responseData)
     ? responseData
     : responseData?.items || [];
+
+  const responseObject = Array.isArray(responseData) ? undefined : responseData;
 
   const total = Array.isArray(responseData)
     ? rawData.meta?.total || items.length
@@ -19,9 +52,9 @@ export const fetchItems = async (endpoint: string, page = 1, search = "", limit 
     items,
     pagination: {
       total,
-      page: rawData.meta?.page || responseData?.page || page,
-      limit: rawData.meta?.limit || responseData?.limit || limit,
-      total_pages: rawData.meta?.total_pages || responseData?.total_pages || totalPages,
+      page: rawData.meta?.page || responseObject?.page || page,
+      limit: rawData.meta?.limit || responseObject?.limit || limit,
+      total_pages: rawData.meta?.total_pages || responseObject?.total_pages || totalPages,
     },
   };
 };

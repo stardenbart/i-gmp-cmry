@@ -2,6 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchItems } from "@/components/master/master.api";
 import { api } from "@/lib/api/axios";
 
+export interface HEIMasterItem {
+  hei_id: string;
+  category_name: string;
+  item_name?: string;
+  hei_name?: string;
+  hei_code?: string;
+}
+
 const MASTER_STALE_TIME = 10 * 60 * 1000; // 10 minutes cache freshness
 const MASTER_GC_TIME = 30 * 60 * 1000;    // 30 minutes memory persistence
 
@@ -10,7 +18,7 @@ export function useMasterHEI(category = "", limit = 500) {
     queryKey: ["master", "hei", category, limit],
     queryFn: () => {
       const url = category ? `/master/hei?category=${encodeURIComponent(category)}` : "/master/hei";
-      return fetchItems(url, 1, "", limit);
+      return fetchItems<HEIMasterItem>(url, 1, "", limit);
     },
     staleTime: MASTER_STALE_TIME,
     gcTime: MASTER_GC_TIME,

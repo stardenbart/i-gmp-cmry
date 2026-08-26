@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { api } from "@/lib/api/axios";
@@ -21,15 +21,19 @@ interface PollResponse {
 export function usePolling(options?: UsePollingOptions) {
   const queryClient = useQueryClient();
   const token = useAuthStore((state) => state.token);
-  const lastPollTimeRef = useRef<number>(Date.now() - 10000);
+  const lastPollTimeRef = useRef<number>(0);
   const consecutiveFailuresRef = useRef<number>(0);
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const notifyIssueUpdated = useEffectEvent(() => {
+    options?.onIssueUpdated?.();
+  });
 
   const baseIntervalMs = options?.intervalMs ?? 10000; // 10s default interval
 
   useEffect(() => {
     if (!token) return;
+	if (lastPollTimeRef.current === 0) {
+		lastPollTimeRef.current = Date.now() - 10000;
+	}
 
     let isMounted = true;
     let timerId: NodeJS.Timeout | null = null;
@@ -75,12 +79,10 @@ export function usePolling(options?: UsePollingOptions) {
             queryClient.invalidateQueries({ queryKey: ["auditor-inspections-trend"] });
             queryClient.invalidateQueries({ queryKey: ["auditor-global-issues"] });
 
-            if (optionsRef.current?.onIssueUpdated) {
-              optionsRef.current.onIssueUpdated();
-            }
+            notifyIssueUpdated();
           }
         }
-      } catch (err) {
+      } catch {
         consecutiveFailuresRef.current += 1;
       } finally {
         if (isMounted) {

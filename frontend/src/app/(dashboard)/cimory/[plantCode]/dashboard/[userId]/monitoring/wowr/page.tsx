@@ -5,21 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  BarChart3,
   CheckCircle2,
   Clock,
   XCircle,
-  AlertCircle,
-  Download,
   Search,
   ArrowLeft,
   Loader2,
-  Building2,
   FileSpreadsheet,
-  Percent,
-  Check,
-  X,
-  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { issueApi } from "@/lib/api/issue.api";
@@ -61,27 +53,26 @@ export default function WOWRReportPage() {
     awaiting: number;
   }> = data?.by_area || [];
 
-  const rawItems: Array<{
-    issue_id: string;
-    photo_id?: string;
-    wo_id: string;
-    wr_id: string;
-    needs_wo_wr: boolean;
-    wowr_status: string;
-    issue_status: string;
-    area_id: string;
-    area_name: string;
-    kawasan_id: string;
-    kawasan_name: string;
-    detail_kawasan_name: string;
-    pic_name: string;
-    keterangan: string;
-    due_date?: string;
-    created_at: string;
-  }> = data?.items || [];
-
   // Filter items by Area and Search text
   const filteredItems = useMemo(() => {
+    const rawItems: Array<{
+      issue_id: string;
+      photo_id?: string;
+      wo_id: string;
+      wr_id: string;
+      needs_wo_wr: boolean;
+      wowr_status: string;
+      issue_status: string;
+      area_id: string;
+      area_name: string;
+      kawasan_id: string;
+      kawasan_name: string;
+      detail_kawasan_name: string;
+      pic_name: string;
+      keterangan: string;
+      due_date?: string;
+      created_at: string;
+    }> = data?.items || [];
     let result = rawItems;
     if (selectedArea !== "ALL") {
       result = result.filter(i => i.area_name === selectedArea);
@@ -100,7 +91,7 @@ export default function WOWRReportPage() {
       );
     }
     return result;
-  }, [rawItems, selectedArea, search]);
+  }, [data, selectedArea, search]);
 
   // Client-side Excel/CSV Export generator
   const handleExportCSV = () => {

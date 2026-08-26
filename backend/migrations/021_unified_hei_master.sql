@@ -64,7 +64,25 @@ ON CONFLICT ("HEIID") DO NOTHING;
 ALTER TABLE "Issue_Photo" ADD COLUMN IF NOT EXISTS "HEIID" VARCHAR(50) REFERENCES "HEI_Master" ("HEIID") ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS "idx_issue_photo_hei_id" ON "Issue_Photo" ("HEIID");
 
--- 6. Populate HEIID from HabitID, EquipmentID, or InfrastructureID
-UPDATE "Issue_Photo"
-SET "HEIID" = COALESCE("HabitID", "EquipmentID", "InfrastructureID")
-WHERE "HEIID" IS NULL AND ("HabitID" IS NOT NULL OR "EquipmentID" IS NOT NULL OR "InfrastructureID" IS NOT NULL);
+-- 6. Populate HEIID only on legacy installations that stored the old HEI
+-- columns directly on Issue_Photo. Fresh schemas never had these columns.
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'Issue_Photo' AND column_name = 'HabitID'
+    ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'Issue_Photo' AND column_name = 'EquipmentID'
+    ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'Issue_Photo' AND column_name = 'InfrastructureID'
+    ) THEN
+        UPDATE "Issue_Photo"
+        SET "HEIID" = COALESCE("HabitID", "EquipmentID", "InfrastructureID")
+        WHERE "HEIID" IS NULL
+          AND ("HabitID" IS NOT NULL OR "EquipmentID" IS NOT NULL OR "InfrastructureID" IS NOT NULL);
+    END IF;
+END $$;

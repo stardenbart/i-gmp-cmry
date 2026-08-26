@@ -14,6 +14,7 @@ import (
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/issue"
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
+	notificationdomain "github.com/monitoring-system/backend/internal/domain/notification"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/eventstore"
 	"github.com/monitoring-system/backend/pkg/idgen"
@@ -26,21 +27,32 @@ import (
 // ── Issue UseCase ─────────────────────────────────────────────────────────
 
 type issueUseCase struct {
-	repo         issue.IssueRepository
-	photoRepo    issue.IssuePhotoRepository
-	heiRepo      issue.IssueHEIRepository
-	storage      *storage.MinioStorage
-	userRepo     authdomain.UserRepository // to fetch PIC email
-	delegateRepo issue.IssueDelegateRepository
-	producer     kafka.EventProducer
-	mailer       mail.Mailer
-	settingRepo  masterdomain.SettingRepository
-	cryptoSvc    *crypto.Service
-	rdb          *redis.Client
+	repo           issue.IssueRepository
+	photoRepo      issue.IssuePhotoRepository
+	heiRepo        issue.IssueHEIRepository
+	storage        *storage.MinioStorage
+	userRepo       authdomain.UserRepository // to fetch PIC email
+	delegateRepo   issue.IssueDelegateRepository
+	producer       kafka.EventProducer
+	mailer         mail.Mailer
+	settingRepo    masterdomain.SettingRepository
+	cryptoSvc      *crypto.Service
+	rdb            *redis.Client
+	notificationUC notificationdomain.NotificationUseCase // in-app bell notifications, alongside email
 }
 
-func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, heiRepo issue.IssueHEIRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client) issue.IssueUseCase {
-	return &issueUseCase{repo: repo, photoRepo: photoRepo, heiRepo: heiRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb}
+func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, heiRepo issue.IssueHEIRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client, notificationUC notificationdomain.NotificationUseCase) issue.IssueUseCase {
+	return &issueUseCase{repo: repo, photoRepo: photoRepo, heiRepo: heiRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb, notificationUC: notificationUC}
+}
+
+// notify creates an in-app bell notification for a user, best-effort — a
+// failure here must never break the issue action it's attached to (email
+// already carries the same information).
+func (uc *issueUseCase) notify(userID, nType, title, message, link string) {
+	if uc.notificationUC == nil || userID == "" {
+		return
+	}
+	_ = uc.notificationUC.CreateSystemNotification(userID, nType, title, message, link)
 }
 
 func (uc *issueUseCase) ConsolidateDuplicateActiveIssues() error {
@@ -112,7 +124,14 @@ func (uc *issueUseCase) GetByResultID(resultID string) (*issue.Issue, error) {
 func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*issue.Issue, error) {
 	dueDate := req.DueDate
 	if dueDate == nil {
-		s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyIssueDeadlineDays, "")
+		// Resolve the deadline from the PIC's plant setting first, falling back to
+		// the global default (FindByKey already does this) — each plant can define
+		// its own ISSUE_DEADLINE_DAYS instead of sharing one hardcoded value.
+		plantID := ""
+		if pic, errPic := uc.userRepo.FindByID(req.IssuePICUserID); errPic == nil && pic != nil && pic.PlantID != nil {
+			plantID = *pic.PlantID
+		}
+		s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyIssueDeadlineDays, plantID)
 		days := 14
 		if err == nil && s.SettingValue != "" {
 			if d, errParse := strconv.Atoi(s.SettingValue); errParse == nil {
@@ -222,6 +241,11 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 		}
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, i.IssueID, event)
 		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
+
+		// Use req.Keterangan (plaintext) rather than i.Keterangan, which holds the
+		// encrypted value stored on the record.
+		uc.notify(i.IssuePICUserID, "info", "Issue Baru Ditugaskan",
+			fmt.Sprintf("Anda mendapat temuan baru: %s", req.Keterangan), "/issues/"+i.IssueID)
 
 		// Send email notification to PIC asynchronously
 		go func(issueSnapshot issue.Issue) {
@@ -368,6 +392,8 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 			}
 			if i.WOWRStatus != issue.WOWRStatusVerified {
 				i.WOWRStatus = issue.WOWRStatusPendingValidation
+				submittedAt := time.Now()
+				i.WOWRSubmittedAt = &submittedAt
 			}
 		}
 	}
@@ -380,6 +406,11 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 	}
 	if req.WOWRStatus != "" {
 		i.WOWRStatus = req.WOWRStatus
+		if req.WOWRStatus != issue.WOWRStatusPendingValidation {
+			// Resolved (Verified/Rejected/None) — stop counting toward the WO/WR
+			// auto-approve timeout until it's resubmitted for validation again.
+			i.WOWRSubmittedAt = nil
+		}
 		// If Auditor rejects WOWR proof, automatically delete existing WOWR proof photos from DB & MinIO
 		if req.WOWRStatus == issue.WOWRStatusRejected && uc.photoRepo != nil {
 			photos, _ := uc.photoRepo.FindByIssueID(i.IssueID)
@@ -391,6 +422,8 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 					}
 				}
 			}
+			uc.notify(i.IssuePICUserID, "warning", "Bukti WO/WR Ditolak",
+				"Bukti WO/WR yang Anda unggah ditolak Auditor dan foto bukti telah dihapus. Silakan unggah ulang.", "/issues/"+i.IssueID)
 		}
 	}
 
@@ -579,10 +612,14 @@ type issuePhotoUseCase struct {
 	cryptoSvc *crypto.Service
 	rdb       *redis.Client
 	producer  kafka.EventProducer
+	// issueUC lets a freshly-uploaded WO/WR proof immediately re-check the
+	// issue's auto-approve deadline (see TriggerWOWRAutoApproveCheck) instead
+	// of waiting for the next hourly worker tick.
+	issueUC issue.IssueUseCase
 }
 
-func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, rdb *redis.Client, producer kafka.EventProducer) issue.IssuePhotoUseCase {
-	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, rdb: rdb, producer: producer}
+func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, rdb *redis.Client, producer kafka.EventProducer, issueUC issue.IssueUseCase) issue.IssuePhotoUseCase {
+	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, rdb: rdb, producer: producer, issueUC: issueUC}
 }
 
 func (uc *issuePhotoUseCase) GetByIssueID(issueID string) ([]issue.IssuePhoto, error) {
@@ -684,6 +721,14 @@ func (uc *issuePhotoUseCase) Upload(ctx context.Context, req *issue.UploadPhotoR
 	if err == nil {
 		p.ImageUrl = publicURL
 		p.FileName = objectName
+
+		// WO/WR proof just landed — re-check this issue's auto-approve deadline
+		// right away instead of waiting for the next hourly worker tick. If the
+		// deadline had already elapsed while the auditor was waiting on this
+		// proof, the issue is approved immediately.
+		if req.PhotoType == issue.PhotoTypeWOWR && uc.issueUC != nil {
+			go TriggerWOWRAutoApproveCheck(uc.issueUC, req.IssueID)
+		}
 	}
 	return p, err
 }

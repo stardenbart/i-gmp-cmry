@@ -37,4 +37,12 @@ export const notificationApi = {
   markAllAsRead: async (): Promise<void> => {
     await api.put("/notifications/read-all");
   },
+
+  subscribePush: async (subscription: PushSubscriptionJSON): Promise<void> => {
+    await api.post("/notifications/subscribe", subscription);
+  },
+
+  unsubscribePush: async (endpoint: string): Promise<void> => {
+    await api.post("/notifications/unsubscribe", { endpoint });
+  },
 };

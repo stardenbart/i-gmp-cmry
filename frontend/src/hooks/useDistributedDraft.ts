@@ -11,6 +11,12 @@ export interface RedisDraftValue {
   photos?: PhotoItem[];
 }
 
+interface RedisDraftEnvelope {
+  data?: string | Record<string, RedisDraftValue>;
+  skor?: number;
+  last_saved_at?: number;
+}
+
 // Utility function to split an array into chunks/batches
 function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   if (chunkSize <= 0) return [items];
@@ -22,14 +28,15 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
 }
 
 export function useDistributedDraft(inspectionId: string | undefined, batchSize = 5) {
-  const [draftsByAspek, setDraftsByAspek] = useState<Record<string, any>>({});
-  const [mergedUraianValues, setMergedUraianValues] = useState<Record<string, any>>({});
+  const [draftsByAspek, setDraftsByAspek] = useState<Record<string, RedisDraftEnvelope>>({});
+  const [mergedUraianValues, setMergedUraianValues] = useState<Record<string, string>>({});
   const [mergedPhotosMap, setMergedPhotosMap] = useState<Record<string, PhotoItem[]>>({});
   const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
   const debounceTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
   // Foto debounce terpisah (2s) agar base64 besar tidak ikut setiap keystroke
   const photoDebounceRef = useRef<Record<string, NodeJS.Timeout>>({});
   const lastPhotoHashRef = useRef<Record<string, string>>({});
+  const lastPhotoDataRef = useRef<Record<string, Record<string, RedisDraftValue>>>({});
 
   // Fetch all draft states from Redis using Batching + Chunking
   const fetchAllDrafts = useCallback(
@@ -38,7 +45,7 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
       setIsLoadingDrafts(true);
       try {
         const res = await inspectionApi.getAllDrafts(inspectionId);
-        const rawDrafts: Record<string, any> = res?.data || {};
+        const rawDrafts: Record<string, RedisDraftEnvelope> = res?.data || {};
         setDraftsByAspek(rawDrafts);
 
         const draftEntries = Object.entries(rawDrafts);
@@ -57,13 +64,13 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
 
         // Apply Chunking: Split entries into batches of batchSize
         const entryChunks = chunkArray(targetEntries, batchSize);
-        const formDefaults: Record<string, any> = {};
+        const formDefaults: Record<string, string> = {};
         const photosMap: Record<string, PhotoItem[]> = {};
 
         // Process each chunk asynchronously to avoid main-thread blocking
         for (const chunk of entryChunks) {
           await new Promise<void>((resolve) => {
-            chunk.forEach(([_aspekId, aspekDraft]) => {
+            chunk.forEach(([, aspekDraft]) => {
               if (!aspekDraft?.data) return;
               try {
                 const parsedData =
@@ -71,7 +78,7 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
                     ? JSON.parse(aspekDraft.data)
                     : aspekDraft.data;
 
-                Object.entries(parsedData).forEach(([key, val]: [string, any]) => {
+                Object.entries(parsedData as Record<string, RedisDraftValue>).forEach(([key, val]) => {
                   if (val && typeof val === "object") {
                     if (val.checking === "OK") {
                       formDefaults[`nilai_${key}`] = "2";
@@ -87,13 +94,13 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
                       // Filter out placeholder yang belum ada foto penuhnya
                       // __base64_pending__ = foto sedang menunggu sync penuh (2s debounce)
                       const validPhotos = val.photos.filter(
-                        (p: any) => p.previewUrl !== "__base64_pending__"
+                        (p: PhotoItem) => p.previewUrl !== "__base64_pending__"
                       );
                       if (validPhotos.length > 0) {
                         photosMap[key] = validPhotos;
                       } else if (val.photos.length > 0) {
                         // Tetap simpan metadata foto (id, keterangan, hei) walau previewUrl pending
-                        photosMap[key] = val.photos.map((p: any) => ({ ...p, previewUrl: "" }));
+                        photosMap[key] = val.photos.map((p: PhotoItem) => ({ ...p, previewUrl: "" }));
                       }
                     }
                   }
@@ -120,7 +127,10 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
   );
 
   useEffect(() => {
-    fetchAllDrafts();
+    const timer = window.setTimeout(() => {
+      void fetchAllDrafts();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [fetchAllDrafts]);
 
   // Save single aspect draft to Redis with debounce
@@ -151,13 +161,12 @@ export function useDistributedDraft(inspectionId: string | undefined, batchSize 
       if (photosChanged) {
         lastPhotoHashRef.current[aspekId] = photoHash;
         // Simpan snapshot data penuh (termasuk base64) untuk referensi metadata sync
-        (lastPhotoHashRef as any).currentData = (lastPhotoHashRef as any).currentData || {};
-        (lastPhotoHashRef as any).currentData[aspekId] = aspekDataPayload;
+        lastPhotoDataRef.current[aspekId] = aspekDataPayload;
       }
 
       // Ambil data foto terakhir yang sudah/akan di-sync (dengan base64 penuh)
       const lastSyncedData: Record<string, RedisDraftValue> =
-        (lastPhotoHashRef as any).currentData?.[aspekId] || aspekDataPayload;
+        lastPhotoDataRef.current[aspekId] || aspekDataPayload;
 
       // Payload metadata: gunakan previewUrl dari lastSyncedData (bukan placeholder)
       // Ini memastikan metadata sync tidak pernah menghapus base64 dari Redis

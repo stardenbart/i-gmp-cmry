@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Key, Plus, Copy, Check, Trash2, ShieldAlert, BookOpen, ExternalLink, RefreshCw } from "lucide-react";
+import { Key, Plus, Copy, Check, Trash2, ShieldAlert, BookOpen, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { apiKeyApi, CreateAPIKeyResponse } from "@/types/api/apikey";
+import { getApiErrorMessage } from "@/lib/api/error";
 
 import { masterApi } from "@/lib/api/master.api";
 
 interface ApiKeyManagerProps {
   plantFilter?: string;
 }
+
+const DEFAULT_SINCE_DATE = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .split("T")[0];
 
 export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
   const queryClient = useQueryClient();
@@ -25,7 +30,7 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
 
   // Interactive Datetime Filter Configurator
   const [sinceDate, setSinceDate] = useState<string>(
-    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] // default 30 days ago
+    DEFAULT_SINCE_DATE
   );
   const [copiedUrl, setCopiedUrl] = useState(false);
 
@@ -48,8 +53,8 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
       queryClient.invalidateQueries({ queryKey: ["api-keys"] });
       toast.success("API Key berhasil dibuat!");
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Gagal membuat API Key");
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Gagal membuat API Key"));
     },
   });
 
@@ -59,8 +64,8 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
       queryClient.invalidateQueries({ queryKey: ["api-keys"] });
       toast.success("API Key berhasil dicabut");
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Gagal mencabut API Key");
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Gagal mencabut API Key"));
     },
   });
 
@@ -129,7 +134,7 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
               {plantFilter !== "ALL" ? (
                 <div className="p-2.5 bg-card border border-border rounded-xl text-xs flex items-center justify-between">
                   <span className="font-semibold text-foreground">
-                    Pabrik {plantsList.find((p: any) => p.plant_id === plantFilter)?.plant_name || plantFilter}
+                    Pabrik {plantsList.find((p) => p.plant_id === plantFilter)?.plant_name || plantFilter}
                   </span>
                   <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-mono font-medium">
                     Otomatis dari Akun ({plantFilter})
@@ -142,7 +147,7 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
                   onChange={(e) => setTargetPlant(e.target.value)}
                 >
                   <option value="GLOBAL">Semua Plant / Akses Global (SuperAdmin)</option>
-                  {plantsList.map((p: any) => (
+                  {plantsList.map((p) => (
                     <option key={p.plant_id} value={p.plant_id}>Pabrik {p.plant_name} ({p.plant_id})</option>
                   ))}
                 </select>
@@ -242,7 +247,7 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
         {isLoading ? (
           <div className="p-8 text-center text-xs text-muted-foreground">Memuat daftar API Key...</div>
         ) : keys.length === 0 ? (
-          <div className="p-8 text-center text-xs text-muted-foreground">Belum ada API Key yang dibuat. Klik "+ Buat API Key Baru" untuk memulai.</div>
+          <div className="p-8 text-center text-xs text-muted-foreground">Belum ada API Key yang dibuat. Klik &quot;+ Buat API Key Baru&quot; untuk memulai.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
@@ -264,7 +269,7 @@ export function ApiKeyManager({ plantFilter = "ALL" }: ApiKeyManagerProps) {
                     <td className="px-4 py-3 font-medium">
                       {k.plant_id ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                          {plantsList.find((p: any) => p.plant_id === k.plant_id)?.plant_name || k.plant_id}
+                          {plantsList.find((p) => p.plant_id === k.plant_id)?.plant_name || k.plant_id}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/20">
