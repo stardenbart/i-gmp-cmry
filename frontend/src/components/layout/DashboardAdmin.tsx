@@ -2,6 +2,7 @@
 
 import { Factory } from "lucide-react";
 import { WidgetGrid } from "@/components/dashboard/WidgetGrid";
+import { CustomizeDashboardButton } from "@/components/dashboard/CustomizeDashboardButton";
 import { adminWidgetRegistry } from "@/components/dashboard/widgets/admin/registry";
 import { AdminDashboardProvider, useAdminDashboard } from "@/components/dashboard/admin/AdminDashboardContext";
 
@@ -68,6 +69,8 @@ function AdminDashboardBody() {
               </option>
             ))}
           </select>
+
+          <CustomizeDashboardButton registry={adminWidgetRegistry} />
         </div>
       </section>
 
