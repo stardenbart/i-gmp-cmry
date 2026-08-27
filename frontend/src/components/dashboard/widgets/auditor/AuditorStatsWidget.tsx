@@ -52,7 +52,7 @@ export function AuditorStatsWidget() {
 
       <div className="bg-card rounded-xl p-4 border border-border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-violet-500" />
-        <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Total Issue</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Total Issue (Foto)</h3>
         <p className="text-2xl font-bold text-foreground">{isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : totalIssues}</p>
       </div>
     </section>

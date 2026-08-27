@@ -12,8 +12,6 @@ type issueDelegateRepo struct {
 }
 
 func NewIssueDelegateRepository(db *gorm.DB) issue.IssueDelegateRepository {
-	// Auto migrate the new table
-	_ = db.AutoMigrate(&issue.IssueDelegate{})
 	return &issueDelegateRepo{db: db}
 }
 

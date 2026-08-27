@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 @theme {
   --color-background: var(--background);
@@ -85,15 +87,18 @@
   --text-body-lg: 16px;
   --text-body-md: 14px;
 
-  --spacing-lg: 24px;
-  --spacing-gutter: 16px;
-  --spacing-xl: 32px;
-  --spacing-sm: 8px;
+  /* NOTE: do NOT add --spacing-{xs,sm,md,lg,xl,...} here. In Tailwind v4,
+   * named --spacing-* theme keys take priority over the framework's own
+   * --container-* scale for every utility that shares that name suffix
+   * (max-w-md, w-lg, gap-xl, ...). A prior "Stitch" design-token import
+   * defined --spacing-xs..xl at 4-32px here, which silently shrank every
+   * max-w-{xs,sm,md,lg} in the app (e.g. modals collapsing to a sliver a
+   * few px wide) since nothing in the codebase ever referenced these
+   * tokens directly — they only existed to clash with Tailwind's own
+   * scale. Removed; Tailwind's built-in --container-* values apply again.
+   */
   --spacing-margin-desktop: 48px;
-  --spacing-xs: 4px;
-  --spacing-base: 4px;
   --spacing-margin-mobile: 16px;
-  --spacing-md: 16px;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -112,7 +117,7 @@
     --ring: #171717;
     --radius: 0.75rem;
   }
-  
+
   .dark {
     --background: #000000;
     --foreground: #fafafa;
@@ -132,10 +137,12 @@
     @apply border-border outline-primary/50;
   }
   html {
+    min-height: 100%;
     overflow-x: hidden;
   }
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/20;
+    min-height: 100dvh;
     overflow-x: hidden;
     /* Hide scrollbar for a cleaner look */
     -ms-overflow-style: none;
@@ -143,5 +150,48 @@
   }
   body::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@layer utilities {
+  .pwa-header-safe {
+    height: calc(4rem + var(--safe-area-top));
+    padding-top: var(--safe-area-top);
+  }
+
+  .pwa-bottom-nav-safe {
+    height: calc(4rem + var(--safe-area-bottom));
+    padding-bottom: var(--safe-area-bottom);
+  }
+
+  .pwa-content-safe {
+    padding-bottom: calc(7rem + var(--safe-area-bottom));
+  }
+
+  .notification-panel-mobile {
+    top: calc(4.5rem + var(--safe-area-top));
+    max-height: calc(100dvh - 5.5rem - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+
+  .install-guide-panel {
+    max-height: calc(100dvh - 1.5rem - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+
+  @media (min-width: 640px) {
+    .notification-panel-mobile {
+      top: 100%;
+      max-height: min(32rem, calc(100dvh - 5rem));
+    }
+  }
+
+  @media (min-width: 768px) {
+    .pwa-header-safe {
+      height: 4rem;
+      padding-top: 0;
+    }
+
+    .pwa-content-safe {
+      padding-bottom: 1.5rem;
+    }
   }
 }

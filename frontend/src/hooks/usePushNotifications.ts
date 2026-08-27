@@ -35,24 +35,35 @@ export function usePushNotifications() {
     "PushManager" in window &&
     !!vapidPublicKey;
 
-  const refresh = useCallback(async () => {
-    if (!supported) {
-      setState("unsupported");
-      return;
-    }
-    setState(Notification.permission as PushPermissionState);
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const existing = await registration.pushManager.getSubscription();
-      setIsSubscribed(!!existing);
-    } catch {
-      setIsSubscribed(false);
-    }
-  }, [supported]);
-
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let cancelled = false;
+
+    const refreshSubscription = async () => {
+      // Defer browser-state synchronization until after the effect setup so it
+      // does not cause a cascading render during hydration.
+      await Promise.resolve();
+      if (cancelled) return;
+
+      if (!supported) {
+        setState("unsupported");
+        return;
+      }
+
+      setState(Notification.permission as PushPermissionState);
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const existing = await registration.pushManager.getSubscription();
+        if (!cancelled) setIsSubscribed(!!existing);
+      } catch {
+        if (!cancelled) setIsSubscribed(false);
+      }
+    };
+
+    void refreshSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [supported]);
 
   const subscribe = useCallback(async () => {
     if (!supported || !vapidPublicKey) return false;

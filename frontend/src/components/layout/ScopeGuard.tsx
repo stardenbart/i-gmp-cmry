@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthHydrated, useAuthStore } from "@/stores/authStore";
 import { Loader2 } from "lucide-react";
 
 export function ScopeGuard({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,7 @@ export function ScopeGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  const hydrated = useAuthHydrated();
 
   const userPlant = user?.plant_id || "global";
   const isSuperAdmin = user?.role_id === "ROLE-000" || user?.role_id === "SUPERADMIN";
@@ -18,8 +19,16 @@ export function ScopeGuard({ children }: { children: React.ReactNode }) {
   const isAuthorized = Boolean(user && !isInvalidPlant && !isInvalidUser);
 
   useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
     if (!user) {
-      // User state not initialized yet
+      // A token cookie can outlive the persisted browser state (for example
+      // after site data is partially cleared). Remove that stale cookie first,
+      // otherwise the proxy redirects /login back here indefinitely.
+      useAuthStore.getState().logout();
+      router.replace("/login");
       return;
     }
 
@@ -28,16 +37,20 @@ export function ScopeGuard({ children }: { children: React.ReactNode }) {
       const newPath = pathname.replace(`/cimory/${urlPlantCode}/dashboard/${urlUserId}`, `/cimory/${targetPlant}/dashboard/${user.id}`);
       router.replace(newPath);
     }
-  }, [user, urlPlantCode, urlUserId, pathname, router, userPlant, isSuperAdmin, isInvalidPlant, isInvalidUser]);
+  }, [hydrated, user, urlPlantCode, urlUserId, pathname, router, userPlant, isSuperAdmin, isInvalidPlant, isInvalidUser]);
 
-  if (!isAuthorized) {
+  if (!hydrated) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
-        <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-        <p className="text-sm text-muted-foreground animate-pulse">Memverifikasi akses...</p>
+      <div className="flex min-h-dvh w-full items-center justify-center bg-background" role="status" aria-label="Memuat aplikasi">
+        <Loader2 aria-hidden="true" className="h-8 w-8 animate-spin text-primary motion-reduce:animate-none" />
+        <span className="sr-only">Memuat aplikasi</span>
       </div>
     );
   }
+
+  // A hydrated session without a user is redirected above. Rendering nothing
+  // avoids Lighthouse and users getting stuck on a permanent verification UI.
+  if (!isAuthorized) return null;
 
   return <>{children}</>;
 }

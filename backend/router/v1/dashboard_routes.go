@@ -23,7 +23,9 @@ func RegisterDashboardRoutes(rg fiber.Router, db *gorm.DB, cryptoSvc *crypto.Ser
 	dashboardGroup := rg.Group("/dashboard", authMW, plantScopeMW)
 
 	dashboardGroup.Get("/stats", handler.GetStats, plantScopeMW)
+	dashboardGroup.Get("/trend", handler.GetTrend, plantScopeMW)
 	dashboardGroup.Get("/wowr-report", handler.GetWOWRReport, plantScopeMW)
+	dashboardGroup.Get("/wowr-report/export", handler.ExportWOWRReport, plantScopeMW)
 	dashboardGroup.Get("/preview-export", handler.GetPreviewExport, plantScopeMW)
 	dashboardGroup.Get("/export", handler.ExportStats, plantScopeMW)
 	dashboardGroup.Post("/export/template", handler.UploadTemplate, plantScopeMW)

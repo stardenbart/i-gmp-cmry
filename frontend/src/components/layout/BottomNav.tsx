@@ -29,7 +29,10 @@ export function BottomNav() {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-border bg-card/80 px-2 pb-safe backdrop-blur-xl md:hidden">
+    <nav
+      className="pwa-bottom-nav-safe fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-card/90 px-2 backdrop-blur-xl md:hidden"
+      aria-label="Navigasi utama"
+    >
       {NAV_ITEMS.map((item) => {
         const isActive =
           (item.label === "Home")
@@ -58,6 +61,6 @@ export function BottomNav() {
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }

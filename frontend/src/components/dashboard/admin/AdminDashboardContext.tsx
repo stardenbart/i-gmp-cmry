@@ -10,6 +10,8 @@ import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { usePolling } from "@/hooks/usePolling";
 import type { DashboardStats as StatDashboardStats } from "@/components/admin/StatCard";
+import { dashboardApi, type DashboardTrendData, type TrendPeriod } from "@/lib/api/dashboard.api";
+import { useTrendPeriodState } from "@/components/dashboard/useTrendPeriodState";
 
 export interface AdminDashboardStats extends StatDashboardStats {
   inspections_completed?: number;
@@ -33,11 +35,9 @@ export interface AdminDashboardStats extends StatDashboardStats {
   }>;
 }
 
-export type TrendPeriod = "1m" | "3m" | "6m" | "quarter" | "1y";
-
-const fetchDashboardStats = async (areaId?: string, period: string = "6m", plantId?: string) => {
+const fetchDashboardStats = async (areaId?: string, plantId?: string) => {
   const res = await api.get("/dashboard/stats", {
-    params: { area_id: areaId, period, plant_id: plantId },
+    params: { area_id: areaId, plant_id: plantId, include_trend: false },
   });
   return res.data.data as AdminDashboardStats;
 };
@@ -56,6 +56,9 @@ interface AdminDashboardContextValue {
   plantsResponse: PaginatedResponse<Plant> | undefined;
   filteredAreas: Array<{ area_id: string; area_name: string; plant_id?: string }>;
   stats: AdminDashboardStats | undefined;
+  trendData: DashboardTrendData | undefined;
+  isTrendLoading: boolean;
+  isTrendFetching: boolean;
   isLoading: boolean;
   isFetching: boolean;
 }
@@ -73,7 +76,7 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
 
   const [selectedPlant, setSelectedPlant] = useState<string>("");
   const [selectedArea, setSelectedArea] = useState<string>("");
-  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("6m");
+  const [trendPeriod, setTrendPeriod] = useTrendPeriodState();
 
   const isSuperAdmin =
     user?.role_id === "ROLE-000" ||
@@ -110,10 +113,26 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ["dashboard-stats-stitch", selectedArea, trendPeriod, effectivePlant],
-    queryFn: () => fetchDashboardStats(selectedArea, trendPeriod, effectivePlant),
+    queryKey: ["dashboard-stats-stitch", selectedArea, effectivePlant],
+    queryFn: () => fetchDashboardStats(selectedArea, effectivePlant),
     enabled: mounted && !!user,
     staleTime: 10000,
+  });
+
+  const {
+    data: trendData,
+    isLoading: isTrendLoading,
+    isFetching: isTrendFetching,
+  } = useQuery({
+    queryKey: ["dashboard-trend", "admin", trendPeriod, selectedArea, effectivePlant],
+    queryFn: () => dashboardApi.getTrend({
+      period: trendPeriod,
+      area_id: selectedArea || undefined,
+      plant_id: effectivePlant || undefined,
+    }),
+    enabled: mounted && !!user,
+    staleTime: 10_000,
+    placeholderData: (previousData) => previousData,
   });
 
   return (
@@ -132,6 +151,9 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
         plantsResponse,
         filteredAreas,
         stats,
+        trendData,
+        isTrendLoading,
+        isTrendFetching,
         isLoading,
         isFetching,
       }}

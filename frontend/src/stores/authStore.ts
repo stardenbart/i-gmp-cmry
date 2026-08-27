@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useSyncExternalStore } from "react";
 
 import { setAuthCookie } from "@/lib/utils";
 
@@ -44,3 +45,19 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+const subscribeToAuthHydration = (onStoreChange: () => void) =>
+  useAuthStore.persist.onFinishHydration(onStoreChange);
+
+/**
+ * Distinguishes an unauthenticated browser from a browser whose persisted
+ * session is still being restored. This prevents protected routes from
+ * showing an indefinite verification screen during initial hydration.
+ */
+export function useAuthHydrated() {
+  return useSyncExternalStore(
+    subscribeToAuthHydration,
+    () => useAuthStore.persist.hasHydrated(),
+    () => false
+  );
+}

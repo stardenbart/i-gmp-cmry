@@ -22,7 +22,6 @@ type rolePermRepository struct {
 }
 
 func NewRolePermissionRepository(db *gorm.DB) authdomain.RolePermissionRepository {
-	_ = db.AutoMigrate(&authdomain.RolePermission{})
 	return &rolePermRepository{db: db}
 }
 

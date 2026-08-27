@@ -64,7 +64,7 @@ func (c *inspHeaderCache) Delete(key string) {
 
 // ─── Package-level singletons ────────────────────────────────────────────────
 var globalInspHeaderCache = newInspHeaderCache()
-var inspHeaderSFGroup     singleflight.Group // cache stampede prevention
+var inspHeaderSFGroup singleflight.Group // cache stampede prevention
 
 // ── Inspection Header ─────────────────────────────────────────────────────
 
@@ -235,8 +235,10 @@ func (r *inspectionHeaderRepository) GetTrendByContext(contextID string, year in
 	// Default empty array for 12 months
 	monthNames := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 	trendMap := make(map[string]int)
+	issueTrendMap := make(map[string]int)
 	for _, m := range monthNames {
 		trendMap[m] = 0
+		issueTrendMap[m] = 0
 	}
 
 	type QueryResult struct {
@@ -278,10 +280,30 @@ func (r *inspectionHeaderRepository) GetTrendByContext(contextID string, year in
 		}
 	}
 
-	for _, m := range monthNames {
+	var issueRows []QueryResult
+	issueErr := r.db.Table(`"Issue_Photo" ip`).
+		Select(`EXTRACT(MONTH FROM ip."PhotoCreatedAt") as month, COUNT(ip."IssuePhotoID") as count`).
+		Joins(`JOIN "Issue" i ON i."IssueID" = ip."IssueID"`).
+		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Where(`ip."PhotoType" = 'Initial' AND ih."InspectorID" = ? AND EXTRACT(YEAR FROM ip."PhotoCreatedAt") = ?`, contextID, year).
+		Group(`EXTRACT(MONTH FROM ip."PhotoCreatedAt")`).
+		Scan(&issueRows).Error
+	if issueErr != nil {
+		return results, issueErr
+	}
+	for _, row := range issueRows {
+		if row.Month >= 1 && row.Month <= 12 {
+			issueTrendMap[monthNames[row.Month-1]] = row.Count
+		}
+	}
+
+	for monthIndex, m := range monthNames {
 		results = append(results, inspection.TrendData{
-			Month: m,
-			Rate:  trendMap[m],
+			Month:       m,
+			Date:        time.Date(year, time.Month(monthIndex+1), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02"),
+			Rate:        trendMap[m],
+			TotalIssues: issueTrendMap[m],
 		})
 	}
 

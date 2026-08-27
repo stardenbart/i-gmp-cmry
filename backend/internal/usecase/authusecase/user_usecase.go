@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"math/big"
+	"strings"
+	"time"
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
@@ -18,11 +20,18 @@ type userUseCase struct {
 	mailer      mail.Mailer
 	settingRepo masterdomain.SettingRepository
 	picRepo     pic.PICMappingRepository
+	otpRepo     authdomain.PasswordResetOTPRepository
 }
 
+const (
+	passwordResetOTPLength      = 6
+	passwordResetOTPExpiry      = 10 * time.Minute
+	passwordResetOTPMaxAttempts = 5
+)
+
 // NewUserUseCase creates a new UserUseCase implementation.
-func NewUserUseCase(userRepo authdomain.UserRepository, mailer mail.Mailer, settingRepo masterdomain.SettingRepository, picRepo pic.PICMappingRepository) authdomain.UserUseCase {
-	return &userUseCase{userRepo: userRepo, mailer: mailer, settingRepo: settingRepo, picRepo: picRepo}
+func NewUserUseCase(userRepo authdomain.UserRepository, mailer mail.Mailer, settingRepo masterdomain.SettingRepository, picRepo pic.PICMappingRepository, otpRepo authdomain.PasswordResetOTPRepository) authdomain.UserUseCase {
+	return &userUseCase{userRepo: userRepo, mailer: mailer, settingRepo: settingRepo, picRepo: picRepo, otpRepo: otpRepo}
 }
 
 func (uc *userUseCase) GetAll(page, limit int, search, roleID, deptID, plantID string) ([]authdomain.User, int64, error) {
@@ -200,67 +209,96 @@ func (uc *userUseCase) AdminResetPassword(id string, req *authdomain.AdminResetP
 	return uc.userRepo.Update(user)
 }
 
-// ForgotPassword generates a temp password and sends it via email.
+// ForgotPassword creates a short-lived OTP without changing the current password.
 func (uc *userUseCase) ForgotPassword(req *authdomain.ForgotPasswordRequest) error {
-	user, err := uc.userRepo.FindByEmail(req.Email)
-	if err != nil || user == nil {
-		// Return generic message to avoid email enumeration
-		return nil
+	user, err := uc.userRepo.FindByEmail(strings.TrimSpace(req.Email))
+	if errors.Is(err, authdomain.ErrEmailNotRegistered) {
+		return authdomain.ErrEmailNotRegistered
+	}
+	if err != nil {
+		return errors.New("failed to validate reset email")
+	}
+	if user == nil {
+		return authdomain.ErrEmailNotRegistered
+	}
+	if uc.otpRepo == nil {
+		return errors.New("password reset service is unavailable")
 	}
 
-	// Generate 10-char random temp password
-	tempPass, err := generateTempPassword(10)
+	otp, err := generateNumericOTP(passwordResetOTPLength)
 	if err != nil {
-		return errors.New("failed to generate temporary password")
+		return errors.New("failed to generate reset OTP")
+	}
+	otpHash, err := password.Hash(otp)
+	if err != nil {
+		return errors.New("failed to protect reset OTP")
+	}
+	if err := uc.otpRepo.ReplaceForUser(user.UserID, otpHash, time.Now().Add(passwordResetOTPExpiry)); err != nil {
+		return errors.New("failed to create reset OTP")
 	}
 
-	hashed, err := password.Hash(tempPass)
-	if err != nil {
-		return errors.New("failed to hash temporary password")
+	tmpl := mail.TmplForgotPassword
+	plantID := ""
+	if user.PlantID != nil {
+		plantID = *user.PlantID
 	}
-	user.PasswordHash = hashed
+	if s, findErr := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateForgotPass, plantID); findErr == nil && s.SettingValue != "" {
+		tmpl = s.SettingValue
+	}
+
+	return uc.mailer.SendTemplateForPlant(
+		plantID,
+		[]string{user.Email},
+		"[Monitoring Audit] Kode OTP Reset Password",
+		tmpl,
+		map[string]string{
+			"FullName":         user.FullName,
+			"Username":         user.Username,
+			"OTP":              otp,
+			"OTPExpiryMinutes": "10",
+			// Backward compatibility for templates saved before the OTP flow.
+			"TempPassword": otp,
+		},
+	)
+}
+
+func (uc *userUseCase) ResetPasswordWithOTP(req *authdomain.ResetPasswordWithOTPRequest) error {
+	if req.NewPassword != req.ConfirmPassword {
+		return errors.New("konfirmasi password tidak sama")
+	}
+	user, err := uc.userRepo.FindByEmail(strings.TrimSpace(req.Email))
+	if err != nil || user == nil || uc.otpRepo == nil {
+		return errors.New("OTP tidak valid atau sudah kedaluwarsa")
+	}
+
+	hashedPassword, err := password.Hash(req.NewPassword)
+	if err != nil {
+		return errors.New("gagal memproses password baru")
+	}
+	valid, err := uc.otpRepo.ConsumeValid(user.UserID, strings.TrimSpace(req.OTP), time.Now(), passwordResetOTPMaxAttempts)
+	if err != nil {
+		return errors.New("gagal memverifikasi OTP")
+	}
+	if !valid {
+		return errors.New("OTP tidak valid atau sudah kedaluwarsa")
+	}
+
+	user.PasswordHash = hashedPassword
 	if err := uc.userRepo.Update(user); err != nil {
-		return errors.New("failed to update password")
+		return errors.New("gagal menyimpan password baru")
 	}
-
-	// Send email asynchronously — non-blocking
-	go func() {
-		// Fetch dynamic template from database, fallback to static if not found
-		tmpl := mail.TmplForgotPassword
-		plantID := ""
-		if user.PlantID != nil {
-			plantID = *user.PlantID
-		}
-		if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateForgotPass, plantID); err == nil && s.SettingValue != "" {
-			tmpl = s.SettingValue
-		}
-
-		_ = uc.mailer.SendTemplateForPlant(
-			plantID,
-			[]string{user.Email},
-			"[Monitoring Audit] Reset Password Anda",
-			tmpl,
-			map[string]string{
-				"FullName":     user.FullName,
-				"Username":     user.Username,
-				"TempPassword": tempPass,
-			},
-		)
-	}()
-
 	return nil
 }
 
-// generateTempPassword returns a random alphanumeric string of the given length.
-func generateTempPassword(n int) (string, error) {
-	const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+func generateNumericOTP(n int) (string, error) {
+	const digits = "0123456789"
 	result := make([]byte, n)
 	for i := range result {
-		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(digits))))
 		if err != nil {
 			return "", err
 		}
-		result[i] = chars[idx.Int64()]
+		result[i] = digits[idx.Int64()]
 	}
 	return string(result), nil
 }

@@ -19,7 +19,7 @@ func NewAuthHandler(authUC authdomain.AuthUseCase) *AuthHandler {
 
 // Login godoc
 // @Summary      User Login
-// @Description  Authenticate user and return token
+// @Description  Authenticate using username or email and return token
 // @Tags         Auth
 // @Accept       json
 // @Produce      json

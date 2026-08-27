@@ -7,6 +7,7 @@ export interface DashboardStats {
   total_inspections_running: number;
   compliance_rate_trend: number;
   compliance_rate: number;
+  total_issues: number;
   total_open_issues: number;
   issue_overdue_trend: number;
   issue_overdue: number;
@@ -118,6 +119,14 @@ export const StatsCards = ({
       trendValue: 'compliance_rate_trend',
       isPercentage: true,
       badgeColor: 'text-green-600'
+    },
+    {
+      id: 'total-issues',
+      title: 'Total Issue',
+      value: 'total_issues',
+      color: 'bg-violet-500',
+      badgeText: 'Berdasarkan Foto',
+      badgeColor: 'text-violet-600 dark:text-violet-400'
     },
     {
       id: 'open-issues',

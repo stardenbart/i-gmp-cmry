@@ -19,10 +19,12 @@ export const useChunkedUpload = ({ issueId, onSuccessCallback, onErrorCallback }
       file: originalFile,
       type,
       refPhotoId,
+      keterangan,
     }: {
       file: File;
       type: "Initial" | "FollowUp" | "WOWR";
       refPhotoId?: string;
+      keterangan?: string;
     }) => {
       // 1. Convert image to WebP (if it is an image)
       const file = await convertToWebP(originalFile);
@@ -43,6 +45,9 @@ export const useChunkedUpload = ({ issueId, onSuccessCallback, onErrorCallback }
         formData.append("photo_type", type);
         if (refPhotoId) {
           formData.append("ref_photo_id", refPhotoId);
+        }
+        if (keterangan) {
+          formData.append("keterangan", keterangan);
         }
         formData.append("chunk_index", i.toString());
         formData.append("total_chunks", totalChunks.toString());

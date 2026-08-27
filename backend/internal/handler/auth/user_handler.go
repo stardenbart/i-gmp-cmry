@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/pkg/pagination"
@@ -215,7 +217,7 @@ func (h *UserHandler) ResetPassword(c *fiber.Ctx) error {
 
 // ForgotPassword godoc
 // @Summary      Forgot password
-// @Description  Request a password reset link or temporary password
+// @Description  Request a one-time password (OTP) for password reset
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
@@ -231,7 +233,35 @@ func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error {
 	if errs := validator.Validate(&req); errs != nil {
 		return response.BadRequest(c, "validation failed", errs)
 	}
-	// Always respond OK regardless of email existence (anti-enumeration)
-	_ = h.userUC.ForgotPassword(&req)
-	return response.OK(c, "Jika email terdaftar, password sementara telah dikirim ke email Anda", nil)
+	if err := h.userUC.ForgotPassword(&req); err != nil {
+		if errors.Is(err, authdomain.ErrEmailNotRegistered) {
+			return response.NotFound(c, "Email tidak terdaftar")
+		}
+		return response.InternalServerError(c, "Gagal mengirim kode OTP", err.Error())
+	}
+	return response.OK(c, "Kode OTP telah dikirim ke email Anda", nil)
+}
+
+// ResetPasswordWithOTP godoc
+// @Summary      Reset password using OTP
+// @Description  Verify the emailed OTP and set a new password
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body body authdomain.ResetPasswordWithOTPRequest true "OTP and new password"
+// @Success      200 {object} response.APIResponse
+// @Failure      400 {object} response.APIResponse
+// @Router       /auth/reset-password [post]
+func (h *UserHandler) ResetPasswordWithOTP(c *fiber.Ctx) error {
+	var req authdomain.ResetPasswordWithOTPRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body", err.Error())
+	}
+	if errs := validator.Validate(&req); errs != nil {
+		return response.BadRequest(c, "validation failed", errs)
+	}
+	if err := h.userUC.ResetPasswordWithOTP(&req); err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
+	return response.OK(c, "Password berhasil diubah. Silakan login dengan password baru.", nil)
 }

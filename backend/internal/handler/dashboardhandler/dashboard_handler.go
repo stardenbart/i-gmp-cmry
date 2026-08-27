@@ -168,6 +168,7 @@ func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
 
 func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	var totalInspectionsRunning int64
+	var totalIssues int64
 	var totalOpenIssues int64
 	var inspectionsCompleted int64
 	var inspectionsRunning int64
@@ -224,6 +225,19 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 
 	// Issue queries need join with Inspection_Header
 	qIssueBase := h.db.Table("\"Issue\" i").Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"")
+	// Dashboard "Total Issue" represents each initial finding photo as one
+	// issue. Follow-up and WO/WR proof photos are deliberately excluded.
+	qIssuePhotoBase := h.db.Table(`"Issue_Photo" ip`).
+		Joins(`JOIN "Issue" i ON i."IssueID" = ip."IssueID"`).
+		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+		Where(`ip."PhotoType" = ?`, "Initial")
+	qIssueTotal := qIssuePhotoBase.Session(&gorm.Session{})
+	if allowedAreas != nil {
+		qIssueTotal = qIssueTotal.Where("ih.\"AreaID\" IN ?", allowedAreas)
+	}
+	qIssueTotal.Count(&totalIssues)
+
 	qIssueOpen := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue')")
 	if allowedAreas != nil {
 		qIssueOpen = qIssueOpen.Where("ih.\"AreaID\" IN ?", allowedAreas)
@@ -317,159 +331,230 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		auditeeStatusList = []fiber.Map{} // return empty array instead of null
 	}
 
-	// Real Multi-Period Historical Compliance Trend Query (1m, 3m, 6m, 1y)
-	period := c.Query("period", "6m")
-	var complianceTrend []fiber.Map
-	now := time.Now()
-
-	switch period {
-	case "1m", "1M":
-		// 1 Month scope: 4-week breakdown
-		for i := 3; i >= 0; i-- {
-			endOfWeek := now.AddDate(0, 0, -i*7)
-			startOfWeek := endOfWeek.AddDate(0, 0, -6)
-			weekLabel := fmt.Sprintf("W%d (%s)", 4-i, startOfWeek.Format("02/01"))
-
-			var mTotalCheck, mTotalOK int64
-			qWeekBase := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" <= ?`, startOfWeek, endOfWeek)
-			if allowedAreas != nil {
-				qWeekBase = qWeekBase.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qWeekBase.Count(&mTotalCheck)
-
-			qWeekOK := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" <= ? AND ir."Checking" = 'OK'`, startOfWeek, endOfWeek)
-			if allowedAreas != nil {
-				qWeekOK = qWeekOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qWeekOK.Count(&mTotalOK)
-
-			mRate := 0.0
-			if mTotalCheck > 0 {
-				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
-			}
-
-			complianceTrend = append(complianceTrend, fiber.Map{
-				"month": weekLabel,
-				"rate":  float64(int(mRate*10)) / 10.0,
-			})
-		}
-
-	case "3m", "3M":
-		// 3 Months scope
-		for i := 2; i >= 0; i-- {
-			targetMonth := now.AddDate(0, -i, 0)
-			monthName := targetMonth.Format("Jan")
-			yearMonthStr := targetMonth.Format("2006-01")
-
-			var mTotalCheck, mTotalOK int64
-			qMonthBase := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
-			if allowedAreas != nil {
-				qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qMonthBase.Count(&mTotalCheck)
-
-			qMonthOK := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
-			if allowedAreas != nil {
-				qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qMonthOK.Count(&mTotalOK)
-
-			mRate := 0.0
-			if mTotalCheck > 0 {
-				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
-			}
-
-			complianceTrend = append(complianceTrend, fiber.Map{
-				"month": monthName,
-				"rate":  float64(int(mRate*10)) / 10.0,
-			})
-		}
-
-	case "1y", "1Y", "12m":
-		// 1 Year (12 Months) scope
-		for i := 11; i >= 0; i-- {
-			targetMonth := now.AddDate(0, -i, 0)
-			monthName := targetMonth.Format("Jan")
-			yearMonthStr := targetMonth.Format("2006-01")
-
-			var mTotalCheck, mTotalOK int64
-			qMonthBase := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
-			if allowedAreas != nil {
-				qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qMonthBase.Count(&mTotalCheck)
-
-			qMonthOK := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
-			if allowedAreas != nil {
-				qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qMonthOK.Count(&mTotalOK)
-
-			mRate := 0.0
-			if mTotalCheck > 0 {
-				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
-			}
-
-			complianceTrend = append(complianceTrend, fiber.Map{
-				"month": monthName,
-				"rate":  float64(int(mRate*10)) / 10.0,
-			})
-		}
-
-	default: // "6m"
-		// 6 Months scope (default)
-		for i := 5; i >= 0; i-- {
-			targetMonth := now.AddDate(0, -i, 0)
-			monthName := targetMonth.Format("Jan")
-			yearMonthStr := targetMonth.Format("2006-01")
-
-			var mTotalCheck, mTotalOK int64
-			qMonthBase := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
-			if allowedAreas != nil {
-				qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qMonthBase.Count(&mTotalCheck)
-
-			qMonthOK := h.db.Table(`"Inspection_Result" ir`).
-				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-				Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
-			if allowedAreas != nil {
-				qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-			}
-			qMonthOK.Count(&mTotalOK)
-
-			mRate := 0.0
-			if mTotalCheck > 0 {
-				mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
-			}
-
-			complianceTrend = append(complianceTrend, fiber.Map{
-				"month": monthName,
-				"rate":  float64(int(mRate*10)) / 10.0,
-			})
-		}
-	}
-
-	// Calculate trend diff vs previous entry
+	// Keep the legacy trend payload available for older clients. The current
+	// dashboards use /dashboard/trend, so they can skip these per-bucket queries
+	// with include_trend=false.
+	complianceTrend := []fiber.Map{}
 	trendDiff := 0.0
-	if len(complianceTrend) >= 2 {
-		currRate := complianceTrend[len(complianceTrend)-1]["rate"].(float64)
-		prevRate := complianceTrend[len(complianceTrend)-2]["rate"].(float64)
-		trendDiff = float64(int((currRate-prevRate)*10)) / 10.0
+	if !strings.EqualFold(c.Query("include_trend", "true"), "false") {
+		period := c.Query("period", "6m")
+		now := time.Now()
+		countIssuesBetween := func(start, end time.Time) int64 {
+			var count int64
+			query := qIssuePhotoBase.Session(&gorm.Session{}).
+				Where(`ip."PhotoCreatedAt" >= ? AND ip."PhotoCreatedAt" < ?`, start, end)
+			if allowedAreas != nil {
+				query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
+			}
+			query.Count(&count)
+			return count
+		}
+
+		switch period {
+		case "1m", "1M":
+			// 1 Month scope: 4-week breakdown
+			tomorrowStart := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+			for i := 3; i >= 0; i-- {
+				endExclusive := tomorrowStart.AddDate(0, 0, -i*7)
+				startOfWeek := endExclusive.AddDate(0, 0, -7)
+				endOfWeek := endExclusive.AddDate(0, 0, -1)
+				weekLabel := fmt.Sprintf("W%d (%s)", 4-i, startOfWeek.Format("02/01"))
+
+				var mTotalCheck, mTotalOK int64
+				qWeekBase := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ?`, startOfWeek, endExclusive)
+				if allowedAreas != nil {
+					qWeekBase = qWeekBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qWeekBase.Count(&mTotalCheck)
+
+				qWeekOK := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ? AND ir."Checking" = 'OK'`, startOfWeek, endExclusive)
+				if allowedAreas != nil {
+					qWeekOK = qWeekOK.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qWeekOK.Count(&mTotalOK)
+
+				mRate := 0.0
+				if mTotalCheck > 0 {
+					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
+				}
+
+				complianceTrend = append(complianceTrend, fiber.Map{
+					"month":        weekLabel,
+					"start_date":   startOfWeek.Format("2006-01-02"),
+					"end_date":     endOfWeek.Format("2006-01-02"),
+					"rate":         float64(int(mRate*10)) / 10.0,
+					"total_issues": countIssuesBetween(startOfWeek, endExclusive),
+				})
+			}
+
+		case "3m", "3M":
+			// 3 Months scope
+			for i := 2; i >= 0; i-- {
+				targetMonth := now.AddDate(0, -i, 0)
+				monthName := targetMonth.Format("Jan")
+				yearMonthStr := targetMonth.Format("2006-01")
+				monthStart := time.Date(targetMonth.Year(), targetMonth.Month(), 1, 0, 0, 0, 0, targetMonth.Location())
+
+				var mTotalCheck, mTotalOK int64
+				qMonthBase := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
+				if allowedAreas != nil {
+					qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qMonthBase.Count(&mTotalCheck)
+
+				qMonthOK := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
+				if allowedAreas != nil {
+					qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qMonthOK.Count(&mTotalOK)
+
+				mRate := 0.0
+				if mTotalCheck > 0 {
+					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
+				}
+
+				complianceTrend = append(complianceTrend, fiber.Map{
+					"month":        monthName,
+					"start_date":   monthStart.Format("2006-01-02"),
+					"end_date":     monthStart.AddDate(0, 1, -1).Format("2006-01-02"),
+					"rate":         float64(int(mRate*10)) / 10.0,
+					"total_issues": countIssuesBetween(monthStart, monthStart.AddDate(0, 1, 0)),
+				})
+			}
+
+		case "quarter", "Quarter", "QUARTER", "q":
+			// Four most recent calendar quarters, including the current quarter.
+			currentQuarterMonth := time.Month(((int(now.Month())-1)/3)*3 + 1)
+			currentQuarterStart := time.Date(now.Year(), currentQuarterMonth, 1, 0, 0, 0, 0, now.Location())
+			for i := 3; i >= 0; i-- {
+				quarterStart := currentQuarterStart.AddDate(0, -i*3, 0)
+				quarterEnd := quarterStart.AddDate(0, 3, 0)
+				quarterNumber := (int(quarterStart.Month())-1)/3 + 1
+
+				var qTotalCheck, qTotalOK int64
+				qQuarterBase := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ?`, quarterStart, quarterEnd)
+				if allowedAreas != nil {
+					qQuarterBase = qQuarterBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qQuarterBase.Count(&qTotalCheck)
+
+				qQuarterOK := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ? AND ir."Checking" = 'OK'`, quarterStart, quarterEnd)
+				if allowedAreas != nil {
+					qQuarterOK = qQuarterOK.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qQuarterOK.Count(&qTotalOK)
+
+				quarterRate := 0.0
+				if qTotalCheck > 0 {
+					quarterRate = float64(qTotalOK) / float64(qTotalCheck) * 100
+				}
+
+				complianceTrend = append(complianceTrend, fiber.Map{
+					"month":        fmt.Sprintf("Q%d %d", quarterNumber, quarterStart.Year()),
+					"start_date":   quarterStart.Format("2006-01-02"),
+					"end_date":     quarterEnd.AddDate(0, 0, -1).Format("2006-01-02"),
+					"rate":         float64(int(quarterRate*10)) / 10.0,
+					"total_issues": countIssuesBetween(quarterStart, quarterEnd),
+				})
+			}
+
+		case "1y", "1Y", "12m":
+			// 1 Year (12 Months) scope
+			for i := 11; i >= 0; i-- {
+				targetMonth := now.AddDate(0, -i, 0)
+				monthName := targetMonth.Format("Jan")
+				yearMonthStr := targetMonth.Format("2006-01")
+				monthStart := time.Date(targetMonth.Year(), targetMonth.Month(), 1, 0, 0, 0, 0, targetMonth.Location())
+
+				var mTotalCheck, mTotalOK int64
+				qMonthBase := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
+				if allowedAreas != nil {
+					qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qMonthBase.Count(&mTotalCheck)
+
+				qMonthOK := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
+				if allowedAreas != nil {
+					qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qMonthOK.Count(&mTotalOK)
+
+				mRate := 0.0
+				if mTotalCheck > 0 {
+					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
+				}
+
+				complianceTrend = append(complianceTrend, fiber.Map{
+					"month":        monthName,
+					"start_date":   monthStart.Format("2006-01-02"),
+					"end_date":     monthStart.AddDate(0, 1, -1).Format("2006-01-02"),
+					"rate":         float64(int(mRate*10)) / 10.0,
+					"total_issues": countIssuesBetween(monthStart, monthStart.AddDate(0, 1, 0)),
+				})
+			}
+
+		default: // "6m"
+			// 6 Months scope (default)
+			for i := 5; i >= 0; i-- {
+				targetMonth := now.AddDate(0, -i, 0)
+				monthName := targetMonth.Format("Jan")
+				yearMonthStr := targetMonth.Format("2006-01")
+				monthStart := time.Date(targetMonth.Year(), targetMonth.Month(), 1, 0, 0, 0, 0, targetMonth.Location())
+
+				var mTotalCheck, mTotalOK int64
+				qMonthBase := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
+				if allowedAreas != nil {
+					qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qMonthBase.Count(&mTotalCheck)
+
+				qMonthOK := h.db.Table(`"Inspection_Result" ir`).
+					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
+				if allowedAreas != nil {
+					qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
+				}
+				qMonthOK.Count(&mTotalOK)
+
+				mRate := 0.0
+				if mTotalCheck > 0 {
+					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
+				}
+
+				complianceTrend = append(complianceTrend, fiber.Map{
+					"month":        monthName,
+					"start_date":   monthStart.Format("2006-01-02"),
+					"end_date":     monthStart.AddDate(0, 1, -1).Format("2006-01-02"),
+					"rate":         float64(int(mRate*10)) / 10.0,
+					"total_issues": countIssuesBetween(monthStart, monthStart.AddDate(0, 1, 0)),
+				})
+			}
+		}
+
+		// Calculate trend diff vs previous entry.
+		if len(complianceTrend) >= 2 {
+			currRate := complianceTrend[len(complianceTrend)-1]["rate"].(float64)
+			prevRate := complianceTrend[len(complianceTrend)-2]["rate"].(float64)
+			trendDiff = float64(int((currRate-prevRate)*10)) / 10.0
+		}
 	}
 
 	// Calculate WOWR Statistics
@@ -496,6 +581,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		"total_inspections_running": totalInspectionsRunning,
 		"compliance_rate":           complianceRate,
 		"compliance_rate_trend":     trendDiff,
+		"total_issues":              totalIssues,
 		"total_open_issues":         totalOpenIssues,
 		"issue_overdue":             picFollowupOverdue,
 		"issue_overdue_trend":       0,
@@ -1158,29 +1244,31 @@ func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
 	allowedAreas := h.getAllowedAreas(c)
 
 	type WOWRReportItem struct {
-		IssueID            string     `json:"issue_id"`
-		PhotoID            string     `json:"photo_id,omitempty"`
-		WO_ID              string     `json:"wo_id"`
-		WR_ID              string     `json:"wr_id"`
-		NeedsWOWR          bool       `json:"needs_wo_wr"`
-		WOWRStatus         string     `json:"wowr_status"`
-		IssueStatus        string     `json:"issue_status"`
-		AreaID             string     `json:"area_id"`
-		AreaName           string     `json:"area_name"`
-		KawasanID          string     `json:"kawasan_id"`
-		KawasanName        string     `json:"kawasan_name"`
-		DetailKawasanID    string     `json:"detail_kawasan_id"`
-		DetailKawasanName  string     `json:"detail_kawasan_name"`
-		PICName            string     `json:"pic_name"`
-		AspekName          string     `json:"aspek_name"`
-		DetailAspekName    string     `json:"detail_aspek_name"`
-		UraianText         string     `json:"uraian_text"`
-		HabitName          string     `json:"habit_name"`
-		EquipmentName      string     `json:"equipment_name"`
-		InfrastructureName string     `json:"infrastructure_name"`
-		Keterangan         string     `json:"keterangan"`
-		DueDate            *time.Time `json:"due_date"`
-		CreatedAt          time.Time  `json:"created_at"`
+		IssueID            string               `json:"issue_id"`
+		PhotoID            string               `json:"photo_id,omitempty"`
+		WO_ID              string               `json:"wo_id"`
+		WR_ID              string               `json:"wr_id"`
+		NeedsWOWR          bool                 `json:"needs_wo_wr"`
+		WOWRStatus         string               `json:"wowr_status"`
+		IssueStatus        string               `json:"issue_status"`
+		AreaID             string               `json:"area_id"`
+		AreaName           string               `json:"area_name"`
+		KawasanID          string               `json:"kawasan_id"`
+		KawasanName        string               `json:"kawasan_name"`
+		DetailKawasanID    string               `json:"detail_kawasan_id"`
+		DetailKawasanName  string               `json:"detail_kawasan_name"`
+		PICName            string               `json:"pic_name"`
+		AspekName          string               `json:"aspek_name"`
+		DetailAspekName    string               `json:"detail_aspek_name"`
+		UraianText         string               `json:"uraian_text"`
+		HabitName          string               `json:"habit_name"`
+		EquipmentName      string               `json:"equipment_name"`
+		InfrastructureName string               `json:"infrastructure_name"`
+		Keterangan         string               `json:"keterangan"`
+		DueDate            *time.Time           `json:"due_date"`
+		CreatedAt          time.Time            `json:"created_at"`
+		InitialEvidence    []WOWRReportEvidence `gorm:"-" json:"initial_evidence"`
+		CompletionEvidence []WOWRReportEvidence `gorm:"-" json:"completion_evidence"`
 	}
 
 	issueQuery := h.db.Table(`"Issue" i`).
@@ -1294,6 +1382,29 @@ func (h *DashboardHandler) GetWOWRReport(c *fiber.Ctx) error {
 		return response.InternalServerError(c, "Failed to load photo WOWR report data", err.Error())
 	}
 	items = append(photoItems, items...)
+
+	issueIDs := make([]string, 0, len(items))
+	seenIssueIDs := make(map[string]bool)
+	for _, item := range items {
+		if item.IssueID != "" && !seenIssueIDs[item.IssueID] {
+			issueIDs = append(issueIDs, item.IssueID)
+			seenIssueIDs[item.IssueID] = true
+		}
+	}
+	evidenceByIssue, err := h.loadWOWREvidence(issueIDs)
+	if err != nil {
+		h.log.Error("Failed to fetch WOWR report evidence", logger.Error(err))
+		return response.InternalServerError(c, "Failed to load WOWR evidence", err.Error())
+	}
+	for i := range items {
+		items[i].InitialEvidence, items[i].CompletionEvidence = evidenceForWOWRItem(evidenceByIssue[items[i].IssueID], items[i].PhotoID)
+		if items[i].InitialEvidence == nil {
+			items[i].InitialEvidence = []WOWRReportEvidence{}
+		}
+		if items[i].CompletionEvidence == nil {
+			items[i].CompletionEvidence = []WOWRReportEvidence{}
+		}
+	}
 
 	var total, verified, pending, rejected, awaiting int64
 	total = int64(len(items))

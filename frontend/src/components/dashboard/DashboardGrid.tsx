@@ -3,7 +3,7 @@
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Responsive, useContainerWidth, type Layout, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -46,15 +46,27 @@ interface ResolvedWidget {
   layout: LayoutItem;
 }
 
+function normalizeLayout(layout: { x: number; y: number; w: number; h: number }, fallback: WidgetDefinition["defaultLayout"]): LayoutItem {
+  const width = Number.isFinite(layout.w) ? Math.min(12, Math.max(1, Math.round(layout.w))) : fallback.w;
+  return {
+    i: "",
+    x: Number.isFinite(layout.x) ? Math.min(12 - width, Math.max(0, Math.round(layout.x))) : fallback.x,
+    y: Number.isFinite(layout.y) ? Math.max(0, Math.round(layout.y)) : fallback.y,
+    w: width,
+    h: Number.isFinite(layout.h) ? Math.min(30, Math.max(2, Math.round(layout.h))) : fallback.h,
+  };
+}
+
 function resolveWidgets(registry: WidgetDefinition[], saved: WidgetConfig[] | undefined): ResolvedWidget[] {
   const byId = new Map((saved || []).map((w) => [w.widget_id, w]));
   return registry.map((def) => {
     const cfg = byId.get(def.id);
     const pos = cfg && cfg.x != null && cfg.y != null && cfg.w != null && cfg.h != null ? { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h } : def.defaultLayout;
+    const normalized = normalizeLayout(pos, def.defaultLayout);
     return {
       def,
       visible: cfg ? cfg.visible : true,
-      layout: { i: def.id, ...pos },
+      layout: { ...normalized, i: def.id },
     };
   });
 }
@@ -68,6 +80,100 @@ function toSingleColumnLayout(items: ResolvedWidget[]): Layout {
       y += w.layout.h;
       return item;
     });
+}
+
+function groupWidgetsByRow(items: ResolvedWidget[]): ResolvedWidget[][] {
+  const rows = new Map<number, ResolvedWidget[]>();
+  [...items]
+    .sort((a, b) => a.layout.y - b.layout.y || a.layout.x - b.layout.x)
+    .forEach((widget) => {
+      const row = rows.get(widget.layout.y) || [];
+      row.push(widget);
+      rows.set(widget.layout.y, row);
+    });
+  return [...rows.values()];
+}
+
+interface DashboardWidgetFrameProps {
+  widget: ResolvedWidget;
+  isEditing: boolean;
+  previewOnly: boolean;
+  onHide: (id: string) => void;
+}
+
+function DashboardWidgetFrame({ widget, isEditing, previewOnly, onHide }: DashboardWidgetFrameProps) {
+  const { Component } = widget.def;
+  return (
+    <div className="relative h-full min-w-0 group">
+      {isEditing && (
+        <div className="widget-drag-handle absolute inset-x-0 top-0 z-10 flex items-center justify-between rounded-t-xl bg-primary/90 px-2 py-1 text-xs font-semibold text-primary-foreground cursor-move">
+          <span className="truncate">{widget.def.title}</span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onHide(widget.def.id);
+            }}
+            className="shrink-0 rounded p-0.5 transition-colors hover:bg-white/20"
+            aria-label={`Sembunyikan ${widget.def.title}`}
+            title="Sembunyikan widget ini"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      <div className={isEditing ? "h-full min-w-0 pt-7 pointer-events-none select-none" : "h-full min-w-0"}>
+        {previewOnly ? (
+          <div className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-muted-foreground">
+            <LayoutDashboard className="h-6 w-6 opacity-50" />
+            <span className="text-center text-xs font-medium">{widget.def.title}</span>
+          </div>
+        ) : (
+          <Component />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NaturalDashboardLayout({
+  widgets,
+  wide,
+  isEditing,
+  previewOnly,
+  onHide,
+}: {
+  widgets: ResolvedWidget[];
+  wide: boolean;
+  isEditing: boolean;
+  previewOnly: boolean;
+  onHide: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {groupWidgetsByRow(widgets).map((row) => (
+        <div
+          key={`${row[0].layout.y}-${row.map((widget) => widget.def.id).join("-")}`}
+          className="grid min-w-0 gap-4"
+          style={{ gridTemplateColumns: wide ? "repeat(12, minmax(0, 1fr))" : "minmax(0, 1fr)" }}
+        >
+          {row.map((widget) => {
+            const span = Math.min(12, Math.max(1, widget.layout.w));
+            const start = Math.min(13 - span, Math.max(1, widget.layout.x + 1));
+            return (
+              <div
+                key={widget.def.id}
+                className="min-w-0"
+                style={wide ? { gridColumn: `${start} / span ${span}` } : undefined}
+              >
+                <DashboardWidgetFrame widget={widget} isEditing={isEditing} previewOnly={previewOnly} onHide={onHide} />
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -92,15 +198,10 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ResolvedWidget[]>(resolved);
-
-  // Re-seed the draft whenever fresh data arrives and we're not mid-edit, so
-  // editing always starts from the latest saved state.
-  useEffect(() => {
-    if (!isEditing) setDraft(resolved);
-  }, [resolved, isEditing]);
-
-  const visibleWidgets = draft.filter((w) => w.visible);
-  const hiddenWidgets = draft.filter((w) => !w.visible);
+  const activeWidgets = isEditing ? draft : resolved;
+  const visibleWidgets = activeWidgets.filter((w) => w.visible);
+  const hiddenWidgets = activeWidgets.filter((w) => !w.visible);
+  const hasDesktopGrid = width >= BREAKPOINTS.lg;
 
   const lgLayout: Layout = visibleWidgets.map((w) => w.layout);
   const layouts: ResponsiveLayouts = {
@@ -156,6 +257,11 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
     setIsEditing(false);
   };
 
+  const startEditing = () => {
+    setDraft(resolved);
+    setIsEditing(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -182,7 +288,7 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
               </Button>
             </>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
+            <Button variant="outline" size="sm" onClick={startEditing} className="gap-2">
               <LayoutGrid className="h-4 w-4" />
               <span className="hidden sm:inline">Sesuaikan Dashboard</span>
             </Button>
@@ -209,54 +315,41 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
         </div>
       )}
 
+      {isEditing && mounted && !hasDesktopGrid && (
+        <p className="mb-4 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Pada layar ini widget mengikuti tinggi kontennya. Gunakan layar yang lebih lebar untuk mengubah posisi dan ukuran; pengaturan tampil/sembunyi tetap dapat disimpan.
+        </p>
+      )}
+
       <div ref={containerRef}>
         {mounted && width > 0 && (
-          <Responsive
-            layouts={layouts}
-            breakpoints={BREAKPOINTS}
-            cols={COLS}
-            width={width}
-            rowHeight={ROW_HEIGHT}
-            margin={[16, 16]}
-            dragConfig={{ enabled: isEditing, handle: ".widget-drag-handle" }}
-            resizeConfig={{ enabled: isEditing }}
-            onLayoutChange={handleLayoutChange}
-          >
-            {visibleWidgets.map((w) => {
-              const { Component } = w.def;
-              return (
-                <div key={w.def.id} className="relative group">
-                  {isEditing && (
-                    <div className="widget-drag-handle absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2 py-1 bg-primary/90 text-primary-foreground rounded-t-xl cursor-move text-xs font-semibold">
-                      <span className="truncate">{w.def.title}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          hideWidget(w.def.id);
-                        }}
-                        className="p-0.5 rounded hover:bg-white/20 transition-colors shrink-0"
-                        aria-label={`Sembunyikan ${w.def.title}`}
-                        title="Sembunyikan widget ini"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  <div className={isEditing ? "h-full pt-7 pointer-events-none select-none" : "h-full"}>
-                    {previewOnly ? (
-                      <div className="h-full w-full flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 text-muted-foreground p-4">
-                        <LayoutDashboard className="h-6 w-6 opacity-50" />
-                        <span className="text-xs font-medium text-center">{w.def.title}</span>
-                      </div>
-                    ) : (
-                      <Component />
-                    )}
-                  </div>
+          isEditing && hasDesktopGrid ? (
+            <Responsive
+              layouts={layouts}
+              breakpoints={BREAKPOINTS}
+              cols={COLS}
+              width={width}
+              rowHeight={ROW_HEIGHT}
+              margin={[16, 16]}
+              dragConfig={{ enabled: true, handle: ".widget-drag-handle" }}
+              resizeConfig={{ enabled: true }}
+              onLayoutChange={handleLayoutChange}
+            >
+              {visibleWidgets.map((widget) => (
+                <div key={widget.def.id} className="min-w-0">
+                  <DashboardWidgetFrame widget={widget} isEditing previewOnly={previewOnly} onHide={hideWidget} />
                 </div>
-              );
-            })}
-          </Responsive>
+              ))}
+            </Responsive>
+          ) : (
+            <NaturalDashboardLayout
+              widgets={visibleWidgets}
+              wide={hasDesktopGrid}
+              isEditing={isEditing}
+              previewOnly={previewOnly}
+              onHide={hideWidget}
+            />
+          )
         )}
       </div>
     </div>

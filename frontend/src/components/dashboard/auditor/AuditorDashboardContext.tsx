@@ -2,13 +2,13 @@
 
 import { createContext, useContext, useCallback, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { inspectionApi } from "@/lib/api/inspection.api";
 import { filterApi } from "@/lib/api/filter.api";
+import { api } from "@/lib/api/axios";
+import { dashboardApi, type DashboardTrendData, type TrendPeriod } from "@/lib/api/dashboard.api";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { usePolling } from "@/hooks/usePolling";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { useTrendPeriodState } from "@/components/dashboard/useTrendPeriodState";
 
 interface AuditorDashboardContextValue {
   mounted: boolean;
@@ -23,9 +23,12 @@ interface AuditorDashboardContextValue {
   pendingValidationCount: number;
   pendingValidationList: Awaited<ReturnType<typeof filterApi.issues>>["items"];
   openIssues: number;
-  currentYear: number;
+  trendPeriod: TrendPeriod;
+  setTrendPeriod: (period: TrendPeriod) => void;
+  trendData: DashboardTrendData | undefined;
   chartData: Array<Record<string, string | number>>;
   isTrendLoading: boolean;
+  isTrendFetching: boolean;
 }
 
 const AuditorDashboardContext = createContext<AuditorDashboardContextValue | null>(null);
@@ -34,6 +37,7 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
+  const [trendPeriod, setTrendPeriod] = useTrendPeriodState();
 
   usePolling({ intervalMs: 30_000, immediate: false });
 
@@ -47,17 +51,35 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
     enabled: mounted && !!user,
   });
 
-  const currentYear = new Date().getFullYear();
-  const { data: trendData, isLoading: isTrendLoading } = useQuery({
-    queryKey: ["auditor-inspections-trend", user?.id, currentYear],
-    queryFn: () => inspectionApi.getAnalyticsTrend(user?.id || "", currentYear),
+  const {
+    data: trendData,
+    isLoading: isTrendLoading,
+    isFetching: isTrendFetching,
+  } = useQuery({
+    queryKey: ["dashboard-trend", "auditor", user?.id, trendPeriod],
+    queryFn: () => dashboardApi.getTrend({
+      period: trendPeriod,
+      inspector_id: user?.id,
+    }),
     enabled: mounted && !!user,
+    staleTime: 10_000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: issueSummaryData, isLoading: isIssueSummaryLoading } = useQuery({
     queryKey: ["auditor-issue-summary"],
     queryFn: () => filterApi.issues({ limit: 1 }),
     enabled: mounted,
+    staleTime: 30_000,
+  });
+
+  const { data: dashboardStats, isLoading: isDashboardStatsLoading } = useQuery({
+    queryKey: ["auditor-dashboard-stats", user?.id],
+    queryFn: async () => {
+      const response = await api.get("/dashboard/stats", { params: { include_trend: false } });
+      return response.data.data as { total_issues: number };
+    },
+    enabled: mounted && !!user,
     staleTime: 30_000,
   });
 
@@ -76,8 +98,9 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["auditor-inspections"] });
-    queryClient.invalidateQueries({ queryKey: ["auditor-inspections-trend"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-trend", "auditor"] });
     queryClient.invalidateQueries({ queryKey: ["auditor-issue-summary"] });
+    queryClient.invalidateQueries({ queryKey: ["auditor-dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["auditor-pending-issues"] });
   }, [queryClient]);
 
@@ -87,17 +110,17 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
   const ongoingInspections = inspections.filter((i) => i.status === "Ongoing" || i.status === "Draft").length;
 
   const issueStatusCounts = issueSummaryData?.facets.status || {};
-  const totalIssues = issueSummaryData?.total || 0;
+  const totalIssues = dashboardStats?.total_issues || 0;
   const pendingValidationList = pendingIssuesData?.items || [];
   const pendingValidationCount = issueStatusCounts.PendingValidation || 0;
   const openIssues = (issueStatusCounts.Open || 0) + (issueStatusCounts.InProgress || 0) + (issueStatusCounts.Overdue || 0);
 
-  const isLoading = isInspectionsLoading || isTrendLoading || isIssueSummaryLoading || isPendingIssuesLoading;
-  const isFetching = isInspectionsFetching;
+  const isLoading = isInspectionsLoading || isTrendLoading || isIssueSummaryLoading || isPendingIssuesLoading || isDashboardStatsLoading;
+  const isFetching = isInspectionsFetching || isTrendFetching;
 
-  const chartData = (trendData?.data || []).map((item: Record<string, string | number>) => ({
+  const chartData = (trendData?.points || []).map((item) => ({
     ...item,
-    period_label: format(new Date(`${item.date}T00:00:00`), "MMM yyyy", { locale: idLocale }),
+    period_label: item.label,
   }));
 
   return (
@@ -115,9 +138,12 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
         pendingValidationCount,
         pendingValidationList,
         openIssues,
-        currentYear,
+        trendPeriod,
+        setTrendPeriod,
+        trendData,
         chartData,
         isTrendLoading,
+        isTrendFetching,
       }}
     >
       {children}

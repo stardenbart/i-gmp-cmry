@@ -15,7 +15,7 @@ import { getApiErrorMessage } from "@/lib/api/error";
 import { useAuthStore } from "@/stores/authStore";
 
 const loginSchema = z.object({
-  username: z.string().min(3, "Username minimal 3 karakter"),
+  username: z.string().trim().min(3, "Username atau email minimal 3 karakter"),
   password: z.string().min(6, "Password minimal 6 karakter"),
 });
 
@@ -54,7 +54,7 @@ export default function LoginPage() {
       router.push(`/cimory/${plantCode}/dashboard/${user.id}`);
     } catch (error) {
       toast.error(
-        getApiErrorMessage(error, "Login gagal. Periksa kembali username dan password Anda.")
+        getApiErrorMessage(error, "Login gagal. Periksa kembali username/email dan password Anda.")
       );
     } finally {
       setIsLoading(false);
@@ -89,13 +89,13 @@ export default function LoginPage() {
         <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-2xl sm:p-10">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             
-            {/* Username Field */}
+            {/* Username or Email Field */}
             <div className="space-y-2.5">
               <label
                 htmlFor="username"
                 className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-300"
               >
-                Username
+                Username atau Email
               </label>
               <Input
                 id="username"
@@ -105,7 +105,7 @@ export default function LoginPage() {
                 aria-invalid={errors.username ? "true" : "false"}
                 aria-describedby={errors.username ? "username-error" : undefined}
                 className="h-12 rounded-2xl border-white/10 bg-black/40 px-4 text-white placeholder:text-zinc-500 focus-visible:border-primary/50 focus-visible:bg-black/60 focus-visible:ring-1 focus-visible:ring-primary/50 transition-all"
-                placeholder="admin"
+                placeholder="admin atau nama@perusahaan.com"
                 {...register("username")}
               />
               {errors.username && (

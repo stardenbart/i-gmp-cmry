@@ -2,6 +2,7 @@ package authusecase
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
@@ -31,19 +32,23 @@ func NewAuthUseCase(
 }
 
 func (uc *authUseCase) Login(req *authdomain.LoginRequest, ip, device string) (*authdomain.LoginResponse, error) {
-	user, err := uc.userRepo.FindByUsername(req.Username)
+	identifier := strings.TrimSpace(req.Username)
+	user, err := uc.userRepo.FindByUsername(identifier)
+	if err != nil || user == nil {
+		user, err = uc.userRepo.FindByEmail(identifier)
+	}
 	loginStatus := logdomain.LoginStatusSuccess
 
 	if err != nil || user == nil {
 		loginStatus = logdomain.LoginStatusFailed
 		uc.recordLogin("", ip, device, loginStatus)
-		return nil, errors.New("invalid username or password")
+		return nil, errors.New("invalid username/email or password")
 	}
 
 	if !password.Compare(req.Password, user.PasswordHash) {
 		loginStatus = logdomain.LoginStatusFailed
 		uc.recordLogin(user.UserID, ip, device, loginStatus)
-		return nil, errors.New("invalid username or password")
+		return nil, errors.New("invalid username/email or password")
 	}
 
 	if user.UserStatus != authdomain.UserStatusActive {

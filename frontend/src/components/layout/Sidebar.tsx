@@ -68,10 +68,10 @@ export function Sidebar() {
   const renderLinks = (links: typeof MAIN_MENU) => {
     return links.map((item) => {
       // For dashboard home, we need exact match logic or checking if it's the base path without sub-routes
-      const isActive =
-        (item.label === "Dashboard")
-          ? (pathname === basePath || pathname === basePath + "/")
-          : pathname.startsWith(item.href);
+      const isDashboardHome = item.href === basePath;
+      const isActive = isDashboardHome
+        ? pathname === basePath || pathname === `${basePath}/`
+        : pathname.startsWith(item.href);
       const Icon = item.icon;
 
       return (
@@ -85,7 +85,7 @@ export function Sidebar() {
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
         >
-          <Icon className="h-4 w-4" />
+          <Icon aria-hidden="true" className="h-4 w-4" />
           {item.label}
         </Link>
       );
@@ -108,7 +108,7 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">
-        <nav className="space-y-1 px-3">
+        <nav className="space-y-1 px-3" aria-label="Navigasi utama">
           <div className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
             Utama
           </div>
@@ -116,7 +116,7 @@ export function Sidebar() {
         </nav>
 
         {ADMIN_MENU.length > 0 && (
-          <nav className="mt-8 space-y-1 px-3">
+          <nav className="mt-8 space-y-1 px-3" aria-label="Navigasi administrator">
             <div className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
               Administrator
             </div>

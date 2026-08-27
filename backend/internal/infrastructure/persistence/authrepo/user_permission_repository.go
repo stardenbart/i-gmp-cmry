@@ -26,7 +26,6 @@ var globalUserPermListCache sync.Map
 type userPermRepository struct{ db *gorm.DB }
 
 func NewUserPermissionRepository(db *gorm.DB) authdomain.UserPermissionRepository {
-	_ = db.AutoMigrate(&authdomain.UserPermission{})
 	return &userPermRepository{db: db}
 }
 
@@ -84,7 +83,6 @@ func (r *userPermRepository) CheckOverride(userID, moduleID, permissionCode stri
 
 	return result, nil
 }
-
 
 func (r *userPermRepository) BulkUpsert(ups []authdomain.UserPermission) error {
 	clearSyncMap(&globalUserPermCache)     // clear cache on update (thread-safe)

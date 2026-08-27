@@ -309,7 +309,7 @@ export default function UsersPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const data: Record<string, unknown> = {};
-    
+
     // Process non-PIC fields from FormData
     const keys = Array.from(new Set(formData.keys()));
     for (const key of keys) {
@@ -557,7 +557,7 @@ export default function UsersPage() {
                 <label className="text-sm font-medium mb-1 block">Email</label>
                 <Input name="email" type="email" defaultValue={editingItem?.email} required />
               </div>
-              
+
               <div className="col-span-2 md:col-span-1">
                 <label className="text-sm font-medium mb-1 block">Role</label>
                 <div className="relative">
@@ -648,7 +648,7 @@ export default function UsersPage() {
                 </div>
               )}
             </div>
-            
+
             <div className="flex gap-3 pt-4 border-t border-border mt-4">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} className="flex-1">Batal</Button>
               <Button type="submit" isLoading={createMutation.isPending || updateMutation.isPending} className="flex-1">Simpan Profil</Button>
@@ -669,12 +669,12 @@ export default function UsersPage() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-1 block">Password Baru</label>
-              <Input 
-                type="password" 
-                value={newPassword} 
-                onChange={(e) => setNewPassword(e.target.value)} 
-                required minLength={6} 
-                placeholder="Masukkan password baru..." 
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required minLength={6}
+                placeholder="Masukkan password baru..."
               />
             </div>
           </div>
