@@ -27,3 +27,26 @@ export function useTrendPeriodState(defaultPeriod: TrendPeriod = "monthly") {
 
   return [period, setPeriod] as const;
 }
+
+export interface TrendDateRange {
+  start: string; // YYYY-MM-DD
+  end: string; // YYYY-MM-DD
+}
+
+function formatDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function defaultTrendRange(): TrendDateRange {
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(start.getMonth() - 6);
+  return { start: formatDate(start), end: formatDate(end) };
+}
+
+/** Backs the "custom" period's date-range picker (replaces the old
+ * "Minggu/Bulan/Tahun Lalu" presets) — defaults to the last 6 months. */
+export function useCustomTrendRange() {
+  const [range, setRange] = useState<TrendDateRange>(defaultTrendRange);
+  return [range, setRange] as const;
+}

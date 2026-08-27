@@ -5,9 +5,7 @@ export type TrendPeriod =
   | "weekly"
   | "monthly"
   | "quarter"
-  | "previous_week"
-  | "previous_month"
-  | "previous_year";
+  | "custom";
 
 export interface DashboardTrendPoint {
   bucket_start: string;
@@ -39,6 +37,9 @@ export interface DashboardTrendParams {
   plant_id?: string;
   area_id?: string;
   inspector_id?: string;
+  /** Required when period is "custom" (format YYYY-MM-DD). */
+  start_date?: string;
+  end_date?: string;
 }
 
 export const dashboardApi = {

@@ -88,7 +88,7 @@ func startOfQuarter(value time.Time, location *time.Location) time.Time {
 	return time.Date(localized.Year(), month, 1, 0, 0, 0, 0, location)
 }
 
-func buildTrendPeriod(period string, now time.Time) (trendPeriodSpec, error) {
+func buildTrendPeriod(period string, now time.Time, customStart, customEnd string) (trendPeriodSpec, error) {
 	location := dashboardLocation()
 	normalized := strings.ToLower(strings.TrimSpace(period))
 	if normalized == "" {
@@ -100,7 +100,6 @@ func buildTrendPeriod(period string, now time.Time) (trendPeriodSpec, error) {
 
 	today := startOfDay(now, location)
 	monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, location)
-	yearStart := time.Date(today.Year(), 1, 1, 0, 0, 0, 0, location)
 	var spec trendPeriodSpec
 	spec.Period = normalized
 
@@ -119,16 +118,35 @@ func buildTrendPeriod(period string, now time.Time) (trendPeriodSpec, error) {
 		spec.Label, spec.Granularity = "8 Kuartal Terakhir", trendQuarter
 		currentQuarter := startOfQuarter(today, location)
 		spec.Start, spec.End = currentQuarter.AddDate(0, -21, 0), currentQuarter.AddDate(0, 3, 0)
-	case "previous_week":
-		spec.Label, spec.Granularity = "Minggu Lalu", trendDay
-		currentWeek := startOfWeek(today, location)
-		spec.Start, spec.End = currentWeek.AddDate(0, 0, -7), currentWeek
-	case "previous_month":
-		spec.Label, spec.Granularity = "Bulan Lalu", trendDay
-		spec.Start, spec.End = monthStart.AddDate(0, -1, 0), monthStart
-	case "previous_year":
-		spec.Label, spec.Granularity = "Tahun Lalu", trendMonth
-		spec.Start, spec.End = yearStart.AddDate(-1, 0, 0), yearStart
+	case "custom":
+		// User-picked date range (replaces the old "previous_week/month/year"
+		// single-past-period presets) — granularity auto-scales so the chart
+		// stays readable whether they pick a week or a couple of years.
+		start, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(customStart), location)
+		if err != nil {
+			return trendPeriodSpec{}, errors.New("start_date wajib diisi (format YYYY-MM-DD) untuk periode custom")
+		}
+		endDay, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(customEnd), location)
+		if err != nil {
+			return trendPeriodSpec{}, errors.New("end_date wajib diisi (format YYYY-MM-DD) untuk periode custom")
+		}
+		start = startOfDay(start, location)
+		endExclusive := startOfDay(endDay, location).AddDate(0, 0, 1)
+		if !endExclusive.After(start) {
+			return trendPeriodSpec{}, errors.New("end_date harus setelah start_date")
+		}
+
+		totalDays := int(endExclusive.Sub(start).Hours() / 24)
+		switch {
+		case totalDays <= 31:
+			spec.Granularity = trendDay
+		case totalDays <= 180:
+			spec.Granularity = trendWeek
+		default:
+			spec.Granularity = trendMonth
+		}
+		spec.Label = fmt.Sprintf("%s – %s", start.Format("2 Jan 2006"), endDay.Format("2 Jan 2006"))
+		spec.Start, spec.End = start, endExclusive
 	default:
 		return trendPeriodSpec{}, errors.New("periode tren tidak valid")
 	}
@@ -239,7 +257,7 @@ func resolveTrendInspector(c *fiber.Ctx) (string, error) {
 
 // GetTrend returns a shared chart dataset for admin and auditor dashboards.
 func (h *DashboardHandler) GetTrend(c *fiber.Ctx) error {
-	spec, err := buildTrendPeriod(c.Query("period", "monthly"), time.Now())
+	spec, err := buildTrendPeriod(c.Query("period", "monthly"), time.Now(), c.Query("start_date"), c.Query("end_date"))
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}

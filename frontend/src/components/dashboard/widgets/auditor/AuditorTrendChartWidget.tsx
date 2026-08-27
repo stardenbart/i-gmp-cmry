@@ -8,7 +8,7 @@ import { TrendPeriodFilter } from "@/components/dashboard/TrendPeriodFilter";
 const AreaChart = lazy(() => import("@/components/ui/area-chart").then((mod) => ({ default: mod.AreaChart })));
 
 export function AuditorTrendChartWidget() {
-  const { trendPeriod, setTrendPeriod, trendData, isTrendLoading, isTrendFetching, chartData } = useAuditorDashboard();
+  const { trendPeriod, setTrendPeriod, customRange, setCustomRange, trendData, isTrendLoading, isTrendFetching, chartData } = useAuditorDashboard();
   const summary = trendData?.summary || { total_inspections: 0, total_issues: 0, average_compliance: 0 };
   const formattedData = chartData.map((item) => ({
     ...item,
@@ -22,7 +22,13 @@ export function AuditorTrendChartWidget() {
           <h2 className="text-lg font-semibold text-foreground">Tren Inspeksi dan Issue Auditor</h2>
           <p className="text-xs font-medium text-muted-foreground">{trendData?.period_label || "Pilih periode tren"}</p>
         </div>
-        <TrendPeriodFilter value={trendPeriod} onChange={setTrendPeriod} disabled={isTrendLoading} />
+        <TrendPeriodFilter
+          value={trendPeriod}
+          onChange={setTrendPeriod}
+          customRange={customRange}
+          onCustomRangeChange={setCustomRange}
+          disabled={isTrendLoading}
+        />
       </div>
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div className="rounded-xl border bg-card px-3 py-2"><span className="block text-muted-foreground">Inspeksi</span><strong>{summary.total_inspections}</strong></div>

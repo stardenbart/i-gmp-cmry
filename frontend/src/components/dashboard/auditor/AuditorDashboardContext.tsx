@@ -8,7 +8,7 @@ import { dashboardApi, type DashboardTrendData, type TrendPeriod } from "@/lib/a
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { usePolling } from "@/hooks/usePolling";
-import { useTrendPeriodState } from "@/components/dashboard/useTrendPeriodState";
+import { useTrendPeriodState, useCustomTrendRange, type TrendDateRange } from "@/components/dashboard/useTrendPeriodState";
 
 interface AuditorDashboardContextValue {
   mounted: boolean;
@@ -25,6 +25,8 @@ interface AuditorDashboardContextValue {
   openIssues: number;
   trendPeriod: TrendPeriod;
   setTrendPeriod: (period: TrendPeriod) => void;
+  customRange: TrendDateRange;
+  setCustomRange: (range: TrendDateRange) => void;
   trendData: DashboardTrendData | undefined;
   chartData: Array<Record<string, string | number>>;
   isTrendLoading: boolean;
@@ -38,6 +40,7 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const [trendPeriod, setTrendPeriod] = useTrendPeriodState();
+  const [customRange, setCustomRange] = useCustomTrendRange();
 
   usePolling({ intervalMs: 30_000, immediate: false });
 
@@ -56,12 +59,13 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
     isLoading: isTrendLoading,
     isFetching: isTrendFetching,
   } = useQuery({
-    queryKey: ["dashboard-trend", "auditor", user?.id, trendPeriod],
+    queryKey: ["dashboard-trend", "auditor", user?.id, trendPeriod, trendPeriod === "custom" ? customRange : null],
     queryFn: () => dashboardApi.getTrend({
       period: trendPeriod,
       inspector_id: user?.id,
+      ...(trendPeriod === "custom" ? { start_date: customRange.start, end_date: customRange.end } : {}),
     }),
-    enabled: mounted && !!user,
+    enabled: mounted && !!user && (trendPeriod !== "custom" || (!!customRange.start && !!customRange.end)),
     staleTime: 10_000,
     placeholderData: (previousData) => previousData,
   });
@@ -140,6 +144,8 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
         openIssues,
         trendPeriod,
         setTrendPeriod,
+        customRange,
+        setCustomRange,
         trendData,
         chartData,
         isTrendLoading,

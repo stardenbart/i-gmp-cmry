@@ -11,7 +11,7 @@ import { useMounted } from "@/lib/useMounted";
 import { usePolling } from "@/hooks/usePolling";
 import type { DashboardStats as StatDashboardStats } from "@/components/admin/StatCard";
 import { dashboardApi, type DashboardTrendData, type TrendPeriod } from "@/lib/api/dashboard.api";
-import { useTrendPeriodState } from "@/components/dashboard/useTrendPeriodState";
+import { useTrendPeriodState, useCustomTrendRange, type TrendDateRange } from "@/components/dashboard/useTrendPeriodState";
 
 export interface AdminDashboardStats extends StatDashboardStats {
   inspections_completed?: number;
@@ -53,6 +53,8 @@ interface AdminDashboardContextValue {
   setSelectedArea: (area: string) => void;
   trendPeriod: TrendPeriod;
   setTrendPeriod: (period: TrendPeriod) => void;
+  customRange: TrendDateRange;
+  setCustomRange: (range: TrendDateRange) => void;
   plantsResponse: PaginatedResponse<Plant> | undefined;
   filteredAreas: Array<{ area_id: string; area_name: string; plant_id?: string }>;
   stats: AdminDashboardStats | undefined;
@@ -77,6 +79,7 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
   const [selectedPlant, setSelectedPlant] = useState<string>("");
   const [selectedArea, setSelectedArea] = useState<string>("");
   const [trendPeriod, setTrendPeriod] = useTrendPeriodState();
+  const [customRange, setCustomRange] = useCustomTrendRange();
 
   const isSuperAdmin =
     user?.role_id === "ROLE-000" ||
@@ -124,13 +127,14 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
     isLoading: isTrendLoading,
     isFetching: isTrendFetching,
   } = useQuery({
-    queryKey: ["dashboard-trend", "admin", trendPeriod, selectedArea, effectivePlant],
+    queryKey: ["dashboard-trend", "admin", trendPeriod, trendPeriod === "custom" ? customRange : null, selectedArea, effectivePlant],
     queryFn: () => dashboardApi.getTrend({
       period: trendPeriod,
       area_id: selectedArea || undefined,
       plant_id: effectivePlant || undefined,
+      ...(trendPeriod === "custom" ? { start_date: customRange.start, end_date: customRange.end } : {}),
     }),
-    enabled: mounted && !!user,
+    enabled: mounted && !!user && (trendPeriod !== "custom" || (!!customRange.start && !!customRange.end)),
     staleTime: 10_000,
     placeholderData: (previousData) => previousData,
   });
@@ -148,6 +152,8 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
         setSelectedArea,
         trendPeriod,
         setTrendPeriod,
+        customRange,
+        setCustomRange,
         plantsResponse,
         filteredAreas,
         stats,
