@@ -1,11 +1,13 @@
 package dashboardhandler
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	dashboarddomain "github.com/monitoring-system/backend/internal/domain/dashboard"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/crypto"
@@ -16,9 +18,10 @@ import (
 )
 
 type DashboardHandler struct {
-	db        *gorm.DB
-	log       *logger.Logger
-	cryptoSvc *crypto.Service
+	db         *gorm.DB
+	log        *logger.Logger
+	cryptoSvc  *crypto.Service
+	layoutRepo dashboarddomain.DashboardLayoutRepository
 }
 
 type issueInitialPhoto struct {
@@ -59,12 +62,73 @@ func (h *DashboardHandler) loadInitialIssueImages(issueIDs []string) (map[string
 	return grouped, nil
 }
 
-func NewDashboardHandler(db *gorm.DB, log *logger.Logger, cryptoSvc *crypto.Service) *DashboardHandler {
+func NewDashboardHandler(db *gorm.DB, log *logger.Logger, cryptoSvc *crypto.Service, layoutRepo dashboarddomain.DashboardLayoutRepository) *DashboardHandler {
 	return &DashboardHandler{
-		db:        db,
-		log:       log,
-		cryptoSvc: cryptoSvc,
+		db:         db,
+		log:        log,
+		cryptoSvc:  cryptoSvc,
+		layoutRepo: layoutRepo,
 	}
+}
+
+// GetLayout returns the authenticated user's saved dashboard widget layout,
+// falling back to the role's default arrangement if they've never customized
+// it (or if what they saved fails to parse — never hard-fail the dashboard
+// over a preference blob).
+func (h *DashboardHandler) GetLayout(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	roleID := middleware.GetRoleID(c)
+	if userID == "" {
+		return response.Unauthorized(c, "Unauthorized")
+	}
+
+	fallback := dashboarddomain.DefaultLayoutForRole(roleID)
+
+	saved, err := h.layoutRepo.FindByUserID(userID)
+	if err != nil {
+		h.log.Error("dashboard: failed to load layout", logger.Error(err))
+		return response.OK(c, "Using default layout", fallback)
+	}
+	if saved == nil {
+		return response.OK(c, "Using default layout", fallback)
+	}
+
+	var widgets []dashboarddomain.WidgetConfig
+	if err := json.Unmarshal([]byte(saved.LayoutJSON), &widgets); err != nil {
+		h.log.Error("dashboard: saved layout is not valid JSON, falling back to default", logger.Error(err))
+		return response.OK(c, "Using default layout", fallback)
+	}
+
+	return response.OK(c, "Layout fetched", widgets)
+}
+
+// SaveLayout persists the authenticated user's widget arrangement (visible +
+// order for Fase 3a; x/y/w/h will start arriving once Fase 3b's
+// react-grid-layout UI ships).
+func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == "" {
+		return response.Unauthorized(c, "Unauthorized")
+	}
+
+	var widgets []dashboarddomain.WidgetConfig
+	if err := c.BodyParser(&widgets); err != nil {
+		return response.BadRequest(c, "Invalid request body", err.Error())
+	}
+	if len(widgets) == 0 {
+		return response.BadRequest(c, "Layout must contain at least one widget", nil)
+	}
+
+	raw, err := json.Marshal(widgets)
+	if err != nil {
+		return response.InternalServerError(c, "Failed to encode layout", err.Error())
+	}
+
+	if err := h.layoutRepo.Upsert(userID, string(raw)); err != nil {
+		return response.InternalServerError(c, "Failed to save layout", err.Error())
+	}
+
+	return response.OK(c, "Layout saved", widgets)
 }
 
 func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {

@@ -189,6 +189,11 @@ services:
       OPENSEARCH_URL: http://opensearch-node1:9200
       SETTING_ENCRYPTION_KEY: ${SETTING_ENCRYPTION_KEY:?SETTING_ENCRYPTION_KEY is required}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      # Web Push (optional): leave unset on the host .env to disable push
+      # sending — the in-app notification bell keeps working either way.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
@@ -201,6 +206,9 @@ services:
       dockerfile: docker/frontend.Dockerfile
       args:
         INTERNAL_BACKEND_URL: http://backend:8080
+        # Must match VAPID_PUBLIC_KEY above exactly, or the subscribe
+        # button will silently fail (build-time value, not runtime).
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     image: system-audit-frontend:latest
     container_name: audit_prod_frontend
     restart: unless-stopped
