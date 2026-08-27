@@ -2,8 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { WidgetGrid } from "@/components/dashboard/WidgetGrid";
-import { CustomizeDashboardButton } from "@/components/dashboard/CustomizeDashboardButton";
+import { DashboardGrid } from "@/components/dashboard/DashboardGrid";
 import { auditeeWidgetRegistry } from "@/components/dashboard/widgets/auditee/registry";
 import { AuditeeDashboardProvider, useAuditeeDashboard } from "@/components/dashboard/auditee/AuditeeDashboardContext";
 
@@ -42,13 +41,10 @@ function AuditeeDashboardBody() {
           >
             <RefreshCw aria-hidden="true" className={cn("h-4 w-4", isFetching && "animate-spin motion-reduce:animate-none")} />
           </button>
-          <CustomizeDashboardButton registry={auditeeWidgetRegistry} />
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-6">
-        <WidgetGrid registry={auditeeWidgetRegistry} enabled={mounted && !!user} />
-      </div>
+      <DashboardGrid registry={auditeeWidgetRegistry} enabled={mounted && !!user} />
     </div>
   );
 }

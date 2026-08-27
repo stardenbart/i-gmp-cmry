@@ -1,8 +1,7 @@
 "use client";
 
 import { Factory } from "lucide-react";
-import { WidgetGrid } from "@/components/dashboard/WidgetGrid";
-import { CustomizeDashboardButton } from "@/components/dashboard/CustomizeDashboardButton";
+import { DashboardGrid } from "@/components/dashboard/DashboardGrid";
 import { adminWidgetRegistry } from "@/components/dashboard/widgets/admin/registry";
 import { AdminDashboardProvider, useAdminDashboard } from "@/components/dashboard/admin/AdminDashboardContext";
 
@@ -69,17 +68,13 @@ function AdminDashboardBody() {
               </option>
             ))}
           </select>
-
-          <CustomizeDashboardButton registry={adminWidgetRegistry} />
         </div>
       </section>
 
-      {/* Widget area — order/visibility driven by the user's saved dashboard
-          layout (falls back to this default arrangement while it loads or
-          if the user has never customized it). */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <WidgetGrid registry={adminWidgetRegistry} enabled={mounted && !!user} />
-      </div>
+      {/* Widget area — drag to reorder, resize the corner, in Edit mode.
+          Falls back to the default arrangement while it loads or if the
+          user has never customized it. */}
+      <DashboardGrid registry={adminWidgetRegistry} enabled={mounted && !!user} />
     </div>
   );
 }
