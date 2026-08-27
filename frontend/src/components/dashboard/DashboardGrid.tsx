@@ -3,8 +3,8 @@
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { useMemo, useState } from "react";
-import { Responsive, useContainerWidth, type Layout, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Responsive, type Layout, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { LayoutGrid, Loader2, Save, X, Plus, EyeOff, LayoutDashboard } from "lucide-react";
@@ -15,6 +15,44 @@ import type { WidgetDefinition } from "@/components/dashboard/types";
 const BREAKPOINTS = { lg: 768, xs: 0 };
 const COLS = { lg: 12, xs: 1 };
 const ROW_HEIGHT = 32;
+
+/**
+ * Measures the width of the element it's attached to.
+ *
+ * NOTE: intentionally NOT react-grid-layout's own `useContainerWidth`. That
+ * hook's ResizeObserver-attaching effect only re-runs when its internal
+ * `mounted` flag flips — but `mounted` starts out already `true` (its
+ * `measureBeforeMount` option defaults to `false`), so the effect fires
+ * exactly once, on the very first render. DashboardGrid renders a loading
+ * spinner (no grid container in the tree yet) while the layout query is in
+ * flight, so that one-shot effect finds `containerRef.current === null` and
+ * bails — permanently. The reported width then stays stuck at the hook's
+ * `initialWidth` default (1280px) forever, so every screen — including a
+ * 390px phone — gets treated as "desktop" and laid out with the saved
+ * 12-column x/y/w/h coordinates, producing the cramped/overlapping mobile
+ * layout. A callback ref sidesteps this: its identity only changes when the
+ * DOM node itself changes, so the effect re-attaches correctly no matter how
+ * many loading-gated renders happened first.
+ */
+function useElementWidth() {
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  const containerRef = useCallback((el: HTMLDivElement | null) => setNode(el), []);
+
+  useEffect(() => {
+    if (!node) return;
+    setWidth(Math.round(node.getBoundingClientRect().width));
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setWidth(Math.round(entry.contentRect.width));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [node]);
+
+  return { width, containerRef, mounted: width > 0 };
+}
 
 interface DashboardGridProps {
   registry: WidgetDefinition[];
@@ -184,7 +222,7 @@ function NaturalDashboardLayout({
  */
 export function DashboardGrid({ registry, enabled, target, editable = false, previewOnly = false }: DashboardGridProps) {
   const queryClient = useQueryClient();
-  const { width, containerRef, mounted } = useContainerWidth();
+  const { width, containerRef, mounted } = useElementWidth();
   const queryKey = ["dashboard-layout", target?.userId ?? "self"];
 
   const { data: saved, isLoading } = useQuery({
