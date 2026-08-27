@@ -139,7 +139,10 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
     }),
     enabled: mounted && !!user && (trendMode !== "range" || (!!trendRange.start && !!trendRange.end)),
     staleTime: 10_000,
-    placeholderData: (previousData) => previousData,
+    // Only keep the previous chart on screen while a same-mode refetch is in
+    // flight (e.g. changing the date range or granularity). Switching modes
+    // (quarter <-> range) must NOT show the other mode's stale labels/period.
+    placeholderData: (previousData) => (previousData?.period === trendMode ? previousData : undefined),
   });
 
   return (
