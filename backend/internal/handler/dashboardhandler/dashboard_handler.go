@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -71,20 +72,51 @@ func NewDashboardHandler(db *gorm.DB, log *logger.Logger, cryptoSvc *crypto.Serv
 	}
 }
 
-// GetLayout returns the authenticated user's saved dashboard widget layout,
-// falling back to the role's default arrangement if they've never customized
-// it (or if what they saved fails to parse — never hard-fail the dashboard
-// over a preference blob).
+// isDashboardConfigAdmin reports whether a role is allowed to configure
+// dashboard layouts on behalf of other users (Admin/Super Admin only —
+// dashboard customization is centrally managed via the Edit User screen,
+// not self-service from each user's own dashboard).
+func isDashboardConfigAdmin(roleID string) bool {
+	r := strings.ToUpper(strings.TrimSpace(roleID))
+	return r == "ROLE-000" || r == "ROLE-001"
+}
+
+// resolveLayoutTarget figures out whose layout this request should act on.
+// Defaults to the caller themself; an explicit ?user_id= targets someone
+// else, which is only permitted for Admin/Super Admin callers.
+func resolveLayoutTarget(c *fiber.Ctx) (targetUserID, targetRoleID string, err error) {
+	callerID := middleware.GetUserID(c)
+	callerRole := middleware.GetRoleID(c)
+	if callerID == "" {
+		return "", "", fmt.Errorf("unauthorized")
+	}
+
+	targetUserID = c.Query("user_id", callerID)
+	targetRoleID = c.Query("role_id", callerRole)
+
+	if targetUserID != callerID && !isDashboardConfigAdmin(callerRole) {
+		return "", "", fmt.Errorf("forbidden")
+	}
+	return targetUserID, targetRoleID, nil
+}
+
+// GetLayout returns the target user's saved dashboard widget layout (the
+// caller themself by default, or another user if the caller is Admin/Super
+// Admin and passes ?user_id=), falling back to the role's default
+// arrangement if they've never customized it (or if what they saved fails
+// to parse — never hard-fail the dashboard over a preference blob).
 func (h *DashboardHandler) GetLayout(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
-	roleID := middleware.GetRoleID(c)
-	if userID == "" {
+	targetUserID, targetRoleID, err := resolveLayoutTarget(c)
+	if err != nil {
+		if err.Error() == "forbidden" {
+			return response.Forbidden(c, "Hanya Admin atau Super Admin yang dapat melihat/mengatur dashboard pengguna lain")
+		}
 		return response.Unauthorized(c, "Unauthorized")
 	}
 
-	fallback := dashboarddomain.DefaultLayoutForRole(roleID)
+	fallback := dashboarddomain.DefaultLayoutForRole(targetRoleID)
 
-	saved, err := h.layoutRepo.FindByUserID(userID)
+	saved, err := h.layoutRepo.FindByUserID(targetUserID)
 	if err != nil {
 		h.log.Error("dashboard: failed to load layout", logger.Error(err))
 		return response.OK(c, "Using default layout", fallback)
@@ -102,12 +134,15 @@ func (h *DashboardHandler) GetLayout(c *fiber.Ctx) error {
 	return response.OK(c, "Layout fetched", widgets)
 }
 
-// SaveLayout persists the authenticated user's widget arrangement (visible +
-// order for Fase 3a; x/y/w/h will start arriving once Fase 3b's
-// react-grid-layout UI ships).
+// SaveLayout persists the target user's widget arrangement (x/y/w/h from
+// Fase 3b's drag/resize UI, plus visible/order). Same target resolution and
+// Admin/Super-Admin-only-for-others rule as GetLayout.
 func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
-	if userID == "" {
+	targetUserID, _, err := resolveLayoutTarget(c)
+	if err != nil {
+		if err.Error() == "forbidden" {
+			return response.Forbidden(c, "Hanya Admin atau Super Admin yang dapat mengatur dashboard pengguna lain")
+		}
 		return response.Unauthorized(c, "Unauthorized")
 	}
 
@@ -124,7 +159,7 @@ func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
 		return response.InternalServerError(c, "Failed to encode layout", err.Error())
 	}
 
-	if err := h.layoutRepo.Upsert(userID, string(raw)); err != nil {
+	if err := h.layoutRepo.Upsert(targetUserID, string(raw)); err != nil {
 		return response.InternalServerError(c, "Failed to save layout", err.Error())
 	}
 

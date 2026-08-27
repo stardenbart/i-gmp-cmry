@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { LayoutGrid, Loader2, Save, X, Plus, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { dashboardLayoutApi, type WidgetConfig } from "@/lib/api/dashboard-layout.api";
+import { dashboardLayoutApi, type WidgetConfig, type LayoutTarget } from "@/lib/api/dashboard-layout.api";
 import type { WidgetDefinition } from "@/components/dashboard/types";
 
 const BREAKPOINTS = { lg: 768, xs: 0 };
@@ -19,6 +19,16 @@ const ROW_HEIGHT = 32;
 interface DashboardGridProps {
   registry: WidgetDefinition[];
   enabled: boolean;
+  /** Whose layout to load/save. Omit to act on the caller themself. */
+  target?: LayoutTarget;
+  /**
+   * Whether the "Sesuaikan Dashboard" edit mode is available at all.
+   * Dashboard customization is Admin/Super-Admin-only, configured from the
+   * Edit User screen — so a user's own live dashboard renders `editable=false`
+   * (pure display of whatever layout was configured for them), while the
+   * Edit User "Dashboard" tab renders `editable=true` targeting that user.
+   */
+  editable?: boolean;
 }
 
 interface ResolvedWidget {
@@ -57,13 +67,14 @@ function toSingleColumnLayout(items: ResolvedWidget[]): Layout {
  * manipulation, in an explicit "Edit Layout" mode (view mode stays static
  * so normal dashboard browsing isn't accidentally draggable).
  */
-export function DashboardGrid({ registry, enabled }: DashboardGridProps) {
+export function DashboardGrid({ registry, enabled, target, editable = false }: DashboardGridProps) {
   const queryClient = useQueryClient();
   const { width, containerRef, mounted } = useContainerWidth();
+  const queryKey = ["dashboard-layout", target?.userId ?? "self"];
 
   const { data: saved, isLoading } = useQuery({
-    queryKey: ["dashboard-layout"],
-    queryFn: () => dashboardLayoutApi.get(),
+    queryKey,
+    queryFn: () => dashboardLayoutApi.get(target),
     enabled,
     staleTime: 60_000,
   });
@@ -119,10 +130,10 @@ export function DashboardGrid({ registry, enabled }: DashboardGridProps) {
         w: w.layout.w,
         h: w.layout.h,
       }));
-      return dashboardLayoutApi.save(widgets);
+      return dashboardLayoutApi.save(widgets, target);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dashboard-layout"] });
+      queryClient.invalidateQueries({ queryKey });
       setIsEditing(false);
       toast.success("Tata letak dashboard berhasil disimpan");
     },
@@ -146,27 +157,29 @@ export function DashboardGrid({ registry, enabled }: DashboardGridProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-end gap-2 mb-3">
-        {isEditing ? (
-          <>
-            <span className="text-xs text-muted-foreground mr-auto hidden sm:inline">
-              Seret untuk pindahkan, tarik sudut kanan-bawah untuk ubah ukuran.
-            </span>
-            <Button variant="outline" size="sm" onClick={handleCancel} disabled={saveMutation.isPending}>
-              Batal
+      {editable && (
+        <div className="flex items-center justify-end gap-2 mb-3">
+          {isEditing ? (
+            <>
+              <span className="text-xs text-muted-foreground mr-auto hidden sm:inline">
+                Seret untuk pindahkan, tarik sudut kanan-bawah untuk ubah ukuran.
+              </span>
+              <Button variant="outline" size="sm" onClick={handleCancel} disabled={saveMutation.isPending}>
+                Batal
+              </Button>
+              <Button size="sm" onClick={() => saveMutation.mutate()} isLoading={saveMutation.isPending} className="gap-2">
+                <Save className="h-4 w-4" />
+                Simpan Tata Letak
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">Sesuaikan Dashboard</span>
             </Button>
-            <Button size="sm" onClick={() => saveMutation.mutate()} isLoading={saveMutation.isPending} className="gap-2">
-              <Save className="h-4 w-4" />
-              Simpan Tata Letak
-            </Button>
-          </>
-        ) : (
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
-            <LayoutGrid className="h-4 w-4" />
-            <span className="hidden sm:inline">Sesuaikan Dashboard</span>
-          </Button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {isEditing && hiddenWidgets.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl border border-dashed border-border bg-muted/30">
