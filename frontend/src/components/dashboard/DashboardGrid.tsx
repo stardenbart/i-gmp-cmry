@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Responsive, useContainerWidth, type Layout, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { LayoutGrid, Loader2, Save, X, Plus, EyeOff } from "lucide-react";
+import { LayoutGrid, Loader2, Save, X, Plus, EyeOff, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dashboardLayoutApi, type WidgetConfig, type LayoutTarget } from "@/lib/api/dashboard-layout.api";
 import type { WidgetDefinition } from "@/components/dashboard/types";
@@ -29,6 +29,15 @@ interface DashboardGridProps {
    * Edit User "Dashboard" tab renders `editable=true` targeting that user.
    */
   editable?: boolean;
+  /**
+   * Render lightweight placeholder cards (title only) instead of mounting
+   * the real widget components. Required outside a role's own live
+   * dashboard page — e.g. the Edit User "Dashboard" tab arranges another
+   * user's widgets without that user's role Context/data providers mounted
+   * (and showing the *viewing admin's own* data there would be wrong
+   * anyway, since those widgets read from useAuthStore's logged-in user).
+   */
+  previewOnly?: boolean;
 }
 
 interface ResolvedWidget {
@@ -67,7 +76,7 @@ function toSingleColumnLayout(items: ResolvedWidget[]): Layout {
  * manipulation, in an explicit "Edit Layout" mode (view mode stays static
  * so normal dashboard browsing isn't accidentally draggable).
  */
-export function DashboardGrid({ registry, enabled, target, editable = false }: DashboardGridProps) {
+export function DashboardGrid({ registry, enabled, target, editable = false, previewOnly = false }: DashboardGridProps) {
   const queryClient = useQueryClient();
   const { width, containerRef, mounted } = useContainerWidth();
   const queryKey = ["dashboard-layout", target?.userId ?? "self"];
@@ -235,7 +244,14 @@ export function DashboardGrid({ registry, enabled, target, editable = false }: D
                     </div>
                   )}
                   <div className={isEditing ? "h-full pt-7 pointer-events-none select-none" : "h-full"}>
-                    <Component />
+                    {previewOnly ? (
+                      <div className="h-full w-full flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 text-muted-foreground p-4">
+                        <LayoutDashboard className="h-6 w-6 opacity-50" />
+                        <span className="text-xs font-medium text-center">{w.def.title}</span>
+                      </div>
+                    ) : (
+                      <Component />
+                    )}
                   </div>
                 </div>
               );

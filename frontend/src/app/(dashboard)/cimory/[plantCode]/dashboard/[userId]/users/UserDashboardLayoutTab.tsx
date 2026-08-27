@@ -34,10 +34,11 @@ export function UserDashboardLayoutTab({ userId, roleId, username }: UserDashboa
         <LayoutGrid className="h-4 w-4 text-primary shrink-0 mt-0.5" />
         <p>
           Susunan ini akan langsung berlaku di dashboard milik pengguna ini. Pengguna sendiri tidak dapat mengubah
-          tata letak dashboardnya — hanya Admin/Super Admin yang dapat mengaturnya di sini.
+          tata letak dashboardnya — hanya Admin/Super Admin yang dapat mengaturnya di sini. Kotak di bawah adalah
+          placeholder posisi widget (bukan data live pengguna tersebut).
         </p>
       </div>
-      <DashboardGrid registry={registry} enabled={!!userId} target={{ userId, roleId }} editable />
+      <DashboardGrid registry={registry} enabled={!!userId} target={{ userId, roleId }} editable previewOnly />
     </div>
   );
 }
