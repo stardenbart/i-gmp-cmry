@@ -8,7 +8,18 @@ import { TrendPeriodFilter } from "@/components/dashboard/TrendPeriodFilter";
 const AreaChart = lazy(() => import("@/components/ui/area-chart").then((mod) => ({ default: mod.AreaChart })));
 
 export function AuditorTrendChartWidget() {
-  const { trendPeriod, setTrendPeriod, customRange, setCustomRange, trendData, isTrendLoading, isTrendFetching, chartData } = useAuditorDashboard();
+  const {
+    trendMode,
+    setTrendMode,
+    trendRange,
+    setTrendRange,
+    trendGranularity,
+    setTrendGranularity,
+    trendData,
+    isTrendLoading,
+    isTrendFetching,
+    chartData,
+  } = useAuditorDashboard();
   const summary = trendData?.summary || { total_inspections: 0, total_issues: 0, average_compliance: 0 };
   const formattedData = chartData.map((item) => ({
     ...item,
@@ -23,10 +34,12 @@ export function AuditorTrendChartWidget() {
           <p className="text-xs font-medium text-muted-foreground">{trendData?.period_label || "Pilih periode tren"}</p>
         </div>
         <TrendPeriodFilter
-          value={trendPeriod}
-          onChange={setTrendPeriod}
-          customRange={customRange}
-          onCustomRangeChange={setCustomRange}
+          mode={trendMode}
+          onModeChange={setTrendMode}
+          range={trendRange}
+          onRangeChange={setTrendRange}
+          granularity={trendGranularity}
+          onGranularityChange={setTrendGranularity}
           disabled={isTrendLoading}
         />
       </div>

@@ -6,7 +6,17 @@ import { useAdminDashboard } from "@/components/dashboard/admin/AdminDashboardCo
 import { TrendPeriodFilter } from "@/components/dashboard/TrendPeriodFilter";
 
 export function ChartTrenKepatuhanWidget() {
-  const { trendData, isTrendLoading, isTrendFetching, trendPeriod, setTrendPeriod, customRange, setCustomRange } = useAdminDashboard();
+  const {
+    trendData,
+    isTrendLoading,
+    isTrendFetching,
+    trendMode,
+    setTrendMode,
+    trendRange,
+    setTrendRange,
+    trendGranularity,
+    setTrendGranularity,
+  } = useAdminDashboard();
 
   const summary = trendData?.summary || { total_inspections: 0, total_issues: 0, average_compliance: 0 };
   const periodAvgNum = Number(summary.average_compliance || 0);
@@ -41,10 +51,12 @@ export function ChartTrenKepatuhanWidget() {
           </div>
 
           <TrendPeriodFilter
-            value={trendPeriod}
-            onChange={setTrendPeriod}
-            customRange={customRange}
-            onCustomRangeChange={setCustomRange}
+            mode={trendMode}
+            onModeChange={setTrendMode}
+            range={trendRange}
+            onRangeChange={setTrendRange}
+            granularity={trendGranularity}
+            onGranularityChange={setTrendGranularity}
             disabled={isTrendLoading}
           />
         </div>

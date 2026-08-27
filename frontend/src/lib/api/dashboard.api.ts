@@ -1,11 +1,13 @@
 import { api } from "./axios";
 
-export type TrendPeriod =
-  | "daily"
-  | "weekly"
-  | "monthly"
-  | "quarter"
-  | "custom";
+/**
+ * "quarter" is a fixed rolling-window preset (8 most recent calendar
+ * quarters), kept standalone and deliberately NOT part of the date-range
+ * picker. "range" is the everyday mode: always a start_date/end_date, with
+ * TrendGranularity controlling how that range is bucketed for the chart.
+ */
+export type TrendMode = "range" | "quarter";
+export type TrendGranularity = "day" | "week" | "month" | "year";
 
 export interface DashboardTrendPoint {
   bucket_start: string;
@@ -17,9 +19,9 @@ export interface DashboardTrendPoint {
 }
 
 export interface DashboardTrendData {
-  period: TrendPeriod;
+  period: TrendMode;
   period_label: string;
-  granularity: "day" | "week" | "month" | "quarter";
+  granularity: TrendGranularity | "quarter";
   timezone: string;
   range_start: string;
   range_end: string;
@@ -33,13 +35,15 @@ export interface DashboardTrendData {
 }
 
 export interface DashboardTrendParams {
-  period: TrendPeriod;
+  period: TrendMode;
   plant_id?: string;
   area_id?: string;
   inspector_id?: string;
-  /** Required when period is "custom" (format YYYY-MM-DD). */
+  /** Required when period is "range" (format YYYY-MM-DD). */
   start_date?: string;
   end_date?: string;
+  /** Required when period is "range". */
+  granularity?: TrendGranularity;
 }
 
 export const dashboardApi = {

@@ -10,8 +10,8 @@ import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { usePolling } from "@/hooks/usePolling";
 import type { DashboardStats as StatDashboardStats } from "@/components/admin/StatCard";
-import { dashboardApi, type DashboardTrendData, type TrendPeriod } from "@/lib/api/dashboard.api";
-import { useTrendPeriodState, useCustomTrendRange, type TrendDateRange } from "@/components/dashboard/useTrendPeriodState";
+import { dashboardApi, type DashboardTrendData, type TrendMode, type TrendGranularity } from "@/lib/api/dashboard.api";
+import { useTrendModeState, useTrendRangeState, useTrendGranularityState, type TrendDateRange } from "@/components/dashboard/useTrendPeriodState";
 
 export interface AdminDashboardStats extends StatDashboardStats {
   inspections_completed?: number;
@@ -51,10 +51,12 @@ interface AdminDashboardContextValue {
   setSelectedPlant: (plant: string) => void;
   selectedArea: string;
   setSelectedArea: (area: string) => void;
-  trendPeriod: TrendPeriod;
-  setTrendPeriod: (period: TrendPeriod) => void;
-  customRange: TrendDateRange;
-  setCustomRange: (range: TrendDateRange) => void;
+  trendMode: TrendMode;
+  setTrendMode: (mode: TrendMode) => void;
+  trendRange: TrendDateRange;
+  setTrendRange: (range: TrendDateRange) => void;
+  trendGranularity: TrendGranularity;
+  setTrendGranularity: (granularity: TrendGranularity) => void;
   plantsResponse: PaginatedResponse<Plant> | undefined;
   filteredAreas: Array<{ area_id: string; area_name: string; plant_id?: string }>;
   stats: AdminDashboardStats | undefined;
@@ -78,8 +80,9 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
 
   const [selectedPlant, setSelectedPlant] = useState<string>("");
   const [selectedArea, setSelectedArea] = useState<string>("");
-  const [trendPeriod, setTrendPeriod] = useTrendPeriodState();
-  const [customRange, setCustomRange] = useCustomTrendRange();
+  const [trendMode, setTrendMode] = useTrendModeState();
+  const [trendRange, setTrendRange] = useTrendRangeState();
+  const [trendGranularity, setTrendGranularity] = useTrendGranularityState();
 
   const isSuperAdmin =
     user?.role_id === "ROLE-000" ||
@@ -127,14 +130,14 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
     isLoading: isTrendLoading,
     isFetching: isTrendFetching,
   } = useQuery({
-    queryKey: ["dashboard-trend", "admin", trendPeriod, trendPeriod === "custom" ? customRange : null, selectedArea, effectivePlant],
+    queryKey: ["dashboard-trend", "admin", trendMode, trendMode === "range" ? trendRange : null, trendMode === "range" ? trendGranularity : null, selectedArea, effectivePlant],
     queryFn: () => dashboardApi.getTrend({
-      period: trendPeriod,
+      period: trendMode,
       area_id: selectedArea || undefined,
       plant_id: effectivePlant || undefined,
-      ...(trendPeriod === "custom" ? { start_date: customRange.start, end_date: customRange.end } : {}),
+      ...(trendMode === "range" ? { start_date: trendRange.start, end_date: trendRange.end, granularity: trendGranularity } : {}),
     }),
-    enabled: mounted && !!user && (trendPeriod !== "custom" || (!!customRange.start && !!customRange.end)),
+    enabled: mounted && !!user && (trendMode !== "range" || (!!trendRange.start && !!trendRange.end)),
     staleTime: 10_000,
     placeholderData: (previousData) => previousData,
   });
@@ -150,10 +153,12 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
         setSelectedPlant,
         selectedArea,
         setSelectedArea,
-        trendPeriod,
-        setTrendPeriod,
-        customRange,
-        setCustomRange,
+        trendMode,
+        setTrendMode,
+        trendRange,
+        setTrendRange,
+        trendGranularity,
+        setTrendGranularity,
         plantsResponse,
         filteredAreas,
         stats,

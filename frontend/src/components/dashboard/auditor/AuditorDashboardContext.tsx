@@ -4,11 +4,11 @@ import { createContext, useContext, useCallback, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { filterApi } from "@/lib/api/filter.api";
 import { api } from "@/lib/api/axios";
-import { dashboardApi, type DashboardTrendData, type TrendPeriod } from "@/lib/api/dashboard.api";
+import { dashboardApi, type DashboardTrendData, type TrendMode, type TrendGranularity } from "@/lib/api/dashboard.api";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { usePolling } from "@/hooks/usePolling";
-import { useTrendPeriodState, useCustomTrendRange, type TrendDateRange } from "@/components/dashboard/useTrendPeriodState";
+import { useTrendModeState, useTrendRangeState, useTrendGranularityState, type TrendDateRange } from "@/components/dashboard/useTrendPeriodState";
 
 interface AuditorDashboardContextValue {
   mounted: boolean;
@@ -23,10 +23,12 @@ interface AuditorDashboardContextValue {
   pendingValidationCount: number;
   pendingValidationList: Awaited<ReturnType<typeof filterApi.issues>>["items"];
   openIssues: number;
-  trendPeriod: TrendPeriod;
-  setTrendPeriod: (period: TrendPeriod) => void;
-  customRange: TrendDateRange;
-  setCustomRange: (range: TrendDateRange) => void;
+  trendMode: TrendMode;
+  setTrendMode: (mode: TrendMode) => void;
+  trendRange: TrendDateRange;
+  setTrendRange: (range: TrendDateRange) => void;
+  trendGranularity: TrendGranularity;
+  setTrendGranularity: (granularity: TrendGranularity) => void;
   trendData: DashboardTrendData | undefined;
   chartData: Array<Record<string, string | number>>;
   isTrendLoading: boolean;
@@ -39,8 +41,9 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
   const mounted = useMounted();
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
-  const [trendPeriod, setTrendPeriod] = useTrendPeriodState();
-  const [customRange, setCustomRange] = useCustomTrendRange();
+  const [trendMode, setTrendMode] = useTrendModeState();
+  const [trendRange, setTrendRange] = useTrendRangeState();
+  const [trendGranularity, setTrendGranularity] = useTrendGranularityState();
 
   usePolling({ intervalMs: 30_000, immediate: false });
 
@@ -59,13 +62,13 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
     isLoading: isTrendLoading,
     isFetching: isTrendFetching,
   } = useQuery({
-    queryKey: ["dashboard-trend", "auditor", user?.id, trendPeriod, trendPeriod === "custom" ? customRange : null],
+    queryKey: ["dashboard-trend", "auditor", user?.id, trendMode, trendMode === "range" ? trendRange : null, trendMode === "range" ? trendGranularity : null],
     queryFn: () => dashboardApi.getTrend({
-      period: trendPeriod,
+      period: trendMode,
       inspector_id: user?.id,
-      ...(trendPeriod === "custom" ? { start_date: customRange.start, end_date: customRange.end } : {}),
+      ...(trendMode === "range" ? { start_date: trendRange.start, end_date: trendRange.end, granularity: trendGranularity } : {}),
     }),
-    enabled: mounted && !!user && (trendPeriod !== "custom" || (!!customRange.start && !!customRange.end)),
+    enabled: mounted && !!user && (trendMode !== "range" || (!!trendRange.start && !!trendRange.end)),
     staleTime: 10_000,
     placeholderData: (previousData) => previousData,
   });
@@ -142,10 +145,12 @@ export function AuditorDashboardProvider({ children }: { children: ReactNode }) 
         pendingValidationCount,
         pendingValidationList,
         openIssues,
-        trendPeriod,
-        setTrendPeriod,
-        customRange,
-        setCustomRange,
+        trendMode,
+        setTrendMode,
+        trendRange,
+        setTrendRange,
+        trendGranularity,
+        setTrendGranularity,
         trendData,
         chartData,
         isTrendLoading,

@@ -1,31 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { TrendMode, TrendGranularity } from "@/lib/api/dashboard.api";
 
-import { TREND_PERIODS } from "@/components/dashboard/TrendPeriodFilter";
-import type { TrendPeriod } from "@/lib/api/dashboard.api";
+const validModes = new Set<TrendMode>(["range", "quarter"]);
+const validGranularities = new Set<TrendGranularity>(["day", "week", "month", "year"]);
 
-const validPeriods = new Set<TrendPeriod>(TREND_PERIODS.map((period) => period.value));
-
-export function useTrendPeriodState(defaultPeriod: TrendPeriod = "monthly") {
-  const [period, setPeriodState] = useState<TrendPeriod>(defaultPeriod);
+/** Which top-level mode is active: the date-range picker, or the fixed
+ * "8 Kuartal Terakhir" preset. Persists to the URL so a shared/reloaded
+ * dashboard link keeps the same chart view. */
+export function useTrendModeState(defaultMode: TrendMode = "range") {
+  const [mode, setModeState] = useState<TrendMode>(defaultMode);
 
   useEffect(() => {
-    const queryPeriod = new URLSearchParams(window.location.search).get("trend_period") as TrendPeriod | null;
-    if (queryPeriod && validPeriods.has(queryPeriod)) {
-      const timer = window.setTimeout(() => setPeriodState(queryPeriod), 0);
+    const queryMode = new URLSearchParams(window.location.search).get("trend_mode") as TrendMode | null;
+    if (queryMode && validModes.has(queryMode)) {
+      const timer = window.setTimeout(() => setModeState(queryMode), 0);
       return () => window.clearTimeout(timer);
     }
   }, []);
 
-  const setPeriod = useCallback((nextPeriod: TrendPeriod) => {
-    setPeriodState(nextPeriod);
+  const setMode = useCallback((nextMode: TrendMode) => {
+    setModeState(nextMode);
     const url = new URL(window.location.href);
-    url.searchParams.set("trend_period", nextPeriod);
+    url.searchParams.set("trend_mode", nextMode);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
-  return [period, setPeriod] as const;
+  return [mode, setMode] as const;
 }
 
 export interface TrendDateRange {
@@ -40,13 +42,35 @@ function formatDate(date: Date): string {
 function defaultTrendRange(): TrendDateRange {
   const end = new Date();
   const start = new Date();
-  start.setMonth(start.getMonth() - 6);
+  start.setDate(start.getDate() - 29); // last 30 days, matches the "day" default granularity
   return { start: formatDate(start), end: formatDate(end) };
 }
 
-/** Backs the "custom" period's date-range picker (replaces the old
- * "Minggu/Bulan/Tahun Lalu" presets) — defaults to the last 6 months. */
-export function useCustomTrendRange() {
+/** Backs the date-range picker (Dari/Sampai) for "range" mode. */
+export function useTrendRangeState() {
   const [range, setRange] = useState<TrendDateRange>(defaultTrendRange);
   return [range, setRange] as const;
+}
+
+/** Backs the granularity dropdown (Harian/Mingguan/Bulanan/Tahunan) that
+ * decides how the picked date range is bucketed. */
+export function useTrendGranularityState(defaultGranularity: TrendGranularity = "day") {
+  const [granularity, setGranularityState] = useState<TrendGranularity>(defaultGranularity);
+
+  useEffect(() => {
+    const queryGranularity = new URLSearchParams(window.location.search).get("trend_granularity") as TrendGranularity | null;
+    if (queryGranularity && validGranularities.has(queryGranularity)) {
+      const timer = window.setTimeout(() => setGranularityState(queryGranularity), 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, []);
+
+  const setGranularity = useCallback((next: TrendGranularity) => {
+    setGranularityState(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("trend_granularity", next);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  return [granularity, setGranularity] as const;
 }

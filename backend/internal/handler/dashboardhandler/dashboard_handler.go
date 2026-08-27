@@ -337,8 +337,8 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	complianceTrend := []fiber.Map{}
 	trendDiff := 0.0
 	if !strings.EqualFold(c.Query("include_trend", "true"), "false") {
-		period := c.Query("period", "6m")
 		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		countIssuesBetween := func(start, end time.Time) int64 {
 			var count int64
 			query := qIssuePhotoBase.Session(&gorm.Session{}).
@@ -349,203 +349,86 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 			query.Count(&count)
 			return count
 		}
+		complianceRateBetween := func(start, end time.Time) (int64, int64) {
+			var totalCheck, totalOK int64
+			qBase := h.db.Table(`"Inspection_Result" ir`).
+				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+				Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ?`, start, end)
+			if allowedAreas != nil {
+				qBase = qBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+			}
+			qBase.Count(&totalCheck)
 
-		switch period {
-		case "1m", "1M":
-			// 1 Month scope: 4-week breakdown
-			tomorrowStart := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
-			for i := 3; i >= 0; i-- {
-				endExclusive := tomorrowStart.AddDate(0, 0, -i*7)
-				startOfWeek := endExclusive.AddDate(0, 0, -7)
-				endOfWeek := endExclusive.AddDate(0, 0, -1)
-				weekLabel := fmt.Sprintf("W%d (%s)", 4-i, startOfWeek.Format("02/01"))
+			qOK := h.db.Table(`"Inspection_Result" ir`).
+				Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
+				Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ? AND ir."Checking" = 'OK'`, start, end)
+			if allowedAreas != nil {
+				qOK = qOK.Where(`ih."AreaID" IN ?`, allowedAreas)
+			}
+			qOK.Count(&totalOK)
+			return totalCheck, totalOK
+		}
 
-				var mTotalCheck, mTotalOK int64
-				qWeekBase := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ?`, startOfWeek, endExclusive)
-				if allowedAreas != nil {
-					qWeekBase = qWeekBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+		// User-picked date range replaces the old preset periods (1m/3m/6m/
+		// quarter/1y) — defaults to the last 6 months when unset/unparsable
+		// so the chart still has something to show on first load.
+		rangeEnd := today.AddDate(0, 0, 1) // exclusive, i.e. through end of today
+		rangeStart := today.AddDate(0, -6, 1)
+		if s, err := time.Parse("2006-01-02", c.Query("start_date")); err == nil {
+			rangeStart = time.Date(s.Year(), s.Month(), s.Day(), 0, 0, 0, 0, now.Location())
+		}
+		if e, err := time.Parse("2006-01-02", c.Query("end_date")); err == nil {
+			rangeEnd = time.Date(e.Year(), e.Month(), e.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, 1)
+		}
+		if !rangeEnd.After(rangeStart) {
+			rangeStart, rangeEnd = today.AddDate(0, -6, 1), today.AddDate(0, 0, 1)
+		}
+
+		totalDays := int(rangeEnd.Sub(rangeStart).Hours() / 24)
+		if totalDays <= 31 {
+			// Short range: one bucket per day.
+			for d := rangeStart; d.Before(rangeEnd); d = d.AddDate(0, 0, 1) {
+				dayEnd := d.AddDate(0, 0, 1)
+				totalCheck, totalOK := complianceRateBetween(d, dayEnd)
+				rate := 0.0
+				if totalCheck > 0 {
+					rate = float64(totalOK) / float64(totalCheck) * 100
 				}
-				qWeekBase.Count(&mTotalCheck)
-
-				qWeekOK := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ? AND ir."Checking" = 'OK'`, startOfWeek, endExclusive)
-				if allowedAreas != nil {
-					qWeekOK = qWeekOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qWeekOK.Count(&mTotalOK)
-
-				mRate := 0.0
-				if mTotalCheck > 0 {
-					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
-				}
-
 				complianceTrend = append(complianceTrend, fiber.Map{
-					"month":        weekLabel,
-					"start_date":   startOfWeek.Format("2006-01-02"),
-					"end_date":     endOfWeek.Format("2006-01-02"),
-					"rate":         float64(int(mRate*10)) / 10.0,
-					"total_issues": countIssuesBetween(startOfWeek, endExclusive),
+					"month":        d.Format("02 Jan"),
+					"start_date":   d.Format("2006-01-02"),
+					"end_date":     d.Format("2006-01-02"),
+					"rate":         float64(int(rate*10)) / 10.0,
+					"total_issues": countIssuesBetween(d, dayEnd),
 				})
 			}
-
-		case "3m", "3M":
-			// 3 Months scope
-			for i := 2; i >= 0; i-- {
-				targetMonth := now.AddDate(0, -i, 0)
-				monthName := targetMonth.Format("Jan")
-				yearMonthStr := targetMonth.Format("2006-01")
-				monthStart := time.Date(targetMonth.Year(), targetMonth.Month(), 1, 0, 0, 0, 0, targetMonth.Location())
-
-				var mTotalCheck, mTotalOK int64
-				qMonthBase := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
-				if allowedAreas != nil {
-					qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
+		} else {
+			// Longer range: one bucket per calendar month, clipped to the
+			// picked range at both ends.
+			cursor := time.Date(rangeStart.Year(), rangeStart.Month(), 1, 0, 0, 0, 0, rangeStart.Location())
+			for cursor.Before(rangeEnd) {
+				monthEnd := cursor.AddDate(0, 1, 0)
+				bucketStart, bucketEnd := cursor, monthEnd
+				if bucketStart.Before(rangeStart) {
+					bucketStart = rangeStart
 				}
-				qMonthBase.Count(&mTotalCheck)
-
-				qMonthOK := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
-				if allowedAreas != nil {
-					qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qMonthOK.Count(&mTotalOK)
-
-				mRate := 0.0
-				if mTotalCheck > 0 {
-					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
+				if bucketEnd.After(rangeEnd) {
+					bucketEnd = rangeEnd
 				}
 
+				totalCheck, totalOK := complianceRateBetween(bucketStart, bucketEnd)
+				rate := 0.0
+				if totalCheck > 0 {
+					rate = float64(totalOK) / float64(totalCheck) * 100
+				}
 				complianceTrend = append(complianceTrend, fiber.Map{
-					"month":        monthName,
-					"start_date":   monthStart.Format("2006-01-02"),
-					"end_date":     monthStart.AddDate(0, 1, -1).Format("2006-01-02"),
-					"rate":         float64(int(mRate*10)) / 10.0,
-					"total_issues": countIssuesBetween(monthStart, monthStart.AddDate(0, 1, 0)),
+					"month":        cursor.Format("Jan 2006"),
+					"start_date":   bucketStart.Format("2006-01-02"),
+					"end_date":     bucketEnd.AddDate(0, 0, -1).Format("2006-01-02"),
+					"rate":         float64(int(rate*10)) / 10.0,
+					"total_issues": countIssuesBetween(bucketStart, bucketEnd),
 				})
-			}
-
-		case "quarter", "Quarter", "QUARTER", "q":
-			// Four most recent calendar quarters, including the current quarter.
-			currentQuarterMonth := time.Month(((int(now.Month())-1)/3)*3 + 1)
-			currentQuarterStart := time.Date(now.Year(), currentQuarterMonth, 1, 0, 0, 0, 0, now.Location())
-			for i := 3; i >= 0; i-- {
-				quarterStart := currentQuarterStart.AddDate(0, -i*3, 0)
-				quarterEnd := quarterStart.AddDate(0, 3, 0)
-				quarterNumber := (int(quarterStart.Month())-1)/3 + 1
-
-				var qTotalCheck, qTotalOK int64
-				qQuarterBase := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ?`, quarterStart, quarterEnd)
-				if allowedAreas != nil {
-					qQuarterBase = qQuarterBase.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qQuarterBase.Count(&qTotalCheck)
-
-				qQuarterOK := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`ih."InspectionHeaderCreatedAt" >= ? AND ih."InspectionHeaderCreatedAt" < ? AND ir."Checking" = 'OK'`, quarterStart, quarterEnd)
-				if allowedAreas != nil {
-					qQuarterOK = qQuarterOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qQuarterOK.Count(&qTotalOK)
-
-				quarterRate := 0.0
-				if qTotalCheck > 0 {
-					quarterRate = float64(qTotalOK) / float64(qTotalCheck) * 100
-				}
-
-				complianceTrend = append(complianceTrend, fiber.Map{
-					"month":        fmt.Sprintf("Q%d %d", quarterNumber, quarterStart.Year()),
-					"start_date":   quarterStart.Format("2006-01-02"),
-					"end_date":     quarterEnd.AddDate(0, 0, -1).Format("2006-01-02"),
-					"rate":         float64(int(quarterRate*10)) / 10.0,
-					"total_issues": countIssuesBetween(quarterStart, quarterEnd),
-				})
-			}
-
-		case "1y", "1Y", "12m":
-			// 1 Year (12 Months) scope
-			for i := 11; i >= 0; i-- {
-				targetMonth := now.AddDate(0, -i, 0)
-				monthName := targetMonth.Format("Jan")
-				yearMonthStr := targetMonth.Format("2006-01")
-				monthStart := time.Date(targetMonth.Year(), targetMonth.Month(), 1, 0, 0, 0, 0, targetMonth.Location())
-
-				var mTotalCheck, mTotalOK int64
-				qMonthBase := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
-				if allowedAreas != nil {
-					qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qMonthBase.Count(&mTotalCheck)
-
-				qMonthOK := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
-				if allowedAreas != nil {
-					qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qMonthOK.Count(&mTotalOK)
-
-				mRate := 0.0
-				if mTotalCheck > 0 {
-					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
-				}
-
-				complianceTrend = append(complianceTrend, fiber.Map{
-					"month":        monthName,
-					"start_date":   monthStart.Format("2006-01-02"),
-					"end_date":     monthStart.AddDate(0, 1, -1).Format("2006-01-02"),
-					"rate":         float64(int(mRate*10)) / 10.0,
-					"total_issues": countIssuesBetween(monthStart, monthStart.AddDate(0, 1, 0)),
-				})
-			}
-
-		default: // "6m"
-			// 6 Months scope (default)
-			for i := 5; i >= 0; i-- {
-				targetMonth := now.AddDate(0, -i, 0)
-				monthName := targetMonth.Format("Jan")
-				yearMonthStr := targetMonth.Format("2006-01")
-				monthStart := time.Date(targetMonth.Year(), targetMonth.Month(), 1, 0, 0, 0, 0, targetMonth.Location())
-
-				var mTotalCheck, mTotalOK int64
-				qMonthBase := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ?`, yearMonthStr)
-				if allowedAreas != nil {
-					qMonthBase = qMonthBase.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qMonthBase.Count(&mTotalCheck)
-
-				qMonthOK := h.db.Table(`"Inspection_Result" ir`).
-					Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-					Where(`TO_CHAR(ih."InspectionHeaderCreatedAt", 'YYYY-MM') = ? AND ir."Checking" = 'OK'`, yearMonthStr)
-				if allowedAreas != nil {
-					qMonthOK = qMonthOK.Where(`ih."AreaID" IN ?`, allowedAreas)
-				}
-				qMonthOK.Count(&mTotalOK)
-
-				mRate := 0.0
-				if mTotalCheck > 0 {
-					mRate = float64(mTotalOK) / float64(mTotalCheck) * 100
-				}
-
-				complianceTrend = append(complianceTrend, fiber.Map{
-					"month":        monthName,
-					"start_date":   monthStart.Format("2006-01-02"),
-					"end_date":     monthStart.AddDate(0, 1, -1).Format("2006-01-02"),
-					"rate":         float64(int(mRate*10)) / 10.0,
-					"total_issues": countIssuesBetween(monthStart, monthStart.AddDate(0, 1, 0)),
-				})
+				cursor = monthEnd
 			}
 		}
 

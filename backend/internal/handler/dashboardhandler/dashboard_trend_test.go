@@ -9,59 +9,49 @@ import (
 	"github.com/monitoring-system/backend/internal/middleware"
 )
 
-func TestBuildTrendPeriod(t *testing.T) {
+// "quarter" is the one fixed rolling-window preset kept outside the
+// date-range picker (per explicit product decision: quarter stays, but is
+// NOT part of the calendar filter).
+func TestBuildTrendPeriodQuarterPreset(t *testing.T) {
 	now := time.Date(2026, time.August, 27, 16, 0, 0, 0, dashboardLocation())
-	tests := []struct {
-		period      string
-		start       string
-		end         string
-		bucketCount int
-		granularity trendGranularity
-	}{
-		{"daily", "2026-08-14", "2026-08-28", 14, trendDay},
-		{"weekly", "2026-06-08", "2026-08-31", 12, trendWeek},
-		{"monthly", "2025-09-01", "2026-09-01", 12, trendMonth},
-		{"quarter", "2024-10-01", "2026-10-01", 8, trendQuarter},
+	spec, err := buildTrendPeriod("quarter", now, "", "", "")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, test := range tests {
-		t.Run(test.period, func(t *testing.T) {
-			spec, err := buildTrendPeriod(test.period, now, "", "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := spec.Start.Format("2006-01-02"); got != test.start {
-				t.Fatalf("start = %s, want %s", got, test.start)
-			}
-			if got := spec.End.Format("2006-01-02"); got != test.end {
-				t.Fatalf("end = %s, want %s", got, test.end)
-			}
-			if len(spec.Buckets) != test.bucketCount || spec.Granularity != test.granularity {
-				t.Fatalf("buckets/granularity = %d/%s, want %d/%s", len(spec.Buckets), spec.Granularity, test.bucketCount, test.granularity)
-			}
-		})
+	if got := spec.Start.Format("2006-01-02"); got != "2024-10-01" {
+		t.Fatalf("start = %s, want 2024-10-01", got)
+	}
+	if got := spec.End.Format("2006-01-02"); got != "2026-10-01" {
+		t.Fatalf("end = %s, want 2026-10-01", got)
+	}
+	if len(spec.Buckets) != 8 || spec.Granularity != trendQuarter {
+		t.Fatalf("buckets/granularity = %d/%s, want 8/%s", len(spec.Buckets), spec.Granularity, trendQuarter)
 	}
 }
 
-// Custom (user-picked start_date/end_date) replaces the old
-// previous_week/previous_month/previous_year single-past-period presets —
-// granularity auto-scales with the picked range's length.
-func TestBuildTrendPeriodCustomRange(t *testing.T) {
+// "range" is the everyday mode: the user always picks start_date/end_date,
+// and granularity (day/week/month/year) controls how it's bucketed for the
+// chart — this replaced the old daily/weekly/monthly/previous_* presets.
+func TestBuildTrendPeriodRange(t *testing.T) {
 	now := time.Date(2026, time.August, 27, 16, 0, 0, 0, dashboardLocation())
 	tests := []struct {
 		name        string
 		start       string
 		end         string
+		granularity string
 		wantStart   string
 		wantEnd     string
-		granularity trendGranularity
+		wantGran    trendGranularity
+		wantBuckets int
 	}{
-		{"short range buckets by day", "2026-08-17", "2026-08-23", "2026-08-17", "2026-08-24", trendDay},
-		{"medium range buckets by week", "2026-06-01", "2026-08-27", "2026-06-01", "2026-08-28", trendWeek},
-		{"long range buckets by month", "2025-01-01", "2026-01-01", "2025-01-01", "2026-01-02", trendMonth},
+		{"daily granularity", "2026-08-14", "2026-08-27", "day", "2026-08-14", "2026-08-28", trendDay, 14},
+		{"weekly granularity", "2026-06-08", "2026-08-30", "week", "2026-06-08", "2026-08-31", trendWeek, 12},
+		{"monthly granularity", "2025-09-01", "2026-08-31", "month", "2025-09-01", "2026-09-01", trendMonth, 12},
+		{"yearly granularity", "2020-01-01", "2025-12-31", "year", "2020-01-01", "2026-01-01", trendYear, 6},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			spec, err := buildTrendPeriod("custom", now, test.start, test.end)
+			spec, err := buildTrendPeriod("range", now, test.start, test.end, test.granularity)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -71,39 +61,54 @@ func TestBuildTrendPeriodCustomRange(t *testing.T) {
 			if got := spec.End.Format("2006-01-02"); got != test.wantEnd {
 				t.Fatalf("end = %s, want %s", got, test.wantEnd)
 			}
-			if spec.Granularity != test.granularity {
-				t.Fatalf("granularity = %s, want %s", spec.Granularity, test.granularity)
+			if spec.Granularity != test.wantGran {
+				t.Fatalf("granularity = %s, want %s", spec.Granularity, test.wantGran)
+			}
+			if len(spec.Buckets) != test.wantBuckets {
+				t.Fatalf("buckets = %d, want %d", len(spec.Buckets), test.wantBuckets)
 			}
 		})
 	}
 }
 
-func TestBuildTrendPeriodCustomRangeRequiresValidDates(t *testing.T) {
+func TestBuildTrendPeriodRangeRequiresValidInput(t *testing.T) {
 	now := time.Now()
-	cases := map[string][2]string{
-		"missing start_date": {"", "2026-08-01"},
-		"missing end_date":   {"2026-08-01", ""},
-		"unparsable date":    {"08/01/2026", "2026-08-01"},
-		"end before start":   {"2026-08-10", "2026-08-01"},
+	cases := map[string]struct{ start, end, granularity string }{
+		"missing start_date":  {"", "2026-08-01", "day"},
+		"missing end_date":    {"2026-08-01", "", "day"},
+		"unparsable date":     {"08/01/2026", "2026-08-10", "day"},
+		"end before start":    {"2026-08-10", "2026-08-01", "day"},
+		"missing granularity": {"2026-08-01", "2026-08-10", ""},
+		"invalid granularity": {"2026-08-01", "2026-08-10", "quarter"},
 	}
-	for name, dates := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := buildTrendPeriod("custom", now, dates[0], dates[1]); err == nil {
-				t.Fatal("expected invalid custom range to be rejected")
+			if _, err := buildTrendPeriod("range", now, c.start, c.end, c.granularity); err == nil {
+				t.Fatal("expected invalid range input to be rejected")
 			}
 		})
+	}
+}
+
+// Picking a fine granularity across a huge range would produce thousands of
+// unreadable chart points — must be rejected with a clear message instead.
+func TestBuildTrendPeriodRangeRejectsTooManyBuckets(t *testing.T) {
+	now := time.Now()
+	_, err := buildTrendPeriod("range", now, "2015-01-01", "2025-12-31", "day")
+	if err == nil {
+		t.Fatal("expected a multi-year daily range to be rejected")
 	}
 }
 
 func TestBuildTrendPeriodRejectsUnknownValue(t *testing.T) {
-	if _, err := buildTrendPeriod("unknown", time.Now(), "", ""); err == nil {
+	if _, err := buildTrendPeriod("unknown", time.Now(), "", "", ""); err == nil {
 		t.Fatal("expected invalid period to be rejected")
 	}
 }
 
 func TestBuildTrendPeriodHandlesLeapMonth(t *testing.T) {
 	now := time.Date(2024, time.March, 15, 12, 0, 0, 0, dashboardLocation())
-	spec, err := buildTrendPeriod("custom", now, "2024-02-01", "2024-02-29")
+	spec, err := buildTrendPeriod("range", now, "2024-02-01", "2024-02-29", "day")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,20 +120,6 @@ func TestBuildTrendPeriodHandlesLeapMonth(t *testing.T) {
 	}
 	if got := spec.End.Format("2006-01-02"); got != "2024-03-01" {
 		t.Fatalf("end = %s, want 2024-03-01", got)
-	}
-}
-
-func TestBuildTrendPeriodSupportsLegacyAliases(t *testing.T) {
-	now := time.Date(2026, time.August, 27, 16, 0, 0, 0, dashboardLocation())
-	tests := map[string]string{"1m": "weekly", "3m": "monthly", "6m": "monthly", "1y": "monthly", "12m": "monthly"}
-	for alias, expected := range tests {
-		spec, err := buildTrendPeriod(alias, now, "", "")
-		if err != nil {
-			t.Fatalf("alias %s: %v", alias, err)
-		}
-		if spec.Period != expected {
-			t.Fatalf("alias %s resolved to %s, want %s", alias, spec.Period, expected)
-		}
 	}
 }
 
