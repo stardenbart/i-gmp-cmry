@@ -55,8 +55,10 @@ type UpdateInspectionStatusRequest struct {
 }
 
 type TrendData struct {
-	Month string `json:"month"`
-	Rate  int    `json:"rate"` // using rate to match frontend Recharts generic mapping, or count
+	Month       string `json:"month"`
+	Date        string `json:"date"`
+	Rate        int    `json:"rate"` // using rate to match frontend Recharts generic mapping, or count
+	TotalIssues int    `json:"total_issues"`
 }
 
 // ─── Repository Interface ──────────────────────────────────────────────────

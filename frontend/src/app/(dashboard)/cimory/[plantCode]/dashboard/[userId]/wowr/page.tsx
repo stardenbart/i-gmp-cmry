@@ -18,7 +18,8 @@ import {
   X,
   Eye,
   BarChart3,
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import { useChunkedUpload } from "@/hooks/useChunkedUpload";
 import { usePolling } from "@/hooks/usePolling";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { EditEvidenceDescriptionModal } from "@/components/wowr/EditEvidenceDescriptionModal";
 
 // Interface untuk item WOWR yang terisolasi per foto
 interface WOWRItem {
@@ -72,6 +74,7 @@ function UploadProofModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [woNumber, setWoNumber] = useState(item.wo_id || item.wr_id || "");
+  const [evidenceDescription, setEvidenceDescription] = useState("");
   const [validationError, setValidationError] = useState("");
 
   const { uploadMutation, uploadProgress } = useChunkedUpload({ issueId: item.issue_id });
@@ -127,7 +130,12 @@ function UploadProofModal({
     setValidationError("");
 
     uploadMutation.mutate(
-      { file: selectedFile, type: "WOWR", refPhotoId: item.photo_id },
+      {
+        file: selectedFile,
+        type: "WOWR",
+        refPhotoId: item.photo_id,
+        keterangan: evidenceDescription.trim(),
+      },
       {
         onSuccess: () => {
           updateStatusMutation.mutate();
@@ -180,6 +188,25 @@ function UploadProofModal({
           {validationError && (
             <p className="text-red-500 text-xs font-medium pl-1">⚠️ {validationError}</p>
           )}
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="wowr-evidence-description" className="text-xs font-semibold text-foreground">
+              Keterangan Bukti Penyelesaian
+            </label>
+            <span className="text-[10px] text-muted-foreground">{evidenceDescription.length}/1000</span>
+          </div>
+          <textarea
+            id="wowr-evidence-description"
+            value={evidenceDescription}
+            onChange={(event) => setEvidenceDescription(event.target.value)}
+            maxLength={1000}
+            rows={3}
+            disabled={isUploading}
+            placeholder="Jelaskan pekerjaan atau perbaikan yang telah diselesaikan..."
+            className="w-full resize-y rounded-xl border border-border bg-card px-3 py-2.5 text-xs leading-relaxed outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+          />
         </div>
 
         {/* Upload Image Preview Box */}
@@ -260,6 +287,7 @@ function IssueRow({
   onPreviewPhoto: (photo: { url: string; keterangan?: string; photoType?: string; uploaderName?: string; photoId?: string; issueId?: string }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingEvidence, setEditingEvidence] = useState<IssuePhoto | null>(null);
   const { hasPermission } = usePermissions();
 
   // Dynamic permission controls (Database driven)
@@ -610,28 +638,42 @@ function IssueRow({
                             <div className="absolute inset-0 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
                               <Eye className="h-4 w-4" />
                               {!isClosed && (canUploadProof || canValidate) && (
-                                <button
-                                  type="button"
-                                  disabled={deletePhotoMutation.isPending}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toast.warning("Hapus foto bukti penyelesaian ini?", {
-                                      description: "Tindakan ini tidak dapat dibatalkan.",
-                                      action: {
-                                        label: "Hapus",
-                                        onClick: () => deletePhotoMutation.mutate(p.issue_photo_id),
-                                      },
-                                      cancel: {
-                                        label: "Batal",
-                                        onClick: () => {},
-                                      },
-                                    });
-                                  }}
-                                  className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-md z-10"
-                                  title="Hapus Foto"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setEditingEvidence(p);
+                                    }}
+                                    className="z-10 rounded-full bg-blue-600 p-1.5 text-white shadow-md transition-colors hover:bg-blue-700"
+                                    title="Edit keterangan bukti"
+                                    aria-label="Edit keterangan bukti penyelesaian"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={deletePhotoMutation.isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toast.warning("Hapus foto bukti penyelesaian ini?", {
+                                        description: "Tindakan ini tidak dapat dibatalkan.",
+                                        action: {
+                                          label: "Hapus",
+                                          onClick: () => deletePhotoMutation.mutate(p.issue_photo_id),
+                                        },
+                                        cancel: {
+                                          label: "Batal",
+                                          onClick: () => {},
+                                        },
+                                      });
+                                    }}
+                                    className="z-10 rounded-full bg-red-600 p-1.5 text-white shadow-md transition-colors hover:bg-red-700"
+                                    title="Hapus Foto"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -652,6 +694,14 @@ function IssueRow({
             </div>
           </td>
         </tr>
+      )}
+      {editingEvidence && (
+        <EditEvidenceDescriptionModal
+          photoId={editingEvidence.issue_photo_id}
+          issueId={item.issue_id}
+          initialDescription={editingEvidence.keterangan}
+          onClose={() => setEditingEvidence(null)}
+        />
       )}
     </>
   );

@@ -1,108 +1,105 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, CheckCircle2, Laptop, Smartphone, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Download, Laptop, Smartphone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
-interface StandaloneNavigator extends Navigator {
-  standalone?: boolean;
-}
+import { useInstallPrompt } from "@/components/pwa/InstallPromptProvider";
 
 export function InstallAppButton() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isStandalone, setIsStandalone] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const { canPrompt, isStandalone, hasCheckedStandalone, requestInstall } = useInstallPrompt();
 
   useEffect(() => {
-    const checkStandalone = () => {
-      const isStandaloneMode =
-        window.matchMedia("(display-mode: standalone)").matches ||
-        (window.navigator as StandaloneNavigator).standalone === true;
-      setIsStandalone(isStandaloneMode);
+    if (!showGuideModal) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowGuideModal(false);
     };
 
-    checkStandalone();
-
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleEscape);
     };
-  }, []);
+  }, [showGuideModal]);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === "accepted") {
-          setDeferredPrompt(null);
-          toast.success("Aplikasi berhasil dipasang!");
-        }
-      } catch {
+    if (!canPrompt) {
+      setShowGuideModal(true);
+      return;
+    }
+
+    try {
+      const outcome = await requestInstall();
+      if (outcome === "accepted") {
+        toast.success("Permintaan instalasi diterima.");
+      } else if (outcome === "unavailable") {
         setShowGuideModal(true);
       }
-    } else {
+    } catch {
       setShowGuideModal(true);
     }
   };
 
-  if (isStandalone) {
-    return (
-      <div className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">App Mode</span>
-      </div>
-    );
-  }
+  // Do not flash the install control while detecting PWA mode, and do not
+  // occupy header space after the application has already been installed.
+  if (!hasCheckedStandalone || isStandalone) return null;
 
   return (
     <>
       <button
+        type="button"
         onClick={handleInstallClick}
         className={cn(
-          "flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
-          "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground border border-primary/30 shadow-sm"
+          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary shadow-sm transition-all",
+          "hover:bg-primary hover:text-primary-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          "xl:w-auto xl:gap-2 xl:rounded-full xl:px-3"
         )}
         title="Install Aplikasi ke Perangkat"
+        aria-label="Install aplikasi ke perangkat"
       >
-        <Download className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline-block">Install App</span>
+        <Download className="h-4 w-4 shrink-0" />
+        <span className="hidden whitespace-nowrap text-xs font-semibold xl:inline">Install App</span>
       </button>
 
-      {showGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl space-y-4 text-left">
+      {showGuideModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/70 px-3 pb-[calc(0.75rem+var(--safe-area-bottom))] pt-[calc(0.75rem+var(--safe-area-top))] backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="install-app-title"
+          onClick={() => setShowGuideModal(false)}
+        >
+          <div
+            className="install-guide-panel relative my-auto w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-card p-4 text-left shadow-2xl sm:p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
+              type="button"
               onClick={() => setShowGuideModal(false)}
-              className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
+              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-label="Tutup panduan instalasi"
             >
               <X className="h-5 w-5" />
             </button>
 
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+            <div className="flex items-center gap-3 pr-10">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Download className="h-5 w-5" />
               </div>
-              <div>
-                <h3 className="font-bold text-base text-foreground">Install Aplikasi (PWA)</h3>
+              <div className="min-w-0">
+                <h3 id="install-app-title" className="text-base font-bold text-foreground">Install Aplikasi</h3>
                 <p className="text-xs text-muted-foreground">Petunjuk pemasangan ke perangkat</p>
               </div>
             </div>
 
-            <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+            <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted-foreground">
               <div className="p-3 rounded-xl bg-muted/50 border border-border/50 space-y-1.5">
                 <div className="flex items-center gap-2 font-semibold text-foreground">
                   <Laptop className="h-4 w-4 text-primary" />
@@ -136,12 +133,13 @@ export function InstallAppButton() {
 
             <Button
               onClick={() => setShowGuideModal(false)}
-              className="w-full rounded-xl"
+              className="mt-4 w-full rounded-xl"
             >
               Mengerti
             </Button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

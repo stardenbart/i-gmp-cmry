@@ -73,7 +73,8 @@ function ToasterWithTheme() {
   return <Toaster position="top-center" theme={(resolvedTheme as "light" | "dark" | "system") || "dark"} />;
 }
 
-import { CoreWebVitalsOverlay } from "@/components/ui/CoreWebVitalsOverlay";
+import { PerformanceMonitorGate } from "@/components/performance/PerformanceMonitorGate";
+import { InstallPromptProvider } from "@/components/pwa/InstallPromptProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -94,11 +95,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <StoreProvider>
       <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          {children}
-          <ToasterWithTheme />
-          <CoreWebVitalsOverlay />
-        </QueryClientProvider>
+        <InstallPromptProvider>
+          <QueryClientProvider client={queryClient}>
+            {children}
+            <ToasterWithTheme />
+            <PerformanceMonitorGate />
+          </QueryClientProvider>
+        </InstallPromptProvider>
       </ThemeProvider>
     </StoreProvider>
   );

@@ -19,6 +19,7 @@ import (
 func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logging.ActivityLogUseCase) {
 	// ── Wire dependencies ──────────────────────────────────────────────
 	userRepo := authrepo.NewUserRepository(db)
+	passwordResetOTPRepo := authrepo.NewPasswordResetOTPRepository(db)
 	loginLogRepo := authrepo.NewLoginLogRepository(db)
 	rolePermRepo := authrepo.NewRolePermissionRepository(db)
 	userPermRepo := authrepo.NewUserPermissionRepository(db)
@@ -26,7 +27,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	picMappingRepo := picrepo.NewPICMappingRepository(db)
 
 	authUC := authusecase.NewAuthUseCase(userRepo, loginLogRepo, jwtManager)
-	userUC := authusecase.NewUserUseCase(userRepo, mailer, settingRepo, picMappingRepo)
+	userUC := authusecase.NewUserUseCase(userRepo, mailer, settingRepo, picMappingRepo, passwordResetOTPRepo)
 	rolePermUC := authusecase.NewRolePermissionUseCase(rolePermRepo)
 	userPermUC := authusecase.NewUserPermissionUseCase(userPermRepo)
 
@@ -48,6 +49,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	{
 		authGroup.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
 		authGroup.Post("/forgot-password", middleware.AuthRateLimiter(), userHandler.ForgotPassword)
+		authGroup.Post("/reset-password", middleware.AuthRateLimiter(), userHandler.ResetPasswordWithOTP)
 	}
 
 	// ── Protected routes ───────────────────────────────────────────────

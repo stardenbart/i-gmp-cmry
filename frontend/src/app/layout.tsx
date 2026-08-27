@@ -7,9 +7,27 @@ const geistSans = { variable: "font-sans" };
 const geistMono = { variable: "font-mono" };
 
 export const metadata: Metadata = {
-  title: "I-GMP Website",
-  description: "Sistem Monitoring I-GMP Website",
+  title: {
+    default: "I-GMP",
+    template: "%s | I-GMP",
+  },
+  applicationName: "I-GMP",
+  description: "Sistem inspeksi dan monitoring Good Manufacturing Practices.",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "I-GMP",
+  },
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
   icons: {
     icon: [{ url: "/Logo_plant_New.png", type: "image/png" }],
     shortcut: [{ url: "/Logo_plant_New.png", type: "image/png" }],
@@ -18,10 +36,15 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  colorScheme: "dark light",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

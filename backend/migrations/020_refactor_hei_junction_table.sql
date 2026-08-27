@@ -22,6 +22,15 @@ CREATE TABLE IF NOT EXISTS "Issue_HEI" (
     )
 );
 
+-- The application repository may have created Issue_HEI through AutoMigrate
+-- before the SQL migration runner starts. In that case the table already uses
+-- the newer unified HEIID shape, so CREATE TABLE IF NOT EXISTS above is a
+-- no-op. Add the legacy transition columns explicitly so this migration can
+-- migrate Issue data and migration 028 can consolidate it back to HEIID.
+ALTER TABLE "Issue_HEI" ADD COLUMN IF NOT EXISTS "HabitID" VARCHAR(50);
+ALTER TABLE "Issue_HEI" ADD COLUMN IF NOT EXISTS "EquipmentID" VARCHAR(50);
+ALTER TABLE "Issue_HEI" ADD COLUMN IF NOT EXISTS "InfrastructureID" VARCHAR(50);
+
 CREATE INDEX IF NOT EXISTS "idx_issuehei_issue_id" ON "Issue_HEI" ("IssueID");
 CREATE INDEX IF NOT EXISTS "idx_issuehei_habit" ON "Issue_HEI" ("HabitID") WHERE "HabitID" IS NOT NULL;
 CREATE INDEX IF NOT EXISTS "idx_issuehei_equipment" ON "Issue_HEI" ("EquipmentID") WHERE "EquipmentID" IS NOT NULL;

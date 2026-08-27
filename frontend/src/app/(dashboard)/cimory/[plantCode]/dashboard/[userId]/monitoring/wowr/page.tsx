@@ -14,10 +14,12 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { issueApi } from "@/lib/api/issue.api";
+import { issueApi, type WOWRReportItem } from "@/lib/api/issue.api";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { toast } from "sonner";
+import { WOWREvidencePreview } from "@/components/reports/WOWREvidencePreview";
 
 export default function WOWRReportPage() {
   const { plantCode, userId } = useParams() as { plantCode: string; userId: string };
@@ -25,6 +27,7 @@ export default function WOWRReportPage() {
   const mounted = useMounted();
   const [search, setSearch] = useState("");
   const [selectedArea, setSelectedArea] = useState<string>("ALL");
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wowr-report", userId, plantCode],
@@ -55,24 +58,7 @@ export default function WOWRReportPage() {
 
   // Filter items by Area and Search text
   const filteredItems = useMemo(() => {
-    const rawItems: Array<{
-      issue_id: string;
-      photo_id?: string;
-      wo_id: string;
-      wr_id: string;
-      needs_wo_wr: boolean;
-      wowr_status: string;
-      issue_status: string;
-      area_id: string;
-      area_name: string;
-      kawasan_id: string;
-      kawasan_name: string;
-      detail_kawasan_name: string;
-      pic_name: string;
-      keterangan: string;
-      due_date?: string;
-      created_at: string;
-    }> = data?.items || [];
+    const rawItems: WOWRReportItem[] = data?.items || [];
     let result = rawItems;
     if (selectedArea !== "ALL") {
       result = result.filter(i => i.area_name === selectedArea);
@@ -93,54 +79,32 @@ export default function WOWRReportPage() {
     return result;
   }, [data, selectedArea, search]);
 
-  // Client-side Excel/CSV Export generator
-  const handleExportCSV = () => {
+  const handleExportExcel = async () => {
     if (filteredItems.length === 0) {
       toast.error("Tidak ada data WO/WR yang tersedia untuk diexport.");
       return;
     }
 
-    const headers = [
-      "No",
-      "Issue ID",
-      "Nomor WO",
-      "Nomor WR",
-      "Status WO/WR",
-      "Status Issue",
-      "Area",
-      "Kawasan",
-      "Detail Kawasan",
-      "PIC Name",
-      "Keterangan",
-      "Tanggal Due Date",
-      "Tanggal Dibuat"
-    ];
-
-    const rows = filteredItems.map((item, idx) => [
-      idx + 1,
-      `"${item.issue_id}"`,
-      `"${item.wo_id || "-"}"`,
-      `"${item.wr_id || "-"}"`,
-      `"${item.wowr_status}"`,
-      `"${item.issue_status}"`,
-      `"${item.area_name}"`,
-      `"${item.kawasan_name}"`,
-      `"${item.detail_kawasan_name}"`,
-      `"${item.pic_name}"`,
-      `"${(item.keterangan || "").replace(/"/g, '""')}"`,
-      `"${item.due_date ? new Date(item.due_date).toLocaleDateString("id-ID") : "-"}"`,
-      `"${new Date(item.created_at).toLocaleDateString("id-ID")}"`
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Report_WOWR_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("File Laporan WO/WR (.csv) berhasil diunduh!");
+    try {
+      setIsExporting(true);
+      const { blob, fileName } = await issueApi.exportWOWRReport({
+        area_name: selectedArea,
+        search: search.trim() || undefined,
+      });
+      const objectURL = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectURL;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectURL);
+      toast.success("Laporan Excel WO/WR lengkap dengan foto bukti berhasil diunduh.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Gagal mengekspor laporan WO/WR."));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!mounted || !user) {
@@ -175,11 +139,12 @@ export default function WOWRReportPage() {
         </div>
 
         <Button 
-          onClick={handleExportCSV}
+          onClick={handleExportExcel}
+          isLoading={isExporting}
           className="w-full sm:w-auto rounded-xl gap-2 font-semibold shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white h-10 sm:h-9 text-xs sm:text-sm"
         >
           <FileSpreadsheet className="h-4 w-4" />
-          Export Laporan Excel (.csv)
+          Export Excel + Bukti
         </Button>
       </div>
 
@@ -338,7 +303,7 @@ export default function WOWRReportPage() {
         </div>
 
         <div className="overflow-x-auto rounded-xl border max-w-full">
-          <table className="w-full min-w-[900px] text-xs text-left">
+          <table className="w-full min-w-[1180px] text-xs text-left">
             <thead className="bg-muted/60 text-muted-foreground font-semibold uppercase">
               <tr>
                 <th className="px-4 py-3">No</th>
@@ -348,20 +313,21 @@ export default function WOWRReportPage() {
                 <th className="px-4 py-3">PIC</th>
                 <th className="px-4 py-3">Status Verifikasi</th>
                 <th className="px-4 py-3">Keterangan</th>
+                <th className="px-4 py-3">Visual Bukti</th>
                 <th className="px-4 py-3">Tanggal Dibuat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center">
+                  <td colSpan={9} className="px-4 py-8 text-center">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                     <p className="text-xs text-muted-foreground mt-2">Memuat data report WO/WR...</p>
                   </td>
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground italic">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground italic">
                     Tidak ada data temuan WO/WR yang sesuai filter.
                   </td>
                 </tr>
@@ -406,6 +372,12 @@ export default function WOWRReportPage() {
                     </td>
                     <td className="px-4 py-3 max-w-xs truncate" title={item.keterangan}>
                       {item.keterangan || "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <WOWREvidencePreview
+                        initial={item.initial_evidence || []}
+                        completion={item.completion_evidence || []}
+                      />
                     </td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                       {new Date(item.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}

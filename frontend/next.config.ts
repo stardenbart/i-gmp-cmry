@@ -36,7 +36,6 @@ const nextConfig: NextConfig = {
     "http://127.0.0.1:8080",
   ],
   images: {
-    unoptimized: true,
     remotePatterns: [
       {
         protocol: "http",

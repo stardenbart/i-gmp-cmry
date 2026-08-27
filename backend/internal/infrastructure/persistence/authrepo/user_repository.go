@@ -1,6 +1,7 @@
 package authrepo
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -79,7 +80,13 @@ func (r *userRepository) FindByUsername(username string) (*authdomain.User, erro
 
 func (r *userRepository) FindByEmail(email string) (*authdomain.User, error) {
 	var user authdomain.User
-	err := r.db.Where("\"Email\" = ?", email).Take(&user).Error
+	err := r.db.Where(`LOWER("Email") = LOWER(?)`, email).Take(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, authdomain.ErrEmailNotRegistered
+	}
+	if err != nil {
+		return nil, err
+	}
 	return &user, err
 }
 

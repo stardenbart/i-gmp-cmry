@@ -232,7 +232,10 @@ func insertImages(f *excelize.File, sheet, cellAxis string, imagePaths []string,
 	if len(imagePaths) == 0 {
 		return
 	}
-	_ = f.SetRowHeight(sheet, excelRow, float64(len(imagePaths))*60)
+	requiredHeight := float64(len(imagePaths)) * 60
+	if currentHeight, err := f.GetRowHeight(sheet, excelRow); err != nil || currentHeight < requiredHeight {
+		_ = f.SetRowHeight(sheet, excelRow, requiredHeight)
+	}
 	for index, imagePath := range imagePaths {
 		insertImageAt(f, sheet, cellAxis, imagePath, index*80)
 	}

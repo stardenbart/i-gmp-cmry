@@ -38,47 +38,50 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-xl sm:px-6">
-      <div className="flex items-center gap-4">
+    <header className="pwa-header-safe sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/80 px-3 backdrop-blur-xl sm:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
         {/* Mobile Logo */}
         <div className="md:hidden flex items-center gap-3">
           <div className="flex items-center justify-center">
             <Image 
               src="/Logo_Cimory.png" 
               alt="Cimory Logo" 
-              width={100} 
+              width={88}
               height={32} 
               priority
-              className="h-7 w-auto object-contain"
+              className="h-7 w-auto max-w-[88px] object-contain"
             />
           </div>
         </div>
         
         {/* Desktop Title */}
-        <h1 className="hidden md:block text-lg font-semibold tracking-tight">{getTitle()}</h1>
+        <h1 className="hidden truncate pr-3 text-lg font-semibold tracking-tight lg:block">{getTitle()}</h1>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1 lg:gap-2">
         <InstallAppButton />
         <ThemeToggle />
         <NotificationBell />
-        <div className="h-6 w-px bg-border mx-1"></div>
-        <Link href={`/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}/profile`}>
+        <div className="mx-1 hidden h-6 w-px bg-border lg:block"></div>
+        <Link className="hidden lg:block" href={`/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}/profile`}>
           <div className="flex items-center gap-2 rounded-full px-2 py-1.5 hover:bg-muted cursor-pointer transition-colors">
             <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
               {mounted && user?.name ? user.name.charAt(0).toUpperCase() : "U"}
             </div>
-            <span className="hidden sm:inline-block text-sm font-medium max-w-30 truncate">
+            <span className="hidden max-w-30 truncate text-sm font-medium 2xl:inline-block">
               {mounted && user?.name ? user.name : "Profil"}
             </span>
           </div>
         </Link>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          type="button"
+          aria-label="Keluar dari aplikasi"
+          title="Keluar"
+          className="hidden h-9 w-9 items-center justify-center rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground lg:flex 2xl:w-auto 2xl:gap-2 2xl:rounded-full 2xl:px-3"
         >
-          <LogOut className="h-4 w-4" />
-          <span className="hidden sm:inline-block">Keluar</span>
+          <LogOut aria-hidden="true" className="h-4 w-4" />
+          <span className="hidden 2xl:inline-block">Keluar</span>
         </button>
       </div>
     </header>

@@ -11,7 +11,6 @@ import (
 type issueRepository struct{ db *gorm.DB }
 
 func NewIssueRepository(db *gorm.DB) issue.IssueRepository {
-	_ = db.AutoMigrate(&issue.Issue{})
 	return &issueRepository{db: db}
 }
 
@@ -292,7 +291,6 @@ func (r *issueRepository) Delete(id string) error {
 type issueHEIRepository struct{ db *gorm.DB }
 
 func NewIssueHEIRepository(db *gorm.DB) issue.IssueHEIRepository {
-	_ = db.AutoMigrate(&issue.IssueHEI{})
 	return &issueHEIRepository{db: db}
 }
 
@@ -324,7 +322,6 @@ func (r *issueHEIRepository) DeleteByIssueID(issueID string) error {
 type issuePhotoRepository struct{ db *gorm.DB }
 
 func NewIssuePhotoRepository(db *gorm.DB) issue.IssuePhotoRepository {
-	_ = db.AutoMigrate(&issue.IssuePhoto{})
 	return &issuePhotoRepository{db: db}
 }
 

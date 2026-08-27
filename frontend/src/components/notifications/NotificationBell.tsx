@@ -197,8 +197,13 @@ export function NotificationBell() {
 
   if (!mounted || !user) {
     return (
-      <button className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted relative">
-        <Bell className="h-4 w-4" />
+      <button
+        type="button"
+        disabled
+        aria-label="Memuat notifikasi"
+        className="relative flex h-9 w-9 items-center justify-center rounded-full"
+      >
+        <Bell aria-hidden="true" className="h-4 w-4" />
       </button>
     );
   }
@@ -226,8 +231,8 @@ export function NotificationBell() {
       {/* Dropdown Panel */}
       {isOpen && (
         <div className="
-          fixed left-4 right-4 top-[72px] z-50 
-          sm:absolute sm:left-auto sm:right-[-10px] sm:top-full sm:mt-2 sm:w-96 
+          notification-panel-mobile fixed left-3 right-3 z-[60] flex flex-col overflow-hidden
+          sm:absolute sm:left-auto sm:right-[-10px] sm:top-full sm:mt-2 sm:w-96
           origin-top sm:origin-top-right 
           rounded-xl bg-card border border-border shadow-2xl 
           animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200
@@ -291,7 +296,7 @@ export function NotificationBell() {
           </div>
 
           {/* Notification List */}
-          <div className="max-h-96 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-96">
             {isLoading || isFetching ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

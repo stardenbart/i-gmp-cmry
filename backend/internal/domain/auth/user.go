@@ -1,11 +1,14 @@
 package auth
 
 import (
+	"errors"
 	"time"
 
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/internal/domain/pic"
 )
+
+var ErrEmailNotRegistered = errors.New("email tidak terdaftar")
 
 // UserStatus defines allowed values for the UserStatus field.
 type UserStatus string
@@ -31,9 +34,9 @@ type User struct {
 	UserUpdatedAt time.Time  `gorm:"column:UserUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Relations (preload when needed)
-	Role        *Role               `gorm:"foreignKey:RoleID;references:RoleID" json:"role,omitempty"`
+	Role        *Role                    `gorm:"foreignKey:RoleID;references:RoleID" json:"role,omitempty"`
 	Department  *masterdomain.Department `gorm:"foreignKey:DepartmentID;references:DepartmentID" json:"department,omitempty"`
-	PICMappings []pic.PICMapping    `gorm:"foreignKey:UserID;references:UserID" json:"pic_mappings,omitempty"`
+	PICMappings []pic.PICMapping         `gorm:"foreignKey:UserID;references:UserID" json:"pic_mappings,omitempty"`
 }
 
 func (User) TableName() string { return "Users" }
@@ -98,6 +101,27 @@ type ForgotPasswordRequest struct {
 	Email string `json:"email" validate:"required,email"`
 }
 
+type ResetPasswordWithOTPRequest struct {
+	Email           string `json:"email" validate:"required,email"`
+	OTP             string `json:"otp" validate:"required,len=6,numeric"`
+	NewPassword     string `json:"new_password" validate:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,min=8"`
+}
+
+// PasswordResetOTP stores a one-time reset challenge. OTPHash is bcrypt-based;
+// the raw six-digit code is never persisted.
+type PasswordResetOTP struct {
+	ResetID   string     `gorm:"column:ResetID;primaryKey"`
+	UserID    string     `gorm:"column:UserID;not null;index"`
+	OTPHash   string     `gorm:"column:OTPHash;not null"`
+	ExpiresAt time.Time  `gorm:"column:ExpiresAt;not null"`
+	Attempts  int        `gorm:"column:Attempts;not null;default:0"`
+	UsedAt    *time.Time `gorm:"column:UsedAt"`
+	CreatedAt time.Time  `gorm:"column:CreatedAt;autoCreateTime"`
+}
+
+func (PasswordResetOTP) TableName() string { return "Password_Reset_OTP" }
+
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type UserRepository interface {
@@ -108,6 +132,11 @@ type UserRepository interface {
 	Create(u *User) error
 	Update(u *User) error
 	Delete(id string) error
+}
+
+type PasswordResetOTPRepository interface {
+	ReplaceForUser(userID, otpHash string, expiresAt time.Time) error
+	ConsumeValid(userID, otp string, now time.Time, maxAttempts int) (bool, error)
 }
 
 // ─── UseCase Interface ─────────────────────────────────────────────────────
@@ -121,6 +150,7 @@ type UserUseCase interface {
 	ChangePassword(id string, req *ChangePasswordRequest) error
 	AdminResetPassword(id string, req *AdminResetPasswordRequest) error
 	ForgotPassword(req *ForgotPasswordRequest) error
+	ResetPasswordWithOTP(req *ResetPasswordWithOTPRequest) error
 }
 
 // ─── Auth UseCase Interface ────────────────────────────────────────────────

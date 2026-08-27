@@ -36,4 +36,4 @@ RUN mkdir -p uploads logs
 
 EXPOSE 8080
 
-CMD ["./main"]
+CMD ["sh", "-c", "./migrate && exec ./main"]

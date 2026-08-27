@@ -10,11 +10,11 @@ export default function DashboardLayout({
 }) {
   return (
     <ScopeGuard>
-      <div className="flex min-h-screen w-full bg-background">
+      <div className="flex min-h-dvh w-full bg-background">
         <Sidebar />
         <div className="flex flex-1 flex-col md:pl-64 min-w-0">
           <Header />
-          <main className="flex-1 p-3.5 sm:p-6 pb-28 md:pb-6 min-w-0">
+          <main className="pwa-content-safe flex-1 p-3.5 sm:p-6 min-w-0">
             <div className="w-full max-w-[1600px] mx-auto">
               {children}
             </div>

@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/authStore";
 import { UserPermissionsTab } from "./UserPermissionsTab";
+import { UserDashboardLayoutTab } from "./UserDashboardLayoutTab";
 import { masterApi } from "@/lib/api/master.api";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -148,6 +149,9 @@ export default function UsersPage() {
     user?.role_id === "SUPERADMIN" ||
     user?.role?.role_name === "Super Admin" ||
     !user?.plant_id;
+  // Dashboard layout customization is Admin/Super Admin only — strictly by
+  // role, independent of whatever PERM-USR-* permissions are configured.
+  const canConfigureDashboards = user?.role_id === "ROLE-000" || user?.role_id === "ROLE-001";
 
   const dispatch = useAppDispatch();
   const { searchQuery, roleFilter, plantFilter, statusFilter, page } = useAppSelector(
@@ -171,7 +175,7 @@ export default function UsersPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<UserRecord | null>(null);
-  const [activeTab, setActiveTab] = useState<"profile" | "permissions">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "permissions" | "dashboard">("profile");
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [resetPassId, setResetPassId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -305,7 +309,7 @@ export default function UsersPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const data: Record<string, unknown> = {};
-    
+
     // Process non-PIC fields from FormData
     const keys = Array.from(new Set(formData.keys()));
     for (const key of keys) {
@@ -524,10 +528,20 @@ export default function UsersPage() {
             >
               Hak Akses Khusus
             </button>
+            {canConfigureDashboards && (
+              <button
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "dashboard" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setActiveTab("dashboard")}
+              >
+                Tata Letak Dashboard
+              </button>
+            )}
           </div>
         )}
 
-        {activeTab === "profile" || !editingItem ? (
+        {activeTab === "dashboard" && editingItem ? (
+          <UserDashboardLayoutTab userId={editingItem.user_id} roleId={editingItem.role_id} username={editingItem.username} />
+        ) : activeTab === "profile" || !editingItem ? (
           <form onSubmit={handleFormSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -543,7 +557,7 @@ export default function UsersPage() {
                 <label className="text-sm font-medium mb-1 block">Email</label>
                 <Input name="email" type="email" defaultValue={editingItem?.email} required />
               </div>
-              
+
               <div className="col-span-2 md:col-span-1">
                 <label className="text-sm font-medium mb-1 block">Role</label>
                 <div className="relative">
@@ -634,7 +648,7 @@ export default function UsersPage() {
                 </div>
               )}
             </div>
-            
+
             <div className="flex gap-3 pt-4 border-t border-border mt-4">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} className="flex-1">Batal</Button>
               <Button type="submit" isLoading={createMutation.isPending || updateMutation.isPending} className="flex-1">Simpan Profil</Button>
@@ -655,12 +669,12 @@ export default function UsersPage() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-1 block">Password Baru</label>
-              <Input 
-                type="password" 
-                value={newPassword} 
-                onChange={(e) => setNewPassword(e.target.value)} 
-                required minLength={6} 
-                placeholder="Masukkan password baru..." 
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required minLength={6}
+                placeholder="Masukkan password baru..."
               />
             </div>
           </div>

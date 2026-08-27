@@ -112,3 +112,56 @@ func TestGenerateExcelWithPlaceholderInsertsAllItemImages(t *testing.T) {
 		t.Fatalf("expected %d pictures, got %d", len(imagePaths), len(pictures))
 	}
 }
+
+func TestWOWRReportTemplateRendersDetailsAndEvidence(t *testing.T) {
+	templatePath := filepath.Join("..", "..", "templates", "wowr_report.xlsx")
+	imagePath := filepath.Join(t.TempDir(), "evidence.png")
+	file, err := os.Create(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(file, image.NewRGBA(image.Rect(0, 0, 120, 80))); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	_ = file.Close()
+
+	buffer, err := GenerateExcelWithPlaceholder(templatePath, "Laporan WO-WR", &PlaceholderPayload{
+		Headers: map[string]interface{}{
+			"generated_at": "27 August 2026 10:00 WIB", "area_filter": "Produksi",
+			"period_filter": "Semua periode", "total": 1, "verified": 1,
+			"pending": 0, "rejected": 0, "awaiting": 0,
+		},
+		Items: []map[string]interface{}{{
+			"no": 1, "issue_id": "ISS-001", "photo_id": "PHOTO-001",
+			"wo_number": "WO-001", "wr_number": "-", "wowr_status": "Verified",
+			"issue_status": "Closed", "location": "Produksi\nLine 1", "pic_name": "Teknisi",
+			"finding_detail": "Kebersihan\nLantai", "hei_detail": "Infrastructure: Lantai",
+			"description": "Lantai retak", "due_date": "30-Aug-2026", "created_at": "27-Aug-2026",
+			"initial_details": "1. Bukti awal", "completion_details": "1. Bukti selesai",
+			"initial_images": []string{imagePath}, "completion_images": []string{imagePath},
+			"initial_count": 1, "completion_count": 1,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("generate WO/WR workbook: %v", err)
+	}
+
+	workbook, err := excelize.OpenReader(buffer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer workbook.Close()
+	if value, _ := workbook.GetCellValue("Laporan WO-WR", "B9"); value != "ISS-001" {
+		t.Fatalf("expected issue detail in B9, got %q", value)
+	}
+	if value, _ := workbook.GetCellValue("Laporan WO-WR", "S9"); value != "Selesai 1 / Awal 1" {
+		t.Fatalf("expected evidence summary in S9, got %q", value)
+	}
+	for _, cell := range []string{"P9", "R9"} {
+		pictures, pictureErr := workbook.GetPictures("Laporan WO-WR", cell)
+		if pictureErr != nil || len(pictures) != 1 {
+			t.Fatalf("expected an embedded picture in %s, got %d (%v)", cell, len(pictures), pictureErr)
+		}
+	}
+}

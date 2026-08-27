@@ -110,6 +110,43 @@ export interface Issue {
   infrastructure_name?: string;
 }
 
+export interface WOWRReportEvidence {
+  photo_id: string;
+  ref_photo_id?: string;
+  photo_type: "Initial" | "WOWR";
+  image_url: string;
+  description?: string;
+  uploader?: string;
+  created_at: string;
+}
+
+export interface WOWRReportItem {
+  issue_id: string;
+  photo_id?: string;
+  wo_id: string;
+  wr_id: string;
+  needs_wo_wr: boolean;
+  wowr_status: string;
+  issue_status: string;
+  area_id: string;
+  area_name: string;
+  kawasan_id: string;
+  kawasan_name: string;
+  detail_kawasan_name: string;
+  pic_name: string;
+  aspek_name: string;
+  detail_aspek_name: string;
+  uraian_text: string;
+  habit_name: string;
+  equipment_name: string;
+  infrastructure_name: string;
+  keterangan: string;
+  due_date?: string;
+  created_at: string;
+  initial_evidence: WOWRReportEvidence[];
+  completion_evidence: WOWRReportEvidence[];
+}
+
 export const issueApi = {
   getAll: async (params?: { page?: number; limit?: number; status?: string; pic_user_id?: string; needs_wo_wr?: boolean }): Promise<{ items: Issue[] }> => {
     const res = await api.get("/issues", { params });
@@ -237,5 +274,23 @@ export const issueApi = {
   getWOWRReport: async (params?: { area_id?: string; kawasan_id?: string; start_date?: string; end_date?: string; plant_id?: string }) => {
     const res = await api.get("/dashboard/wowr-report", { params });
     return res.data.data;
+  },
+
+  exportWOWRReport: async (params?: {
+    area_id?: string;
+    area_name?: string;
+    kawasan_id?: string;
+    start_date?: string;
+    end_date?: string;
+    search?: string;
+  }) => {
+    const res = await api.get<Blob>("/dashboard/wowr-report/export", {
+      params,
+      responseType: "blob",
+    });
+    const disposition = res.headers["content-disposition"] as string | undefined;
+    const fileName = disposition?.match(/filename="?([^";]+)"?/i)?.[1]
+      || `Laporan_WO_WR_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    return { blob: res.data, fileName };
   },
 };

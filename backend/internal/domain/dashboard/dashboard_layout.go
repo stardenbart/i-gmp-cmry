@@ -48,13 +48,12 @@ const (
 	WidgetStatusAuditee     = "status-auditee"
 	WidgetChartTrend        = "chart-tren-kepatuhan"
 
-	WidgetAuditorInspeksiList = "auditor-inspeksi-list"
-	WidgetAuditorTrendChart   = "auditor-trend-chart"
-	WidgetAuditorIssueSummary = "auditor-issue-summary"
-	WidgetAuditorPendingList  = "auditor-pending-list"
+	WidgetAuditorStats         = "auditor-stats"
+	WidgetAuditorPendingBanner = "auditor-pending-banner"
+	WidgetAuditorTrendChart    = "auditor-trend-chart"
 
-	WidgetAuditeeIssueList     = "auditee-issue-list"
-	WidgetAuditeeComplianceSum = "auditee-compliance-summary"
+	WidgetAuditeeStats    = "auditee-stats"
+	WidgetAuditeeTaskList = "auditee-task-list"
 )
 
 // DefaultLayoutForRole returns the out-of-the-box widget arrangement for a
@@ -66,15 +65,14 @@ func DefaultLayoutForRole(roleID string) []WidgetConfig {
 	switch roleID {
 	case "ROLE-002": // Auditor
 		return []WidgetConfig{
-			{WidgetID: WidgetAuditorInspeksiList, Visible: true, Order: 0},
-			{WidgetID: WidgetAuditorTrendChart, Visible: true, Order: 1},
-			{WidgetID: WidgetAuditorIssueSummary, Visible: true, Order: 2},
-			{WidgetID: WidgetAuditorPendingList, Visible: true, Order: 3},
+			{WidgetID: WidgetAuditorStats, Visible: true, Order: 0},
+			{WidgetID: WidgetAuditorPendingBanner, Visible: true, Order: 1},
+			{WidgetID: WidgetAuditorTrendChart, Visible: true, Order: 2},
 		}
 	case "ROLE-003": // Auditee
 		return []WidgetConfig{
-			{WidgetID: WidgetAuditeeIssueList, Visible: true, Order: 0},
-			{WidgetID: WidgetAuditeeComplianceSum, Visible: true, Order: 1},
+			{WidgetID: WidgetAuditeeStats, Visible: true, Order: 0},
+			{WidgetID: WidgetAuditeeTaskList, Visible: true, Order: 1},
 		}
 	default: // ROLE-000 (Super Admin), ROLE-001 (Admin), and any other role
 		return []WidgetConfig{

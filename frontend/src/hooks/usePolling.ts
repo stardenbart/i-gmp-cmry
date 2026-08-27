@@ -6,6 +6,7 @@ import { api } from "@/lib/api/axios";
 interface UsePollingOptions {
   onIssueUpdated?: () => void;
   intervalMs?: number;
+  immediate?: boolean;
 }
 
 interface PollEvent {
@@ -28,12 +29,13 @@ export function usePolling(options?: UsePollingOptions) {
   });
 
   const baseIntervalMs = options?.intervalMs ?? 10000; // 10s default interval
+  const pollImmediately = options?.immediate ?? true;
 
   useEffect(() => {
     if (!token) return;
-	if (lastPollTimeRef.current === 0) {
-		lastPollTimeRef.current = Date.now() - 10000;
-	}
+    if (lastPollTimeRef.current === 0) {
+      lastPollTimeRef.current = Date.now() - 10000;
+    }
 
     let isMounted = true;
     let timerId: NodeJS.Timeout | null = null;
@@ -68,6 +70,8 @@ export function usePolling(options?: UsePollingOptions) {
 
           if (hasIssueUpdate) {
             queryClient.invalidateQueries({ queryKey: ["auditee-issues"] });
+            queryClient.invalidateQueries({ queryKey: ["auditee-issue-summary"] });
+            queryClient.invalidateQueries({ queryKey: ["auditee-priority-issues"] });
             queryClient.invalidateQueries({ queryKey: ["wowr-issues"] });
             queryClient.invalidateQueries({ queryKey: ["issues"] });
             queryClient.invalidateQueries({ queryKey: ["issues-filter"] });
@@ -77,7 +81,8 @@ export function usePolling(options?: UsePollingOptions) {
             queryClient.invalidateQueries({ queryKey: ["dashboard-stats-stitch"] });
             queryClient.invalidateQueries({ queryKey: ["auditor-inspections"] });
             queryClient.invalidateQueries({ queryKey: ["auditor-inspections-trend"] });
-            queryClient.invalidateQueries({ queryKey: ["auditor-global-issues"] });
+            queryClient.invalidateQueries({ queryKey: ["auditor-issue-summary"] });
+            queryClient.invalidateQueries({ queryKey: ["auditor-pending-issues"] });
 
             notifyIssueUpdated();
           }
@@ -98,12 +103,17 @@ export function usePolling(options?: UsePollingOptions) {
       timerId = setTimeout(poll, nextDelay);
     };
 
-    // Immediate initial poll
-    poll();
+    // Initial page data is already fetched by React Query. Dashboards can
+    // defer this background synchronization to avoid competing with LCP.
+    if (pollImmediately) {
+      void poll();
+    } else {
+      scheduleNextPoll();
+    }
 
     return () => {
       isMounted = false;
       if (timerId) clearTimeout(timerId);
     };
-  }, [token, queryClient, baseIntervalMs]);
+  }, [token, queryClient, baseIntervalMs, pollImmediately]);
 }
