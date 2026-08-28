@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:20.19-alpine3.22 AS builder
+FROM docker.io/library/node:20.19-alpine3.22 AS builder
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN rm -f .next/standalone/.env .next/standalone/.env.*
 
 # ─────────────────────────────────────────────
 # Runner stage
-FROM node:20.19-alpine3.22 AS runner
+FROM docker.io/library/node:20.19-alpine3.22 AS runner
 
 WORKDIR /app
 

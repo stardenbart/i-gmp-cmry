@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.25-alpine3.22 AS builder
+FROM docker.io/library/golang:1.25-alpine3.22 AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # ─────────────────────────────────────────────
 # Runner stage (image kecil tanpa toolchain go)
-FROM alpine:3.22
+FROM docker.io/library/alpine:3.22
 
 WORKDIR /app
 
