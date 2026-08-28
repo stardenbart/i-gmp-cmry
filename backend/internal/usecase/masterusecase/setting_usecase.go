@@ -137,6 +137,16 @@ func validateDynamicSetting(key, value string) error {
 		if _, err := netmail.ParseAddress(trimmed); err != nil {
 			return fmt.Errorf("SMTP_SENDER_EMAIL tidak valid")
 		}
+	case master.SettingKeyEmailTemplateForgotPass:
+		missingVariables := make([]string, 0, 2)
+		for _, variable := range []string{"{{.OTP}}", "{{.OTPExpiryMinutes}}"} {
+			if !strings.Contains(value, variable) {
+				missingVariables = append(missingVariables, variable)
+			}
+		}
+		if len(missingVariables) > 0 {
+			return fmt.Errorf("template OTP wajib memuat variabel: %s", strings.Join(missingVariables, ", "))
+		}
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import type { EditorRef } from "react-email-editor";
 import type { JSONTemplate } from "@unlayer/types";
 
@@ -18,6 +19,7 @@ interface EmailEditorModalProps {
   title: string;
   initialData?: string; // JSON string containing {html, design}
   variables?: readonly string[];
+  requiredVariables?: readonly string[];
 }
 
 // Wraps raw HTML (from a legacy/seeded plain-HTML template) in a minimal
@@ -61,7 +63,8 @@ export function EmailEditorModal({
   isSaving,
   title,
   initialData,
-  variables = []
+  variables = [],
+  requiredVariables = []
 }: EmailEditorModalProps) {
   const emailEditorRef = useRef<EditorRef>(null);
   const [editorReady, setEditorReady] = useState(false);
@@ -95,6 +98,11 @@ export function EmailEditorModal({
 
     emailEditorRef.current.editor.exportHtml((data) => {
       const { design, html } = data;
+      const missingVariables = requiredVariables.filter((variable) => !html.includes(`{{.${variable}}}`));
+      if (missingVariables.length > 0) {
+        toast.error(`Template wajib memuat: ${missingVariables.map((variable) => `{{.${variable}}}`).join(", ")}`);
+        return;
+      }
       onSave(html, design);
     });
   };
@@ -130,6 +138,11 @@ export function EmailEditorModal({
         {variables.length > 0 && (
           <div className="absolute left-4 right-4 top-3 z-10 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs shadow-sm">
             Variabel tersedia: {variables.map((variable) => `{{.${variable}}}`).join(", ")}
+            {requiredVariables.length > 0 && (
+              <strong className="ml-2 text-destructive">
+                Wajib: {requiredVariables.map((variable) => `{{.${variable}}}`).join(", ")}
+              </strong>
+            )}
           </div>
         )}
         <div className={`absolute inset-x-0 bottom-0 ${variables.length > 0 ? "top-14" : "top-0"}`}>

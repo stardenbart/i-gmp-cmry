@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -124,13 +125,13 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-                <a
+                <Link
                   href="/forgot-password"
-                  className="text-xs font-medium text-primary hover:text-primary/80 transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-300 transition-colors hover:bg-indigo-500/10 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                   aria-label="Lupa password akun Anda"
                 >
                   Lupa password?
-                </a>
+                </Link>
               </div>
               <Input
                 id="password"

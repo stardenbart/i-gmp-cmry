@@ -8,6 +8,7 @@ import (
 
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
+	"github.com/monitoring-system/backend/pkg/mail"
 	"github.com/monitoring-system/backend/pkg/password"
 )
 
@@ -57,23 +58,31 @@ func (r *resetTestOTPRepo) ConsumeValid(_ string, _ string, _ time.Time, _ int) 
 	return r.consumeResult, nil
 }
 
-type resetTestSettingRepo struct{}
+type resetTestSettingRepo struct {
+	template string
+}
 
 func (resetTestSettingRepo) FindAll(string) ([]masterdomain.Setting, error) { return nil, nil }
-func (resetTestSettingRepo) FindByKey(string, string) (*masterdomain.Setting, error) {
+
+func (r resetTestSettingRepo) FindByKey(string, string) (*masterdomain.Setting, error) {
+	if r.template != "" {
+		return &masterdomain.Setting{SettingValue: r.template}, nil
+	}
 	return nil, errors.New("not found")
 }
 func (resetTestSettingRepo) Update(string, string, string, string) error { return nil }
 
 type resetTestMailer struct {
-	data map[string]string
+	data     map[string]string
+	template string
 }
 
 func (m *resetTestMailer) Send([]string, string, string) error                      { return nil }
 func (m *resetTestMailer) SendTemplate([]string, string, string, interface{}) error { return nil }
 func (m *resetTestMailer) SendForPlant(string, []string, string, string) error      { return nil }
-func (m *resetTestMailer) SendTemplateForPlant(_ string, _ []string, _ string, _ string, data interface{}) error {
+func (m *resetTestMailer) SendTemplateForPlant(_ string, _ []string, _ string, template string, data interface{}) error {
 	m.data = data.(map[string]string)
+	m.template = template
 	return nil
 }
 
@@ -102,6 +111,25 @@ func TestForgotPasswordCreatesOTPWithoutChangingPassword(t *testing.T) {
 	}
 	if otps.expiresAt.Before(before.Add(passwordResetOTPExpiry - time.Second)) {
 		t.Fatal("OTP expiry is shorter than expected")
+	}
+}
+
+func TestForgotPasswordFallsBackFromTemplateWithoutRequiredOTPVariables(t *testing.T) {
+	users := &resetTestUserRepo{user: &authdomain.User{UserID: "USR-1", Email: "user@example.com"}}
+	mailer := &resetTestMailer{}
+	uc := NewUserUseCase(
+		users,
+		mailer,
+		resetTestSettingRepo{template: "<p>Template lama tanpa kode reset</p>"},
+		nil,
+		&resetTestOTPRepo{},
+	)
+
+	if err := uc.ForgotPassword(&authdomain.ForgotPasswordRequest{Email: "user@example.com"}); err != nil {
+		t.Fatalf("ForgotPassword() error = %v", err)
+	}
+	if mailer.template != mail.TmplForgotPassword {
+		t.Fatal("invalid configured template must fall back to the built-in OTP template")
 	}
 }
 

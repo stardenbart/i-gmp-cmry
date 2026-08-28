@@ -1,6 +1,6 @@
 "use client";
 
-import { PenSquare } from "lucide-react";
+import { AlertTriangle, PenSquare } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { EMAIL_TEMPLATES, type EmailTemplateConfig } from "@/components/settings/settingsConfig";
@@ -32,9 +32,15 @@ export function EmailTemplatesPanel({ isLoading, plantId, plantName, settings, o
           {EMAIL_TEMPLATES.map((template) => {
             const existing = settings?.find((setting) => setting.setting_key === template.key);
             const configured = !!existing?.setting_value;
+            const missingRequiredVariables = template.requiredVariables.filter(
+              (variable) => !existing?.setting_value?.includes(`{{.${variable}}}`)
+            );
+            const invalid = configured && missingRequiredVariables.length > 0;
             const plantOverride = !isGlobal && existing?.plant_id === plantId;
             const globalFallback = !isGlobal && existing?.plant_id !== plantId;
-            const badge = plantOverride
+            const badge = invalid
+              ? ["Perlu Diperbaiki", "bg-destructive/10 text-destructive"]
+              : plantOverride
               ? ["Khusus Plant", "bg-green-500/10 text-green-500"]
               : globalFallback
                 ? ["Fallback Global", "bg-blue-500/10 text-blue-500"]
@@ -51,11 +57,17 @@ export function EmailTemplatesPanel({ isLoading, plantId, plantName, settings, o
                   </div>
                   <p className="text-sm text-muted-foreground">{template.description}</p>
                   <p className="mt-2 text-xs text-muted-foreground">Variabel: {template.variables.map((variable) => `{{.${variable}}}`).join(", ")}</p>
+                  {invalid && (
+                    <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-destructive">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Variabel wajib belum ada: {missingRequiredVariables.map((variable) => `{{.${variable}}}`).join(", ")}
+                    </p>
+                  )}
                   <code className="mt-2 inline-block rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{template.key}</code>
                 </div>
                 <Button type="button" variant={configured ? "outline" : "default"} onClick={() => onEdit(template)} className="shrink-0">
                   <PenSquare className="mr-2 h-4 w-4" />
-                  {globalFallback ? "Buat Override Plant" : configured ? "Edit Template" : "Buat Template"}
+                  {invalid ? "Perbaiki Template" : globalFallback ? "Buat Override Plant" : configured ? "Edit Template" : "Buat Template"}
                 </Button>
               </article>
             );
