@@ -118,6 +118,8 @@ services:
       timeout: 6s
       retries: 10
       start_period: 20s
+    volumes:
+      - zookeeper_data:/bitnami/zookeeper
     logging: *default-logging
     networks:
       - audit_network
@@ -283,6 +285,7 @@ volumes:
   db_data:
   redis_data:
   minio_data:
+  zookeeper_data:
   kafka_data:
   opensearch_data:
   backend_uploads:
