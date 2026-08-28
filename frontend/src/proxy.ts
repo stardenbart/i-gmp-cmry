@@ -41,8 +41,8 @@ export const config = {
      * - _next/image (Next.js image optimizer)
      * - All image/media extensions (.png, .jpg, .jpeg, .webp, .svg, .ico, .gif)
      * - manifest.json (PWA manifest)
-     * - sw.js, workbox-* (PWA service worker)
+     * - serwist, sw.js, workbox-* (PWA service worker)
      */
-    '/((?!api|monitoring-audit-bucket|_next/static|_next/image|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.svg|.*\\.ico|.*\\.gif|manifest\\.json|sw\\.js|workbox-.*).*)',
+    '/((?!api|monitoring-audit-bucket|serwist|_next/static|_next/image|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.svg|.*\\.ico|.*\\.gif|manifest\\.json|sw\\.js|workbox-.*).*)',
   ],
 };

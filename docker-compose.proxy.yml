@@ -1,0 +1,32 @@
+services:
+  proxy:
+    image: docker.io/library/caddy:2.10-alpine
+    container_name: audit_prod_proxy
+    restart: unless-stopped
+    cpus: 0.25
+    mem_limit: 256m
+    mem_reservation: 64m
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required for HTTPS proxy}
+      TLS_CONTACT_EMAIL: ${TLS_CONTACT_EMAIL:?TLS_CONTACT_EMAIL is required for HTTPS proxy}
+    depends_on:
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - audit_network
+
+volumes:
+  caddy_data:
+  caddy_config:

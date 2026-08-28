@@ -2,4 +2,9 @@
 .env
 uploads/
 logs/
+bin/
+coverage/
+*.cover
+*.out
+*.test
 .DS_Store

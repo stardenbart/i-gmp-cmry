@@ -9,6 +9,7 @@ import { withSerwist } from "@serwist/turbopack";
 // app/serwist/[path]/route.ts, with its source in app/sw.ts.
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   compress: true,
   poweredByHeader: false,
   reactStrictMode: false,
@@ -54,6 +55,18 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "geolocation=(), microphone=(), payment=(), usb=()",
+          },
+        ],
+      },
+      {
         source: "/monitoring-audit-bucket/:path*",
         headers: [
           {
@@ -68,6 +81,15 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/serwist/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
           },
         ],
       },

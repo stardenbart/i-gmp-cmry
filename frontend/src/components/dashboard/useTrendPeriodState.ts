@@ -47,19 +47,10 @@ function defaultTrendRange(): TrendDateRange {
 }
 
 /** Backs the date-range picker (Dari/Sampai) for "range" mode.
- *
- * Self-heals if start/end ever end up empty (e.g. a stale reload, or a
- * consumer clearing a field) — otherwise the trend query stays permanently
- * disabled (see AdminDashboardContext/AuditorDashboardContext `enabled`
- * guards) and the chart gets stuck showing whatever mode was active before. */
+ * Empty values are normalized in the setter so consumers never observe an
+ * invalid range and no corrective render/effect cycle is needed. */
 export function useTrendRangeState() {
   const [range, setRangeState] = useState<TrendDateRange>(defaultTrendRange);
-
-  useEffect(() => {
-    if (!range.start || !range.end) {
-      setRangeState(defaultTrendRange());
-    }
-  }, [range.start, range.end]);
 
   const setRange = useCallback((next: TrendDateRange) => {
     const fallback = defaultTrendRange();

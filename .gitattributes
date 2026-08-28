@@ -1,0 +1,4 @@
+# The existing frontend lockfile is intentionally CRLF. Treat CR at EOL as
+# part of the line ending so Git's whitespace checker does not flag npm's
+# generated lockfile entries as trailing whitespace.
+frontend/package-lock.json -text whitespace=cr-at-eol

@@ -37,11 +37,13 @@ const ROW_HEIGHT = 32;
 function useElementWidth() {
   const [node, setNode] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
-  const containerRef = useCallback((el: HTMLDivElement | null) => setNode(el), []);
+  const containerRef = useCallback((el: HTMLDivElement | null) => {
+    setNode(el);
+    setWidth(el ? Math.round(el.getBoundingClientRect().width) : 0);
+  }, []);
 
   useEffect(() => {
     if (!node) return;
-    setWidth(Math.round(node.getBoundingClientRect().width));
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];

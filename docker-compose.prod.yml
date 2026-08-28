@@ -1,29 +1,64 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: docker.io/library/postgres:15-alpine
     container_name: audit_prod_db
     restart: always
+    cpus: 1.5
+    mem_limit: 1536m
+    mem_reservation: 512m
     environment:
       POSTGRES_USER: ${DB_USER:?DB_USER is required}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
       TZ: Asia/Jakarta
 
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 1536M
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
+    logging: *default-logging
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      - audit_network
+
+  db-backup:
+    build:
+      context: ./ops
+      dockerfile: postgres-backup.Dockerfile
+    image: system-audit-postgres-backup:${APP_IMAGE_TAG:-latest}
+    container_name: audit_prod_db_backup
+    restart: unless-stopped
+    cpus: 0.25
+    mem_limit: 256m
+    mem_reservation: 64m
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    healthcheck:
+      test: ["CMD-SHELL", "find /backups -type f -name '*.dump' -mmin -1500 | grep -q ."]
+      interval: 30m
+      timeout: 10s
+      retries: 3
+      start_period: 5m
+    volumes:
+      - postgres_backups:/backups
+    logging: *default-logging
     networks:
       - audit_network
 
@@ -31,46 +66,41 @@ services:
     image: docker.io/library/redis:7-alpine
     container_name: audit_prod_redis
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 128m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 10s
+    logging: *default-logging
     volumes:
       - redis_data:/data
     networks:
       - audit_network
 
   minio:
-    image: minio/minio:latest
+    image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: audit_prod_minio
     restart: always
+    cpus: 0.5
+    mem_limit: 512m
+    mem_reservation: 256m
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          memory: 256M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    logging: *default-logging
     networks:
       - audit_network
 
@@ -78,13 +108,17 @@ services:
     image: docker.io/bitnamilegacy/zookeeper:3.8
     container_name: audit_prod_zookeeper
     restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 512m
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | timeout 5 nc 127.0.0.1 2181 | grep -q 'Mode:'"]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
     networks:
       - audit_network
 
@@ -92,6 +126,8 @@ services:
     image: docker.io/bitnamilegacy/kafka:3.4
     container_name: audit_prod_kafka
     restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1024m
     environment:
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - ALLOW_PLAINTEXT_LISTENER=yes
@@ -100,11 +136,6 @@ services:
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1024M
     depends_on:
       - zookeeper
     healthcheck:
@@ -112,8 +143,10 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+      start_period: 30s
     volumes:
       - kafka_data:/bitnami/kafka
+    logging: *default-logging
     networks:
       - audit_network
 
@@ -121,6 +154,8 @@ services:
     image: docker.io/opensearchproject/opensearch:2.11.0
     container_name: audit_prod_opensearch
     restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1024m
     environment:
       - cluster.name=opensearch-cluster
       - node.name=opensearch-node1
@@ -128,11 +163,6 @@ services:
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
       - DISABLE_SECURITY_PLUGIN=true
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1024M
     ulimits:
       memlock:
         soft: -1
@@ -145,8 +175,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
     volumes:
       - opensearch_data:/usr/share/opensearch/data
+    logging: *default-logging
     networks:
       - audit_network
 
@@ -154,14 +186,15 @@ services:
     build:
       context: ./backend
       dockerfile: docker/backend.Dockerfile
-    image: system-audit-backend:latest
+    image: system-audit-backend:${APP_IMAGE_TAG:-latest}
     container_name: audit_prod_backend
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 256
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - db
       - redis
@@ -172,6 +205,8 @@ services:
     environment:
       APP_ENV: production
       APP_PORT: "8080"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_OUTPUT: console
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ${DB_USER:?DB_USER is required}
@@ -193,9 +228,16 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     volumes:
       - backend_uploads:/app/uploads
       - backend_logs:/app/logs
+    logging: *default-logging
     networks:
       - audit_network
 
@@ -208,21 +250,32 @@ services:
         # Must match VAPID_PUBLIC_KEY above exactly, or the subscribe
         # button will silently fail (build-time value, not runtime).
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
-    image: system-audit-frontend:latest
+    image: system-audit-frontend:${APP_IMAGE_TAG:-latest}
     container_name: audit_prod_frontend
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+    cpus: 0.5
+    mem_limit: 512m
+    pids_limit: 256
+    stop_grace_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
       - backend
     environment:
       NEXT_PUBLIC_BACKEND_URL: http://backend:8080
       INTERNAL_BACKEND_URL: http://backend:8080
+      NEXT_TELEMETRY_DISABLED: "1"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/login"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     ports:
       - "3000:3000"
+    logging: *default-logging
     networks:
       - audit_network
 
@@ -234,6 +287,7 @@ volumes:
   opensearch_data:
   backend_uploads:
   backend_logs:
+  postgres_backups:
 
 networks:
   audit_network:
