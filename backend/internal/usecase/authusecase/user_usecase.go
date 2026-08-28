@@ -242,7 +242,7 @@ func (uc *userUseCase) ForgotPassword(req *authdomain.ForgotPasswordRequest) err
 	if user.PlantID != nil {
 		plantID = *user.PlantID
 	}
-	if s, findErr := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateForgotPass, plantID); findErr == nil && s.SettingValue != "" {
+	if s, findErr := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateForgotPass, plantID); findErr == nil && isValidPasswordResetOTPTemplate(s.SettingValue) {
 		tmpl = s.SettingValue
 	}
 
@@ -260,6 +260,10 @@ func (uc *userUseCase) ForgotPassword(req *authdomain.ForgotPasswordRequest) err
 			"TempPassword": otp,
 		},
 	)
+}
+
+func isValidPasswordResetOTPTemplate(value string) bool {
+	return strings.Contains(value, "{{.OTP}}") && strings.Contains(value, "{{.OTPExpiryMinutes}}")
 }
 
 func (uc *userUseCase) ResetPasswordWithOTP(req *authdomain.ResetPasswordWithOTPRequest) error {

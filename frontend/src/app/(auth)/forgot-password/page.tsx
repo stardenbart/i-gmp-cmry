@@ -169,7 +169,7 @@ export default function ForgotPasswordPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
                 <button type="button" onClick={() => setStep("request")} className="text-zinc-400 hover:text-white">Ganti alamat email</button>
-                <button type="button" onClick={onResendOTP} disabled={isResending} className="font-semibold text-primary hover:text-primary/80 disabled:opacity-50">{isResending ? "Mengirim..." : "Kirim ulang OTP"}</button>
+                <button type="button" onClick={onResendOTP} disabled={isResending} className="rounded-lg px-2 py-1 font-semibold text-indigo-300 transition-colors hover:bg-indigo-500/10 hover:text-indigo-200 disabled:opacity-50">{isResending ? "Mengirim..." : "Kirim ulang OTP"}</button>
               </div>
             </form>
           )}

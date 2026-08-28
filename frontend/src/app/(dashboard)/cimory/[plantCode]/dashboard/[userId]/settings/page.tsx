@@ -432,6 +432,7 @@ export default function SettingsPage() {
           title={editorTitle}
           initialData={derivedInitialData}
           variables={EMAIL_TEMPLATES.find((template) => template.key === editorKey)?.variables || []}
+          requiredVariables={EMAIL_TEMPLATES.find((template) => template.key === editorKey)?.requiredVariables || []}
           onSave={handleSaveEmailTemplate}
           isSaving={saveSettingMutation.isPending}
         />
