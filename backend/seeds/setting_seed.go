@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/monitoring-system/backend/internal/domain/master"
+	"github.com/monitoring-system/backend/pkg/mail"
 	"gorm.io/gorm"
 )
 
@@ -32,8 +33,8 @@ func SeedSettings(db *gorm.DB) {
 		},
 		{
 			SettingKey:   master.SettingKeyEmailTemplateForgotPass,
-			SettingValue: "<h1>Reset Password</h1><p>Klik tombol berikut untuk mereset password Anda.</p>",
-			Description:  "Template email untuk lupa password (HTML)",
+			SettingValue: mail.TmplForgotPassword,
+			Description:  "Template email OTP untuk lupa password (HTML)",
 		},
 		{
 			SettingKey:   master.SettingKeyEmailTemplateIssue,

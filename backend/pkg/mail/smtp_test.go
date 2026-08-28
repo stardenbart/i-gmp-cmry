@@ -1,6 +1,11 @@
 package mail
 
-import "testing"
+import (
+	"net"
+	"strings"
+	"testing"
+	"time"
+)
 
 func TestDynamicSMTPMailerPassesPlantToProvider(t *testing.T) {
 	requestedPlant := ""
@@ -59,5 +64,44 @@ func TestResolveTemplateHTML(t *testing.T) {
 				t.Fatalf("resolveTemplateHTML() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSendSMTPMailTimesOutWhenServerDoesNotGreet(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	release := make(chan struct{})
+	defer close(release)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer conn.Close()
+		<-release
+	}()
+
+	started := time.Now()
+	err = sendSMTPMail(
+		listener.Addr().String(),
+		"localhost",
+		nil,
+		"sender@example.com",
+		[]string{"recipient@example.com"},
+		[]byte("Subject: test\r\n\r\nbody"),
+		75*time.Millisecond,
+	)
+	if err == nil {
+		t.Fatal("expected an SMTP timeout error")
+	}
+	if !strings.Contains(err.Error(), "failed to initialize SMTP client") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("SMTP timeout took too long: %v", elapsed)
 	}
 }

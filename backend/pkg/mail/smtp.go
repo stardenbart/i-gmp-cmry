@@ -2,12 +2,17 @@ package mail
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/smtp"
 	"strings"
 	"text/template"
+	"time"
 )
+
+const smtpOperationTimeout = 15 * time.Second
 
 // Mailer defines the interface for sending emails.
 type Mailer interface {
@@ -77,7 +82,7 @@ func (m *smtpMailer) SendForPlant(plantID string, to []string, subject, body str
 	}
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
-	return smtp.SendMail(addr, auth, cfg.SenderEmail, to, []byte(msg))
+	return sendSMTPMail(addr, cfg.Host, auth, cfg.SenderEmail, to, []byte(msg), smtpOperationTimeout)
 }
 
 // SendTemplate sends an HTML email parsed from a template string.
@@ -117,7 +122,65 @@ func (m *smtpMailer) SendTemplateForPlant(plantID string, to []string, subject s
 	}
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
-	return smtp.SendMail(addr, auth, cfg.SenderEmail, to, []byte(msg))
+	return sendSMTPMail(addr, cfg.Host, auth, cfg.SenderEmail, to, []byte(msg), smtpOperationTimeout)
+}
+
+// sendSMTPMail mirrors net/smtp.SendMail while applying one deadline to the
+// connection, greeting, STARTTLS handshake, authentication, and message write.
+// net/smtp.SendMail has no timeout and can otherwise leave an HTTP request
+// hanging indefinitely when an SMTP hostname or firewall rule is incorrect.
+func sendSMTPMail(addr, host string, auth smtp.Auth, from string, to []string, msg []byte, timeout time.Duration) error {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return fmt.Errorf("failed to set SMTP deadline: %w", err)
+	}
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("failed to initialize SMTP client: %w", err)
+	}
+	defer client.Close()
+
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); err != nil {
+			return fmt.Errorf("failed to start SMTP TLS: %w", err)
+		}
+	}
+	if auth != nil {
+		if ok, _ := client.Extension("AUTH"); !ok {
+			return fmt.Errorf("SMTP server does not support authentication")
+		}
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("SMTP authentication failed: %w", err)
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("SMTP sender was rejected: %w", err)
+	}
+	for _, recipient := range to {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("SMTP recipient %q was rejected: %w", recipient, err)
+		}
+	}
+	writer, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("failed to start SMTP message: %w", err)
+	}
+	if _, err := writer.Write(msg); err != nil {
+		_ = writer.Close()
+		return fmt.Errorf("failed to write SMTP message: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("failed to finish SMTP message: %w", err)
+	}
+	if err := client.Quit(); err != nil {
+		return fmt.Errorf("failed to close SMTP session: %w", err)
+	}
+	return nil
 }
 
 type storedEmailTemplate struct {

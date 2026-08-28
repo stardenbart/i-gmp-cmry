@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, KeyRound, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,8 +107,12 @@ export default function ForgotPasswordPage() {
 
       <div className="relative z-10 w-full max-w-[440px]">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl border border-white/20 bg-gradient-to-tr from-primary/80 to-purple-600/80 shadow-[0_0_40px_rgba(99,102,241,0.5)] backdrop-blur-xl">
-            {step === "success" ? <CheckCircle2 className="h-10 w-10 text-white" /> : <ShieldCheck className="h-10 w-10 text-white" />}
+          <div className="mx-auto mb-5 flex h-24 w-44 items-center justify-center rounded-3xl border border-white/20 bg-white/95 px-5 shadow-[0_0_40px_rgba(99,102,241,0.35)] backdrop-blur-xl">
+            {step === "success" ? (
+              <CheckCircle2 className="h-11 w-11 text-emerald-500" />
+            ) : (
+              <Image src="/Logo_Cimory.png" alt="Cimory" width={150} height={80} priority className="h-auto w-32 object-contain" />
+            )}
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
             {step === "request" ? "Lupa Password" : step === "verify" ? "Verifikasi OTP" : "Password Diubah"}
