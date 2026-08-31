@@ -499,28 +499,30 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 	endDate := c.Query("end_date")
 
 	type PreviewExportResponse struct {
-		InspectionID    string     `json:"inspection_id"`
-		Tanggal         string     `json:"tanggal"`
-		AreaID          string     `json:"area_id"`
-		Area            string     `json:"area"`
-		KawasanID       string     `json:"kawasan_id"`
-		Kawasan         string     `json:"kawasan"`
-		DetailKawasanID string     `json:"detail_kawasan_id"`
-		DetailKawasan   string     `json:"detail_kawasan"`
-		PIC             string     `json:"pic"`
-		Aspek           string     `json:"aspek"`
-		Detail          string     `json:"detail"`
-		UraianID        string     `json:"uraian_id"`
-		Uraian          string     `json:"uraian"`
-		Nilai           int        `json:"nilai"`
-		TotalNilai      int        `json:"total_nilai"`
-		TotalTemuan     int        `json:"total_temuan"`
-		Keterangan      string     `json:"keterangan"`
-		IssueID         *string    `json:"issue_id"`
-		DueDate         *time.Time `json:"due_date"`
-		ImageURL        *string    `json:"image_url"`
-		ImageURLs       []string   `gorm:"-" json:"image_urls"`
-		FollowUpDate    *time.Time `json:"follow_up_date"`
+		InspectionID        string     `json:"inspection_id"`
+		Tanggal             string     `json:"tanggal"`
+		AreaID              string     `json:"area_id"`
+		Area                string     `json:"area"`
+		KawasanID           string     `json:"kawasan_id"`
+		Kawasan             string     `json:"kawasan"`
+		DetailKawasanID     string     `json:"detail_kawasan_id"`
+		DetailKawasan       string     `json:"detail_kawasan"`
+		PIC                 string     `json:"pic"`
+		Aspek               string     `json:"aspek"`
+		Detail              string     `json:"detail"`
+		UraianID            string     `json:"uraian_id"`
+		Uraian              string     `json:"uraian"`
+		Nilai               int        `json:"nilai"`
+		StandardScore       int        `json:"-"`
+		TotalNilai          int        `json:"total_nilai"`
+		PersentaseKepatuhan float64    `json:"persentase_kepatuhan_detail_kawasan"`
+		TotalTemuan         int        `json:"total_temuan"`
+		Keterangan          string     `json:"keterangan"`
+		IssueID             *string    `json:"issue_id"`
+		DueDate             *time.Time `json:"due_date"`
+		ImageURL            *string    `json:"image_url"`
+		ImageURLs           []string   `gorm:"-" json:"image_urls"`
+		FollowUpDate        *time.Time `json:"follow_up_date"`
 	}
 
 	var results []PreviewExportResponse
@@ -538,7 +540,8 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			dm."DetailName" as detail, 
 			um."UraianID" as uraian_id, 
 			um."UraianText" as uraian, 
-			ir."Nilai" as nilai, 
+			ir."Nilai" as nilai,
+			um."StandardScore" as standard_score,
 			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
@@ -604,12 +607,39 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 		kawasanNilai[key] += res.Nilai
 	}
 
+	// Persentase Kepatuhan (Detail Kawasan): Σ Nilai ÷ Σ StandardScore for
+	// every checked uraian in that Detail Kawasan × 100. Nilai is stored as
+	// the uraian's StandardScore when OK, 0 when NG (see the inspection
+	// checklist submit payload), so this is equivalent to the compliance
+	// ratio used everywhere else in the app (OK count / total count) while
+	// staying correct if StandardScore is ever made non-uniform per item.
+	detailKawasanNilai := make(map[string]int)
+	detailKawasanMax := make(map[string]int)
+
+	for _, res := range results {
+		key := res.DetailKawasanID
+		if key == "" {
+			key = res.DetailKawasan
+		}
+		detailKawasanNilai[key] += res.Nilai
+		detailKawasanMax[key] += res.StandardScore
+	}
+
 	for i := range results {
 		key := results[i].KawasanID
 		if key == "" {
 			key = results[i].Kawasan
 		}
 		results[i].TotalNilai = kawasanNilai[key]
+
+		dkKey := results[i].DetailKawasanID
+		if dkKey == "" {
+			dkKey = results[i].DetailKawasan
+		}
+		if max := detailKawasanMax[dkKey]; max > 0 {
+			results[i].PersentaseKepatuhan = float64(detailKawasanNilai[dkKey]) / float64(max) * 100
+		}
+
 		results[i].TotalTemuan = 0
 		if results[i].IssueID != nil && *results[i].IssueID != "" {
 			results[i].TotalTemuan = 1
@@ -648,6 +678,7 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		UraianID        string     `gorm:"column:uraian_id" json:"uraian_id"`
 		Uraian          string     `gorm:"column:uraian" json:"uraian"`
 		Nilai           int        `gorm:"column:nilai" json:"nilai"`
+		StandardScore   int        `gorm:"column:standard_score" json:"-"`
 		Keterangan      string     `gorm:"column:keterangan" json:"keterangan"`
 		IssueID         *string    `gorm:"column:issue_id" json:"issue_id"`
 		DueDate         *time.Time `gorm:"column:due_date" json:"due_date"`
@@ -670,7 +701,8 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			dm."DetailName" as detail, 
 			um."UraianID" as uraian_id, 
 			um."UraianText" as uraian, 
-			ir."Nilai" as nilai, 
+			ir."Nilai" as nilai,
+			um."StandardScore" as standard_score,
 			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
@@ -726,6 +758,12 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	totalNilai := 0
 	totalTemuan := 0
 	kawasanNilai := make(map[string]int)
+	// Persentase Kepatuhan (Detail Kawasan): Σ Nilai ÷ Σ StandardScore for
+	// every checked uraian in that Detail Kawasan × 100 — see the matching
+	// comment in GetPreviewExport for why this mirrors the app-wide
+	// compliance-rate convention.
+	detailKawasanNilai := make(map[string]int)
+	detailKawasanMax := make(map[string]int)
 	issueIDs := make([]string, 0)
 	for _, result := range results {
 		if result.IssueID != nil && *result.IssueID != "" {
@@ -748,6 +786,14 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			key = results[i].Kawasan
 		}
 		kawasanNilai[key] += results[i].Nilai
+
+		dkKey := results[i].DetailKawasanID
+		if dkKey == "" {
+			dkKey = results[i].DetailKawasan
+		}
+		detailKawasanNilai[dkKey] += results[i].Nilai
+		detailKawasanMax[dkKey] += results[i].StandardScore
+
 		if results[i].IssueID != nil && *results[i].IssueID != "" {
 			totalTemuan++
 			results[i].ImageURLs = initialImages[*results[i].IssueID]
@@ -820,33 +866,43 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			key = res.Kawasan
 		}
 
+		dkKey := res.DetailKawasanID
+		if dkKey == "" {
+			dkKey = res.DetailKawasan
+		}
+		persentaseKepatuhan := 0.0
+		if max := detailKawasanMax[dkKey]; max > 0 {
+			persentaseKepatuhan = float64(detailKawasanNilai[dkKey]) / float64(max) * 100
+		}
+
 		payload.Items = append(payload.Items, map[string]interface{}{
-			"no":                      i + 1,
-			"pic":                     res.PIC,
-			"picName":                 res.PIC,
-			"pic_name":                res.PIC,
-			"kawasanName":             res.Kawasan,
-			"detailKawasanName":       res.DetailKawasan,
-			"aspekName":               res.Aspek,
-			"detailAspekName":         res.Detail,
-			"uraianID":                res.UraianID,
-			"uraianName":              res.Uraian,
-			"uraian":                  res.Uraian,
-			"nilai":                   res.Nilai,
-			"total_nilai_perkawasan":  kawasanNilai[key],
-			"total_temuan_perkawasan": rowTemuan,
-			"total_nilai_peraspek":    kawasanNilai[key],
-			"total_temuan_peraspek":   rowTemuan,
-			"keterangan":              keterangan,
-			"dueDate":                 dueDateStr,
-			"due_date":                dueDateStr,
-			"DueDate":                 dueDateStr,
-			"followUp":                followUpStr,
-			"follow_up":               followUpStr,
-			"follow_up_date":          followUpStr,
-			"FollowUpDate":            followUpStr,
-			"imageUrl":                imageValue,
-			"image_url":               imageValue,
+			"no":                                 i + 1,
+			"pic":                                res.PIC,
+			"picName":                            res.PIC,
+			"pic_name":                           res.PIC,
+			"kawasanName":                        res.Kawasan,
+			"detailKawasanName":                  res.DetailKawasan,
+			"aspekName":                          res.Aspek,
+			"detailAspekName":                    res.Detail,
+			"uraianID":                           res.UraianID,
+			"uraianName":                         res.Uraian,
+			"uraian":                             res.Uraian,
+			"persentase_kepatuhan_detailkawasan": persentaseKepatuhan,
+			"nilai":                              res.Nilai,
+			"total_nilai_perkawasan":             kawasanNilai[key],
+			"total_temuan_perkawasan":            rowTemuan,
+			"total_nilai_peraspek":               kawasanNilai[key],
+			"total_temuan_peraspek":              rowTemuan,
+			"keterangan":                         keterangan,
+			"dueDate":                            dueDateStr,
+			"due_date":                           dueDateStr,
+			"DueDate":                            dueDateStr,
+			"followUp":                           followUpStr,
+			"follow_up":                          followUpStr,
+			"follow_up_date":                     followUpStr,
+			"FollowUpDate":                       followUpStr,
+			"imageUrl":                           imageValue,
+			"image_url":                          imageValue,
 		})
 	}
 

@@ -9,7 +9,9 @@ import type { DashboardStats, SingleItemResponse } from "./index";
 export interface PreviewExportRow {
   inspection_id?: string;
   area?: string;
+  kawasan_id?: string;
   kawasan?: string;
+  detail_kawasan_id?: string;
   detail_kawasan?: string;
   pic?: string;
   aspek?: string;
@@ -18,6 +20,8 @@ export interface PreviewExportRow {
   keterangan?: string;
   nilai?: number;
   total_nilai?: number;
+  /** Σ Nilai ÷ Σ StandardScore for this row's Detail Kawasan × 100. */
+  persentase_kepatuhan_detail_kawasan?: number;
   total_temuan?: number;
   image_url?: string;
   image_urls?: string[];
