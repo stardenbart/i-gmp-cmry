@@ -37,7 +37,7 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	settingRepo := masterrepo.NewSettingRepository(db)
 	notificationUC := buildNotificationUseCase(db, cfg)
 
-	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, settingRepo, notificationUC)
+	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, kawasanRepo, settingRepo, notificationUC)
 
 	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, kawasanRepo, emailNotifier)
 

@@ -203,6 +203,16 @@ func (r *issueRepository) IsScopedToUser(issueID, userID string) (bool, error) {
 	return count > 0, err
 }
 
+func (r *issueRepository) FindReminderCandidates() ([]issue.Issue, error) {
+	var items []issue.Issue
+	err := r.db.
+		Where(`"IssueStatus" NOT IN (?, ?)`, issue.IssueStatusClosed, issue.IssueStatusVerified).
+		Where(`"DueDate" IS NOT NULL`).
+		Where(`"DeadlineReminderSentAt" IS NULL`).
+		Find(&items).Error
+	return items, err
+}
+
 func (r *issueRepository) FindActiveByUraianAndDetailKawasan(uraianID, detailKawasanID string) (*issue.Issue, error) {
 	var item issue.Issue
 	err := r.db.Model(&issue.Issue{}).

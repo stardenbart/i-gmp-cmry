@@ -155,10 +155,16 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 
 			progress, _ := CalculateAreaStatus(h.AreaID, uc.detailKawasanRepo, uc.repo)
 			if progress.Status == inspection.AreaStatusConfirmed {
-				// Send email summary
-				go func(areaID string, p inspection.AreaProgress) {
-					_ = uc.emailNotifier.SendInspectionSummary(areaID, p)
-				}(h.AreaID, progress)
+				// Admin-configurable via Settings: skip the "Area selesai"
+				// email/notification entirely when explicitly turned off.
+				// Missing setting (fresh install without the migration yet,
+				// or the key not seeded) defaults to enabled.
+				if uc.isCompletionNotifyEnabled(master.SettingKeyNotifyOnAreaComplete) {
+					// Send email summary
+					go func(areaID string, p inspection.AreaProgress) {
+						_ = uc.emailNotifier.SendInspectionSummary(areaID, p)
+					}(h.AreaID, progress)
+				}
 
 				// Publish CONFIRMED event
 				confirmedEvent := events.BaseEvent{
@@ -177,9 +183,11 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 			// confirmed" are different events with different audiences.
 			kawasanProgress, _ := CalculateKawasanStatus(h.KawasanID, uc.detailKawasanRepo, uc.repo)
 			if kawasanProgress.Status == inspection.KawasanStatusConfirmed {
-				go func(kawasanID string, p inspection.KawasanProgress) {
-					_ = uc.emailNotifier.SendKawasanInspectionSummary(kawasanID, p)
-				}(h.KawasanID, kawasanProgress)
+				if uc.isCompletionNotifyEnabled(master.SettingKeyNotifyOnKawasanComplete) {
+					go func(kawasanID string, p inspection.KawasanProgress) {
+						_ = uc.emailNotifier.SendKawasanInspectionSummary(kawasanID, p)
+					}(h.KawasanID, kawasanProgress)
+				}
 			}
 		}
 	}
@@ -187,6 +195,22 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 }
 
 func (uc *inspectionHeaderUseCase) Delete(id string) error { return uc.repo.Delete(id) }
+
+// isCompletionNotifyEnabled reads a global (plant-agnostic) on/off toggle
+// for the "fully inspected" email/notification triggers, e.g.
+// NOTIFY_ON_KAWASAN_COMPLETE / NOTIFY_ON_AREA_COMPLETE. Missing setting
+// (fresh install predating migration 041, or a plant that never had the
+// row seeded) is treated as enabled — only an explicit "false" disables it.
+func (uc *inspectionHeaderUseCase) isCompletionNotifyEnabled(settingKey string) bool {
+	if uc.emailNotifier == nil || uc.emailNotifier.settingRepo == nil {
+		return true
+	}
+	setting, err := uc.emailNotifier.settingRepo.FindByKey(settingKey, "")
+	if err != nil || setting == nil {
+		return true
+	}
+	return setting.SettingValue != "false"
+}
 
 // ── Inspection Result UseCase ─────────────────────────────────────────────
 

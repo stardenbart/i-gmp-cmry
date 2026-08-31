@@ -30,11 +30,31 @@ export function GeneralSettingsPanel({ isLoading, values, onChange, onSubmit }: 
               <h3 className="mb-4 font-semibold text-primary">{group.group}</h3>
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 {group.keys.map((item) => (
-                  <div key={item.key}>
-                    <label className="mb-1 block text-sm font-medium" htmlFor={`setting-${item.key}`}>{item.label}</label>
-                    <Input id={`setting-${item.key}`} type={item.type} value={values[item.key] || ""} onChange={(event) => onChange(item.key, event.target.value)} required />
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">{item.desc}</p>
-                  </div>
+                  item.type === "boolean" ? (
+                    <div key={item.key} className="flex items-start justify-between gap-4">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium" htmlFor={`setting-${item.key}`}>{item.label}</label>
+                        <p className="text-[11px] text-muted-foreground">{item.desc}</p>
+                      </div>
+                      <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                        <input
+                          id={`setting-${item.key}`}
+                          type="checkbox"
+                          className="peer sr-only"
+                          checked={values[item.key] === "true"}
+                          onChange={(event) => onChange(item.key, event.target.checked ? "true" : "false")}
+                        />
+                        <div className="h-6 w-11 rounded-full bg-input transition-colors peer-checked:bg-primary" />
+                        <div className="absolute left-1 h-4 w-4 rounded-full bg-background transition-transform peer-checked:translate-x-5" />
+                      </label>
+                    </div>
+                  ) : (
+                    <div key={item.key}>
+                      <label className="mb-1 block text-sm font-medium" htmlFor={`setting-${item.key}`}>{item.label}</label>
+                      <Input id={`setting-${item.key}`} type={item.type} value={values[item.key] || ""} onChange={(event) => onChange(item.key, event.target.value)} required />
+                      <p className="mt-1.5 text-[11px] text-muted-foreground">{item.desc}</p>
+                    </div>
+                  )
                 ))}
               </div>
             </div>

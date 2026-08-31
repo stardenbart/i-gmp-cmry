@@ -26,9 +26,21 @@ const (
 	SettingKeyEmailTemplateIssue               = "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT"
 	SettingKeyEmailTemplateInspectionConfirmed = "EMAIL_TEMPLATE_INSPECTION_CONFIRMED"
 	SettingKeyEmailTemplateKawasanConfirmed    = "EMAIL_TEMPLATE_KAWASAN_CONFIRMED"
+	SettingKeyEmailTemplateDeadlineReminder    = "EMAIL_TEMPLATE_DEADLINE_REMINDER"
 	SettingKeyIssueDeadlineDays                = "ISSUE_DEADLINE_DAYS"
 	SettingKeyIssueAutoApproveDays             = "ISSUE_AUTO_APPROVE_DAYS"
 	SettingKeyIssueWOWRAutoApproveDays         = "ISSUE_WOWR_AUTO_APPROVE_DAYS"
+	// SettingKeyIssueDeadlineReminderDaysBefore controls how many days before
+	// an Issue's DueDate DeadlineReminderWorker sends a reminder. "0" (or
+	// unset, via the 0-default in readDaysSetting-style resolution) disables
+	// the reminder entirely for that plant.
+	SettingKeyIssueDeadlineReminderDaysBefore = "ISSUE_DEADLINE_REMINDER_DAYS_BEFORE"
+	// SettingKeyNotifyOnKawasanComplete / SettingKeyNotifyOnAreaComplete gate
+	// the two "fully inspected" email notifications independently ("true"/
+	// "false"; treated as enabled when unset, matching prior behavior before
+	// these toggles existed).
+	SettingKeyNotifyOnKawasanComplete = "NOTIFY_ON_KAWASAN_COMPLETE"
+	SettingKeyNotifyOnAreaComplete    = "NOTIFY_ON_AREA_COMPLETE"
 	SettingKeySMTPEnabled                      = "SMTP_ENABLED"
 	SettingKeySMTPHost                         = "SMTP_HOST"
 	SettingKeySMTPPort                         = "SMTP_PORT"

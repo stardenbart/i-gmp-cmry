@@ -47,6 +47,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 
 	// Start Background Worker (interval 1 hour)
 	issueusecase.StartAutoApproveWorker(context.Background(), issueUC, 1*time.Hour)
+	issueusecase.StartDeadlineReminderWorker(context.Background(), issueUC, 1*time.Hour)
 
 	issueH := issuehandler.NewIssueHandler(issueUC)
 	issueDelegateH := issuehandler.NewIssueDelegateHandler(issueDelegateUC)

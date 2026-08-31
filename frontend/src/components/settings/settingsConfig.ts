@@ -3,6 +3,7 @@ export const EMAIL_TEMPLATES = [
   { key: "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT", title: "Penugasan Temuan (Issue)", description: "Email notifikasi saat user ditugaskan memperbaiki suatu temuan.", variables: ["PICName", "IssueID", "Keterangan", "Status", "DueDate"], requiredVariables: [] },
   { key: "EMAIL_TEMPLATE_INSPECTION_CONFIRMED", title: "Konfirmasi Inspeksi", description: "Email saat inspeksi area telah selesai dan dikonfirmasi.", variables: ["AreaID", "TotalDetailKawasan", "CompletedDetailKawasan", "Status"], requiredVariables: [] },
   { key: "EMAIL_TEMPLATE_KAWASAN_CONFIRMED", title: "Kawasan Selesai Diinspeksi", description: "Email ke Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini.", variables: ["KawasanID", "TotalDetailKawasan", "CompletedDetailKawasan", "Status"], requiredVariables: [] },
+  { key: "EMAIL_TEMPLATE_DEADLINE_REMINDER", title: "Pengingat Tenggat Temuan", description: "Email ke PIC & Manager sebelum tenggat penyelesaian temuan terlewati.", variables: ["PICName", "IssueID", "Keterangan", "DueDate", "DaysRemaining"], requiredVariables: [] },
 ] as const;
 
 export type EmailTemplateConfig = (typeof EMAIL_TEMPLATES)[number];
@@ -20,6 +21,11 @@ export const GENERAL_SETTINGS = [
     { key: "ISSUE_DEADLINE_DAYS", label: "Tenggat Penyelesaian (Hari)", type: "number", desc: "Waktu penyelesaian default sebelum temuan menjadi overdue." },
     { key: "ISSUE_AUTO_APPROVE_DAYS", label: "Auto-Approve Follow-Up (Hari)", type: "number", desc: "Waktu tunggu peninjauan follow-up sebelum disetujui otomatis." },
     { key: "ISSUE_WOWR_AUTO_APPROVE_DAYS", label: "Auto-Approve WO/WR (Hari)", type: "number", desc: "Waktu tunggu validasi bukti WO/WR sebelum disetujui otomatis." },
+  ] },
+  { group: "Pengingat & Notifikasi", keys: [
+    { key: "ISSUE_DEADLINE_REMINDER_DAYS_BEFORE", label: "Pengingat Tenggat (Hari Sebelum)", type: "number", desc: "Berapa hari sebelum tenggat temuan sistem mengirim pengingat ke PIC & Manager. Isi 0 untuk menonaktifkan." },
+    { key: "NOTIFY_ON_KAWASAN_COMPLETE", label: "Notifikasi Kawasan Selesai", type: "boolean", desc: "Kirim email ke PIC & Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini." },
+    { key: "NOTIFY_ON_AREA_COMPLETE", label: "Notifikasi Area Selesai", type: "boolean", desc: "Kirim email ke PIC & Manager saat seluruh Kawasan di satu Area selesai diinspeksi." },
   ] },
 ] as const;
 
