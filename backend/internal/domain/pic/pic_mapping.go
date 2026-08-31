@@ -16,13 +16,24 @@ type PICMapping struct {
 
 func (PICMapping) TableName() string { return "PIC_Mapping" }
 
+// ResponsibleUser is the minimal user info needed to notify/email someone
+// resolved as responsible for a Kawasan (PIC, Manager, Supervisor, ...).
+// Deliberately not authdomain.User: that package already imports pic (for
+// User.PICMappings), so reusing it here would create an import cycle.
+type ResponsibleUser struct {
+	UserID   string
+	FullName string
+	Email    string
+	PlantID  *string
+}
+
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 
 type CreatePICMappingRequest struct {
 	AreaID      *string `json:"area_id"`
-	KawasanID   string `json:"kawasan_id" validate:"required"`
-	UserID      string `json:"user_id" validate:"required"`
-	KategoriPIC string `json:"kategori_pic"`
+	KawasanID   string  `json:"kawasan_id" validate:"required"`
+	UserID      string  `json:"user_id" validate:"required"`
+	KategoriPIC string  `json:"kategori_pic"`
 }
 
 type UpdatePICMappingRequest struct {
@@ -37,6 +48,16 @@ type PICMappingRepository interface {
 	FindByID(id string) (*PICMapping, error)
 	FindByUserID(userID string) ([]PICMapping, error)
 	FindByAreaAndKawasan(areaID, kawasanID string) ([]PICMapping, error)
+	// FindResponsibleUsers returns every user PIC-mapped to kawasanID,
+	// optionally filtered to one KategoriPIC (e.g. "Manager"); pass "" to
+	// get all categories (PIC/Manager/Supervisor/Staff alike).
+	FindResponsibleUsers(kawasanID string, kategori string) ([]ResponsibleUser, error)
+	// FindResponsibleUsersByResultID resolves the Kawasan an Inspection_Result
+	// belongs to (via its Inspection_Header) and returns its responsible
+	// users the same way as FindResponsibleUsers. Lets callers that only
+	// have a ResultID (e.g. Issue creation) reach the right Kawasan without
+	// needing their own InspectionHeaderRepository dependency.
+	FindResponsibleUsersByResultID(resultID string, kategori string) ([]ResponsibleUser, error)
 	Create(p *PICMapping) error
 	Update(p *PICMapping) error
 	Delete(id string) error

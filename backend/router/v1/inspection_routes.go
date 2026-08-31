@@ -46,7 +46,7 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	issuePhotoRepo := issuerepo.NewIssuePhotoRepository(db)
 	issueHEIRepo := issuerepo.NewIssueHEIRepository(db)
 	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
-	issueUC := issueusecase.NewIssueUseCase(issueRepo, issuePhotoRepo, issueHEIRepo, minioStorage, producer, mailer, authRepo, settingRepo, issueDelegateRepo, cryptoSvc, rdb, notificationUC)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, issuePhotoRepo, issueHEIRepo, minioStorage, producer, mailer, authRepo, settingRepo, issueDelegateRepo, cryptoSvc, rdb, notificationUC, picRepo)
 
 	resultUC := inspectionusecase.NewInspectionResultUseCase(resultRepo, issueUC, headerUC)
 

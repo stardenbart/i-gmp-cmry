@@ -44,6 +44,36 @@ func (r *picMappingRepository) FindByAreaAndKawasan(areaID, kawasanID string) ([
 	return items, err
 }
 
+func (r *picMappingRepository) FindResponsibleUsers(kawasanID string, kategori string) ([]pic.ResponsibleUser, error) {
+	var users []pic.ResponsibleUser
+	q := r.db.Table(`"PIC_Mapping" pm`).
+		Select(`u."UserID" as user_id, u."FullName" as full_name, u."Email" as email, u."PlantID" as plant_id`).
+		Joins(`JOIN "Users" u ON u."UserID" = pm."UserID"`).
+		Where(`pm."KawasanID" = ?`, kawasanID)
+	if kategori != "" {
+		q = q.Where(`pm."KategoriPIC" = ?`, kategori)
+	}
+	err := q.Scan(&users).Error
+	return users, err
+}
+
+func (r *picMappingRepository) FindResponsibleUsersByResultID(resultID string, kategori string) ([]pic.ResponsibleUser, error) {
+	var users []pic.ResponsibleUser
+	q := r.db.Table(`"PIC_Mapping" pm`).
+		Select(`u."UserID" as user_id, u."FullName" as full_name, u."Email" as email, u."PlantID" as plant_id`).
+		Joins(`JOIN "Users" u ON u."UserID" = pm."UserID"`).
+		Where(`pm."KawasanID" = (
+			SELECT ih."KawasanID" FROM "Inspection_Result" ir
+			JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"
+			WHERE ir."ResultID" = ?
+		)`, resultID)
+	if kategori != "" {
+		q = q.Where(`pm."KategoriPIC" = ?`, kategori)
+	}
+	err := q.Scan(&users).Error
+	return users, err
+}
+
 func (r *picMappingRepository) Create(p *pic.PICMapping) error { return r.db.Create(p).Error }
 func (r *picMappingRepository) Update(p *pic.PICMapping) error { return r.db.Save(p).Error }
 func (r *picMappingRepository) Delete(id string) error {

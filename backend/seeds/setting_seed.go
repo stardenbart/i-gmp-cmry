@@ -47,6 +47,11 @@ func SeedSettings(db *gorm.DB) {
 			Description:  "Template email notifikasi inspeksi selesai ke PIC/Manager (HTML)",
 		},
 		{
+			SettingKey:   master.SettingKeyEmailTemplateKawasanConfirmed,
+			SettingValue: "<h1>Kawasan Selesai Diinspeksi</h1><p>Kawasan {{.KawasanID}} telah selesai diinspeksi bulan ini ({{.CompletedDetailKawasan}}/{{.TotalDetailKawasan}} detail kawasan).</p>",
+			Description:  "Template email ke Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini (HTML)",
+		},
+		{
 			SettingKey:   master.SettingKeyIssueDeadlineDays,
 			SettingValue: "14",
 			Description:  "Batas waktu penyelesaian issue (dalam hari) sebelum menjadi overdue",

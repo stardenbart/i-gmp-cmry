@@ -2,6 +2,7 @@ export const EMAIL_TEMPLATES = [
   { key: "EMAIL_TEMPLATE_FORGOT_PASSWORD", title: "OTP Lupa Password", description: "Template kode OTP reset password. Dapat dibuat berbeda untuk setiap plant.", variables: ["FullName", "Username", "OTP", "OTPExpiryMinutes"], requiredVariables: ["OTP", "OTPExpiryMinutes"] },
   { key: "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT", title: "Penugasan Temuan (Issue)", description: "Email notifikasi saat user ditugaskan memperbaiki suatu temuan.", variables: ["PICName", "IssueID", "Keterangan", "Status", "DueDate"], requiredVariables: [] },
   { key: "EMAIL_TEMPLATE_INSPECTION_CONFIRMED", title: "Konfirmasi Inspeksi", description: "Email saat inspeksi area telah selesai dan dikonfirmasi.", variables: ["AreaID", "TotalDetailKawasan", "CompletedDetailKawasan", "Status"], requiredVariables: [] },
+  { key: "EMAIL_TEMPLATE_KAWASAN_CONFIRMED", title: "Kawasan Selesai Diinspeksi", description: "Email ke Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini.", variables: ["KawasanID", "TotalDetailKawasan", "CompletedDetailKawasan", "Status"], requiredVariables: [] },
 ] as const;
 
 export type EmailTemplateConfig = (typeof EMAIL_TEMPLATES)[number];
