@@ -998,7 +998,27 @@ func (h *DashboardHandler) GetPICDetail(c *fiber.Ctx) error {
 	now := time.Now()
 	allowedAreas := h.getAllowedAreas(c)
 
+	// IssuePICUserID alone is always the inspector who ran the audit (see
+	// BulkSave in inspection_usecases.go), never the Auditee/PIC actually
+	// responsible for follow-up — joining on it directly attributed every
+	// finding to the wrong user, so real PICs (mapped via PIC_Mapping, or
+	// delegated) never showed up here with meaningful numbers. pic_issues
+	// resolves the same direct/delegate/PIC_Mapping OR-scope used
+	// elsewhere (see FindAll's picUserID filter) into an issue->user
+	// mapping so every legitimate PIC gets credited. UNION (not UNION
+	// ALL) dedupes an issue counted twice for the same user (e.g. direct
+	// PIC who's also PIC_Mapping'd for that Kawasan).
 	queryStr := `
+		WITH pic_issues AS (
+			SELECT i."IssueID", i."IssuePICUserID" AS "UserID" FROM "Issue" i
+			UNION
+			SELECT d."IssueID", d."DelegateUserID" AS "UserID" FROM "Issue_Delegate" d
+			UNION
+			SELECT i2."IssueID", pm."UserID" FROM "Issue" i2
+				JOIN "Inspection_Result" ir2 ON ir2."ResultID" = i2."ResultID"
+				JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+				JOIN "PIC_Mapping" pm ON pm."KawasanID" = ih2."KawasanID"
+		)
 		SELECT
 			u."UserID",
 			u."FullName",
@@ -1010,7 +1030,8 @@ func (h *DashboardHandler) GetPICDetail(c *fiber.Ctx) error {
 			SUM(CASE WHEN i."IssueStatus" = 'Verified'          THEN 1 ELSE 0 END)     AS verified_count,
 			SUM(CASE WHEN i."DueDate" IS NOT NULL AND i."DueDate" < ? AND i."IssueStatus" NOT IN ('Closed','Verified') THEN 1 ELSE 0 END) AS overdue_count
 		FROM "Users" u
-		INNER JOIN "Issue" i ON i."IssuePICUserID" = u."UserID"
+		INNER JOIN pic_issues pi ON pi."UserID" = u."UserID"
+		INNER JOIN "Issue" i ON i."IssueID" = pi."IssueID"
 		INNER JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"
 		INNER JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"
 	`
