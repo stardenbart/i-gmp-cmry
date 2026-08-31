@@ -383,6 +383,7 @@ export default function GmpDataAdminPage() {
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Uraian ID</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Nilai per Detail Kawasan">Nilai</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai per Kawasan">Total Nilai (Kawasan)</th>
+                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai ÷ Total Nilai Maksimal (semua uraian OK) pada Detail Kawasan ini × 100">Persentase Kepatuhan (Detail Kawasan)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="1 jika uraian ini memiliki issue, 0 jika tidak">Temuan (Uraian)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti temuan awal pada uraian">Visual Gambar</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan per Detail Kawasan">Keterangan</th>
@@ -480,6 +481,24 @@ export default function GmpDataAdminPage() {
                       <span className="px-2 py-0.5 rounded bg-muted/60 text-xs">
                         {row.total_nilai ?? "-"}
                       </span>
+                    </td>
+
+                    {/* Persentase Kepatuhan (Detail Kawasan) */}
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      {(() => {
+                        const pct = row.persentase_kepatuhan_detail_kawasan;
+                        if (pct === undefined || pct === null) return <span className="text-muted-foreground">-</span>;
+                        return (
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-xs font-bold border",
+                            pct >= 80 ? "bg-green-500/10 text-green-600 border-green-500/20" :
+                            pct >= 60 ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" :
+                            "bg-red-500/10 text-red-600 border-red-500/20"
+                          )}>
+                            {pct.toFixed(1)}%
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Total Temuan */}
