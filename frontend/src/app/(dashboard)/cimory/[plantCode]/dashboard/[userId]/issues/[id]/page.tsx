@@ -16,7 +16,6 @@ import { cn, formatImageUrl } from "@/lib/utils";
 import { InfoCard } from "@/components/isssues/InfoCard";
 import { PhotoSection } from "@/components/isssues/PhotosCard";
 import { useAuthStore } from "@/stores/authStore";
-import { usePermissions } from "@/lib/usePermissions";
 import { usePolling } from "@/hooks/usePolling";
 import { filterApi } from "@/lib/api/filter.api";
 
@@ -65,7 +64,6 @@ export default function IssueDetailPage() {
   usePolling();
 
   const user = useAuthStore((state) => state.user);
-  const { hasPermission } = usePermissions();
 
   const { data, isLoading } = useQuery({
     queryKey: ["issue", id],
@@ -142,8 +140,12 @@ export default function IssueDetailPage() {
 
   if (!issue) return <div className="text-center p-10 text-muted-foreground">Temuan tidak ditemukan.</div>;
 
-  // Dynamic role calculation
-  const isAuditor = hasPermission("PERM-INSP-C") || hasPermission("PERM-WOWR-U");
+  // Approval authority follows the actor's role. PERM-WOWR-U cannot be used
+  // here because Auditee also owns that permission for uploading WO/WR proof.
+  const roleID = user?.role_id?.trim().toUpperCase() || "";
+  const roleName = user?.role?.role_name?.trim().toUpperCase() || "";
+  const isAuditor = ["ROLE-000", "ROLE-001", "ROLE-002", "SUPERADMIN", "ADMIN", "AUDITOR"].includes(roleID)
+    || ["SUPER ADMIN", "ADMIN", "AUDITOR"].includes(roleName);
   const isPIC = !isAuditor;
 
   // Status calculation
@@ -153,7 +155,9 @@ export default function IssueDetailPage() {
 
   const config = statusConfig[currentStatus] || statusConfig[rawStatus] || statusConfig["Open"];
   const StatusIcon = config.icon;
-  let transitions = STATUS_TRANSITIONS[currentStatus] || STATUS_TRANSITIONS[rawStatus] || [];
+  // Workflow actions must use the persisted status. `computed_status` is only
+  // a display state (for example InProgress can be displayed as Overdue).
+  let transitions = STATUS_TRANSITIONS[rawStatus] || STATUS_TRANSITIONS[currentStatus] || [];
 
   // Filter transition buttons based on role (PIC vs Auditor)
   if (isPIC) {

@@ -180,6 +180,29 @@ func (r *issueRepository) FindByResultID(resultID string) (*issue.Issue, error) 
 	return &item, err
 }
 
+// IsScopedToUser mirrors the "my issues" OR-scope used in FindAll's
+// picUserID clause, checked for a single issue: direct PIC, delegate, or
+// PIC_Mapping for the issue's Kawasan.
+func (r *issueRepository) IsScopedToUser(issueID, userID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&issue.Issue{}).
+		Where(`"Issue"."IssueID" = ?`, issueID).
+		Where(
+			`"Issue"."IssuePICUserID" = ?
+			OR "Issue"."IssueID" IN (SELECT "IssueID" FROM "Issue_Delegate" WHERE "DelegateUserID" = ?)
+			OR "Issue"."IssueID" IN (
+				SELECT i."IssueID" FROM "Issue" i
+				JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"
+				JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"
+				JOIN "PIC_Mapping" pm ON ih."KawasanID" = pm."KawasanID"
+				WHERE pm."UserID" = ?
+			)`,
+			userID, userID, userID,
+		).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *issueRepository) FindActiveByUraianAndDetailKawasan(uraianID, detailKawasanID string) (*issue.Issue, error) {
 	var item issue.Issue
 	err := r.db.Model(&issue.Issue{}).

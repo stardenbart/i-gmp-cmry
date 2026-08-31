@@ -362,20 +362,32 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 
 	// Validation logic for Follow Up
 	if req.IssueStatus == issue.IssueStatusPendingValidation && i.IssueStatus != issue.IssueStatusPendingValidation {
-		// Check if actor is PIC, Delegate, Auditor, or mapped PIC
+		// Check if actor is PIC (direct, delegated, or PIC_Mapping'd for
+		// this issue's Kawasan), or an Auditor/Admin.
+		//
+		// Previously this checked len(user.PICMappings) == 0 on a User
+		// loaded via a plain FindByID that never preloads PICMappings —
+		// that slice was always empty, so every Auditee who wasn't
+		// literally IssuePICUserID (always the inspector, see BulkSave in
+		// inspection_usecases.go) or an explicit delegate was rejected
+		// with "unauthorized", even when they were the correct PIC for
+		// the finding's Kawasan. IsScopedToUser runs the real check
+		// directly in SQL instead of relying on a preloaded relation.
 		if actorID != i.IssuePICUserID {
 			isDel, _ := uc.delegateRepo.IsDelegate(i.IssueID, actorID)
 			if !isDel {
 				user, errUser := uc.userRepo.FindByID(actorID)
+				isAud := false
 				if errUser == nil && user != nil {
 					r := strings.ToUpper(user.RoleID)
 					// Strict check against valid system Role IDs:
 					// ROLE-000 (Super Admin), ROLE-001 (Admin), ROLE-002 (Auditor)
-					isAud := r == "ROLE-000" || r == "ROLE-001" || r == "ROLE-002"
-					if !isAud {
-						if len(user.PICMappings) == 0 {
-							return nil, errors.New("unauthorized: you are not the PIC or delegate for this issue")
-						}
+					isAud = r == "ROLE-000" || r == "ROLE-001" || r == "ROLE-002"
+				}
+				if !isAud {
+					scoped, errScope := uc.repo.IsScopedToUser(i.IssueID, actorID)
+					if errScope != nil || !scoped {
+						return nil, errors.New("unauthorized: you are not the PIC or delegate for this issue")
 					}
 				}
 			}
