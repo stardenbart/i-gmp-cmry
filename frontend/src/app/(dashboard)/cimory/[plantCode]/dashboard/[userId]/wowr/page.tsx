@@ -293,9 +293,17 @@ function IssueRow({
   // Dynamic permission controls (Database driven)
   const canValidate = hasPermission("PERM-WOWR-U") || hasPermission("PERM-INSP-A");
   const canUploadProof = hasPermission("PERM-ISS-U") || hasPermission("PERM-WOWR-R") || hasPermission("PERM-WOWR-U");
-  const hasWOWRProofImage = item.wowr_photos.some((photo) =>
-    Boolean(photo.image_url) && photo.pic_user_id === item.raw_issue.issue_pic_user_id
-  );
+  // item.wowr_photos is already scoped to this exact finding (photo_type
+  // "WOWR" + matching ref_photo_id, see the wowrItems useMemo above), so
+  // no extra ownership check is needed here. The previous check compared
+  // the photo's uploader against `issue_pic_user_id` — but that field is
+  // always set to the *inspector* who ran the audit (see
+  // inspection_usecases.go BulkSave), never the Auditee/PIC who actually
+  // uploads WO/WR evidence. That mismatch made this always evaluate to
+  // false for real uploads, permanently blocking Auditor/Admin from
+  // verifying — the "Belum ada foto bukti WO/WR" warning showed even
+  // when a valid photo existed.
+  const hasWOWRProofImage = item.wowr_photos.some((photo) => Boolean(photo.image_url));
 
   const queryClient = useQueryClient();
   

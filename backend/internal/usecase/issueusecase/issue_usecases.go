@@ -343,9 +343,13 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 		if photoErr != nil {
 			return nil, errors.New("gagal memeriksa foto bukti WO/WR")
 		}
+		// IssuePICUserID is always the inspector who ran the audit, never
+		// the Auditee/PIC who actually uploads WO/WR evidence — comparing
+		// the photo's uploader against it here always failed, permanently
+		// blocking verification even when a valid photo existed.
 		hasWOWRProof := false
 		for _, photo := range photos {
-			if photo.PhotoType == issue.PhotoTypeWOWR && photo.PICUserID == i.IssuePICUserID &&
+			if photo.PhotoType == issue.PhotoTypeWOWR &&
 				(photo.ImageUrl != "" || photo.FileName != "") {
 				hasWOWRProof = true
 				break
@@ -833,9 +837,13 @@ func (uc *issuePhotoUseCase) UpdateWOWR(ctx context.Context, photoID string, req
 		if proofErr != nil {
 			return nil, errors.New("gagal memeriksa foto bukti WO/WR")
 		}
+		// IssuePICUserID is always the inspector who ran the audit, never
+		// the Auditee/PIC who actually uploads WO/WR evidence — comparing
+		// the photo's uploader against it here always failed, permanently
+		// blocking verification even when a valid photo existed.
 		hasLinkedWOWRProof := false
 		for _, proof := range photos {
-			if proof.PhotoType == issue.PhotoTypeWOWR && proof.PICUserID == parentIssue.IssuePICUserID &&
+			if proof.PhotoType == issue.PhotoTypeWOWR &&
 				proof.RefPhotoID != nil && *proof.RefPhotoID == photoID &&
 				(proof.ImageUrl != "" || proof.FileName != "") {
 				hasLinkedWOWRProof = true
