@@ -208,10 +208,15 @@ func readDaysSetting(uc *issueUseCase, key, plantID string, defaultDays int) int
 	return d
 }
 
-// hasWOWRProof reports whether the PIC has already uploaded a WO/WR completion
-// photo for the issue. Mirrors the check in issueUseCase.Update so the
+// hasWOWRProof reports whether a WO/WR completion photo has been uploaded
+// for the issue. Mirrors the check in issueUseCase.Update so the
 // auto-approve timeout never verifies WO/WR work that was never submitted.
-func (uc *issueUseCase) hasWOWRProof(issueID, picUserID string) bool {
+//
+// Does not compare the photo's uploader against picUserID: IssuePICUserID
+// is always the inspector who ran the audit, never the Auditee/PIC who
+// actually uploads WO/WR evidence, so that comparison always failed and
+// permanently blocked auto-approval even when a valid photo existed.
+func (uc *issueUseCase) hasWOWRProof(issueID, _ string) bool {
 	if uc.photoRepo == nil {
 		return false
 	}
@@ -220,7 +225,7 @@ func (uc *issueUseCase) hasWOWRProof(issueID, picUserID string) bool {
 		return false
 	}
 	for _, photo := range photos {
-		if photo.PhotoType == issue.PhotoTypeWOWR && photo.PICUserID == picUserID &&
+		if photo.PhotoType == issue.PhotoTypeWOWR &&
 			(photo.ImageUrl != "" || photo.FileName != "") {
 			return true
 		}

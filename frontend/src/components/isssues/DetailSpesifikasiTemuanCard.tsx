@@ -44,10 +44,15 @@ export const DetailSpesifikasiTemuanCard = ({
   );
   const [inputValue, setInputValue] = useState(activeTarget.wo_id || activeTarget.wr_id || "");
   const [validationError, setValidationError] = useState("");
+  // `issue.issue_pic_user_id` is always the inspector who ran the audit
+  // (see inspection_usecases.go BulkSave), never the Auditee/PIC who
+  // actually uploads WO/WR evidence — comparing the photo's uploader
+  // against it here always failed, permanently blocking Auditor/Admin
+  // from approving even when a valid photo existed. photo_type "WOWR"
+  // plus the ref_photo_id match already scope this to the right evidence.
   const hasWOWRProofImage = photos.some((proof) =>
     proof.photo_type === "WOWR" &&
     Boolean(proof.image_url) &&
-    proof.pic_user_id === issue.issue_pic_user_id &&
     (photo?.issue_photo_id ? proof.ref_photo_id === photo.issue_photo_id : true)
   );
 
