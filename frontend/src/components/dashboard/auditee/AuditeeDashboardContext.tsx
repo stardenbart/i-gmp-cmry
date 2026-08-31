@@ -29,13 +29,23 @@ export function AuditeeDashboardProvider({ children }: { children: ReactNode }) 
 
   usePolling({ intervalMs: 30_000, immediate: false });
 
+  // NOTE: `issue_pic_user_id` is intentionally NOT sent here. The backend
+  // already scopes non-auditor callers to their own issues automatically
+  // (GetFiltered sets ScopeUserID), which matches an issue assigned
+  // directly, delegated to the user, or mapped via PIC_Mapping for the
+  // Kawasan — the actual ways an Auditee ends up responsible for a
+  // finding. Findings created from an inspection always store
+  // IssuePICUserID as the *inspector*, not the Auditee, so adding an
+  // explicit `issue_pic_user_id` filter here would AND against that
+  // broader OR-scope and hide every finding reached only via delegation
+  // or PIC_Mapping — i.e. almost all of them.
   const {
     data: summaryData,
     isLoading: isSummaryLoading,
     isFetching: isSummaryFetching,
   } = useQuery({
     queryKey: ["auditee-issue-summary", user?.id],
-    queryFn: () => filterApi.issues({ issue_pic_user_id: user!.id, limit: 1 }),
+    queryFn: () => filterApi.issues({ limit: 1 }),
     enabled: mounted && !!user?.id,
     staleTime: 30_000,
   });
@@ -48,7 +58,6 @@ export function AuditeeDashboardProvider({ children }: { children: ReactNode }) 
     queryKey: ["auditee-priority-issues", user?.id],
     queryFn: () =>
       filterApi.issues({
-        issue_pic_user_id: user!.id,
         limit: 10,
         status__in: "Open,InProgress,Overdue,PendingValidation",
         sort_by: "due_date",
