@@ -146,6 +146,11 @@ type IssueRepository interface {
 	FindByResultID(resultID string) (*Issue, error)
 	FindActiveByUraianAndDetailKawasan(uraianID, detailKawasanID string) (*Issue, error)
 	FindActiveByResultContext(resultID string) (*Issue, error)
+	// IsScopedToUser reports whether userID is authorized to act on issueID
+	// as its PIC — directly assigned, delegated, or mapped via PIC_Mapping
+	// for the issue's Kawasan. Mirrors the scope used to list "my issues"
+	// (see FindAll's picUserID clause) so the two never drift apart.
+	IsScopedToUser(issueID, userID string) (bool, error)
 	ConsolidateDuplicateActiveIssues() error
 	Create(i *Issue) error
 	Update(i *Issue) error
