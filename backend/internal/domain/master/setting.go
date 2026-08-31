@@ -25,6 +25,7 @@ const (
 	SettingKeyEmailTemplateForgotPass          = "EMAIL_TEMPLATE_FORGOT_PASSWORD"
 	SettingKeyEmailTemplateIssue               = "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT"
 	SettingKeyEmailTemplateInspectionConfirmed = "EMAIL_TEMPLATE_INSPECTION_CONFIRMED"
+	SettingKeyEmailTemplateKawasanConfirmed    = "EMAIL_TEMPLATE_KAWASAN_CONFIRMED"
 	SettingKeyIssueDeadlineDays                = "ISSUE_DEADLINE_DAYS"
 	SettingKeyIssueAutoApproveDays             = "ISSUE_AUTO_APPROVE_DAYS"
 	SettingKeyIssueWOWRAutoApproveDays         = "ISSUE_WOWR_AUTO_APPROVE_DAYS"

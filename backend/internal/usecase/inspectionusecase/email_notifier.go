@@ -111,3 +111,65 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 	log.Printf("[EmailNotifier] Successfully sent Area Confirmed email to %v", targetEmails)
 	return nil
 }
+
+// SendKawasanInspectionSummary is called when a Kawasan's status becomes
+// Confirmed (every DetailKawasan under it completed this month). Only
+// notifies users mapped as "Manager" for that Kawasan — narrower audience
+// than SendInspectionSummary's Area-wide PIC list, matching the recipient
+// this specific event is meant for.
+func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string, progress inspection.KawasanProgress) error {
+	managers, err := n.picRepo.FindResponsibleUsers(kawasanID, "Manager")
+	if err != nil {
+		log.Printf("[EmailNotifier] Error retrieving Managers for Kawasan %s: %v", kawasanID, err)
+		return err
+	}
+
+	var targetEmails []string
+	var targetUserIDs []string
+	emailSet := make(map[string]bool)
+	plantID := ""
+	for _, m := range managers {
+		if plantID == "" && m.PlantID != nil {
+			plantID = *m.PlantID
+		}
+		if m.Email != "" && !emailSet[m.Email] {
+			emailSet[m.Email] = true
+			targetEmails = append(targetEmails, m.Email)
+		}
+		targetUserIDs = append(targetUserIDs, m.UserID)
+	}
+
+	if n.notificationUC != nil {
+		message := fmt.Sprintf("Kawasan %s telah selesai diinspeksi bulan ini (%d/%d detail kawasan).", kawasanID, progress.CompletedDetailKawasan, progress.TotalDetailKawasan)
+		for _, userID := range targetUserIDs {
+			_ = n.notificationUC.CreateSystemNotification(userID, "success", "Kawasan Selesai Diinspeksi", message, "/inspections")
+		}
+	}
+
+	if len(targetEmails) == 0 {
+		log.Printf("[EmailNotifier] No Manager found or missing emails for Kawasan %s", kawasanID)
+		return nil
+	}
+
+	setting, err := n.settingRepo.FindByKey(master.SettingKeyEmailTemplateKawasanConfirmed, plantID)
+	if err != nil {
+		log.Printf("[EmailNotifier] Error retrieving Kawasan-confirmed template: %v", err)
+		return err
+	}
+
+	data := map[string]interface{}{
+		"KawasanID":              kawasanID,
+		"TotalDetailKawasan":     progress.TotalDetailKawasan,
+		"CompletedDetailKawasan": progress.CompletedDetailKawasan,
+		"Status":                 string(progress.Status),
+	}
+
+	subject := "✅ Kawasan Selesai Diinspeksi: " + kawasanID
+	if err := n.mailer.SendTemplateForPlant(plantID, targetEmails, subject, setting.SettingValue, data); err != nil {
+		log.Printf("[EmailNotifier] Failed to send Kawasan-confirmed email to %v: %v", targetEmails, err)
+		return err
+	}
+
+	log.Printf("[EmailNotifier] Successfully sent Kawasan Confirmed email to %v", targetEmails)
+	return nil
+}

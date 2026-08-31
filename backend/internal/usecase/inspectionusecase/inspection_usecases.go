@@ -169,6 +169,18 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 				}
 				_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditInspections, h.AreaID, confirmedEvent)
 			}
+
+			// Narrower than the Area-wide check above: notify the Kawasan's
+			// Manager (KategoriPIC "Manager") specifically once every
+			// DetailKawasan under THIS Kawasan is done this month — an Area
+			// can contain several Kawasan, so "Area confirmed" and "Kawasan
+			// confirmed" are different events with different audiences.
+			kawasanProgress, _ := CalculateKawasanStatus(h.KawasanID, uc.detailKawasanRepo, uc.repo)
+			if kawasanProgress.Status == inspection.KawasanStatusConfirmed {
+				go func(kawasanID string, p inspection.KawasanProgress) {
+					_ = uc.emailNotifier.SendKawasanInspectionSummary(kawasanID, p)
+				}(h.KawasanID, kawasanProgress)
+			}
 		}
 	}
 	return h, err

@@ -15,6 +15,7 @@ import (
 	"github.com/monitoring-system/backend/internal/domain/issue"
 	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	notificationdomain "github.com/monitoring-system/backend/internal/domain/notification"
+	picdomain "github.com/monitoring-system/backend/internal/domain/pic"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/eventstore"
 	"github.com/monitoring-system/backend/pkg/idgen"
@@ -33,6 +34,7 @@ type issueUseCase struct {
 	storage        *storage.MinioStorage
 	userRepo       authdomain.UserRepository // to fetch PIC email
 	delegateRepo   issue.IssueDelegateRepository
+	picRepo        picdomain.PICMappingRepository // resolves the Kawasan's real PIC/Manager for notifications
 	producer       kafka.EventProducer
 	mailer         mail.Mailer
 	settingRepo    masterdomain.SettingRepository
@@ -41,8 +43,8 @@ type issueUseCase struct {
 	notificationUC notificationdomain.NotificationUseCase // in-app bell notifications, alongside email
 }
 
-func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, heiRepo issue.IssueHEIRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client, notificationUC notificationdomain.NotificationUseCase) issue.IssueUseCase {
-	return &issueUseCase{repo: repo, photoRepo: photoRepo, heiRepo: heiRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb, notificationUC: notificationUC}
+func NewIssueUseCase(repo issue.IssueRepository, photoRepo issue.IssuePhotoRepository, heiRepo issue.IssueHEIRepository, storage *storage.MinioStorage, producer kafka.EventProducer, mailer mail.Mailer, userRepo authdomain.UserRepository, settingRepo masterdomain.SettingRepository, delegateRepo issue.IssueDelegateRepository, cryptoSvc *crypto.Service, rdb *redis.Client, notificationUC notificationdomain.NotificationUseCase, picRepo picdomain.PICMappingRepository) issue.IssueUseCase {
+	return &issueUseCase{repo: repo, photoRepo: photoRepo, heiRepo: heiRepo, storage: storage, producer: producer, mailer: mailer, userRepo: userRepo, settingRepo: settingRepo, delegateRepo: delegateRepo, cryptoSvc: cryptoSvc, rdb: rdb, notificationUC: notificationUC, picRepo: picRepo}
 }
 
 // notify creates an in-app bell notification for a user, best-effort — a
@@ -242,45 +244,70 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 		_ = uc.producer.PublishEvent(context.Background(), events.TopicAuditIssues, i.IssueID, event)
 		eventstore.GetEventStore(uc.rdb).PushGlobal("ISSUE_UPDATED")
 
+		// Who actually gets notified: IssuePICUserID is always the inspector
+		// who ran the audit (set a few lines above from the caller), never
+		// the person actually responsible for this location — resolve the
+		// real recipients from PIC_Mapping (Kawasan-scoped: PIC/Manager/
+		// Supervisor/Staff mapped to the finding's Kawasan) instead. If
+		// nobody is mapped for that Kawasan at all, fall back to the
+		// inspector so a finding is never left with zero recipients.
+		recipients, errRecipients := uc.picRepo.FindResponsibleUsersByResultID(i.ResultID, "")
+		if errRecipients != nil || len(recipients) == 0 {
+			if fallback, errFallback := uc.userRepo.FindByID(i.IssuePICUserID); errFallback == nil && fallback != nil {
+				plantID := ""
+				if fallback.PlantID != nil {
+					plantID = *fallback.PlantID
+				}
+				recipients = []picdomain.ResponsibleUser{{
+					UserID:   fallback.UserID,
+					FullName: fallback.FullName,
+					Email:    fallback.Email,
+					PlantID:  &plantID,
+				}}
+			}
+		}
+
 		// Use req.Keterangan (plaintext) rather than i.Keterangan, which holds the
 		// encrypted value stored on the record.
-		uc.notify(i.IssuePICUserID, "info", "Issue Baru Ditugaskan",
-			fmt.Sprintf("Anda mendapat temuan baru: %s", req.Keterangan), "/issues/"+i.IssueID)
+		for _, recipient := range recipients {
+			uc.notify(recipient.UserID, "info", "Issue Baru Ditugaskan",
+				fmt.Sprintf("Anda mendapat temuan baru: %s", req.Keterangan), "/issues/"+i.IssueID)
+		}
 
-		// Send email notification to PIC asynchronously
-		go func(issueSnapshot issue.Issue) {
-			pic, err := uc.userRepo.FindByID(issueSnapshot.IssuePICUserID)
-			if err != nil || pic == nil {
-				return
-			}
+		// Send email notification to each resolved recipient asynchronously
+		go func(issueSnapshot issue.Issue, keterangan string, targets []picdomain.ResponsibleUser) {
 			dueDate := "-"
 			if issueSnapshot.DueDate != nil {
 				dueDate = issueSnapshot.DueDate.Format("02 January 2006")
 			}
+			for _, target := range targets {
+				if target.Email == "" {
+					continue
+				}
+				plantID := ""
+				if target.PlantID != nil {
+					plantID = *target.PlantID
+				}
+				tmpl := mail.TmplIssueAssignment
+				if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, plantID); err == nil && s.SettingValue != "" {
+					tmpl = s.SettingValue
+				}
 
-			plantID := ""
-			if pic.PlantID != nil {
-				plantID = *pic.PlantID
+				_ = uc.mailer.SendTemplateForPlant(
+					plantID,
+					[]string{target.Email},
+					"[Monitoring Audit] Issue Baru Ditugaskan kepada Anda",
+					tmpl,
+					map[string]string{
+						"PICName":    target.FullName,
+						"IssueID":    issueSnapshot.IssueID,
+						"Keterangan": keterangan,
+						"Status":     string(issueSnapshot.IssueStatus),
+						"DueDate":    dueDate,
+					},
+				)
 			}
-			tmpl := mail.TmplIssueAssignment
-			if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, plantID); err == nil && s.SettingValue != "" {
-				tmpl = s.SettingValue
-			}
-
-			_ = uc.mailer.SendTemplateForPlant(
-				plantID,
-				[]string{pic.Email},
-				"[Monitoring Audit] Issue Baru Ditugaskan kepada Anda",
-				tmpl,
-				map[string]string{
-					"PICName":    pic.FullName,
-					"IssueID":    issueSnapshot.IssueID,
-					"Keterangan": issueSnapshot.Keterangan,
-					"Status":     string(issueSnapshot.IssueStatus),
-					"DueDate":    dueDate,
-				},
-			)
-		}(*i)
+		}(*i, req.Keterangan, recipients)
 	}
 	return i, err
 }

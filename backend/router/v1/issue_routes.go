@@ -11,6 +11,7 @@ import (
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/issuerepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/picrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/authusecase"
 	"github.com/monitoring-system/backend/internal/usecase/issueusecase"
@@ -31,9 +32,10 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 	userRepo := authrepo.NewUserRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
 	issueDelegateRepo := issuerepo.NewIssueDelegateRepository(db)
+	picRepo := picrepo.NewPICMappingRepository(db)
 	notificationUC := buildNotificationUseCase(db, cfg)
 
-	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, heiRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient, notificationUC)
+	issueUC := issueusecase.NewIssueUseCase(issueRepo, photoRepo, heiRepo, minioStorage, producer, mailer, userRepo, settingRepo, issueDelegateRepo, cryptoSvc, redisClient, notificationUC, picRepo)
 	issueDelegateUC := issueusecase.NewIssueDelegateUseCase(issueDelegateRepo)
 	photoUC := issueusecase.NewIssuePhotoUseCase(photoRepo, issueRepo, minioStorage, cryptoSvc, redisClient, producer, issueUC)
 
