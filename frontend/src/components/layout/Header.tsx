@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useParams } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, BookOpen } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useMounted } from "@/lib/useMounted";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -19,6 +19,7 @@ export function Header() {
   const plantCode = (params?.plantCode as string) || user?.plant_id || "global";
 
   const getTitle = () => {
+    if (pathname.includes("/panduan")) return "Panduan";
     if (pathname.includes("/profile")) return "Profil Pengguna";
     if (pathname.includes("/inspections")) return "Inspeksi";
     if (pathname.includes("/issues")) return "Temuan Inspeksi";
@@ -59,6 +60,14 @@ export function Header() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1 lg:gap-2">
+        <Link
+          href={`/cimory/${plantCode}/dashboard/${mounted ? user?.id : "overview"}/panduan`}
+          aria-label="Buka Panduan Pengguna"
+          title="Panduan"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <BookOpen aria-hidden="true" className="h-4 w-4" />
+        </Link>
         <InstallAppButton />
         <ThemeToggle />
         <NotificationBell />
