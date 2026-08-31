@@ -645,7 +645,10 @@ function IssueRow({
                             />
                             <div className="absolute inset-0 bg-black/40 sm:bg-black/50 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-xs font-medium">
                               <Eye className="h-4 w-4" />
-                              {!isClosed && (canUploadProof || canValidate) && (
+                              {/* Locked once Verified — approved evidence must stay in the audit
+                                  trail permanently. Rejected evidence stays editable/deletable so
+                                  the PIC can clean it up and re-upload. */}
+                              {!isClosed && item.wowr_status !== "Verified" && (canUploadProof || canValidate) && (
                                 <>
                                   <button
                                     type="button"

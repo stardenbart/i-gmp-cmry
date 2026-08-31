@@ -884,6 +884,14 @@ func (uc *issuePhotoUseCase) Delete(ctx context.Context, id string) error {
 		return errors.New("photo not found")
 	}
 
+	// Verified WO/WR evidence is locked permanently, independent of the
+	// parent issue's status — it's the audit trail proving the repair was
+	// checked and approved, and must not be removable afterward. Rejected
+	// evidence has no such lock: the PIC needs to delete it and re-upload.
+	if photo.PhotoType == issue.PhotoTypeWOWR && photo.WOWRStatus == issue.WOWRStatusVerified {
+		return errors.New("bukti WO/WR yang sudah diverifikasi tidak dapat dihapus")
+	}
+
 	// Check if issue is closed/locked
 	if uc.issueRepo != nil {
 		iss, errIss := uc.issueRepo.FindByID(photo.IssueID)
