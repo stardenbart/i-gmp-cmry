@@ -115,6 +115,29 @@ func (h *InspectionHeaderHandler) GetAreaStatus(c *fiber.Ctx) error {
 	return response.OK(c, "success", progress)
 }
 
+// @Summary Get current inspection period info
+// @Description Resolve the currently-running inspection period (cutoff-day cycle) for the plant that owns this Area, so clients never have to re-derive the cutoff-day math themselves
+// @Tags Inspections
+// @Accept json
+// @Produce json
+// @Param area_id query string true "Area ID"
+// @Success 200 {object} response.APIResponse "success"
+// @Failure 400 {object} response.APIResponse "area_id wajib diisi"
+// @Failure 500 {object} response.APIResponse "failed to resolve current period"
+// @Router /inspections/period-info [get]
+// @Security BearerAuth
+func (h *InspectionHeaderHandler) GetCurrentPeriodInfo(c *fiber.Ctx) error {
+	areaID := c.Query("area_id")
+	if areaID == "" {
+		return response.BadRequest(c, "area_id wajib diisi", nil)
+	}
+	info, err := h.uc.GetCurrentPeriodInfo(areaID)
+	if err != nil {
+		return response.InternalServerError(c, "failed to resolve current period", err.Error())
+	}
+	return response.OK(c, "success", info)
+}
+
 // @Summary Get inspection trends
 // @Description Get inspection trends by context and year
 // @Tags analytics

@@ -58,6 +58,10 @@ type Issue struct {
 	// setting, distinct from the regular follow-up timeout) counts from the
 	// moment the PIC actually submitted WO/WR proof, not from unrelated edits.
 	WOWRSubmittedAt *time.Time `gorm:"column:WOWRSubmittedAt" json:"wowr_submitted_at,omitempty"`
+	// DeadlineReminderSentAt marks when the pre-deadline reminder was sent,
+	// so DeadlineReminderWorker never re-sends it for the same DueDate. Reset
+	// to nil by ExtendDueDate so a new deadline gets its own reminder.
+	DeadlineReminderSentAt *time.Time  `gorm:"column:DeadlineReminderSentAt" json:"deadline_reminder_sent_at,omitempty"`
 	Label               string      `gorm:"column:Label;size:100" json:"label"`
 	NeedsWOWR           bool        `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
 	WO_ID               string      `gorm:"column:WO_ID;size:100" json:"wo_id"`
@@ -151,6 +155,12 @@ type IssueRepository interface {
 	// for the issue's Kawasan. Mirrors the scope used to list "my issues"
 	// (see FindAll's picUserID clause) so the two never drift apart.
 	IsScopedToUser(issueID, userID string) (bool, error)
+	// FindReminderCandidates returns every not-yet-closed issue with a
+	// DueDate that hasn't had its pre-deadline reminder sent yet.
+	// DeadlineReminderWorker applies the (per-plant) days-before threshold
+	// itself since that setting can differ per plant, the same way
+	// evaluateIssueForAutoApprove resolves its own days setting per issue.
+	FindReminderCandidates() ([]Issue, error)
 	ConsolidateDuplicateActiveIssues() error
 	Create(i *Issue) error
 	Update(i *Issue) error

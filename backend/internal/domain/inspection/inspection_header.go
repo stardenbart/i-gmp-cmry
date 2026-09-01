@@ -61,6 +61,18 @@ type TrendData struct {
 	TotalIssues int    `json:"total_issues"`
 }
 
+// InspectionPeriodInfo describes the currently-running "inspection period"
+// (the recurring monthly cycle a DetailKawasan must be re-inspected
+// within) for a given Area's plant, resolved from the admin-configurable
+// INSPECTION_PERIOD_CUTOFF_DAY setting. See
+// inspectionusecase.ResolveInspectionPeriod for how the boundaries are
+// computed.
+type InspectionPeriodInfo struct {
+	CutoffDay   int       `json:"cutoff_day"`
+	PeriodStart time.Time `json:"period_start"`
+	PeriodEnd   time.Time `json:"period_end"`
+}
+
 // ─── Repository Interface ──────────────────────────────────────────────────
 
 type InspectionHeaderRepository interface {
@@ -71,8 +83,15 @@ type InspectionHeaderRepository interface {
 	FindActiveByDetailKawasan(detailKawasanID string) ([]InspectionHeader, error)
 	FindActiveByInspector(inspectorID string) ([]InspectionHeader, error)
 	FindActiveByInspectorAndDetailKawasan(inspectorID, detailKawasanID string) ([]InspectionHeader, error)
-	CountCompletedThisMonthByDetailKawasan(detailKawasanID string, year int, month int) (int64, error)
-	CountCompletedByAreaAndDetailKawasan(areaID, detailKawasanID string) (int64, error)
+	// CountCompletedInPeriod counts Completed/Approved inspections for a
+	// DetailKawasan whose InspectionHeaderCreatedAt falls within [start, end)
+	// — the boundaries of one "inspection period" (see
+	// inspectionusecase.ResolveInspectionPeriod). Replaces the old
+	// calendar-month-only CountCompletedThisMonthByDetailKawasan and the
+	// never-time-filtered CountCompletedByAreaAndDetailKawasan, unifying
+	// Kawasan- and Area-level completion checks onto the same admin
+	// configurable cutoff.
+	CountCompletedInPeriod(detailKawasanID string, start, end time.Time) (int64, error)
 	GetTrendByContext(contextID string, year int) ([]TrendData, error)
 	GetFullChecklist(areaID, inspectionID string) (*FullChecklist, error)
 	GetFullChecklistWithCtx(ctx context.Context, areaID, inspectionID string) (*FullChecklist, error)
@@ -87,6 +106,7 @@ type InspectionHeaderUseCase interface {
 	GetAll(page, limit int, plantID, areaID, status, inspectorID string) ([]InspectionHeader, int64, error)
 	GetByID(id string) (*InspectionHeader, error)
 	GetAreaStatus(areaID string) (AreaProgress, error)
+	GetCurrentPeriodInfo(areaID string) (InspectionPeriodInfo, error)
 	GetTrend(contextID string, year int) ([]TrendData, error)
 	GetChecklist(id string) (*FullChecklist, error)
 	Create(inspectorID string, req *CreateInspectionRequest) (*InspectionHeader, error)

@@ -17,6 +17,7 @@ type InspectionEmailNotifier struct {
 	picRepo        pic.PICMappingRepository
 	authRepo       auth.UserRepository
 	inspectionRepo inspection.InspectionHeaderRepository
+	kawasanRepo    master.KawasanRepository
 	settingRepo    master.SettingRepository
 	notificationUC notificationdomain.NotificationUseCase // in-app bell notifications, alongside email
 }
@@ -26,6 +27,7 @@ func NewInspectionEmailNotifier(
 	picRepo pic.PICMappingRepository,
 	authRepo auth.UserRepository,
 	inspectionRepo inspection.InspectionHeaderRepository,
+	kawasanRepo master.KawasanRepository,
 	settingRepo master.SettingRepository,
 	notificationUC notificationdomain.NotificationUseCase,
 ) *InspectionEmailNotifier {
@@ -34,17 +36,24 @@ func NewInspectionEmailNotifier(
 		picRepo:        picRepo,
 		authRepo:       authRepo,
 		inspectionRepo: inspectionRepo,
+		kawasanRepo:    kawasanRepo,
 		settingRepo:    settingRepo,
 		notificationUC: notificationUC,
 	}
 }
 
-// SendInspectionSummary is called when an Area's status becomes Confirmed
+// SendInspectionSummary is called when an Area's status becomes Confirmed.
+//
+// Previously resolved recipients via picRepo.FindByAreaAndKawasan(areaID,
+// ""), which filters on PIC_Mapping.AreaID — a column migration 011 already
+// deprecated ("PIC mapping now works per Kawasan only"), so that query
+// almost certainly returned zero PICs on real data. An Area can span several
+// Kawasan, so recipients here are the union of every Kawasan's own
+// responsible users (PIC/Manager/whoever is mapped) across the whole Area.
 func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress inspection.AreaProgress) error {
-	// 1. Find PICs for this Area (Manager, Auditor, or Area PIC)
-	pics, err := n.picRepo.FindByAreaAndKawasan(areaID, "")
+	kawasans, err := n.kawasanRepo.FindByAreaID(areaID)
 	if err != nil {
-		log.Printf("[EmailNotifier] Error retrieving PICs for Area %s: %v", areaID, err)
+		log.Printf("[EmailNotifier] Error retrieving Kawasan for Area %s: %v", areaID, err)
 		return err
 	}
 
@@ -53,19 +62,23 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 	emailSet := make(map[string]bool)
 	userSet := make(map[string]bool)
 	plantID := ""
-	for _, p := range pics {
-		user, err := n.authRepo.FindByID(p.UserID)
-		if err == nil && user != nil {
-			if plantID == "" && user.PlantID != nil {
-				plantID = *user.PlantID
+	for _, kws := range kawasans {
+		users, errUsers := n.picRepo.FindResponsibleUsers(kws.KawasanID, "")
+		if errUsers != nil {
+			log.Printf("[EmailNotifier] Error retrieving responsible users for Kawasan %s: %v", kws.KawasanID, errUsers)
+			continue
+		}
+		for _, u := range users {
+			if plantID == "" && u.PlantID != nil {
+				plantID = *u.PlantID
 			}
-			if user.Email != "" && !emailSet[user.Email] {
-				emailSet[user.Email] = true
-				targetEmails = append(targetEmails, user.Email)
+			if u.Email != "" && !emailSet[u.Email] {
+				emailSet[u.Email] = true
+				targetEmails = append(targetEmails, u.Email)
 			}
-			if !userSet[user.UserID] {
-				userSet[user.UserID] = true
-				targetUserIDs = append(targetUserIDs, user.UserID)
+			if !userSet[u.UserID] {
+				userSet[u.UserID] = true
+				targetUserIDs = append(targetUserIDs, u.UserID)
 			}
 		}
 	}
@@ -113,14 +126,14 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 }
 
 // SendKawasanInspectionSummary is called when a Kawasan's status becomes
-// Confirmed (every DetailKawasan under it completed this month). Only
-// notifies users mapped as "Manager" for that Kawasan — narrower audience
-// than SendInspectionSummary's Area-wide PIC list, matching the recipient
-// this specific event is meant for.
+// Confirmed (every DetailKawasan under it completed this month). Notifies
+// everyone mapped to that Kawasan — PIC and Manager alike — matching the
+// same "everyone responsible for this Kawasan" audience used for finding
+// notifications, not just Managers.
 func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string, progress inspection.KawasanProgress) error {
-	managers, err := n.picRepo.FindResponsibleUsers(kawasanID, "Manager")
+	responsible, err := n.picRepo.FindResponsibleUsers(kawasanID, "")
 	if err != nil {
-		log.Printf("[EmailNotifier] Error retrieving Managers for Kawasan %s: %v", kawasanID, err)
+		log.Printf("[EmailNotifier] Error retrieving responsible users for Kawasan %s: %v", kawasanID, err)
 		return err
 	}
 
@@ -128,7 +141,7 @@ func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string,
 	var targetUserIDs []string
 	emailSet := make(map[string]bool)
 	plantID := ""
-	for _, m := range managers {
+	for _, m := range responsible {
 		if plantID == "" && m.PlantID != nil {
 			plantID = *m.PlantID
 		}
@@ -147,7 +160,7 @@ func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string,
 	}
 
 	if len(targetEmails) == 0 {
-		log.Printf("[EmailNotifier] No Manager found or missing emails for Kawasan %s", kawasanID)
+		log.Printf("[EmailNotifier] No PIC/Manager found or missing emails for Kawasan %s", kawasanID)
 		return nil
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ type inspectionHeaderUseCase struct {
 	producer          kafka.EventProducer
 	detailKawasanRepo master.DetailKawasanRepository
 	kawasanRepo       master.KawasanRepository
+	areaRepo          master.AreaRepository
 	emailNotifier     *InspectionEmailNotifier
 }
 
@@ -31,6 +33,7 @@ func NewInspectionHeaderUseCase(
 	producer kafka.EventProducer,
 	detailKawasanRepo master.DetailKawasanRepository,
 	kawasanRepo master.KawasanRepository,
+	areaRepo master.AreaRepository,
 	emailNotifier *InspectionEmailNotifier,
 ) inspection.InspectionHeaderUseCase {
 	return &inspectionHeaderUseCase{
@@ -38,8 +41,36 @@ func NewInspectionHeaderUseCase(
 		producer:          producer,
 		detailKawasanRepo: detailKawasanRepo,
 		kawasanRepo:       kawasanRepo,
+		areaRepo:          areaRepo,
 		emailNotifier:     emailNotifier,
 	}
+}
+
+// resolvePeriodForArea resolves the [start, end) boundaries of the
+// currently-running inspection period for the plant that owns `areaID`,
+// using that plant's INSPECTION_PERIOD_CUTOFF_DAY setting (per-plant, with
+// the usual fallback to the global default when unset). Falls back to an
+// exact calendar month (cutoffDay=1) if the Area or setting can't be
+// resolved for any reason — never blocks the caller.
+func (uc *inspectionHeaderUseCase) resolvePeriodForArea(areaID string) inspection.InspectionPeriodInfo {
+	plantID := ""
+	if uc.areaRepo != nil {
+		if area, err := uc.areaRepo.FindByID(areaID); err == nil && area != nil && area.PlantID != nil {
+			plantID = *area.PlantID
+		}
+	}
+
+	cutoffDay := DefaultInspectionPeriodCutoffDay
+	if uc.emailNotifier != nil && uc.emailNotifier.settingRepo != nil {
+		if s, err := uc.emailNotifier.settingRepo.FindByKey(master.SettingKeyInspectionPeriodCutoffDay, plantID); err == nil && s != nil {
+			if d, errConv := strconv.Atoi(s.SettingValue); errConv == nil {
+				cutoffDay = d
+			}
+		}
+	}
+
+	start, end := ResolveInspectionPeriod(time.Now(), cutoffDay)
+	return inspection.InspectionPeriodInfo{CutoffDay: cutoffDay, PeriodStart: start, PeriodEnd: end}
 }
 
 func (uc *inspectionHeaderUseCase) GetAll(page, limit int, plantID, areaID, status, inspectorID string) ([]inspection.InspectionHeader, int64, error) {
@@ -53,7 +84,16 @@ func (uc *inspectionHeaderUseCase) GetByID(id string) (*inspection.InspectionHea
 }
 
 func (uc *inspectionHeaderUseCase) GetAreaStatus(areaID string) (inspection.AreaProgress, error) {
-	return CalculateAreaStatus(areaID, uc.detailKawasanRepo, uc.repo)
+	period := uc.resolvePeriodForArea(areaID)
+	return CalculateAreaStatus(areaID, uc.detailKawasanRepo, uc.repo, period.PeriodStart, period.PeriodEnd)
+}
+
+// GetCurrentPeriodInfo exposes the resolved inspection period boundaries so
+// the frontend never has to re-derive the cutoff-day math itself (that
+// duplication is exactly what caused the "Selesai Bulan Ini" dropdown check
+// on the Buat Inspeksi page to drift from the backend's actual gate).
+func (uc *inspectionHeaderUseCase) GetCurrentPeriodInfo(areaID string) (inspection.InspectionPeriodInfo, error) {
+	return uc.resolvePeriodForArea(areaID), nil
 }
 
 func (uc *inspectionHeaderUseCase) GetTrend(contextID string, year int) ([]inspection.TrendData, error) {
@@ -63,10 +103,13 @@ func (uc *inspectionHeaderUseCase) GetTrend(contextID string, year int) ([]inspe
 func (uc *inspectionHeaderUseCase) Create(inspectorID string, req *inspection.CreateInspectionRequest) (*inspection.InspectionHeader, error) {
 	now := time.Now()
 
-	// 0. Cek apakah detail kawasan sudah pernah diinspeksi (Selesai/Approved) di bulan yang sama
-	completedCount, err := uc.repo.CountCompletedThisMonthByDetailKawasan(req.DetailKawasanID, now.Year(), int(now.Month()))
+	// 0. Cek apakah detail kawasan sudah pernah diinspeksi (Selesai/Approved)
+	// di periode inspeksi yang sedang berjalan (cutoff day admin-configurable
+	// per plant — lihat resolvePeriodForArea).
+	period := uc.resolvePeriodForArea(req.AreaID)
+	completedCount, err := uc.repo.CountCompletedInPeriod(req.DetailKawasanID, period.PeriodStart, period.PeriodEnd)
 	if err == nil && completedCount > 0 {
-		return nil, errors.New("detail kawasan ini sudah selesai diinspeksi pada bulan ini, anda baru bisa melakukan inspeksi lagi bulan depan")
+		return nil, fmt.Errorf("detail kawasan ini sudah selesai diinspeksi pada periode berjalan, anda baru bisa melakukan inspeksi lagi mulai %s", period.PeriodEnd.Format("2 January 2006"))
 	}
 
 	// 1. Cek apakah ada inspeksi aktif (Draft/Ongoing) di detail kawasan ini (oleh siapapun)
@@ -153,12 +196,24 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 				_ = uc.kawasanRepo.UpdateLastInspection(h.KawasanID, now)
 			}
 
-			progress, _ := CalculateAreaStatus(h.AreaID, uc.detailKawasanRepo, uc.repo)
+			// Resolved once from this inspection's Area — one InspectionHeader
+			// always belongs to exactly one Area (and thus one plant), so the
+			// same period boundaries apply to both the Area- and
+			// Kawasan-level checks below.
+			period := uc.resolvePeriodForArea(h.AreaID)
+
+			progress, _ := CalculateAreaStatus(h.AreaID, uc.detailKawasanRepo, uc.repo, period.PeriodStart, period.PeriodEnd)
 			if progress.Status == inspection.AreaStatusConfirmed {
-				// Send email summary
-				go func(areaID string, p inspection.AreaProgress) {
-					_ = uc.emailNotifier.SendInspectionSummary(areaID, p)
-				}(h.AreaID, progress)
+				// Admin-configurable via Settings: skip the "Area selesai"
+				// email/notification entirely when explicitly turned off.
+				// Missing setting (fresh install without the migration yet,
+				// or the key not seeded) defaults to enabled.
+				if uc.isCompletionNotifyEnabled(master.SettingKeyNotifyOnAreaComplete) {
+					// Send email summary
+					go func(areaID string, p inspection.AreaProgress) {
+						_ = uc.emailNotifier.SendInspectionSummary(areaID, p)
+					}(h.AreaID, progress)
+				}
 
 				// Publish CONFIRMED event
 				confirmedEvent := events.BaseEvent{
@@ -175,11 +230,13 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 			// DetailKawasan under THIS Kawasan is done this month — an Area
 			// can contain several Kawasan, so "Area confirmed" and "Kawasan
 			// confirmed" are different events with different audiences.
-			kawasanProgress, _ := CalculateKawasanStatus(h.KawasanID, uc.detailKawasanRepo, uc.repo)
+			kawasanProgress, _ := CalculateKawasanStatus(h.KawasanID, uc.detailKawasanRepo, uc.repo, period.PeriodStart, period.PeriodEnd)
 			if kawasanProgress.Status == inspection.KawasanStatusConfirmed {
-				go func(kawasanID string, p inspection.KawasanProgress) {
-					_ = uc.emailNotifier.SendKawasanInspectionSummary(kawasanID, p)
-				}(h.KawasanID, kawasanProgress)
+				if uc.isCompletionNotifyEnabled(master.SettingKeyNotifyOnKawasanComplete) {
+					go func(kawasanID string, p inspection.KawasanProgress) {
+						_ = uc.emailNotifier.SendKawasanInspectionSummary(kawasanID, p)
+					}(h.KawasanID, kawasanProgress)
+				}
 			}
 		}
 	}
@@ -187,6 +244,22 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 }
 
 func (uc *inspectionHeaderUseCase) Delete(id string) error { return uc.repo.Delete(id) }
+
+// isCompletionNotifyEnabled reads a global (plant-agnostic) on/off toggle
+// for the "fully inspected" email/notification triggers, e.g.
+// NOTIFY_ON_KAWASAN_COMPLETE / NOTIFY_ON_AREA_COMPLETE. Missing setting
+// (fresh install predating migration 041, or a plant that never had the
+// row seeded) is treated as enabled — only an explicit "false" disables it.
+func (uc *inspectionHeaderUseCase) isCompletionNotifyEnabled(settingKey string) bool {
+	if uc.emailNotifier == nil || uc.emailNotifier.settingRepo == nil {
+		return true
+	}
+	setting, err := uc.emailNotifier.settingRepo.FindByKey(settingKey, "")
+	if err != nil || setting == nil {
+		return true
+	}
+	return setting.SettingValue != "false"
+}
 
 // ── Inspection Result UseCase ─────────────────────────────────────────────
 

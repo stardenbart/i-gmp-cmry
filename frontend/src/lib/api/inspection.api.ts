@@ -77,6 +77,16 @@ export interface BulkInspectionResult {
   keterangan: string;
 }
 
+// Boundaries of the currently-running "inspection period" (the recurring
+// monthly cycle a DetailKawasan must be re-inspected within) for the plant
+// that owns a given Area — see backend ResolveInspectionPeriod. cutoff_day=1
+// is a plain calendar month; period_end is exclusive.
+export interface InspectionPeriodInfo {
+  cutoff_day: number;
+  period_start: string;
+  period_end: string;
+}
+
 export const inspectionApi = {
   getAll: async (params?: { page?: number; limit?: number; status?: string; inspector_id?: string }) => {
     const res = await api.get("/inspections", { params });
@@ -119,6 +129,15 @@ export const inspectionApi = {
   getAnalyticsTrend: async (context_id: string, year?: number) => {
     const res = await api.get("/analytics/inspections-trend", { params: { context_id, year } });
     return res.data;
+  },
+
+  // Lets the client check "is this DetailKawasan done for the current
+  // cycle" without re-deriving the admin-configurable cutoff-day math
+  // itself — that duplication is exactly what caused the old client-side
+  // calendar-month check to drift from the backend’s actual gate.
+  getCurrentPeriodInfo: async (areaId: string): Promise<InspectionPeriodInfo> => {
+    const res = await api.get("/inspections/period-info", { params: { area_id: areaId } });
+    return res.data.data;
   },
 
   // Distributed Inspection Redis APIs

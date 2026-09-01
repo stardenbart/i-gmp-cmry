@@ -32,14 +32,15 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 
 	detailKawasanRepo := masterrepo.NewDetailKawasanRepository(db)
 	kawasanRepo := masterrepo.NewKawasanRepository(db)
+	areaRepo := masterrepo.NewAreaRepository(db)
 	picRepo := picrepo.NewPICMappingRepository(db)
 	authRepo := authrepo.NewUserRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
 	notificationUC := buildNotificationUseCase(db, cfg)
 
-	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, settingRepo, notificationUC)
+	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, kawasanRepo, settingRepo, notificationUC)
 
-	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, kawasanRepo, emailNotifier)
+	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, kawasanRepo, areaRepo, emailNotifier)
 
 	// Build IssueUseCase for auto-sync Issues on BulkSave
 	issueRepo := issuerepo.NewIssueRepository(db)
@@ -91,6 +92,8 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 		insp.Get("/filter", permRead, filterH.GetFiltered)
 		// Area Status
 		insp.Get("/area/:areaId/status", permRead, headerH.GetAreaStatus)
+		// Current inspection period (cutoff-day cycle) info
+		insp.Get("/period-info", permRead, headerH.GetCurrentPeriodInfo)
 
 		insp.Get("/:id/checklist", permRead, headerH.GetChecklist)
 		insp.Get("/:id", permRead, headerH.GetByID)

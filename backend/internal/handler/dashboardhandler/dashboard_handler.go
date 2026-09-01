@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	dashboarddomain "github.com/monitoring-system/backend/internal/domain/dashboard"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
+	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/exporter"
@@ -19,10 +20,11 @@ import (
 )
 
 type DashboardHandler struct {
-	db         *gorm.DB
-	log        *logger.Logger
-	cryptoSvc  *crypto.Service
-	layoutRepo dashboarddomain.DashboardLayoutRepository
+	db          *gorm.DB
+	log         *logger.Logger
+	cryptoSvc   *crypto.Service
+	layoutRepo  dashboarddomain.DashboardLayoutRepository
+	settingRepo masterdomain.SettingRepository
 }
 
 type issueInitialPhoto struct {
@@ -63,12 +65,13 @@ func (h *DashboardHandler) loadInitialIssueImages(issueIDs []string) (map[string
 	return grouped, nil
 }
 
-func NewDashboardHandler(db *gorm.DB, log *logger.Logger, cryptoSvc *crypto.Service, layoutRepo dashboarddomain.DashboardLayoutRepository) *DashboardHandler {
+func NewDashboardHandler(db *gorm.DB, log *logger.Logger, cryptoSvc *crypto.Service, layoutRepo dashboarddomain.DashboardLayoutRepository, settingRepo masterdomain.SettingRepository) *DashboardHandler {
 	return &DashboardHandler{
-		db:         db,
-		log:        log,
-		cryptoSvc:  cryptoSvc,
-		layoutRepo: layoutRepo,
+		db:          db,
+		log:         log,
+		cryptoSvc:   cryptoSvc,
+		layoutRepo:  layoutRepo,
+		settingRepo: settingRepo,
 	}
 }
 

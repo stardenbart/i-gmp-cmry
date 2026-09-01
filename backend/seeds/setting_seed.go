@@ -52,6 +52,31 @@ func SeedSettings(db *gorm.DB) {
 			Description:  "Template email ke Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini (HTML)",
 		},
 		{
+			SettingKey:   master.SettingKeyEmailTemplateDeadlineReminder,
+			SettingValue: "<h1>Pengingat Tenggat Temuan</h1><p>Halo {{.PICName}}, temuan {{.IssueID}} ({{.Keterangan}}) akan jatuh tempo pada {{.DueDate}} ({{.DaysRemaining}} hari lagi). Mohon segera ditindaklanjuti.</p>",
+			Description:  "Template email pengingat sebelum tenggat penyelesaian temuan, ke PIC & Manager (HTML)",
+		},
+		{
+			SettingKey:   master.SettingKeyIssueDeadlineReminderDaysBefore,
+			SettingValue: "3",
+			Description:  "Berapa hari sebelum tenggat temuan sistem mengirim pengingat ke PIC & Manager (0 = nonaktif)",
+		},
+		{
+			SettingKey:   master.SettingKeyNotifyOnKawasanComplete,
+			SettingValue: "true",
+			Description:  "Kirim email ke PIC & Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini",
+		},
+		{
+			SettingKey:   master.SettingKeyNotifyOnAreaComplete,
+			SettingValue: "true",
+			Description:  "Kirim email ke PIC & Manager saat seluruh Kawasan di satu Area selesai diinspeksi",
+		},
+		{
+			SettingKey:   master.SettingKeyInspectionPeriodCutoffDay,
+			SettingValue: "1",
+			Description:  "Tanggal berapa siklus bulanan inspeksi dimulai (1-28). Isi 13 supaya periode 13 Jan-12 Feb dihitung sebagai bulan Januari. Isi 1 untuk bulan kalender biasa (default). Bisa diatur berbeda per plant.",
+		},
+		{
 			SettingKey:   master.SettingKeyIssueDeadlineDays,
 			SettingValue: "14",
 			Description:  "Batas waktu penyelesaian issue (dalam hari) sebelum menjadi overdue",

@@ -8,16 +8,18 @@ import (
 )
 
 // CalculateKawasanStatus calculates the overall status of a Kawasan by
-// checking how many of its DetailKawasans have been completed this
-// calendar month — the same "current cycle" convention already enforced
-// when creating a new inspection (see CountCompletedThisMonthByDetailKawasan
-// in inspectionHeaderUseCase.Create). Mirrors CalculateAreaStatus, but
-// scoped one level narrower: a single Kawasan instead of every Kawasan
-// under an Area.
+// checking how many of its DetailKawasans have been completed within the
+// given inspection period [periodStart, periodEnd) — the admin-configurable
+// cutoff-day cycle resolved by the caller (see ResolveInspectionPeriod),
+// the same "current cycle" convention already enforced when creating a new
+// inspection (see CountCompletedInPeriod in inspectionHeaderUseCase.Create).
+// Mirrors CalculateAreaStatus, but scoped one level narrower: a single
+// Kawasan instead of every Kawasan under an Area.
 func CalculateKawasanStatus(
 	kawasanID string,
 	detailKawasanRepo master.DetailKawasanRepository,
 	inspectionRepo inspection.InspectionHeaderRepository,
+	periodStart, periodEnd time.Time,
 ) (inspection.KawasanProgress, error) {
 	allDK, err := detailKawasanRepo.FindByKawasanID(kawasanID)
 	if err != nil {
@@ -32,10 +34,9 @@ func CalculateKawasanStatus(
 		}, nil
 	}
 
-	now := time.Now()
 	completed := 0
 	for _, dk := range allDK {
-		count, _ := inspectionRepo.CountCompletedThisMonthByDetailKawasan(dk.DetailKawasanID, now.Year(), int(now.Month()))
+		count, _ := inspectionRepo.CountCompletedInPeriod(dk.DetailKawasanID, periodStart, periodEnd)
 		if count > 0 {
 			completed++
 		}

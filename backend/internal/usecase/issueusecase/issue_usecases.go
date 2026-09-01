@@ -57,6 +57,32 @@ func (uc *issueUseCase) notify(userID, nType, title, message, link string) {
 	_ = uc.notificationUC.CreateSystemNotification(userID, nType, title, message, link)
 }
 
+// resolveRealPICRecipients resolves who is actually responsible for an
+// issue's Kawasan (PIC/Manager/Supervisor/Staff via PIC_Mapping) — never
+// IssuePICUserID, which is always the inspector who ran the audit. Falls
+// back to fallbackUserID (usually the inspector) so a caller never ends up
+// with zero recipients. Mirrors the resolution already used in Create().
+func (uc *issueUseCase) resolveRealPICRecipients(resultID, fallbackUserID string) []picdomain.ResponsibleUser {
+	recipients, err := uc.picRepo.FindResponsibleUsersByResultID(resultID, "")
+	if err == nil && len(recipients) > 0 {
+		return recipients
+	}
+	fallback, errFallback := uc.userRepo.FindByID(fallbackUserID)
+	if errFallback != nil || fallback == nil {
+		return nil
+	}
+	plantID := ""
+	if fallback.PlantID != nil {
+		plantID = *fallback.PlantID
+	}
+	return []picdomain.ResponsibleUser{{
+		UserID:   fallback.UserID,
+		FullName: fallback.FullName,
+		Email:    fallback.Email,
+		PlantID:  &plantID,
+	}}
+}
+
 func (uc *issueUseCase) ConsolidateDuplicateActiveIssues() error {
 	return uc.repo.ConsolidateDuplicateActiveIssues()
 }
@@ -437,8 +463,18 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 				i.WOWRStatus = issue.WOWRStatusPendingValidation
 				submittedAt := time.Now()
 				i.WOWRSubmittedAt = &submittedAt
+				// In-app only, no email — the inspector who ran the audit
+				// (correct recipient here, not the real Kawasan PIC) needs
+				// to know evidence is waiting for their review.
+				uc.notify(i.IssuePICUserID, "info", "Bukti WO/WR Menunggu Validasi",
+					fmt.Sprintf("Bukti WO/WR untuk temuan %s telah diunggah dan menunggu validasi Anda.", i.IssueID), "/issues/"+i.IssueID)
 			}
 		}
+
+		// In-app only, no email — same reasoning: the inspector must review
+		// the follow-up, so IssuePICUserID (the inspector) is correct here.
+		uc.notify(i.IssuePICUserID, "info", "Temuan Menunggu Validasi Anda",
+			fmt.Sprintf("Temuan %s telah diajukan untuk validasi.", i.IssueID), "/issues/"+i.IssueID)
 	}
 
 	if req.IssuePICUserID != "" {
@@ -465,8 +501,21 @@ func (uc *issueUseCase) Update(id string, actorID string, req *issue.UpdateIssue
 					}
 				}
 			}
-			uc.notify(i.IssuePICUserID, "warning", "Bukti WO/WR Ditolak",
-				"Bukti WO/WR yang Anda unggah ditolak Auditor dan foto bukti telah dihapus. Silakan unggah ulang.", "/issues/"+i.IssueID)
+			// In-app only, no email — this must reach the real Kawasan PIC
+			// who has to re-upload evidence, not i.IssuePICUserID (the
+			// inspector), which was the previous (wrong) recipient here.
+			for _, recipient := range uc.resolveRealPICRecipients(i.ResultID, i.IssuePICUserID) {
+				uc.notify(recipient.UserID, "warning", "Bukti WO/WR Ditolak",
+					"Bukti WO/WR yang Anda unggah ditolak Auditor dan foto bukti telah dihapus. Silakan unggah ulang.", "/issues/"+i.IssueID)
+			}
+		}
+		// In-app only, no email — notify the real Kawasan PIC that their
+		// evidence passed review.
+		if req.WOWRStatus == issue.WOWRStatusVerified {
+			for _, recipient := range uc.resolveRealPICRecipients(i.ResultID, i.IssuePICUserID) {
+				uc.notify(recipient.UserID, "success", "Bukti WO/WR Anda Terverifikasi",
+					fmt.Sprintf("Bukti WO/WR untuk temuan %s telah diverifikasi Auditor.", i.IssueID), "/issues/"+i.IssueID)
+			}
 		}
 	}
 
@@ -607,6 +656,9 @@ func (uc *issueUseCase) ExtendDueDate(id string, actorID string, newDueDate time
 	}
 
 	i.DueDate = &newDueDate
+	// A new deadline deserves its own reminder — don't let a reminder
+	// already sent for the old DueDate suppress one for the extended date.
+	i.DeadlineReminderSentAt = nil
 	err = uc.repo.Update(i)
 	if err == nil {
 		event := events.IssueEvent{
