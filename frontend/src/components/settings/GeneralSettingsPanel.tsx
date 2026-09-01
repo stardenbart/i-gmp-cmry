@@ -7,6 +7,24 @@ import { Input } from "@/components/ui/input";
 import { GENERAL_SETTINGS } from "@/components/settings/settingsConfig";
 import { PerformanceSettingsCard } from "@/components/settings/PerformanceSettingsCard";
 
+const dateFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" });
+const monthFmt = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" });
+
+// Mirrors the backend's ResolveInspectionPeriod (see
+// backend/internal/usecase/inspectionusecase/period.go) purely for this
+// settings-page preview — never used for actual gating, so the two
+// implementations drifting slightly would only ever mislead an admin
+// reading the preview, not break real behavior.
+function resolveInspectionPeriodPreview(cutoffDay: number, now: Date) {
+  const day = Number.isInteger(cutoffDay) && cutoffDay >= 1 && cutoffDay <= 28 ? cutoffDay : 1;
+  let month = now.getMonth();
+  if (now.getDate() < day) month -= 1;
+  const start = new Date(now.getFullYear(), month, day);
+  const end = new Date(now.getFullYear(), month + 1, day);
+  const lastDay = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  return { start, lastDay };
+}
+
 interface GeneralSettingsPanelProps {
   isLoading: boolean;
   values: Record<string, string>;
@@ -30,7 +48,40 @@ export function GeneralSettingsPanel({ isLoading, values, onChange, onSubmit }: 
               <h3 className="mb-4 font-semibold text-primary">{group.group}</h3>
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 {group.keys.map((item) => (
-                  item.type === "boolean" ? (
+                  item.type === "cutoff-day" ? (
+                    (() => {
+                      const cutoffDay = parseInt(values[item.key] || "1", 10);
+                      const endDay = Number.isInteger(cutoffDay) && cutoffDay > 1 ? String(cutoffDay - 1) : "Akhir bulan";
+                      const { start, lastDay } = resolveInspectionPeriodPreview(cutoffDay, new Date());
+                      return (
+                        <div key={item.key} className="xl:col-span-2">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1 block text-sm font-medium" htmlFor={`setting-${item.key}`}>Tanggal Mulai Periode</label>
+                              <Input
+                                id={`setting-${item.key}`}
+                                type="number"
+                                min={1}
+                                max={28}
+                                value={values[item.key] || ""}
+                                onChange={(event) => onChange(item.key, event.target.value)}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-sm font-medium text-muted-foreground">Tanggal Akhir Periode</label>
+                              <Input type="text" value={endDay} disabled readOnly className="text-muted-foreground" />
+                              <p className="mt-1 text-[10px] text-muted-foreground">Otomatis: sehari sebelum tanggal mulai di bulan berikutnya.</p>
+                            </div>
+                          </div>
+                          <p className="mt-2 rounded-lg bg-primary/5 px-3 py-2 text-[12px] text-foreground">
+                            Periode saat ini: <strong>{dateFmt.format(start)} – {dateFmt.format(lastDay)}</strong> → dihitung sebagai <strong>bulan {monthFmt.format(start)}</strong>.
+                          </p>
+                          <p className="mt-1.5 text-[11px] text-muted-foreground">{item.desc}</p>
+                        </div>
+                      );
+                    })()
+                  ) : item.type === "boolean" ? (
                     <div key={item.key} className="flex items-start justify-between gap-4">
                       <div>
                         <label className="mb-1 block text-sm font-medium" htmlFor={`setting-${item.key}`}>{item.label}</label>
