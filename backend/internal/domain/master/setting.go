@@ -41,12 +41,19 @@ const (
 	// these toggles existed).
 	SettingKeyNotifyOnKawasanComplete = "NOTIFY_ON_KAWASAN_COMPLETE"
 	SettingKeyNotifyOnAreaComplete    = "NOTIFY_ON_AREA_COMPLETE"
-	SettingKeySMTPEnabled                      = "SMTP_ENABLED"
-	SettingKeySMTPHost                         = "SMTP_HOST"
-	SettingKeySMTPPort                         = "SMTP_PORT"
-	SettingKeySMTPUser                         = "SMTP_USER"
-	SettingKeySMTPPassword                     = "SMTP_PASSWORD"
-	SettingKeySMTPSenderEmail                  = "SMTP_SENDER_EMAIL"
+	// SettingKeyInspectionPeriodCutoffDay controls which day of the month
+	// starts a new "inspection period" (the recurring monthly cycle a
+	// DetailKawasan must be re-inspected within) — e.g. "13" means the
+	// period 13 Jan-12 Feb counts as "January". Per-plant, with the usual
+	// plant→global fallback; "1" (the default) is an exact calendar month,
+	// so any plant that never sets this keeps its current behavior exactly.
+	SettingKeyInspectionPeriodCutoffDay = "INSPECTION_PERIOD_CUTOFF_DAY"
+	SettingKeySMTPEnabled               = "SMTP_ENABLED"
+	SettingKeySMTPHost                  = "SMTP_HOST"
+	SettingKeySMTPPort                  = "SMTP_PORT"
+	SettingKeySMTPUser                  = "SMTP_USER"
+	SettingKeySMTPPassword              = "SMTP_PASSWORD"
+	SettingKeySMTPSenderEmail           = "SMTP_SENDER_EMAIL"
 )
 
 func IsSMTPSettingKey(key string) bool {

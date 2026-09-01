@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { inspectionApi } from "@/lib/api/inspection.api";
+import { inspectionApi, InspectionPeriodInfo } from "@/lib/api/inspection.api";
 import { getApiErrorMessage, getApiErrorStatus } from "@/lib/api/error";
 import { masterApi, Area, Kawasan, DetailKawasan } from "@/lib/api/master.api";
 import { usePermissions } from "@/lib/usePermissions";
@@ -36,6 +36,11 @@ export default function CreateInspectionPage() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [kawasans, setKawasans] = useState<Kawasan[]>([]);
   const [detailKawasans, setDetailKawasans] = useState<DetailKawasan[]>([]);
+  // Resolved once per selected Area — tells us exactly which window counts
+  // as "the current inspection period" for that Area’s plant (admin
+  // configurable cutoff day), so we never have to guess with a hardcoded
+  // calendar-month check on the client.
+  const [periodInfo, setPeriodInfo] = useState<InspectionPeriodInfo | null>(null);
 
   const {
     register,
@@ -96,6 +101,28 @@ export default function CreateInspectionPage() {
     setDetailKawasans([]);
     reset((form) => ({ ...form, kawasan_id: "", detail_kawasan_id: "" }));
   }, [selectedAreaId, reset]);
+
+  // Fetch the current inspection period whenever the selected Area changes
+  // — different Areas can belong to different plants, each with its own
+  // cutoff day.
+  useEffect(() => {
+    if (!selectedAreaId) {
+      setPeriodInfo(null);
+      return;
+    }
+    let cancelled = false;
+    inspectionApi.getCurrentPeriodInfo(selectedAreaId)
+      .then((info) => {
+        if (!cancelled) setPeriodInfo(info);
+      })
+      .catch((error) => {
+        console.error("Failed to fetch current inspection period:", error);
+        if (!cancelled) setPeriodInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAreaId]);
 
   // Fetch detail kawasans when kawasan changes
   useEffect(() => {
@@ -242,10 +269,16 @@ export default function CreateInspectionPage() {
                   {detailKawasans.map((dk) => {
                     const isOngoing = dk.active_inspection_status === "Ongoing" || dk.active_inspection_status === "Draft";
 
-                    const isCompletedThisMonth = dk.last_inspection
-                      ? (new Date(dk.last_inspection).getMonth() === new Date().getMonth() &&
-                         new Date(dk.last_inspection).getFullYear() === new Date().getFullYear())
-                      : false;
+                    // Resolved from the backend (see GetCurrentPeriodInfo) —
+                    // never re-derive the cutoff-day math on the client,
+                    // that duplication is exactly what let this drift from
+                    // the backend’s actual gate whenever cutoff day != 1.
+                    const isCompletedThisPeriod = !!(
+                      dk.last_inspection &&
+                      periodInfo &&
+                      new Date(dk.last_inspection) >= new Date(periodInfo.period_start) &&
+                      new Date(dk.last_inspection) < new Date(periodInfo.period_end)
+                    );
 
                     let statusText: string;
                     if (isOngoing) {
@@ -258,16 +291,16 @@ export default function CreateInspectionPage() {
                         hour: "2-digit",
                         minute: "2-digit",
                       });
-                      statusText = ` — Terakhir: ${dateStr}${isCompletedThisMonth ? " (Selesai Bulan Ini)" : ""}`;
+                      statusText = ` — Terakhir: ${dateStr}${isCompletedThisPeriod ? " (Selesai Periode Ini)" : ""}`;
                     } else {
                       statusText = " — Belum Pernah Diinspeksi";
                     }
 
                     return (
-                      <option 
-                        key={dk.detail_kawasan_id} 
+                      <option
+                        key={dk.detail_kawasan_id}
                         value={dk.detail_kawasan_id}
-                        disabled={isCompletedThisMonth}
+                        disabled={isCompletedThisPeriod}
                       >
                         {dk.detail_kawasan_name}{statusText}
                       </option>

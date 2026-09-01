@@ -5,6 +5,7 @@ import (
 	"github.com/monitoring-system/backend/internal/handler/dashboardhandler"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/dashboardrepo"
+	"github.com/monitoring-system/backend/internal/infrastructure/persistence/masterrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/crypto"
 	"github.com/monitoring-system/backend/pkg/jwt"
@@ -15,7 +16,8 @@ import (
 func RegisterDashboardRoutes(rg fiber.Router, db *gorm.DB, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger) {
 	userRepo := authrepo.NewUserRepository(db)
 	layoutRepo := dashboardrepo.NewDashboardLayoutRepository(db)
-	handler := dashboardhandler.NewDashboardHandler(db, log, cryptoSvc, layoutRepo)
+	settingRepo := masterrepo.NewSettingRepository(db)
+	handler := dashboardhandler.NewDashboardHandler(db, log, cryptoSvc, layoutRepo, settingRepo)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)

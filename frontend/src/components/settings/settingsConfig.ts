@@ -27,6 +27,9 @@ export const GENERAL_SETTINGS = [
     { key: "NOTIFY_ON_KAWASAN_COMPLETE", label: "Notifikasi Kawasan Selesai", type: "boolean", desc: "Kirim email ke PIC & Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini." },
     { key: "NOTIFY_ON_AREA_COMPLETE", label: "Notifikasi Area Selesai", type: "boolean", desc: "Kirim email ke PIC & Manager saat seluruh Kawasan di satu Area selesai diinspeksi." },
   ] },
+  { group: "Siklus Inspeksi", keys: [
+    { key: "INSPECTION_PERIOD_CUTOFF_DAY", label: "Tanggal Mulai Siklus Bulanan", type: "number", desc: "Tanggal berapa siklus bulanan inspeksi plant ini dimulai. Isi 13 supaya periode 13 Jan–12 Feb dihitung sebagai bulan Januari. Isi 1 untuk bulan kalender biasa (default). Berlaku khusus untuk plant yang sedang dipilih di atas." },
+  ] },
 ] as const;
 
 export const SMTP_DEFAULTS: Record<string, string> = {

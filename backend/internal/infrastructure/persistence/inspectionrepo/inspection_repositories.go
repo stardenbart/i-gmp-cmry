@@ -210,20 +210,11 @@ func (r *inspectionHeaderRepository) FindActiveByInspectorAndDetailKawasan(inspe
 	return items, err
 }
 
-func (r *inspectionHeaderRepository) CountCompletedThisMonthByDetailKawasan(detailKawasanID string, year int, month int) (int64, error) {
+func (r *inspectionHeaderRepository) CountCompletedInPeriod(detailKawasanID string, start, end time.Time) (int64, error) {
 	var count int64
 	err := r.db.Model(&inspection.InspectionHeader{}).
 		Where("\"DetailKawasanID\" = ? AND \"InspectionHeaderStatus\" IN (?, ?)", detailKawasanID, inspection.InspectionStatusCompleted, inspection.InspectionStatusApproved).
-		Where("EXTRACT(YEAR FROM \"InspectionHeaderCreatedAt\") = ? AND EXTRACT(MONTH FROM \"InspectionHeaderCreatedAt\") = ?", year, month).
-		Count(&count).Error
-	return count, err
-}
-
-func (r *inspectionHeaderRepository) CountCompletedByAreaAndDetailKawasan(areaID, detailKawasanID string) (int64, error) {
-	var count int64
-	err := r.db.Model(&inspection.InspectionHeader{}).
-		Where("\"AreaID\" = ? AND \"DetailKawasanID\" = ? AND \"InspectionHeaderStatus\" = ?",
-			areaID, detailKawasanID, inspection.InspectionStatusCompleted).
+		Where("\"InspectionHeaderCreatedAt\" >= ? AND \"InspectionHeaderCreatedAt\" < ?", start, end).
 		Count(&count).Error
 	return count, err
 }

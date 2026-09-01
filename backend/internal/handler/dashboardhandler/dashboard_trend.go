@@ -3,11 +3,14 @@ package dashboardhandler
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	masterdomain "github.com/monitoring-system/backend/internal/domain/master"
 	"github.com/monitoring-system/backend/internal/middleware"
+	"github.com/monitoring-system/backend/internal/usecase/inspectionusecase"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/response"
 	"gorm.io/gorm"
@@ -93,7 +96,14 @@ func startOfQuarter(value time.Time, location *time.Location) time.Time {
 //     for the chart. This replaced the old daily/weekly/monthly/previous_*
 //     fixed-window presets — those are now just "range" with a specific
 //     span + granularity chosen by the date pickers instead of a button.
-func buildTrendPeriod(period string, now time.Time, startDate, endDate, granularity string) (trendPeriodSpec, error) {
+//
+// cutoffDay only affects "month" granularity: bucket boundaries are aligned
+// to the same admin-configurable inspection-period cutoff used for the
+// Kawasan/Area completion cycle (see inspectionusecase.ResolveInspectionPeriod),
+// so a "Jan 2026" bar on the chart covers exactly the same window that
+// counts as "January" everywhere else in the app. cutoffDay=1 (the default)
+// is an exact calendar month, identical to the previous behavior.
+func buildTrendPeriod(period string, now time.Time, startDate, endDate, granularity string, cutoffDay int) (trendPeriodSpec, error) {
 	location := dashboardLocation()
 	normalized := strings.ToLower(strings.TrimSpace(period))
 	if normalized == "" {
@@ -139,7 +149,20 @@ func buildTrendPeriod(period string, now time.Time, startDate, endDate, granular
 		return trendPeriodSpec{}, errors.New("periode tren tidak valid")
 	}
 
-	for cursor := spec.Start; cursor.Before(spec.End); {
+	bucketCursorStart := spec.Start
+	if spec.Granularity == trendMonth {
+		// Align the first bucket to the inspection-period cutoff rather than
+		// the raw picked start_date, so bucket boundaries/labels/keys match
+		// the same periods used for Kawasan/Area completion tracking. This
+		// can extend the displayed window slightly earlier than start_date
+		// (e.g. start_date=20 Jan with cutoffDay=13 → first bucket still
+		// begins 13 Jan) — a deliberate trade-off: a bucket boundary that
+		// didn't line up with a real period would just be a meaningless
+		// partial month.
+		bucketCursorStart, _ = inspectionusecase.ResolveInspectionPeriod(spec.Start, cutoffDay)
+	}
+
+	for cursor := bucketCursorStart; cursor.Before(spec.End); {
 		if len(spec.Buckets) >= maxTrendBuckets {
 			return trendPeriodSpec{}, fmt.Errorf(
 				"rentang tanggal terlalu panjang untuk granularitas %s (lebih dari %d titik data) — pilih granularitas lebih kasar atau rentang yang lebih pendek",
@@ -211,14 +234,24 @@ func trendBucketLabel(start, end time.Time, granularity trendGranularity) string
 	}
 }
 
-func trendBucketSQL(column string, granularity trendGranularity) string {
+// trendBucketSQL returns the SQL expression used to group rows into
+// buckets. For "month", cutoffDay shifts the timestamp back (cutoffDay-1)
+// days before truncating to month — the standard "fiscal month" trick,
+// mathematically identical to ResolveInspectionPeriod: e.g. cutoffDay=13
+// shifts 12 Feb back 12 days to 31 Jan (groups as "2026-01") and 13 Feb
+// back 12 days to 1 Feb (groups as "2026-02"). cutoffDay<=1 produces the
+// exact same expression as before (no shift).
+func trendBucketSQL(column string, granularity trendGranularity, cutoffDay int) string {
 	switch granularity {
 	case trendDay:
 		return fmt.Sprintf(`TO_CHAR(%s, 'YYYY-MM-DD')`, column)
 	case trendWeek:
 		return fmt.Sprintf(`TO_CHAR(%s, 'IYYY-IW')`, column)
 	case trendMonth:
-		return fmt.Sprintf(`TO_CHAR(%s, 'YYYY-MM')`, column)
+		if cutoffDay <= 1 {
+			return fmt.Sprintf(`TO_CHAR(%s, 'YYYY-MM')`, column)
+		}
+		return fmt.Sprintf(`TO_CHAR(%s - INTERVAL '%d days', 'YYYY-MM')`, column, cutoffDay-1)
 	case trendYear:
 		return fmt.Sprintf(`TO_CHAR(%s, 'YYYY')`, column)
 	default:
@@ -257,9 +290,52 @@ func resolveTrendInspector(c *fiber.Ctx) (string, error) {
 	return requested, nil
 }
 
+// resolveTrendCutoffDay resolves the inspection-period cutoff day used to
+// align "month" granularity trend buckets, so the chart's "Jan 2026" bar
+// covers the same window that counts as "January" for Kawasan/Area
+// completion tracking (see inspectionusecase.ResolveInspectionPeriod).
+// Priority: (1) area_id's own plant, when the chart is filtered to one
+// Area; (2) the caller's own plant scope (userPlantID); (3) the global
+// default (usually 1 = calendar month) for a SuperAdmin viewing across all
+// plants with no Area filter — there's no single "the" cutoff to use then.
+func (h *DashboardHandler) resolveTrendCutoffDay(c *fiber.Ctx, areaID string) int {
+	if h.settingRepo == nil {
+		return inspectionusecase.DefaultInspectionPeriodCutoffDay
+	}
+	plantID, _ := c.Locals("userPlantID").(string)
+	if areaID != "" {
+		// Scanned into *string, not string: Area_Master.PlantID is a
+		// nullable column (see master.Area.PlantID *string) — scanning a
+		// NULL value into a bare string destination errors out on some
+		// driver/GORM combinations, which would otherwise silently fall
+		// through to the userPlantID fallback below instead of failing.
+		var resolvedPlantID *string
+		if err := h.db.Table(`"Area_Master"`).Select(`"PlantID"`).Where(`"AreaID" = ?`, areaID).
+			Scan(&resolvedPlantID).Error; err == nil && resolvedPlantID != nil && *resolvedPlantID != "" {
+			plantID = *resolvedPlantID
+		}
+	}
+	setting, err := h.settingRepo.FindByKey(masterdomain.SettingKeyInspectionPeriodCutoffDay, plantID)
+	if err != nil || setting == nil {
+		return inspectionusecase.DefaultInspectionPeriodCutoffDay
+	}
+	day, errConv := strconv.Atoi(setting.SettingValue)
+	// Validated once here (1-28, same range enforced when the setting is
+	// saved) so trendBucketSQL's raw day-shift and
+	// ResolveInspectionPeriod's own internal clamp never disagree on what
+	// "the" cutoff day is for this request.
+	if errConv != nil || day < 1 || day > 28 {
+		return inspectionusecase.DefaultInspectionPeriodCutoffDay
+	}
+	return day
+}
+
 // GetTrend returns a shared chart dataset for admin and auditor dashboards.
 func (h *DashboardHandler) GetTrend(c *fiber.Ctx) error {
-	spec, err := buildTrendPeriod(c.Query("period", "range"), time.Now(), c.Query("start_date"), c.Query("end_date"), c.Query("granularity", "day"))
+	areaID := strings.TrimSpace(c.Query("area_id"))
+	cutoffDay := h.resolveTrendCutoffDay(c, areaID)
+
+	spec, err := buildTrendPeriod(c.Query("period", "range"), time.Now(), c.Query("start_date"), c.Query("end_date"), c.Query("granularity", "day"), cutoffDay)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
@@ -268,9 +344,8 @@ func (h *DashboardHandler) GetTrend(c *fiber.Ctx) error {
 		return response.Forbidden(c, err.Error())
 	}
 	allowedAreas := h.getAllowedAreas(c)
-	areaID := strings.TrimSpace(c.Query("area_id"))
 
-	inspectionBucketExpr := trendBucketSQL(`ih."InspectionHeaderCreatedAt"`, spec.Granularity)
+	inspectionBucketExpr := trendBucketSQL(`ih."InspectionHeaderCreatedAt"`, spec.Granularity, cutoffDay)
 	inspectionQuery := h.db.Table(`"Inspection_Header" ih`).
 		Select(inspectionBucketExpr+` AS bucket_key,
 			COUNT(DISTINCT ih."InspectionID") AS total_inspections,
@@ -287,7 +362,7 @@ func (h *DashboardHandler) GetTrend(c *fiber.Ctx) error {
 		return response.InternalServerError(c, "Gagal memuat tren inspeksi", err.Error())
 	}
 
-	issueBucketExpr := trendBucketSQL(`ip."PhotoCreatedAt"`, spec.Granularity)
+	issueBucketExpr := trendBucketSQL(`ip."PhotoCreatedAt"`, spec.Granularity, cutoffDay)
 	issueQuery := h.db.Table(`"Issue_Photo" ip`).
 		Select(issueBucketExpr+` AS bucket_key, COUNT(ip."IssuePhotoID") AS total_issues`).
 		Joins(`JOIN "Issue" i ON i."IssueID" = ip."IssueID"`).

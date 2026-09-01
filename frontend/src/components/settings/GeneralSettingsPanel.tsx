@@ -44,7 +44,7 @@ export function GeneralSettingsPanel({ isLoading, values, onChange, onSubmit }: 
                           checked={values[item.key] === "true"}
                           onChange={(event) => onChange(item.key, event.target.checked ? "true" : "false")}
                         />
-                        <div className="h-6 w-11 rounded-full bg-input transition-colors peer-checked:bg-primary" />
+                        <div className="h-6 w-11 rounded-full bg-muted transition-colors peer-checked:bg-primary" />
                         <div className="absolute left-1 h-4 w-4 rounded-full bg-background transition-transform peer-checked:translate-x-5" />
                       </label>
                     </div>

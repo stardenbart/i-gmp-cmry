@@ -133,6 +133,11 @@ func validateDynamicSetting(key, value string) error {
 		if trimmed == "" {
 			return fmt.Errorf("SMTP_HOST wajib diisi")
 		}
+	case master.SettingKeyInspectionPeriodCutoffDay:
+		day, err := strconv.Atoi(trimmed)
+		if err != nil || day < 1 || day > 28 {
+			return fmt.Errorf("INSPECTION_PERIOD_CUTOFF_DAY harus berada di antara 1 dan 28")
+		}
 	case master.SettingKeySMTPSenderEmail:
 		if _, err := netmail.ParseAddress(trimmed); err != nil {
 			return fmt.Errorf("SMTP_SENDER_EMAIL tidak valid")

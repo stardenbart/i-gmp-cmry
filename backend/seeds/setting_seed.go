@@ -72,6 +72,11 @@ func SeedSettings(db *gorm.DB) {
 			Description:  "Kirim email ke PIC & Manager saat seluruh Kawasan di satu Area selesai diinspeksi",
 		},
 		{
+			SettingKey:   master.SettingKeyInspectionPeriodCutoffDay,
+			SettingValue: "1",
+			Description:  "Tanggal berapa siklus bulanan inspeksi dimulai (1-28). Isi 13 supaya periode 13 Jan-12 Feb dihitung sebagai bulan Januari. Isi 1 untuk bulan kalender biasa (default). Bisa diatur berbeda per plant.",
+		},
+		{
 			SettingKey:   master.SettingKeyIssueDeadlineDays,
 			SettingValue: "14",
 			Description:  "Batas waktu penyelesaian issue (dalam hari) sebelum menjadi overdue",

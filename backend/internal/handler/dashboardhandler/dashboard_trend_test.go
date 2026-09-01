@@ -14,7 +14,7 @@ import (
 // NOT part of the calendar filter).
 func TestBuildTrendPeriodQuarterPreset(t *testing.T) {
 	now := time.Date(2026, time.August, 27, 16, 0, 0, 0, dashboardLocation())
-	spec, err := buildTrendPeriod("quarter", now, "", "", "")
+	spec, err := buildTrendPeriod("quarter", now, "", "", "", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestBuildTrendPeriodRange(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			spec, err := buildTrendPeriod("range", now, test.start, test.end, test.granularity)
+			spec, err := buildTrendPeriod("range", now, test.start, test.end, test.granularity, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,7 +83,7 @@ func TestBuildTrendPeriodRangeRequiresValidInput(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := buildTrendPeriod("range", now, c.start, c.end, c.granularity); err == nil {
+			if _, err := buildTrendPeriod("range", now, c.start, c.end, c.granularity, 1); err == nil {
 				t.Fatal("expected invalid range input to be rejected")
 			}
 		})
@@ -94,21 +94,21 @@ func TestBuildTrendPeriodRangeRequiresValidInput(t *testing.T) {
 // unreadable chart points — must be rejected with a clear message instead.
 func TestBuildTrendPeriodRangeRejectsTooManyBuckets(t *testing.T) {
 	now := time.Now()
-	_, err := buildTrendPeriod("range", now, "2015-01-01", "2025-12-31", "day")
+	_, err := buildTrendPeriod("range", now, "2015-01-01", "2025-12-31", "day", 1)
 	if err == nil {
 		t.Fatal("expected a multi-year daily range to be rejected")
 	}
 }
 
 func TestBuildTrendPeriodRejectsUnknownValue(t *testing.T) {
-	if _, err := buildTrendPeriod("unknown", time.Now(), "", "", ""); err == nil {
+	if _, err := buildTrendPeriod("unknown", time.Now(), "", "", "", 1); err == nil {
 		t.Fatal("expected invalid period to be rejected")
 	}
 }
 
 func TestBuildTrendPeriodHandlesLeapMonth(t *testing.T) {
 	now := time.Date(2024, time.March, 15, 12, 0, 0, 0, dashboardLocation())
-	spec, err := buildTrendPeriod("range", now, "2024-02-01", "2024-02-29", "day")
+	spec, err := buildTrendPeriod("range", now, "2024-02-01", "2024-02-29", "day", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,6 +120,66 @@ func TestBuildTrendPeriodHandlesLeapMonth(t *testing.T) {
 	}
 	if got := spec.End.Format("2006-01-02"); got != "2024-03-01" {
 		t.Fatalf("end = %s, want 2024-03-01", got)
+	}
+}
+
+// A non-default cutoff day aligns "month" buckets to the same inspection
+// period used for Kawasan/Area completion tracking, instead of the raw
+// picked start_date or the 1st of the calendar month.
+func TestBuildTrendPeriodMonthGranularityRespectsCutoffDay(t *testing.T) {
+	now := time.Date(2026, time.August, 27, 16, 0, 0, 0, dashboardLocation())
+	// User picks 20 Jan-20 Mar with cutoff day 13: the first bucket must
+	// extend back to 13 Jan (the period start containing 20 Jan), not stay
+	// at the picked 20 Jan — otherwise "Jan" would be a meaningless partial
+	// month that doesn't match any real inspection period.
+	spec, err := buildTrendPeriod("range", now, "2026-01-20", "2026-03-20", "month", 13)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spec.Buckets) < 1 {
+		t.Fatal("expected at least one bucket")
+	}
+	first := spec.Buckets[0]
+	if got := first.Start.Format("2006-01-02"); got != "2026-01-13" {
+		t.Fatalf("first bucket start = %s, want 2026-01-13", got)
+	}
+	if got := first.Key; got != "2026-01" {
+		t.Fatalf("first bucket key = %s, want 2026-01", got)
+	}
+	if got := first.Label; got != "Jan 2026" {
+		t.Fatalf("first bucket label = %s, want Jan 2026", got)
+	}
+	second := spec.Buckets[1]
+	if got := second.Start.Format("2006-01-02"); got != "2026-02-13" {
+		t.Fatalf("second bucket start = %s, want 2026-02-13", got)
+	}
+	if got := second.Key; got != "2026-02" {
+		t.Fatalf("second bucket key = %s, want 2026-02", got)
+	}
+}
+
+// cutoffDay=1 (the default) must produce identical buckets to the old,
+// pre-cutoff behavior — no regression for plants that never change the
+// setting.
+func TestBuildTrendPeriodMonthGranularityCutoffDayOneIsCalendarMonth(t *testing.T) {
+	now := time.Date(2026, time.August, 27, 16, 0, 0, 0, dashboardLocation())
+	spec, err := buildTrendPeriod("range", now, "2026-01-01", "2026-03-01", "month", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := spec.Buckets[0].Start.Format("2006-01-02"); got != "2026-01-01" {
+		t.Fatalf("first bucket start = %s, want 2026-01-01", got)
+	}
+}
+
+func TestTrendBucketSQLMonthShiftsByCutoffDayMinusOne(t *testing.T) {
+	if got := trendBucketSQL(`"col"`, trendMonth, 1); got != `TO_CHAR("col", 'YYYY-MM')` {
+		t.Fatalf("cutoffDay=1: got %q, want no shift", got)
+	}
+	got := trendBucketSQL(`"col"`, trendMonth, 13)
+	want := `TO_CHAR("col" - INTERVAL '12 days', 'YYYY-MM')`
+	if got != want {
+		t.Fatalf("cutoffDay=13: got %q, want %q", got, want)
 	}
 }
 
