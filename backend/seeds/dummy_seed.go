@@ -110,12 +110,13 @@ func SeedDummyData(db *gorm.DB) {
 				issueID := fmt.Sprintf("ISSUE-%03d", idx)
 				dueDate := now.AddDate(0, 0, 3)
 				issue := issuedomain.Issue{
-					IssueID:        issueID,
-					ResultID:       resID,
-					IssuePICUserID: p.AdminID,
-					DueDate:        &dueDate,
-					IssueStatus:    issuedomain.IssueStatusOpen,
-					Keterangan:     fmt.Sprintf("Segera perbaiki masalah %s ke-%d", p.PlantName, i),
+					IssueID:         issueID,
+					ResultID:        resID,
+					DetailKawasanID: dkID,
+					IssuePICUserID:  p.AdminID,
+					DueDate:         &dueDate,
+					IssueStatus:     issuedomain.IssueStatusOpen,
+					Keterangan:      fmt.Sprintf("Segera perbaiki masalah %s ke-%d", p.PlantName, i),
 				}
 				db.Where(&issuedomain.Issue{IssueID: issue.IssueID}).FirstOrCreate(&issue)
 

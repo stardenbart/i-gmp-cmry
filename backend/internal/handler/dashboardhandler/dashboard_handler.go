@@ -103,11 +103,25 @@ func resolveLayoutTarget(c *fiber.Ctx) (targetUserID, targetRoleID string, err e
 	return targetUserID, targetRoleID, nil
 }
 
+// resolveDashboardKey reads ?dashboard_key= (defaulting to "main", the
+// implicit key every pre-existing layout row was migrated to) — so callers
+// that never pass it (the 3 existing role dashboards, and the Edit User
+// dashboard tab) keep behaving exactly as before multi-dashboard support
+// was added.
+func resolveDashboardKey(c *fiber.Ctx) string {
+	key := strings.TrimSpace(c.Query("dashboard_key", dashboarddomain.DashboardKeyMain))
+	if key == "" {
+		return dashboarddomain.DashboardKeyMain
+	}
+	return key
+}
+
 // GetLayout returns the target user's saved dashboard widget layout (the
 // caller themself by default, or another user if the caller is Admin/Super
-// Admin and passes ?user_id=), falling back to the role's default
-// arrangement if they've never customized it (or if what they saved fails
-// to parse — never hard-fail the dashboard over a preference blob).
+// Admin and passes ?user_id=) for the requested ?dashboard_key= (default
+// "main"), falling back to that dashboard's default arrangement if they've
+// never customized it (or if what they saved fails to parse — never
+// hard-fail the dashboard over a preference blob).
 func (h *DashboardHandler) GetLayout(c *fiber.Ctx) error {
 	targetUserID, targetRoleID, err := resolveLayoutTarget(c)
 	if err != nil {
@@ -116,10 +130,11 @@ func (h *DashboardHandler) GetLayout(c *fiber.Ctx) error {
 		}
 		return response.Unauthorized(c, "Unauthorized")
 	}
+	dashboardKey := resolveDashboardKey(c)
 
-	fallback := dashboarddomain.DefaultLayoutForRole(targetRoleID)
+	fallback := dashboarddomain.DefaultLayoutForDashboard(dashboardKey, targetRoleID)
 
-	saved, err := h.layoutRepo.FindByUserID(targetUserID)
+	saved, err := h.layoutRepo.FindByUserID(targetUserID, dashboardKey)
 	if err != nil {
 		h.log.Error("dashboard: failed to load layout", logger.Error(err))
 		return response.OK(c, "Using default layout", fallback)
@@ -138,7 +153,8 @@ func (h *DashboardHandler) GetLayout(c *fiber.Ctx) error {
 }
 
 // SaveLayout persists the target user's widget arrangement (x/y/w/h from
-// Fase 3b's drag/resize UI, plus visible/order). Same target resolution and
+// Fase 3b's drag/resize UI, plus visible/order) under the requested
+// ?dashboard_key= (default "main"). Same target resolution and
 // Admin/Super-Admin-only-for-others rule as GetLayout.
 func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
 	targetUserID, _, err := resolveLayoutTarget(c)
@@ -148,6 +164,7 @@ func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
 		}
 		return response.Unauthorized(c, "Unauthorized")
 	}
+	dashboardKey := resolveDashboardKey(c)
 
 	var widgets []dashboarddomain.WidgetConfig
 	if err := c.BodyParser(&widgets); err != nil {
@@ -156,13 +173,18 @@ func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
 	if len(widgets) == 0 {
 		return response.BadRequest(c, "Layout must contain at least one widget", nil)
 	}
+	for _, w := range widgets {
+		if err := dashboarddomain.ValidateCustomQuery(w.CustomQuery); err != nil {
+			return response.BadRequest(c, "Invalid custom_query for widget "+w.WidgetID, err.Error())
+		}
+	}
 
 	raw, err := json.Marshal(widgets)
 	if err != nil {
 		return response.InternalServerError(c, "Failed to encode layout", err.Error())
 	}
 
-	if err := h.layoutRepo.Upsert(targetUserID, string(raw)); err != nil {
+	if err := h.layoutRepo.Upsert(targetUserID, dashboardKey, string(raw)); err != nil {
 		return response.InternalServerError(c, "Failed to save layout", err.Error())
 	}
 
