@@ -352,6 +352,37 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ResolvedWidget[]>(resolved);
   const activeWidgets = isEditing ? draft : resolved;
+
+  // `draft` is a deliberate snapshot so free-form drag/resize/hide edits
+  // don't touch the live view until "Simpan Tata Letak" — but that means it
+  // never sees a save that happens through a DIFFERENT mutation while this
+  // session is still open (the Custom KPI Builder's own "Tambah Visualisasi"
+  // / edit-pencil flow, see DashboardKPI.tsx, which writes straight to the
+  // same query cache). Without this, adding/editing a custom widget while
+  // "Sesuaikan Dashboard" happens to be open silently doesn't show up —
+  // the widget (or its new display options) only appears after Batal/Simpan
+  // Tata Letak or a reload, which reads as "tersimpan tapi tidak muncul".
+  // `resolved` can only change here from such an EXTERNAL save — this
+  // component's OWN in-session edits (vizType/title via the header
+  // controls) live in `draft` alone and never reach `saved` until "Simpan
+  // Tata Letak" — so it's always safe to take the fresh def/vizType/
+  // customQuery here, as long as this session's own structural edits
+  // (position/size/visibility) are preserved for widgets that already
+  // existed in the draft. Uses React's "adjust state during render" pattern
+  // (comparing against the last-synced reference) rather than an effect +
+  // setState, per https://react.dev/learn/you-might-not-need-an-effect —
+  // no extra render/commit cycle, and avoids the react-hooks/set-state-in-effect rule.
+  const [lastSyncedResolved, setLastSyncedResolved] = useState(resolved);
+  if (isEditing && resolved !== lastSyncedResolved) {
+    setLastSyncedResolved(resolved);
+    setDraft((prev) => {
+      const prevById = new Map(prev.map((w) => [w.def.id, w]));
+      return resolved.map((fresh) => {
+        const existing = prevById.get(fresh.def.id);
+        return existing ? { ...fresh, layout: existing.layout, visible: existing.visible } : fresh;
+      });
+    });
+  }
   const visibleWidgets = activeWidgets.filter((w) => w.visible);
   const hiddenWidgets = activeWidgets.filter((w) => !w.visible);
   const hasDesktopGrid = width >= BREAKPOINTS.lg;
