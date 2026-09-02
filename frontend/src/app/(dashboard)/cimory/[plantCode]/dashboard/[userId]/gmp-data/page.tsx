@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ClipboardCheck, Search, X, Loader2, Download, Eye, Calendar, MapPin, RotateCcw, Layers, ListChecks, AlertTriangle, Building2 } from "lucide-react";
+import { ClipboardCheck, Search, X, Loader2, Calendar, MapPin, RotateCcw, Layers, ListChecks, AlertTriangle, Building2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api/axios";
 import { dashboardApi } from "@/types/api/dashboard";
 import { areaApi, plantApi } from "@/types/api/master";
 import type { Kawasan, DetailKawasan } from "@/types/api";
@@ -17,6 +16,8 @@ import { cn, formatImageUrl } from "@/lib/utils";
 import { SearchLatencyBadge } from "@/components/ui/SearchLatencyBadge";
 import { useAuthStore } from "@/stores/authStore";
 import { useDebounce } from "@/hooks/useDebounce";
+import { GmpEvidenceImages, GmpFollowUpDescriptions } from "@/components/gmp/GmpEvidenceImages";
+import { GmpExportMenu } from "@/components/gmp/GmpExportMenu";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -61,7 +62,6 @@ export default function GmpDataAdminPage() {
   }, [debouncedSearchValue, dispatch]);
 
   const [selectedPlant, setSelectedPlant] = useState<string>(effectivePlantId || "");
-  const [isExporting, setIsExporting] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const userPlantId = user?.plant_id;
@@ -110,7 +110,7 @@ export default function GmpDataAdminPage() {
 
   // Main data preview query
   const { data: previewData, isLoading: isPreviewLoading } = useQuery({
-    queryKey: ["dashboard-preview-export", selectedArea, selectedKawasan, selectedDetailKawasan, startDate, endDate, activePlantId],
+    queryKey: ["dashboard-preview-export", selectedArea, selectedKawasan, selectedDetailKawasan, startDate, endDate, activePlantId, q],
     queryFn: () => dashboardApi.getPreviewExport({
       area_id: selectedArea,
       kawasan_id: selectedKawasan,
@@ -118,6 +118,7 @@ export default function GmpDataAdminPage() {
       start_date: startDate,
       end_date: endDate,
       plant_id: activePlantId,
+      q,
     }),
     enabled: mounted && isAdmin,
   });
@@ -145,59 +146,13 @@ export default function GmpDataAdminPage() {
 
   const hasActiveFilters = Boolean(selectedPlant || selectedArea || selectedKawasan || selectedDetailKawasan || startDate || endDate || q);
 
-  const handleExport = async () => {
-    try {
-      setIsExporting(true);
-      const response = await api.get("/dashboard/export", { 
-        params: { 
-          area_id: selectedArea,
-          kawasan_id: selectedKawasan,
-          detail_kawasan_id: selectedDetailKawasan,
-          start_date: startDate,
-          end_date: endDate,
-          plant_id: activePlantId,
-        },
-        responseType: 'blob' 
-      });
-      
-      const areaName = areasResponse?.data?.items?.find((a) => a.area_id === selectedArea)?.area_name || "Semua Area";
-      const datetime = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '');
-      const filename = `Report_${areaName.replace(/\s+/g, '_')}_${datetime}.xlsx`;
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
-    } catch (error) {
-      console.error("Export error:", error);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   if (!mounted || isGuardLoading) return <div className="h-64 flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
 
   if (!isAdmin) return null;
 
-  // Search logic (Client side across all fields)
-  const filteredData = previewData?.data?.filter((row) => {
-    if (!q) return true;
-    const searchLower = q.toLowerCase();
-    return (
-      row.inspection_id?.toLowerCase().includes(searchLower) ||
-      row.area?.toLowerCase().includes(searchLower) ||
-      row.kawasan?.toLowerCase().includes(searchLower) ||
-      row.detail_kawasan?.toLowerCase().includes(searchLower) ||
-      row.pic?.toLowerCase().includes(searchLower) ||
-      row.aspek?.toLowerCase().includes(searchLower) ||
-      row.detail?.toLowerCase().includes(searchLower) ||
-      row.uraian_id?.toLowerCase().includes(searchLower) ||
-      row.keterangan?.toLowerCase().includes(searchLower)
-    );
-  }) || [];
+  // Search is applied by the backend so preview and both XLSX export modes
+  // always contain the same rows.
+  const filteredData = previewData?.data || [];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-8">
@@ -212,14 +167,18 @@ export default function GmpDataAdminPage() {
           </p>
         </div>
         
-        <Button 
-          onClick={handleExport} 
-          disabled={isExporting || isPreviewLoading}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-          {isExporting ? "Mengekspor..." : "Export Report"}
-        </Button>
+        <GmpExportMenu
+          disabled={isPreviewLoading || filteredData.length === 0}
+          filters={{
+            area_id: selectedArea || undefined,
+            kawasan_id: selectedKawasan || undefined,
+            detail_kawasan_id: selectedDetailKawasan || undefined,
+            start_date: startDate || undefined,
+            end_date: endDate || undefined,
+            plant_id: activePlantId || undefined,
+            q: q || undefined,
+          }}
+        />
       </div>
 
       {/* Filter Bar */}
@@ -373,7 +332,7 @@ export default function GmpDataAdminPage() {
       {/* Table Section */}
       <Card className="overflow-hidden border-border/50 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1400px] text-sm text-left border-collapse">
+          <table className="w-full min-w-[1900px] text-sm text-left border-collapse">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">ID Inspeksi</th>
@@ -385,23 +344,26 @@ export default function GmpDataAdminPage() {
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai per Kawasan">Total Nilai (Kawasan)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai ÷ Total Nilai Maksimal (semua uraian OK) pada Detail Kawasan ini × 100">Persentase Kepatuhan (Detail Kawasan)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="1 jika uraian ini memiliki issue, 0 jika tidak">Temuan (Uraian)</th>
-                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti temuan awal pada uraian">Visual Gambar</th>
-                <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan per Detail Kawasan">Keterangan</th>
+                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti temuan awal pada uraian">Visual Temuan Awal</th>
+                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti perbaikan dengan tipe FollowUp">Visual Follow-Up</th>
+                <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan pada setiap foto FollowUp">Keterangan Follow-Up</th>
+                <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan temuan per Detail Kawasan">Keterangan Temuan</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Follow Up Datetime per Detail Kawasan">Follow Up Datetime</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Due Date per Detail Kawasan">Due Date</th>
+                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Selisih hari kalender: tanggal follow-up dikurangi due date">Gap Follow-Up</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {isPreviewLoading ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={16} className="px-6 py-12 text-center text-muted-foreground">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary/50" />
                     Memuat data inspeksi GMP...
                   </td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-6 sm:p-10">
+                  <td colSpan={16} className="p-6 sm:p-10">
                     <div className="w-full rounded-3xl border border-dashed border-border/70 bg-gradient-to-b from-card/80 via-card/40 to-background p-8 sm:p-12 text-center shadow-sm">
                       <div className="mx-auto w-full max-w-md text-center space-y-4" style={{ width: "100%", maxWidth: "28rem", marginLeft: "auto", marginRight: "auto" }}>
                         <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-inner mx-auto mb-2">
@@ -513,51 +475,34 @@ export default function GmpDataAdminPage() {
                       </span>
                     </td>
 
-                    {/* Visual Gambar (Issue) */}
+                    {/* Visual Temuan Awal */}
                     <td className="px-4 py-3 text-center">
-                      {(() => {
-                        const images = Array.from(new Set(
-                          (Array.isArray(row.image_urls) && row.image_urls.length > 0
-                            ? row.image_urls
-                            : row.image_url ? [row.image_url] : []
-                          ).filter(Boolean)
-                        )) as string[];
-
-                        if (images.length === 0) {
-                          return <span className="text-xs text-muted-foreground italic">-</span>;
-                        }
-
-                        return (
-                          <div className="flex min-w-max items-center justify-center gap-1.5">
-                            {images.map((imageUrl, imageIndex) => (
-                              <button
-                                type="button"
-                                key={`${row.issue_id || row.uraian_id}-${imageIndex}-${imageUrl}`}
-                                className="relative group h-12 w-16 shrink-0 overflow-hidden rounded-lg border border-border/60 shadow-sm cursor-pointer bg-muted"
-                                onClick={() => setPreviewImage(formatImageUrl(imageUrl))}
-                                title={`Buka foto bukti ${imageIndex + 1} dari ${images.length}`}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={formatImageUrl(imageUrl) || "/placeholder.png"}
-                                  alt={`Foto bukti temuan ${imageIndex + 1}`}
-                                  onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
-                                  className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                                />
-                                <span className="absolute left-1 top-1 rounded bg-black/65 px-1 text-[9px] font-semibold text-white">
-                                  {imageIndex + 1}/{images.length}
-                                </span>
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                  <Eye className="h-3.5 w-3.5" />
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                      <GmpEvidenceImages
+                        imageUrl={row.image_url}
+                        imageUrls={row.image_urls}
+                        label="Foto temuan awal"
+                        onPreview={setPreviewImage}
+                      />
                     </td>
 
-                    {/* Keterangan */}
+                    {/* Visual Follow-Up */}
+                    <td className="px-4 py-3 text-center">
+                      <GmpEvidenceImages
+                        imageUrl={row.follow_up_image_url}
+                        imageUrls={row.follow_up_image_urls}
+                        evidence={row.follow_up_evidence}
+                        label="Foto follow-up"
+                        variant="follow-up"
+                        onPreview={setPreviewImage}
+                      />
+                    </td>
+
+                    {/* Keterangan per Foto Follow-Up */}
+                    <td className="px-4 py-3 align-top">
+                      <GmpFollowUpDescriptions evidence={row.follow_up_evidence} />
+                    </td>
+
+                    {/* Keterangan Temuan */}
                     <td className="px-4 py-3 max-w-xs truncate" title={row.keterangan}>
                       {row.keterangan || <span className="text-muted-foreground italic">-</span>}
                     </td>
@@ -584,6 +529,25 @@ export default function GmpDataAdminPage() {
                           })}
                         </span>
                       ) : "-"}
+                    </td>
+
+                    {/* Gap Follow-Up */}
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      {row.follow_up_gap_days === undefined || row.follow_up_gap_days === null ? (
+                        <span className="text-xs italic text-muted-foreground">-</span>
+                      ) : row.follow_up_gap_days > 0 ? (
+                        <span className="rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-xs font-bold text-red-500">
+                          +{row.follow_up_gap_days} hari terlambat
+                        </span>
+                      ) : row.follow_up_gap_days < 0 ? (
+                        <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-600">
+                          {Math.abs(row.follow_up_gap_days)} hari lebih cepat
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-blue-500/25 bg-blue-500/10 px-2.5 py-1 text-xs font-bold text-blue-500">
+                          Tepat waktu
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))
