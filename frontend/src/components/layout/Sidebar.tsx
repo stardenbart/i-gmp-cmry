@@ -12,7 +12,8 @@ import {
   Users,
   History,
   Settings,
-  FileBox
+  FileBox,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -32,6 +33,11 @@ export function Sidebar() {
 
   const MAIN_MENU = [
     { href: `${basePath}`, label: "Dasbor", icon: Home },
+    // Dashboard KPI/analitik — dibuka untuk semua role (Admin, Auditor,
+    // Auditee); tidak ada permission-module gate karena endpoint
+    // /dashboard/* yang dipakainya juga tidak digate, cuma di-scope per
+    // plant/area otomatis lewat auth.
+    { href: `${basePath}/kpi`, label: "Dashboard KPI", icon: BarChart3 },
     // Inspeksi (PERM-INSP-R)
     ...(hasPermission("PERM-INSP-R")
       ? [{ href: `${basePath}/inspections`, label: "Inspections", icon: ClipboardCheck }]

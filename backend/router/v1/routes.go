@@ -47,4 +47,5 @@ func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.C
 	RegisterUploadRoutes(rg, db, minioStorage, producer, jwtManager, log, actLogUC)
 	RegisterNotificationRoutes(rg, db, jwtManager, log, cfg)
 	RegisterDashboardRoutes(rg, db, cryptoSvc, jwtManager, log)
+	RegisterAnalyticsRoutes(rg, db, jwtManager, log)
 }

@@ -3,14 +3,39 @@
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactElement } from "react";
 import { Responsive, type Layout, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { LayoutGrid, Loader2, Save, X, Plus, EyeOff, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dashboardLayoutApi, type WidgetConfig, type LayoutTarget } from "@/lib/api/dashboard-layout.api";
-import type { WidgetDefinition } from "@/components/dashboard/types";
+import type { WidgetDefinition, VizType } from "@/components/dashboard/types";
+
+// Labels only — purely additive to a Record<VizType,string> literal, no
+// logic/JSX change. Safe for the 3 existing role dashboards: each widget's
+// own `supportedVizTypes` (registry.ts) still lists only its original
+// subset, so none of the new entries below ever appear in their picker —
+// only the new Custom KPI Builder widgets (DashboardKPI.tsx) opt into them.
+const VIZ_TYPE_LABELS: Record<VizType, string> = {
+  list: "Tampilan Bawaan",
+  table: "Tabel",
+  bar: "Bar Chart",
+  horizontal_bar: "Bar Horizontal",
+  stacked_bar: "Bar Bertumpuk",
+  line: "Line Chart",
+  area: "Area Chart",
+  radar: "Radar Chart",
+  scatter: "Scatter Plot",
+  pie: "Pie Chart",
+  donut: "Donut Chart",
+  treemap: "Treemap",
+  funnel: "Funnel",
+  number_card: "Kartu Angka",
+  gauge: "Gauge",
+  heatmap: "Heatmap",
+  sankey: "Sankey",
+};
 
 const BREAKPOINTS = { lg: 768, xs: 0 };
 const COLS = { lg: 12, xs: 1 };
@@ -78,12 +103,36 @@ interface DashboardGridProps {
    * anyway, since those widgets read from useAuthStore's logged-in user).
    */
   previewOnly?: boolean;
+  /**
+   * Which of the caller's several independently-saved dashboards this is.
+   * Defaults to "main" (every dashboard before this existed) — passing a
+   * different key (e.g. "kpi") persists/loads a completely separate layout
+   * row so it never collides with the caller's main dashboard.
+   */
+  dashboardKey?: string;
+  /**
+   * Replace the "Disembunyikan: [+ pill]" click-to-restore bar with a real
+   * drag-and-drop Toolbox panel (react-grid-layout's official Toolbox
+   * pattern) — drag a card from the panel onto the grid to add it back,
+   * at the exact position dropped. Off by default so the 3 existing role
+   * dashboards and the Edit User dashboard tab keep their current
+   * click-only behavior untouched; opt in per dashboard as needed.
+   */
+  toolboxMode?: boolean;
 }
 
 interface ResolvedWidget {
   def: WidgetDefinition;
   visible: boolean;
   layout: LayoutItem;
+  vizType: VizType;
+  // Opaque to this component — DashboardGrid never reads/interprets it
+  // (only the Custom KPI Visualization Builder does, see DashboardKPI.tsx)
+  // but it MUST round-trip through save/load unchanged, or a plain
+  // "Simpan Tata Letak" from normal edit mode (move/resize/hide/viz-type)
+  // would silently wipe a custom widget's query config and make it
+  // disappear on the next reload.
+  customQuery?: WidgetConfig["custom_query"];
 }
 
 function normalizeLayout(layout: { x: number; y: number; w: number; h: number }, fallback: WidgetDefinition["defaultLayout"]): LayoutItem {
@@ -107,8 +156,16 @@ function resolveWidgets(registry: WidgetDefinition[], saved: WidgetConfig[] | un
       def,
       visible: cfg ? cfg.visible : true,
       layout: { ...normalized, i: def.id },
+      vizType: (cfg?.viz_type as VizType | undefined) ?? def.defaultVizType ?? "list",
+      customQuery: cfg?.custom_query
+        ? { ...cfg.custom_query, title: cfg.custom_query.title?.trim() || def.title }
+        : undefined,
     };
   });
+}
+
+function getWidgetTitle(widget: ResolvedWidget) {
+  return widget.customQuery?.title?.trim() || widget.def.title;
 }
 
 function toSingleColumnLayout(items: ResolvedWidget[]): Layout {
@@ -139,37 +196,81 @@ interface DashboardWidgetFrameProps {
   isEditing: boolean;
   previewOnly: boolean;
   onHide: (id: string) => void;
+  onVizTypeChange: (id: string, vizType: VizType) => void;
+  onTitleChange: (id: string, title: string) => void;
 }
 
-function DashboardWidgetFrame({ widget, isEditing, previewOnly, onHide }: DashboardWidgetFrameProps) {
-  const { Component } = widget.def;
+function DashboardWidgetFrame({ widget, isEditing, previewOnly, onHide, onVizTypeChange, onTitleChange }: DashboardWidgetFrameProps) {
+  // Not every widget declares vizType support/takes a vizType prop (the 15
+  // widgets across the Admin/Auditor/Auditee registries don't) — cast once
+  // here rather than constraining the shared WidgetDefinition.Component
+  // type, so those are unaffected.
+  const Component = widget.def.Component as unknown as (props: { vizType?: VizType }) => ReactElement;
+  const hasVizPicker = isEditing && (widget.def.supportedVizTypes?.length ?? 0) > 0;
+  const title = getWidgetTitle(widget);
   return (
     <div className="relative h-full min-w-0 group">
       {isEditing && (
-        <div className="widget-drag-handle absolute inset-x-0 top-0 z-10 flex items-center justify-between rounded-t-xl bg-primary/90 px-2 py-1 text-xs font-semibold text-primary-foreground cursor-move">
-          <span className="truncate">{widget.def.title}</span>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onHide(widget.def.id);
-            }}
-            className="shrink-0 rounded p-0.5 transition-colors hover:bg-white/20"
-            aria-label={`Sembunyikan ${widget.def.title}`}
-            title="Sembunyikan widget ini"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+        <div className="widget-drag-handle absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-1 rounded-t-xl bg-primary/90 px-2 py-1 text-xs font-semibold text-primary-foreground cursor-move">
+          {widget.customQuery ? (
+            <input
+              type="text"
+              value={widget.customQuery.title ?? ""}
+              maxLength={100}
+              aria-label={`Ubah judul ${title}`}
+              title="Ubah judul visualisasi"
+              placeholder="Judul visualisasi"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => onTitleChange(widget.def.id, event.target.value)}
+              className={`min-w-0 flex-1 rounded border px-1.5 py-0.5 text-xs font-semibold text-primary-foreground outline-none placeholder:text-primary-foreground/60 ${
+                widget.customQuery.title?.trim() ? "border-white/20 bg-white/10 focus:border-white/60" : "border-red-200 bg-red-500/30"
+              }`}
+            />
+          ) : (
+            <span className="truncate">{title}</span>
+          )}
+          <div className="flex shrink-0 items-center gap-1">
+            {hasVizPicker && (
+              <select
+                aria-label={`Ubah visualisasi ${title}`}
+                title="Ubah tampilan visualisasi"
+                value={widget.vizType}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) => onVizTypeChange(widget.def.id, event.target.value as VizType)}
+                className="cursor-pointer rounded bg-white/15 px-1 py-0.5 text-[11px] font-medium text-primary-foreground outline-none hover:bg-white/25"
+              >
+                {(widget.def.supportedVizTypes ?? []).map((type) => (
+                  <option key={type} value={type} className="text-foreground">
+                    {VIZ_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onHide(widget.def.id);
+              }}
+              className="shrink-0 rounded p-0.5 transition-colors hover:bg-white/20"
+              aria-label={`Sembunyikan ${title}`}
+              title="Sembunyikan widget ini"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
       <div className={isEditing ? "h-full min-w-0 pt-7 pointer-events-none select-none" : "h-full min-w-0"}>
         {previewOnly ? (
           <div className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-muted-foreground">
             <LayoutDashboard className="h-6 w-6 opacity-50" />
-            <span className="text-center text-xs font-medium">{widget.def.title}</span>
+            <span className="text-center text-xs font-medium">{title}</span>
           </div>
         ) : (
-          <Component />
+          <Component vizType={widget.vizType} />
         )}
       </div>
     </div>
@@ -182,12 +283,16 @@ function NaturalDashboardLayout({
   isEditing,
   previewOnly,
   onHide,
+  onVizTypeChange,
+  onTitleChange,
 }: {
   widgets: ResolvedWidget[];
   wide: boolean;
   isEditing: boolean;
   previewOnly: boolean;
   onHide: (id: string) => void;
+  onVizTypeChange: (id: string, vizType: VizType) => void;
+  onTitleChange: (id: string, title: string) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -206,7 +311,14 @@ function NaturalDashboardLayout({
                 className="min-w-0"
                 style={wide ? { gridColumn: `${start} / span ${span}` } : undefined}
               >
-                <DashboardWidgetFrame widget={widget} isEditing={isEditing} previewOnly={previewOnly} onHide={onHide} />
+                <DashboardWidgetFrame
+                  widget={widget}
+                  isEditing={isEditing}
+                  previewOnly={previewOnly}
+                  onHide={onHide}
+                  onVizTypeChange={onVizTypeChange}
+                  onTitleChange={onTitleChange}
+                />
               </div>
             );
           })}
@@ -222,14 +334,15 @@ function NaturalDashboardLayout({
  * manipulation, in an explicit "Edit Layout" mode (view mode stays static
  * so normal dashboard browsing isn't accidentally draggable).
  */
-export function DashboardGrid({ registry, enabled, target, editable = false, previewOnly = false }: DashboardGridProps) {
+export function DashboardGrid({ registry, enabled, target, editable = false, previewOnly = false, dashboardKey = "main", toolboxMode = false }: DashboardGridProps) {
   const queryClient = useQueryClient();
   const { width, containerRef, mounted } = useElementWidth();
-  const queryKey = ["dashboard-layout", target?.userId ?? "self"];
+  const queryKey = ["dashboard-layout", target?.userId ?? "self", dashboardKey];
+  const layoutTarget = { ...target, dashboardKey };
 
   const { data: saved, isLoading } = useQuery({
     queryKey,
-    queryFn: () => dashboardLayoutApi.get(target),
+    queryFn: () => dashboardLayoutApi.get(layoutTarget),
     enabled,
     staleTime: 60_000,
   });
@@ -242,6 +355,11 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
   const visibleWidgets = activeWidgets.filter((w) => w.visible);
   const hiddenWidgets = activeWidgets.filter((w) => !w.visible);
   const hasDesktopGrid = width >= BREAKPOINTS.lg;
+
+  // Toolbox drag-and-drop (only used when toolboxMode is on): which hidden
+  // widget is currently being dragged from the panel, so the grid knows
+  // what size placeholder to show and which widget to reveal on drop.
+  const [draggingWidget, setDraggingWidget] = useState<ResolvedWidget | null>(null);
 
   const lgLayout: Layout = visibleWidgets.map((w) => w.layout);
   const layouts: ResponsiveLayouts = {
@@ -269,6 +387,51 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
     setDraft((prev) => prev.map((w) => (w.def.id === id ? { ...w, visible: true } : w)));
   };
 
+  const changeVizType = (id: string, vizType: VizType) => {
+    setDraft((prev) => prev.map((w) => (w.def.id === id ? { ...w, vizType } : w)));
+  };
+
+  const changeCustomTitle = (id: string, title: string) => {
+    setDraft((prev) =>
+      prev.map((w) =>
+        w.def.id === id && w.customQuery
+          ? { ...w, customQuery: { ...w.customQuery, title } }
+          : w
+      )
+    );
+  };
+
+  const hasInvalidCustomTitle = draft.some((widget) => widget.customQuery && !widget.customQuery.title?.trim());
+
+  // Toolbox: a card being dragged from the panel sets `draggingWidget` so
+  // the grid can size its drop placeholder to that widget's default w/h.
+  // `text/plain` must be set for the drag to register at all in Firefox.
+  const handleToolboxDragStart = (widget: ResolvedWidget) => (event: DragEvent<HTMLDivElement>) => {
+    setDraggingWidget(widget);
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("text/plain", widget.def.id);
+  };
+
+  const handleToolboxDragEnd = () => setDraggingWidget(null);
+
+  // react-grid-layout's onDrop hands back the full layout including the
+  // placeholder item at its computed drop x/y — that placeholder's own `i`
+  // is a synthetic id (see droppingItem below), so the real widget being
+  // added is read from `draggingWidget` (set on drag-start), not from the
+  // dropped item itself.
+  const handleGridDrop = (_layout: Layout, item: LayoutItem | undefined) => {
+    const widget = draggingWidget;
+    setDraggingWidget(null);
+    if (!widget || !item) return;
+    setDraft((prev) =>
+      prev.map((w) =>
+        w.def.id === widget.def.id
+          ? { ...w, visible: true, layout: { i: w.def.id, x: item.x, y: item.y, w: item.w, h: item.h } }
+          : w
+      )
+    );
+  };
+
   const saveMutation = useMutation({
     mutationFn: () => {
       const widgets: WidgetConfig[] = draft.map((w, index) => ({
@@ -279,10 +442,17 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
         y: w.layout.y,
         w: w.layout.w,
         h: w.layout.h,
+        viz_type: w.vizType,
+        custom_query: w.customQuery
+          ? { ...w.customQuery, title: w.customQuery.title?.trim() }
+          : undefined,
       }));
-      return dashboardLayoutApi.save(widgets, target);
+      return dashboardLayoutApi.save(widgets, layoutTarget);
     },
-    onSuccess: () => {
+    onSuccess: (savedWidgets) => {
+      // Keep view mode and the next edit session in sync with exactly what
+      // the backend persisted, including custom visualization titles.
+      queryClient.setQueryData(queryKey, savedWidgets);
       queryClient.invalidateQueries({ queryKey });
       setIsEditing(false);
       toast.success("Tata letak dashboard berhasil disimpan");
@@ -322,7 +492,14 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
               <Button variant="outline" size="sm" onClick={handleCancel} disabled={saveMutation.isPending}>
                 Batal
               </Button>
-              <Button size="sm" onClick={() => saveMutation.mutate()} isLoading={saveMutation.isPending} className="gap-2">
+              <Button
+                size="sm"
+                onClick={() => saveMutation.mutate()}
+                isLoading={saveMutation.isPending}
+                disabled={hasInvalidCustomTitle}
+                title={hasInvalidCustomTitle ? "Judul visualisasi kustom wajib diisi" : undefined}
+                className="gap-2"
+              >
                 <Save className="h-4 w-4" />
                 Simpan Tata Letak
               </Button>
@@ -337,22 +514,43 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
       )}
 
       {isEditing && hiddenWidgets.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl border border-dashed border-border bg-muted/30">
-          <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mr-1">
-            <EyeOff className="h-3.5 w-3.5" /> Disembunyikan:
-          </span>
-          {hiddenWidgets.map((w) => (
-            <button
-              key={w.def.id}
-              type="button"
-              onClick={() => showWidget(w.def.id)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-card border border-border hover:border-primary/50 hover:text-primary transition-colors"
-            >
-              <Plus className="h-3 w-3" />
-              {w.def.title}
-            </button>
-          ))}
-        </div>
+        toolboxMode && hasDesktopGrid ? (
+          <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl border border-dashed border-border bg-muted/30">
+            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mr-1">
+              <LayoutGrid className="h-3.5 w-3.5" /> Toolbox — seret ke grid untuk menampilkan:
+            </span>
+            {hiddenWidgets.map((w) => (
+              <div
+                key={w.def.id}
+                draggable
+                unselectable="on"
+                onDragStart={handleToolboxDragStart(w)}
+                onDragEnd={handleToolboxDragEnd}
+                className="inline-flex cursor-grab select-none items-center gap-1.5 rounded-lg border-2 border-dashed border-primary/40 bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors active:cursor-grabbing hover:border-primary hover:bg-primary/5"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5 text-primary/70" />
+                {getWidgetTitle(w)}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl border border-dashed border-border bg-muted/30">
+            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mr-1">
+              <EyeOff className="h-3.5 w-3.5" /> Disembunyikan:
+            </span>
+            {hiddenWidgets.map((w) => (
+              <button
+                key={w.def.id}
+                type="button"
+                onClick={() => showWidget(w.def.id)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-card border border-border hover:border-primary/50 hover:text-primary transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                {getWidgetTitle(w)}
+              </button>
+            ))}
+          </div>
+        )
       )}
 
       {isEditing && mounted && !hasDesktopGrid && (
@@ -374,10 +572,26 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
               dragConfig={{ enabled: true, handle: ".widget-drag-handle" }}
               resizeConfig={{ enabled: true }}
               onLayoutChange={handleLayoutChange}
+              {...(toolboxMode
+                ? {
+                    dropConfig: { enabled: true },
+                    droppingItem: draggingWidget
+                      ? { i: "__dropping-elem__", x: 0, y: 0, w: draggingWidget.def.defaultLayout.w, h: draggingWidget.def.defaultLayout.h }
+                      : undefined,
+                    onDrop: handleGridDrop,
+                  }
+                : {})}
             >
               {visibleWidgets.map((widget) => (
                 <div key={widget.def.id} className="min-w-0">
-                  <DashboardWidgetFrame widget={widget} isEditing previewOnly={previewOnly} onHide={hideWidget} />
+                  <DashboardWidgetFrame
+                    widget={widget}
+                    isEditing
+                    previewOnly={previewOnly}
+                    onHide={hideWidget}
+                    onVizTypeChange={changeVizType}
+                    onTitleChange={changeCustomTitle}
+                  />
                 </div>
               ))}
             </Responsive>
@@ -388,6 +602,8 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
               isEditing={isEditing}
               previewOnly={previewOnly}
               onHide={hideWidget}
+              onVizTypeChange={changeVizType}
+              onTitleChange={changeCustomTitle}
             />
           )
         )}
