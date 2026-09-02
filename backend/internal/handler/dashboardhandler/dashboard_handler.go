@@ -27,24 +27,29 @@ type DashboardHandler struct {
 	settingRepo masterdomain.SettingRepository
 }
 
-type issueInitialPhoto struct {
+type issueEvidencePhoto struct {
 	IssueID  string `gorm:"column:issue_id"`
 	ImageURL string `gorm:"column:image_url"`
 }
 
-// loadInitialIssueImages returns every initial finding photo grouped by issue.
-// GMP rows represent an uraian/result, so follow-up and WO/WR photos must not
-// replace the original evidence shown for that uraian.
-func (h *DashboardHandler) loadInitialIssueImages(issueIDs []string) (map[string][]string, error) {
+type gmpFollowUpEvidence struct {
+	IssueID      string     `gorm:"column:issue_id" json:"-"`
+	PhotoID      string     `gorm:"column:photo_id" json:"photo_id"`
+	ImageURL     string     `gorm:"column:image_url" json:"image_url"`
+	Keterangan   string     `gorm:"column:keterangan" json:"keterangan"`
+	FollowUpDate *time.Time `gorm:"column:follow_up_date" json:"follow_up_date"`
+}
+
+func (h *DashboardHandler) loadIssueEvidenceImages(issueIDs []string, photoType string) (map[string][]string, error) {
 	grouped := make(map[string][]string)
 	if len(issueIDs) == 0 {
 		return grouped, nil
 	}
 
-	var photos []issueInitialPhoto
+	var photos []issueEvidencePhoto
 	err := h.db.Table(`"Issue_Photo"`).
 		Select(`"IssueID" as issue_id, "ImageUrl" as image_url`).
-		Where(`"IssueID" IN ? AND "PhotoType" = ?`, issueIDs, "Initial").
+		Where(`"IssueID" IN ? AND "PhotoType" = ?`, issueIDs, photoType).
 		Order(`"IssueID" ASC, "PhotoCreatedAt" ASC`).
 		Scan(&photos).Error
 	if err != nil {
@@ -63,6 +68,66 @@ func (h *DashboardHandler) loadInitialIssueImages(issueIDs []string) (map[string
 	}
 
 	return grouped, nil
+}
+
+// loadInitialIssueImages returns only the original finding evidence.
+func (h *DashboardHandler) loadInitialIssueImages(issueIDs []string) (map[string][]string, error) {
+	return h.loadIssueEvidenceImages(issueIDs, "Initial")
+}
+
+// loadFollowUpIssueEvidence returns every corrective-action photo together
+// with its own description and timestamp. WO/WR evidence is intentionally
+// excluded because it has a separate meaning.
+func (h *DashboardHandler) loadFollowUpIssueEvidence(issueIDs []string) (map[string][]gmpFollowUpEvidence, error) {
+	grouped := make(map[string][]gmpFollowUpEvidence)
+	if len(issueIDs) == 0 {
+		return grouped, nil
+	}
+
+	var evidence []gmpFollowUpEvidence
+	err := h.db.Table(`"Issue_Photo"`).
+		Select(`"IssueID" as issue_id, "IssuePhotoID" as photo_id, "ImageUrl" as image_url, "Keterangan" as keterangan, COALESCE("FollowUpDate", "PhotoCreatedAt") as follow_up_date`).
+		Where(`"IssueID" IN ? AND "PhotoType" = ?`, issueIDs, "FollowUp").
+		Order(`"IssueID" ASC, "PhotoCreatedAt" ASC`).
+		Scan(&evidence).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range evidence {
+		if h.cryptoSvc != nil {
+			evidence[i].ImageURL = h.cryptoSvc.DecryptWithFallback(evidence[i].ImageURL)
+			evidence[i].Keterangan = h.cryptoSvc.DecryptWithFallback(evidence[i].Keterangan)
+		}
+		grouped[evidence[i].IssueID] = append(grouped[evidence[i].IssueID], evidence[i])
+	}
+	return grouped, nil
+}
+
+func followUpImageURLs(evidence []gmpFollowUpEvidence) []string {
+	images := make([]string, 0, len(evidence))
+	for _, item := range evidence {
+		if item.ImageURL != "" {
+			images = append(images, item.ImageURL)
+		}
+	}
+	return images
+}
+
+func calculateFollowUpGapDays(dueDate, followUpDate *time.Time) *int {
+	if dueDate == nil || followUpDate == nil {
+		return nil
+	}
+	location, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		location = time.FixedZone("WIB", 7*60*60)
+	}
+	dueLocal := dueDate.In(location)
+	followUpLocal := followUpDate.In(location)
+	dueDay := time.Date(dueLocal.Year(), dueLocal.Month(), dueLocal.Day(), 0, 0, 0, 0, location)
+	followUpDay := time.Date(followUpLocal.Year(), followUpLocal.Month(), followUpLocal.Day(), 0, 0, 0, 0, location)
+	gap := int(followUpDay.Sub(dueDay).Hours() / 24)
+	return &gap
 }
 
 func NewDashboardHandler(db *gorm.DB, log *logger.Logger, cryptoSvc *crypto.Service, layoutRepo dashboarddomain.DashboardLayoutRepository, settingRepo masterdomain.SettingRepository) *DashboardHandler {
@@ -500,32 +565,40 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 	detailKawasanID := c.Query("detail_kawasan_id")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
+	searchQuery := c.Query("q")
+	if err := validateGMPDateRange(startDate, endDate); err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
 
 	type PreviewExportResponse struct {
-		InspectionID        string     `json:"inspection_id"`
-		Tanggal             string     `json:"tanggal"`
-		AreaID              string     `json:"area_id"`
-		Area                string     `json:"area"`
-		KawasanID           string     `json:"kawasan_id"`
-		Kawasan             string     `json:"kawasan"`
-		DetailKawasanID     string     `json:"detail_kawasan_id"`
-		DetailKawasan       string     `json:"detail_kawasan"`
-		PIC                 string     `json:"pic"`
-		Aspek               string     `json:"aspek"`
-		Detail              string     `json:"detail"`
-		UraianID            string     `json:"uraian_id"`
-		Uraian              string     `json:"uraian"`
-		Nilai               int        `json:"nilai"`
-		StandardScore       int        `json:"-"`
-		TotalNilai          int        `json:"total_nilai"`
-		PersentaseKepatuhan float64    `json:"persentase_kepatuhan_detail_kawasan"`
-		TotalTemuan         int        `json:"total_temuan"`
-		Keterangan          string     `json:"keterangan"`
-		IssueID             *string    `json:"issue_id"`
-		DueDate             *time.Time `json:"due_date"`
-		ImageURL            *string    `json:"image_url"`
-		ImageURLs           []string   `gorm:"-" json:"image_urls"`
-		FollowUpDate        *time.Time `json:"follow_up_date"`
+		InspectionID        string                `json:"inspection_id"`
+		Tanggal             string                `json:"tanggal"`
+		AreaID              string                `json:"area_id"`
+		Area                string                `json:"area"`
+		KawasanID           string                `json:"kawasan_id"`
+		Kawasan             string                `json:"kawasan"`
+		DetailKawasanID     string                `json:"detail_kawasan_id"`
+		DetailKawasan       string                `json:"detail_kawasan"`
+		PIC                 string                `json:"pic"`
+		Aspek               string                `json:"aspek"`
+		Detail              string                `json:"detail"`
+		UraianID            string                `json:"uraian_id"`
+		Uraian              string                `json:"uraian"`
+		Nilai               int                   `json:"nilai"`
+		StandardScore       int                   `json:"-"`
+		TotalNilai          int                   `json:"total_nilai"`
+		PersentaseKepatuhan float64               `json:"persentase_kepatuhan_detail_kawasan"`
+		TotalTemuan         int                   `json:"total_temuan"`
+		Keterangan          string                `json:"keterangan"`
+		IssueID             *string               `json:"issue_id"`
+		DueDate             *time.Time            `json:"due_date"`
+		ImageURL            *string               `json:"image_url"`
+		ImageURLs           []string              `gorm:"-" json:"image_urls"`
+		FollowUpImageURL    *string               `gorm:"-" json:"follow_up_image_url"`
+		FollowUpImageURLs   []string              `gorm:"-" json:"follow_up_image_urls"`
+		FollowUpEvidence    []gmpFollowUpEvidence `gorm:"-" json:"follow_up_evidence"`
+		FollowUpDate        *time.Time            `json:"follow_up_date"`
+		FollowUpGapDays     *int                  `gorm:"-" json:"follow_up_gap_days"`
 	}
 
 	var results []PreviewExportResponse
@@ -548,7 +621,7 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
-			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
+			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" = 'FollowUp' ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"`).
 		Joins(`JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
@@ -560,25 +633,7 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Issue" iss ON iss."ResultID" = ir."ResultID"`).
 		Joins(`LEFT JOIN "Users" u_pic ON u_pic."UserID" = iss."IssuePICUserID"`)
 
-	allowedAreas := h.getAllowedAreas(c)
-	if areaID != "" {
-		query = query.Where(`ih."AreaID" = ?`, areaID)
-	}
-	if kawasanID != "" {
-		query = query.Where(`ih."KawasanID" = ?`, kawasanID)
-	}
-	if detailKawasanID != "" {
-		query = query.Where(`ih."DetailKawasanID" = ?`, detailKawasanID)
-	}
-	if startDate != "" {
-		query = query.Where(`ih."InspectionHeaderCreatedAt" >= ?`, startDate+" 00:00:00")
-	}
-	if endDate != "" {
-		query = query.Where(`ih."InspectionHeaderCreatedAt" <= ?`, endDate+" 23:59:59")
-	}
-	if allowedAreas != nil {
-		query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
-	}
+	query = h.applyGMPDataFilters(c, query, areaID, kawasanID, detailKawasanID, startDate, endDate)
 
 	err := query.Order(`ih."InspectionHeaderCreatedAt" DESC`).Scan(&results).Error
 	if err != nil {
@@ -596,6 +651,11 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 	if err != nil {
 		h.log.Error("Failed to fetch GMP initial issue photos", logger.Error(err))
 		return response.InternalServerError(c, "Failed to load issue photos", err.Error())
+	}
+	followUpEvidence, err := h.loadFollowUpIssueEvidence(issueIDs)
+	if err != nil {
+		h.log.Error("Failed to fetch GMP follow-up issue photos", logger.Error(err))
+		return response.InternalServerError(c, "Failed to load follow-up photos", err.Error())
 	}
 
 	// TotalNilai remains an aggregate per kawasan. TotalTemuan is intentionally
@@ -651,43 +711,81 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 				firstImage := results[i].ImageURLs[0]
 				results[i].ImageURL = &firstImage
 			}
+			results[i].FollowUpEvidence = followUpEvidence[*results[i].IssueID]
+			results[i].FollowUpImageURLs = followUpImageURLs(results[i].FollowUpEvidence)
+			if len(results[i].FollowUpImageURLs) > 0 {
+				firstFollowUpImage := results[i].FollowUpImageURLs[0]
+				results[i].FollowUpImageURL = &firstFollowUpImage
+			}
 		}
+		results[i].FollowUpGapDays = calculateFollowUpGapDays(results[i].DueDate, results[i].FollowUpDate)
 		if h.cryptoSvc != nil && results[i].Keterangan != "" {
 			results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
 		}
+	}
+
+	if strings.TrimSpace(searchQuery) != "" {
+		filtered := make([]PreviewExportResponse, 0, len(results))
+		for _, result := range results {
+			if matchesGMPSearch(searchQuery, []string{
+				result.InspectionID,
+				result.Area,
+				result.Kawasan,
+				result.DetailKawasan,
+				result.PIC,
+				result.Aspek,
+				result.Detail,
+				result.UraianID,
+				result.Uraian,
+				result.Keterangan,
+			}, result.FollowUpEvidence) {
+				filtered = append(filtered, result)
+			}
+		}
+		results = filtered
 	}
 
 	return response.OK(c, "success", results)
 }
 
 func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
+	exportFormat, validFormat := normalizeGMPExportFormat(c.Query("format"))
+	if !validFormat {
+		return response.BadRequest(c, "Format export tidak valid. Gunakan 'template' atau 'table'", nil)
+	}
 	areaID := c.Query("area_id")
 	kawasanID := c.Query("kawasan_id")
 	detailKawasanID := c.Query("detail_kawasan_id")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
+	searchQuery := c.Query("q")
+	if err := validateGMPDateRange(startDate, endDate); err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
 
 	type PreviewExportResponse struct {
-		InspectionID    string     `gorm:"column:inspection_id" json:"inspection_id"`
-		Tanggal         time.Time  `gorm:"column:tanggal" json:"tanggal"`
-		Area            string     `gorm:"column:area" json:"area"`
-		KawasanID       string     `gorm:"column:kawasan_id" json:"kawasan_id"`
-		Kawasan         string     `gorm:"column:kawasan" json:"kawasan"`
-		DetailKawasanID string     `gorm:"column:detail_kawasan_id" json:"detail_kawasan_id"`
-		DetailKawasan   string     `gorm:"column:detail_kawasan" json:"detail_kawasan"`
-		PIC             string     `gorm:"column:pic" json:"pic"`
-		Aspek           string     `gorm:"column:aspek" json:"aspek"`
-		Detail          string     `gorm:"column:detail" json:"detail"`
-		UraianID        string     `gorm:"column:uraian_id" json:"uraian_id"`
-		Uraian          string     `gorm:"column:uraian" json:"uraian"`
-		Nilai           int        `gorm:"column:nilai" json:"nilai"`
-		StandardScore   int        `gorm:"column:standard_score" json:"-"`
-		Keterangan      string     `gorm:"column:keterangan" json:"keterangan"`
-		IssueID         *string    `gorm:"column:issue_id" json:"issue_id"`
-		DueDate         *time.Time `gorm:"column:due_date" json:"due_date"`
-		ImageURL        *string    `gorm:"column:image_url" json:"image_url"`
-		ImageURLs       []string   `gorm:"-" json:"image_urls"`
-		FollowUpDate    *time.Time `gorm:"column:follow_up_date" json:"follow_up_date"`
+		InspectionID      string                `gorm:"column:inspection_id" json:"inspection_id"`
+		Tanggal           time.Time             `gorm:"column:tanggal" json:"tanggal"`
+		Area              string                `gorm:"column:area" json:"area"`
+		KawasanID         string                `gorm:"column:kawasan_id" json:"kawasan_id"`
+		Kawasan           string                `gorm:"column:kawasan" json:"kawasan"`
+		DetailKawasanID   string                `gorm:"column:detail_kawasan_id" json:"detail_kawasan_id"`
+		DetailKawasan     string                `gorm:"column:detail_kawasan" json:"detail_kawasan"`
+		PIC               string                `gorm:"column:pic" json:"pic"`
+		Aspek             string                `gorm:"column:aspek" json:"aspek"`
+		Detail            string                `gorm:"column:detail" json:"detail"`
+		UraianID          string                `gorm:"column:uraian_id" json:"uraian_id"`
+		Uraian            string                `gorm:"column:uraian" json:"uraian"`
+		Nilai             int                   `gorm:"column:nilai" json:"nilai"`
+		StandardScore     int                   `gorm:"column:standard_score" json:"-"`
+		Keterangan        string                `gorm:"column:keterangan" json:"keterangan"`
+		IssueID           *string               `gorm:"column:issue_id" json:"issue_id"`
+		DueDate           *time.Time            `gorm:"column:due_date" json:"due_date"`
+		ImageURL          *string               `gorm:"column:image_url" json:"image_url"`
+		ImageURLs         []string              `gorm:"-" json:"image_urls"`
+		FollowUpImageURLs []string              `gorm:"-" json:"follow_up_image_urls"`
+		FollowUpEvidence  []gmpFollowUpEvidence `gorm:"-" json:"follow_up_evidence"`
+		FollowUpDate      *time.Time            `gorm:"column:follow_up_date" json:"follow_up_date"`
 	}
 
 	var results []PreviewExportResponse
@@ -709,7 +807,7 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			COALESCE(NULLIF(iss."Keterangan", ''), ir."Keterangan") as keterangan, 
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
-			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" IN ('FollowUp', 'WOWR') ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
+			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" = 'FollowUp' ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"`).
 		Joins(`JOIN "Uraian_Master" um ON um."UraianID" = ir."UraianID"`).
 		Joins(`JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"`).
@@ -721,29 +819,13 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		Joins(`LEFT JOIN "Issue" iss ON iss."ResultID" = ir."ResultID"`).
 		Joins(`LEFT JOIN "Users" u_pic ON u_pic."UserID" = iss."IssuePICUserID"`)
 
-	allowedAreas := h.getAllowedAreas(c)
 	var areaName string = "Semua Area"
 	var picName string = "Semua PIC"
 	if areaID != "" {
-		query = query.Where(`ih."AreaID" = ?`, areaID)
 		h.db.Table(`"Area_Master"`).Select(`"AreaName"`).Where(`"AreaID" = ?`, areaID).Scan(&areaName)
 		h.db.Table(`"PIC_Mapping" pm`).Select(`u."FullName"`).Joins(`JOIN "Users" u ON u."UserID" = pm."UserID"`).Where(`pm."AreaID" = ?`, areaID).Limit(1).Scan(&picName)
 	}
-	if kawasanID != "" {
-		query = query.Where(`ih."KawasanID" = ?`, kawasanID)
-	}
-	if detailKawasanID != "" {
-		query = query.Where(`ih."DetailKawasanID" = ?`, detailKawasanID)
-	}
-	if startDate != "" {
-		query = query.Where(`ih."InspectionHeaderCreatedAt" >= ?`, startDate+" 00:00:00")
-	}
-	if endDate != "" {
-		query = query.Where(`ih."InspectionHeaderCreatedAt" <= ?`, endDate+" 23:59:59")
-	}
-	if allowedAreas != nil {
-		query = query.Where(`ih."AreaID" IN ?`, allowedAreas)
-	}
+	query = h.applyGMPDataFilters(c, query, areaID, kawasanID, detailKawasanID, startDate, endDate)
 
 	err := query.Order(`ih."InspectionHeaderCreatedAt" DESC`).Scan(&results).Error
 	if err != nil {
@@ -781,6 +863,14 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"message": "failed to fetch issue photos",
 		})
 	}
+	followUpEvidence, err := h.loadFollowUpIssueEvidence(issueIDs)
+	if err != nil {
+		h.log.Error("Failed to fetch GMP export follow-up photos", logger.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "failed to fetch follow-up photos",
+		})
+	}
 
 	for i := range results {
 		totalNilai += results[i].Nilai
@@ -800,6 +890,8 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		if results[i].IssueID != nil && *results[i].IssueID != "" {
 			totalTemuan++
 			results[i].ImageURLs = initialImages[*results[i].IssueID]
+			results[i].FollowUpEvidence = followUpEvidence[*results[i].IssueID]
+			results[i].FollowUpImageURLs = followUpImageURLs(results[i].FollowUpEvidence)
 			if len(results[i].ImageURLs) > 0 {
 				firstImage := results[i].ImageURLs[0]
 				results[i].ImageURL = &firstImage
@@ -810,6 +902,46 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			if results[i].Keterangan != "" {
 				results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
 			}
+		}
+	}
+
+	if strings.TrimSpace(searchQuery) != "" {
+		filtered := make([]PreviewExportResponse, 0, len(results))
+		for _, result := range results {
+			if matchesGMPSearch(searchQuery, []string{
+				result.InspectionID,
+				result.Area,
+				result.Kawasan,
+				result.DetailKawasan,
+				result.PIC,
+				result.Aspek,
+				result.Detail,
+				result.UraianID,
+				result.Uraian,
+				result.Keterangan,
+			}, result.FollowUpEvidence) {
+				filtered = append(filtered, result)
+			}
+		}
+		results = filtered
+	}
+
+	if len(results) == 0 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Tidak ada Data GMP yang sesuai dengan filter export",
+		})
+	}
+
+	// Header totals describe the rows actually exported. Per-kawasan and
+	// per-detail aggregates below intentionally remain based on the same
+	// location/date result set as the web preview.
+	totalNilai = 0
+	totalTemuan = 0
+	for _, result := range results {
+		totalNilai += result.Nilai
+		if result.IssueID != nil && *result.IssueID != "" {
+			totalTemuan++
 		}
 	}
 
@@ -838,6 +970,7 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		},
 		Items: make([]map[string]interface{}, 0, len(results)),
 	}
+	tableRows := make([]exporter.GMPTableRow, 0, len(results))
 
 	for i, res := range results {
 		dueDateStr := ""
@@ -855,6 +988,23 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		var imageValue interface{} = ""
 		if len(res.ImageURLs) > 0 {
 			imageValue = res.ImageURLs
+		}
+		var followUpImageValue interface{} = ""
+		if len(res.FollowUpImageURLs) > 0 {
+			followUpImageValue = res.FollowUpImageURLs
+		}
+		followUpDescriptions := make([]string, 0, len(res.FollowUpEvidence))
+		for index, evidence := range res.FollowUpEvidence {
+			description := strings.TrimSpace(evidence.Keterangan)
+			if description == "" {
+				description = "Tanpa keterangan"
+			}
+			followUpDescriptions = append(followUpDescriptions, fmt.Sprintf("Follow-Up %d: %s", index+1, description))
+		}
+		followUpGap := calculateFollowUpGapDays(res.DueDate, res.FollowUpDate)
+		var followUpGapValue interface{} = ""
+		if followUpGap != nil {
+			followUpGapValue = *followUpGap
 		}
 
 		// Keterangan: try to decrypt again if it looks like it might still be encrypted
@@ -904,9 +1054,70 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"follow_up":                          followUpStr,
 			"follow_up_date":                     followUpStr,
 			"FollowUpDate":                       followUpStr,
+			"follow_up_gap_days":                 followUpGapValue,
 			"imageUrl":                           imageValue,
 			"image_url":                          imageValue,
+			"follow_up_image_url":                followUpImageValue,
+			"follow_up_keterangan":               strings.Join(followUpDescriptions, "\n"),
 		})
+
+		tableRows = append(tableRows, exporter.GMPTableRow{
+			InspectionID:        res.InspectionID,
+			Area:                res.Area,
+			Kawasan:             res.Kawasan,
+			DetailKawasan:       res.DetailKawasan,
+			Aspek:               res.Aspek,
+			DetailAspek:         res.Detail,
+			UraianID:            res.UraianID,
+			Nilai:               res.Nilai,
+			TotalNilaiKawasan:   kawasanNilai[key],
+			CompliancePercent:   persentaseKepatuhan,
+			Temuan:              rowTemuan,
+			InitialImages:       res.ImageURLs,
+			FollowUpImages:      res.FollowUpImageURLs,
+			FollowUpDescription: strings.Join(followUpDescriptions, "\n"),
+			KeteranganTemuan:    keterangan,
+			FollowUpDate:        followUpStr,
+			DueDate:             dueDateStr,
+			FollowUpGapDays:     followUpGap,
+		})
+	}
+
+	if exportFormat == gmpExportFormatTable {
+		plantName := ""
+		if plantID := c.Query("plant_id"); plantID != "" && plantID != "all" {
+			plantName = plantID
+			_ = h.db.Table(`"Plant_Master"`).Select(`"PlantName"`).Where(`"PlantID" = ?`, plantID).Scan(&plantName).Error
+		}
+		kawasanName := ""
+		if kawasanID != "" {
+			kawasanName = kawasanID
+			_ = h.db.Table(`"Kawasan_Master"`).Select(`"KawasanName"`).Where(`"KawasanID" = ?`, kawasanID).Scan(&kawasanName).Error
+		}
+		detailKawasanName := ""
+		if detailKawasanID != "" {
+			detailKawasanName = detailKawasanID
+			_ = h.db.Table(`"DetailKawasan_Master"`).Select(`"DetailKawasanName"`).Where(`"DetailKawasanID" = ?`, detailKawasanID).Scan(&detailKawasanName).Error
+		}
+
+		buf, err := exporter.GenerateGMPTableExcel(exporter.GMPTableMetadata{
+			Plant:         plantName,
+			Area:          areaName,
+			Kawasan:       kawasanName,
+			DetailKawasan: detailKawasanName,
+			StartDate:     startDate,
+			EndDate:       endDate,
+			Search:        searchQuery,
+			ExportedAt:    time.Now().In(dashboardLocation()),
+		}, tableRows)
+		if err != nil {
+			h.log.Error("failed to generate GMP table excel", logger.Error(err))
+			return response.InternalServerError(c, "Gagal membuat export tabel Data GMP", err.Error())
+		}
+		fileName := fmt.Sprintf("Tabel_Data_GMP_%s.xlsx", time.Now().In(dashboardLocation()).Format("20060102_150405"))
+		c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Set("Content-Disposition", `attachment; filename="`+fileName+`"`)
+		return c.SendStream(buf)
 	}
 
 	buf, err := exporter.GenerateExcelWithPlaceholder("./templates/master_gmp.xlsx", "Rev 00", payload)

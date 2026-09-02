@@ -6,6 +6,13 @@
 import { api } from "@/lib/api/axios";
 import type { DashboardStats, SingleItemResponse } from "./index";
 
+export interface GmpFollowUpEvidence {
+  photo_id: string;
+  image_url: string;
+  keterangan?: string;
+  follow_up_date?: string;
+}
+
 export interface PreviewExportRow {
   inspection_id?: string;
   area?: string;
@@ -25,10 +32,15 @@ export interface PreviewExportRow {
   total_temuan?: number;
   image_url?: string;
   image_urls?: string[];
+  follow_up_image_url?: string;
+  follow_up_image_urls?: string[];
+  follow_up_evidence?: GmpFollowUpEvidence[];
   issue_id?: string;
   due_date?: string;
   follow_up_date?: string;
-  [key: string]: string | number | boolean | string[] | null | undefined;
+  /** Calendar-day difference: follow-up date minus due date. */
+  follow_up_gap_days?: number;
+  [key: string]: string | number | boolean | string[] | GmpFollowUpEvidence[] | null | undefined;
 }
 
 /**
@@ -63,6 +75,7 @@ export const dashboardApi = {
     start_date?: string;
     end_date?: string;
     plant_id?: string;
+    q?: string;
   }): Promise<{ data: PreviewExportRow[] }> => {
     const res = await api.get<{ data: PreviewExportRow[] }>("/dashboard/preview-export", {
       params: filters,
