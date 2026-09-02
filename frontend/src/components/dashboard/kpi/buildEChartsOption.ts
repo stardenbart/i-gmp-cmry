@@ -381,7 +381,19 @@ function buildComparisonOption(
 
   const tooltipFormatter = (params: AxisTooltipPoint[] | AxisTooltipPoint) => {
     const points = Array.isArray(params) ? params : [params];
-    const lines = points.map((p) => {
+    // A trend-line series shares its exact name with its bar counterpart
+    // (see showTrendLine above — deliberate, so the legend merges them into
+    // one entry) but an axis-trigger tooltip collects every SERIES at that
+    // category independently, so bar+line would otherwise print the same
+    // measure/value twice. Keep only the first point per series name.
+    const seen = new Set<string>();
+    const uniquePoints = points.filter((p) => {
+      const name = p.seriesName ?? "";
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+    const lines = uniquePoints.map((p) => {
       const measure = result.measures.find((m) => m.label === p.seriesName);
       const value = typeof p.value === "number" ? p.value : null;
       return `${p.marker ?? ""}${p.seriesName ?? ""}: ${formatMeasureValue(value, measure?.format)}`;
