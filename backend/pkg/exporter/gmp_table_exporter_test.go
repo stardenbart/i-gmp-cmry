@@ -34,6 +34,17 @@ func TestGenerateGMPTableExcelMatchesWebColumns(t *testing.T) {
 		FollowUpDate:        "02-Sep-2026 10:00",
 		DueDate:             "01-Sep-2026",
 		FollowUpGapDays:     &late,
+	}, {
+		InspectionID:      "INSP-001",
+		Area:              "Produksi",
+		Kawasan:           "Line 1",
+		DetailKawasan:     "Filling",
+		Aspek:             "Kebersihan",
+		DetailAspek:       "Lantai",
+		UraianID:          "UR-002",
+		Nilai:             2,
+		TotalNilaiKawasan: 80,
+		CompliancePercent: 75.5,
 	}})
 	if err != nil {
 		t.Fatalf("generate workbook: %v", err)
@@ -63,6 +74,68 @@ func TestGenerateGMPTableExcelMatchesWebColumns(t *testing.T) {
 	assertCell("B6", "Line 1 / Filling")
 	assertCell("L6", "Follow-Up 1: Sudah dibersihkan")
 	assertCell("P6", "+2 hari terlambat")
+
+	merged, mergeErr := workbook.GetMergeCells("Data GMP")
+	if mergeErr != nil {
+		t.Fatalf("read merged cells: %v", mergeErr)
+	}
+	mergedRanges := make(map[string]bool, len(merged))
+	for _, cell := range merged {
+		mergedRanges[cell.GetStartAxis()+":"+cell.GetEndAxis()] = true
+	}
+	// A-D: both rows share InspectionID/Kawasan/Detail Kawasan/Aspek/Detail
+	// Aspek, so every one of those columns merges — mirroring the Data GMP
+	// web table's hierarchical rowspan. E (Uraian ID) must NOT merge: the
+	// two rows have different Uraian IDs, exactly the case that should stay
+	// on its own row (same as the web table's uraian-level merge).
+	for _, want := range []string{"A6:A7", "B6:B7", "C6:C7", "D6:D7"} {
+		if !mergedRanges[want] {
+			t.Fatalf("expected merged range %s", want)
+		}
+	}
+	if mergedRanges["E6:E7"] {
+		t.Fatal("E6:E7 (Uraian ID) must not merge — the two rows have different Uraian IDs")
+	}
+}
+
+// TestGenerateGMPTableExcelDoesNotMergeAcrossInspections mirrors the web
+// table's scoping rule: even if two consecutive rows happen to share the
+// same Aspek/Detail Aspek/Uraian ID, they must NOT merge together if they
+// belong to different inspections (InspectionID differs) — same guarantee
+// the frontend's computeGmpRowSpans provides for the on-screen table.
+func TestGenerateGMPTableExcelDoesNotMergeAcrossInspections(t *testing.T) {
+	row := GMPTableRow{
+		Kawasan:       "Line 1",
+		DetailKawasan: "Filling",
+		Aspek:         "Kebersihan",
+		DetailAspek:   "Lantai",
+		UraianID:      "UR-001",
+	}
+	rowA, rowB := row, row
+	rowA.InspectionID, rowB.InspectionID = "INSP-001", "INSP-002"
+
+	buffer, err := GenerateGMPTableExcel(GMPTableMetadata{}, []GMPTableRow{rowA, rowB})
+	if err != nil {
+		t.Fatalf("generate workbook: %v", err)
+	}
+	workbook, err := excelize.OpenReader(bytes.NewReader(buffer.Bytes()))
+	if err != nil {
+		t.Fatalf("open generated workbook: %v", err)
+	}
+	defer workbook.Close()
+
+	merged, mergeErr := workbook.GetMergeCells("Data GMP")
+	if mergeErr != nil {
+		t.Fatalf("read merged cells: %v", mergeErr)
+	}
+	for _, cell := range merged {
+		got := cell.GetStartAxis() + ":" + cell.GetEndAxis()
+		for _, forbidden := range []string{"A6:A7", "B6:B7", "C6:C7", "D6:D7", "E6:E7"} {
+			if got == forbidden {
+				t.Fatalf("rows from different inspections must not merge, but found %s", forbidden)
+			}
+		}
+	}
 }
 
 func TestGenerateGMPTableExcelSupportsEmptyRows(t *testing.T) {

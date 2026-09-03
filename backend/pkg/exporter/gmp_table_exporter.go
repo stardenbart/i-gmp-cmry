@@ -198,6 +198,39 @@ func GenerateGMPTableExcel(meta GMPTableMetadata, rows []GMPTableRow) (*bytes.Bu
 		}
 	}
 
+	// Columns A-E mirror the hierarchical rowspan merge on the Data GMP web
+	// table (ID Inspeksi > Kawasan/Detail Kawasan > Aspek > Detail Aspek >
+	// Uraian ID) — each level's merge is scoped by InspectionID (and every
+	// ancestor level above it) so it only ever merges rows belonging to the
+	// SAME inspection, never spanning across separate inspection sessions.
+	// Rows arrive already sorted this way (gmpDataRelationOrder), so this
+	// only merges cells that are already consecutive.
+	if err := mergeConsecutiveGMPCells(f, sheet, rows, "A", func(row GMPTableRow) string {
+		return normalizedGMPGroupKey(row.InspectionID)
+	}); err != nil {
+		return nil, fmt.Errorf("gagal menggabungkan ID Inspeksi: %w", err)
+	}
+	if err := mergeConsecutiveGMPCells(f, sheet, rows, "B", func(row GMPTableRow) string {
+		return normalizedGMPGroupKey(row.InspectionID)
+	}); err != nil {
+		return nil, fmt.Errorf("gagal menggabungkan Kawasan / Detail Kawasan: %w", err)
+	}
+	if err := mergeConsecutiveGMPCells(f, sheet, rows, "C", func(row GMPTableRow) string {
+		return normalizedGMPGroupKey(row.InspectionID, row.Aspek)
+	}); err != nil {
+		return nil, fmt.Errorf("gagal menggabungkan Aspek: %w", err)
+	}
+	if err := mergeConsecutiveGMPCells(f, sheet, rows, "D", func(row GMPTableRow) string {
+		return normalizedGMPGroupKey(row.InspectionID, row.Aspek, row.DetailAspek)
+	}); err != nil {
+		return nil, fmt.Errorf("gagal menggabungkan Detail Aspek: %w", err)
+	}
+	if err := mergeConsecutiveGMPCells(f, sheet, rows, "E", func(row GMPTableRow) string {
+		return normalizedGMPGroupKey(row.InspectionID, row.Aspek, row.DetailAspek, row.UraianID)
+	}); err != nil {
+		return nil, fmt.Errorf("gagal menggabungkan Uraian ID: %w", err)
+	}
+
 	widths := map[string]float64{
 		"A": 20, "B": 34, "C": 24, "D": 30, "E": 18, "F": 11,
 		"G": 21, "H": 25, "I": 16, "J": 19, "K": 19, "L": 38,
@@ -224,6 +257,42 @@ func GenerateGMPTableExcel(meta GMPTableMetadata, rows []GMPTableRow) (*bytes.Bu
 		return nil, fmt.Errorf("gagal membuat file tabel GMP: %w", err)
 	}
 	return buffer, nil
+}
+
+func normalizedGMPGroupKey(parts ...string) string {
+	normalized := make([]string, len(parts))
+	for index, part := range parts {
+		normalized[index] = strings.ToLower(strings.TrimSpace(part))
+	}
+	return strings.Join(normalized, "\x00")
+}
+
+func mergeConsecutiveGMPCells(
+	f *excelize.File,
+	sheet string,
+	rows []GMPTableRow,
+	column string,
+	groupKey func(GMPTableRow) string,
+) error {
+	const firstDataRow = 6
+	for start := 0; start < len(rows); {
+		end := start + 1
+		key := groupKey(rows[start])
+		for end < len(rows) && groupKey(rows[end]) == key {
+			end++
+		}
+		if end-start > 1 {
+			if err := f.MergeCell(
+				sheet,
+				fmt.Sprintf("%s%d", column, firstDataRow+start),
+				fmt.Sprintf("%s%d", column, firstDataRow+end-1),
+			); err != nil {
+				return err
+			}
+		}
+		start = end
+	}
+	return nil
 }
 
 func tableBorders(color string) []excelize.Border {
