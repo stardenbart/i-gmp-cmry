@@ -6,7 +6,7 @@ export function MonitoringSection() {
   return (
     <SectionShell
       id="monitoring"
-      index={7}
+      index={8}
       title="Monitoring"
       lede="Dasbor performa untuk memantau kinerja tim, di luar ringkasan yang sudah ada di Dashboard."
       role={<RoleBadge role="admin" />}

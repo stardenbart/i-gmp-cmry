@@ -9,7 +9,7 @@ export function WowrSection() {
   return (
     <SectionShell
       id="wowr"
-      index={5}
+      index={6}
       title="Perintah Kerja (WO/WR)"
       lede="Jalur tindak lanjut formal untuk temuan yang butuh perbaikan lewat Work Order/Work Request."
       role={
