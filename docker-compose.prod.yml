@@ -225,6 +225,11 @@ services:
       OPENSEARCH_URL: http://opensearch-node1:9200
       SETTING_ENCRYPTION_KEY: ${SETTING_ENCRYPTION_KEY:?SETTING_ENCRYPTION_KEY is required}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-Lax}
       # Web Push (optional): leave unset on the host .env to disable push
       # sending — the in-app notification bell keeps working either way.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
