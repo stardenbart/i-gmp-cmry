@@ -50,12 +50,12 @@ import type {
 
 export function useCurrentUser() {
   const mounted = useMounted();
-  const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
 
   return useQuery({
     queryKey: ["current-user"],
     queryFn: authApi.me,
-    enabled: mounted && !!token,
+    enabled: mounted && !!user,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

@@ -2,8 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export default function proxy(request: NextRequest) {
-  const token = request.cookies.get('auth-token')?.value;
+  // user-id is a non-sensitive hint cookie (see lib/utils.ts) — the actual
+  // session token is an httpOnly cookie this edge proxy can't (and doesn't
+  // need to) read. This is a UX redirect shortcut only, not the real access
+  // check: every API call is independently re-authenticated server-side by
+  // the backend regardless of what happens here.
   const userId = request.cookies.get('user-id')?.value;
+  const isLoggedInHint = Boolean(userId);
   const { pathname } = request.nextUrl;
 
   // Allow MinIO bucket images to bypass auth middleware
@@ -13,18 +18,18 @@ export default function proxy(request: NextRequest) {
 
   const isAuthRoute = pathname === '/login' || pathname === '/forgot-password';
 
-  if (!token && !isAuthRoute) {
+  if (!isLoggedInHint && !isAuthRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   const plantCode = request.cookies.get('plant-code')?.value || 'global';
 
-  if (token && isAuthRoute) {
+  if (isLoggedInHint && isAuthRoute) {
     return NextResponse.redirect(new URL(`/cimory/${plantCode}/dashboard/${userId || 'overview'}`, request.url));
   }
-  
+
   // Optional: Redirect root to dashboard if logged in
-  if (token && pathname === '/') {
+  if (isLoggedInHint && pathname === '/') {
     return NextResponse.redirect(new URL(`/cimory/${plantCode}/dashboard/${userId || 'overview'}`, request.url));
   }
 

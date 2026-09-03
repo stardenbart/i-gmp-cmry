@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/logger"
 	redis "github.com/redis/go-redis/v9"
@@ -164,7 +165,18 @@ func (h *Hub) UpgradeHandler() fiber.Handler {
 // WSHandler manages the live WebSocket connection loop
 func (h *Hub) WSHandler() fiber.Handler {
 	return websocket.New(func(c *websocket.Conn) {
-		tokenStr := c.Query("token")
+		// The browser attaches the httpOnly access_token cookie to the
+		// WebSocket upgrade request automatically, same as any other
+		// same-site request — no need to ever put the token in the URL
+		// (which would leak it into proxy/access logs). The ?token= query
+		// param is kept only as a fallback for any caller that predates the
+		// cookie-based auth switch; either way an invalid/missing token
+		// degrades to the same "anonymous" read-only behavior as before,
+		// not a new privilege.
+		tokenStr := c.Cookies(middleware.CookieAccessToken)
+		if tokenStr == "" {
+			tokenStr = c.Query("token")
+		}
 		kawasanID := c.Query("kawasan_id")
 
 		userID := "anonymous"

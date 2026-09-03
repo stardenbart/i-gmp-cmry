@@ -48,10 +48,18 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required,min=6"`
 }
 
+// LoginResponse is an internal usecase→handler DTO, not serialized directly:
+// AccessToken/RefreshToken/CSRFToken are carried to the client as httpOnly
+// (or, for CSRFToken, JS-readable double-submit) cookies by the handler —
+// never placed in the JSON response body, and never persisted to
+// browser-side storage. Only User is returned in the response body.
 type LoginResponse struct {
-	Token     string    `json:"token"`
-	ExpiredAt time.Time `json:"expired_at"`
-	User      UserInfo  `json:"user"`
+	AccessToken      string
+	AccessExpiresAt  time.Time
+	RefreshToken     string
+	RefreshExpiresAt time.Time
+	CSRFToken        string
+	User             UserInfo `json:"user"`
 }
 
 type UserInfo struct {
@@ -157,6 +165,10 @@ type UserUseCase interface {
 
 type AuthUseCase interface {
 	Login(req *LoginRequest, ip, device string) (*LoginResponse, error)
-	Logout(userID, loginLogID string) error
+	// Refresh rotates a still-valid refresh token into a fresh access +
+	// refresh token pair. rawRefreshToken is the raw cookie value.
+	Refresh(rawRefreshToken, ip, device string) (*LoginResponse, error)
+	// Logout revokes rawRefreshToken (if present) and records LogoutAt.
+	Logout(userID, loginLogID, rawRefreshToken string) error
 	Me(userID string) (*UserInfo, error)
 }

@@ -21,7 +21,7 @@ interface PollResponse {
 
 export function usePolling(options?: UsePollingOptions) {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.token);
+  const isLoggedIn = useAuthStore((state) => Boolean(state.user));
   const lastPollTimeRef = useRef<number>(0);
   const consecutiveFailuresRef = useRef<number>(0);
   const notifyIssueUpdated = useEffectEvent(() => {
@@ -32,7 +32,7 @@ export function usePolling(options?: UsePollingOptions) {
   const pollImmediately = options?.immediate ?? true;
 
   useEffect(() => {
-    if (!token) return;
+    if (!isLoggedIn) return;
     if (lastPollTimeRef.current === 0) {
       lastPollTimeRef.current = Date.now() - 10000;
     }
@@ -115,5 +115,5 @@ export function usePolling(options?: UsePollingOptions) {
       isMounted = false;
       if (timerId) clearTimeout(timerId);
     };
-  }, [token, queryClient, baseIntervalMs, pollImmediately]);
+  }, [isLoggedIn, queryClient, baseIntervalMs, pollImmediately]);
 }

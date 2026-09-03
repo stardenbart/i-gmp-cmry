@@ -40,6 +40,11 @@ func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStor
 
 	// ── Global middleware ──────────────────────────────────────────────
 	r.Use(middleware.CORSMiddleware(cfg.CORSAllowedOrigins))
+	// Applied globally (not per route-group) because every route file wires
+	// its own AuthMiddleware instance — CSRFMiddleware itself no-ops for
+	// GET/HEAD/OPTIONS and for requests without a session cookie, so it's
+	// safe to run ahead of routing for every module.
+	r.Use(middleware.CSRFMiddleware())
 	r.Use(middleware.LoggerMiddleware(log))
 
 	// Disable HTTP caching for all API responses to prevent browser cache stale data
@@ -51,7 +56,7 @@ func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStor
 	})
 
 	// ── JWT Manager ────────────────────────────────────────────────────
-	jwtManager := jwt.New(cfg.JWTSecret, cfg.JWTExpiredHours)
+	jwtManager := jwt.New(cfg.JWTSecret, cfg.AccessTokenTTL)
 
 	// ── Health check ───────────────────────────────────────────────────
 	r.Get("/health", func(c *fiber.Ctx) error {
