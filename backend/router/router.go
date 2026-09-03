@@ -73,6 +73,14 @@ func Setup(cfg *config.Config, db *gorm.DB, redisClient *redis.Client, minioStor
 
 	// ── API v1 routes ─────────────────────────────────────────────────
 	api := r.Group("/api/v1")
+	// Baseline rate limit for every API endpoint — previously only
+	// login/refresh/forgot-password/reset-password and the public KPI share
+	// route had any limit at all, leaving everything else (including
+	// self-service change-password, which accepts a guessable secret) open
+	// to unlimited brute-force/enumeration/scraping. Endpoints that need a
+	// tighter limit (login, refresh, password reset) layer their own
+	// stricter AuthRateLimiter() on top of this.
+	api.Use(middleware.APIRateLimiter())
 	v1.Register(r, api, db, redisClient, minioStorage, cryptoSvc, mailer, producer, osClient, jwtManager, log, cfg)
 
 	return r

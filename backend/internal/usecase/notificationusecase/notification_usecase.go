@@ -40,9 +40,7 @@ func (u *notificationUseCase) GetNotifications(userID string, page int, limit in
 }
 
 func (u *notificationUseCase) MarkAsRead(userID string, notificationID string) error {
-	// ideally we check if the notification belongs to the user, but for simplicity we assume yes
-	// or we can add UserID check in repo
-	return u.repo.MarkAsRead(notificationID)
+	return u.repo.MarkAsRead(userID, notificationID)
 }
 
 func (u *notificationUseCase) MarkAllAsRead(userID string) error {

@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/monitoring-system/backend/internal/domain/notification"
 	"github.com/monitoring-system/backend/pkg/response"
+	"gorm.io/gorm"
 )
 
 type NotificationHandler struct {
@@ -48,6 +50,9 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 	notifID := c.Params("id")
 
 	if err := h.usecase.MarkAsRead(userID, notifID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return response.NotFound(c, "notification not found")
+		}
 		return response.InternalServerError(c, "Failed to mark as read", err.Error())
 	}
 

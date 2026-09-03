@@ -59,14 +59,24 @@ func (r *notificationRepository) FindByUserID(userID string, offset int, limit i
 	return items, total, err
 }
 
-func (r *notificationRepository) MarkAsRead(notificationID string) error {
+func (r *notificationRepository) MarkAsRead(userID, notificationID string) error {
 	globalNotifCountCache.Range(func(key, value any) bool {
 		globalNotifCountCache.Delete(key)
 		return true
 	})
-	return r.db.Model(&notification.Notification{}).
-		Where("\"NotificationID\" = ?", notificationID).
-		Update("\"IsRead\"", true).Error
+	result := r.db.Model(&notification.Notification{}).
+		Where("\"NotificationID\" = ? AND \"UserID\" = ?", notificationID, userID).
+		Update("\"IsRead\"", true)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		// Either the ID doesn't exist, or it belongs to someone else —
+		// treated the same way so this can't be used to probe which IDs
+		// exist for other users.
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *notificationRepository) MarkAllAsRead(userID string) error {
