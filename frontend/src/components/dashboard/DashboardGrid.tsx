@@ -154,7 +154,18 @@ function resolveWidgets(registry: WidgetDefinition[], saved: WidgetConfig[] | un
     const normalized = normalizeLayout(pos, def.defaultLayout);
     return {
       def,
-      visible: cfg ? cfg.visible : true,
+      // A widget present in `registry` but with NO saved config for this
+      // user defaults to HIDDEN, not shown. `registry` is no longer
+      // necessarily "just this user's own role's widgets" — it's the
+      // merged cross-role catalog (allMainDashboardWidgets) — so a
+      // missing entry now genuinely means "never configured for this
+      // user" (e.g. a widget that belongs to a different role, or one an
+      // Admin hasn't turned on yet via Edit User), not "a brand-new
+      // widget everyone should see immediately". Every role's actual
+      // default widgets still show correctly because the backend's
+      // DefaultLayoutForRole always returns an explicit visible:true
+      // entry for each of them before a user has ever customized anything.
+      visible: cfg ? cfg.visible : false,
       layout: { ...normalized, i: def.id },
       vizType: (cfg?.viz_type as VizType | undefined) ?? def.defaultVizType ?? "list",
       customQuery: cfg?.custom_query
