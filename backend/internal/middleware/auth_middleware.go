@@ -12,9 +12,21 @@ const (
 	ContextKeyUserID   = "user_id"
 	ContextKeyUsername = "username"
 	ContextKeyRoleID   = "role_id"
+
+	// CookieAccessToken/CookieRefreshToken/CookieCSRFToken are the httpOnly
+	// (CookieCSRFToken excepted — see CSRFMiddleware) session cookies set by
+	// AuthHandler.Login/Refresh and cleared by AuthHandler.Logout.
+	CookieAccessToken  = "access_token"
+	CookieRefreshToken = "refresh_token"
+	CookieCSRFToken    = "csrf_token"
 )
 
-// AuthMiddleware validates the Bearer JWT token from the Authorization header.
+// AuthMiddleware validates the access token, read from (in order) the
+// Authorization: Bearer header — kept for non-browser API clients that can't
+// rely on cookies — or the access_token httpOnly cookie set at login. A
+// token in the URL query string is deliberately NOT accepted here: it leaks
+// into browser history, proxy/access logs and the Referer header, which a
+// cookie or header does not.
 func AuthMiddleware(jwtManager *jwt.Manager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		tokenStr := ""
@@ -26,12 +38,13 @@ func AuthMiddleware(jwtManager *jwt.Manager) fiber.Handler {
 			} else {
 				return response.Unauthorized(c, "invalid authorization header format, expected: Bearer <token>")
 			}
-		} else {
-			tokenStr = c.Query("token")
+		}
+		if tokenStr == "" {
+			tokenStr = c.Cookies(CookieAccessToken)
 		}
 
 		if tokenStr == "" {
-			return response.Unauthorized(c, "authorization header or token query parameter is required")
+			return response.Unauthorized(c, "authentication required")
 		}
 
 		claims, err := jwtManager.Parse(tokenStr)

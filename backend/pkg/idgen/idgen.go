@@ -100,4 +100,5 @@ const (
 	PrefixLoginLog      = "LLOG"
 	PrefixActivityLog   = "ALOG"
 	PrefixSession       = "SES"
+	PrefixRefreshToken  = "RTK"
 )

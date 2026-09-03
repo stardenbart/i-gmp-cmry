@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -68,9 +69,21 @@ type Config struct {
 	OpenSearchUsername string
 	OpenSearchPassword string
 
-	// JWT Config
+	// JWT Config — AccessTokenTTL is intentionally short (minutes); session
+	// longevity comes from the separate, revocable refresh token below.
 	JWTSecret       string
-	JWTExpiredHours int
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+
+	// Auth cookies. CookieSecure MUST be true in any deployment served over
+	// HTTPS — browsers silently drop `Secure` cookies over plain HTTP, so
+	// leaving this true against a plain-HTTP origin breaks login entirely
+	// (the Set-Cookie is sent but never stored). Set it to false ONLY for a
+	// deployment that genuinely has no TLS yet (see docker-compose.proxy.yml
+	// to add TLS termination), and flip it back to true the moment it does.
+	CookieSecure   bool
+	CookieDomain   string // empty = host-only cookie (recommended default)
+	CookieSameSite string // "Lax" (default) | "Strict" | "None"
 
 	// Storage
 	StorageDriver    string
@@ -142,7 +155,12 @@ func Load() *Config {
 		OpenSearchPassword: getEnv("OPENSEARCH_PASSWORD", ""),
 
 		JWTSecret:       getEnv("JWT_SECRET", ""),
-		JWTExpiredHours: getEnvAsInt("JWT_EXPIRED_HOURS", 24),
+		AccessTokenTTL:  time.Duration(getEnvAsInt("ACCESS_TOKEN_TTL_MINUTES", 15)) * time.Minute,
+		RefreshTokenTTL: time.Duration(getEnvAsInt("REFRESH_TOKEN_TTL_DAYS", 7)) * 24 * time.Hour,
+
+		CookieSecure:   getEnv("COOKIE_SECURE", "true") == "true",
+		CookieDomain:   getEnv("COOKIE_DOMAIN", ""),
+		CookieSameSite: getEnv("COOKIE_SAMESITE", "Lax"),
 
 		StorageDriver:    getEnv("STORAGE_DRIVER", "local"),
 		StorageLocalPath: getEnv("STORAGE_LOCAL_PATH", "./uploads"),

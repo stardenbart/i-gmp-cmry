@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname, useParams } from "next/navigation";
 import { LogOut, BookOpen } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { authApi } from "@/lib/api/auth.api";
 import { useMounted } from "@/lib/useMounted";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { InstallAppButton } from "./InstallAppButton";
@@ -31,7 +32,17 @@ export function Header() {
     return "";
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // access_token/refresh_token are httpOnly — only the backend can clear
+    // them, so the revoke call must happen before (or at least alongside)
+    // the local state clear, not be skipped.
+    try {
+      await authApi.logout();
+    } catch {
+      // Best-effort: still clear local state and leave even if the network
+      // call fails — the access token cookie will simply expire on its own
+      // shortly (15 min TTL) if the revoke call above didn't land.
+    }
     logout();
     if (typeof window !== "undefined") {
       window.location.href = "/login";

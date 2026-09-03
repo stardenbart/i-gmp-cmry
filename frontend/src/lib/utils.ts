@@ -5,16 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Utility to set/remove auth cookie for Next.js middleware
-export function setAuthCookie(token: string | null, userId?: string | null) {
+// Non-sensitive hint cookie read by the Next.js edge proxy (src/proxy.ts) to
+// decide whether to redirect to /login. This is a UX shortcut only, never a
+// security boundary: the real session lives in the backend's httpOnly
+// access_token/refresh_token cookies, and every API call is independently
+// re-authenticated server-side regardless of what this cookie says. A user
+// could edit their own user-id cookie in their own browser and gain nothing,
+// exactly as before.
+export function setSessionHintCookie(userId: string | null) {
   if (typeof document === "undefined") return;
-  if (token) {
-    document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`;
-    if (userId) {
-      document.cookie = `user-id=${userId}; path=/; max-age=86400; SameSite=Lax`;
-    }
+  if (userId) {
+    document.cookie = `user-id=${userId}; path=/; max-age=86400; SameSite=Lax`;
   } else {
-    document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "user-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   }
 }

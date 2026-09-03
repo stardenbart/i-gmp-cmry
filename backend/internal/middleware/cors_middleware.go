@@ -18,9 +18,16 @@ func CORSMiddleware(allowedOrigins string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		origin := c.Get("Origin")
 
-		if allowedMap[origin] || allowedOrigins == "*" || strings.HasSuffix(origin, ".ngrok-free.dev") || strings.HasSuffix(origin, ".ngrok.io") {
-			c.Set("Access-Control-Allow-Origin", origin)
-		} else if origin != "" {
+		// Auth now rides on cookies (Access-Control-Allow-Credentials below),
+		// so this check is a real access-control boundary, not just a CORS
+		// header for convenience: reflecting an origin we didn't actually
+		// allow would let any website read authenticated API responses via a
+		// credentialed fetch(), because the browser attaches session cookies
+		// automatically regardless of which site's JS made the request.
+		// Only ever echo back an origin that matched the allowlist (or the
+		// ngrok dev-tunnel suffixes) — never fall back to reflecting
+		// whatever the caller sent.
+		if allowedOrigins == "*" || allowedMap[origin] || strings.HasSuffix(origin, ".ngrok-free.dev") || strings.HasSuffix(origin, ".ngrok.io") {
 			c.Set("Access-Control-Allow-Origin", origin)
 		}
 

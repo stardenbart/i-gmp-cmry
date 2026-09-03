@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useSyncExternalStore } from "react";
 
-import { setAuthCookie } from "@/lib/utils";
+import { setSessionHintCookie } from "@/lib/utils";
 
 export interface User {
   id: string;
@@ -20,24 +20,27 @@ export interface User {
 }
 
 interface AuthState {
-  token: string | null;
   user: User | null;
-  setAuth: (token: string, user: User) => void;
+  // Sets the locally-cached user profile. The actual session lives entirely
+  // in httpOnly cookies set by the backend (see lib/api/axios.ts) — this
+  // store never holds a token, only non-sensitive profile fields used to
+  // paint the UI instantly before ScopeGuard's /auth/me call confirms (or
+  // corrects) it against the real session.
+  setAuth: (user: User) => void;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      token: null,
       user: null,
-      setAuth: (token, user) => {
-        setAuthCookie(token, user.id);
-        set({ token, user });
+      setAuth: (user) => {
+        setSessionHintCookie(user.id);
+        set({ user });
       },
       logout: () => {
-        setAuthCookie(null, null);
-        set({ token: null, user: null });
+        setSessionHintCookie(null);
+        set({ user: null });
       },
     }),
     {

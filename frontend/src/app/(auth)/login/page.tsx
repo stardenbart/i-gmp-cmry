@@ -39,17 +39,19 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       const res = await api.post("/auth/login", data);
-      
-      const token = res.data.data.token;
+
+      // The access/refresh tokens never reach this code — the backend sets
+      // them as httpOnly cookies on the login response. Only the user
+      // profile comes back in the body.
       const backendUser = res.data.data.user;
       const user = {
         ...backendUser,
         id: backendUser.user_id,
         name: backendUser.full_name,
       };
-      
+
       const plantCode = backendUser.plant_id || "global";
-      setAuth(token, user);
+      setAuth(user);
       
       toast.success("Login berhasil!");
       router.push(`/cimory/${plantCode}/dashboard/${user.id}`);

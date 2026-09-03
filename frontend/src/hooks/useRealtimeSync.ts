@@ -19,7 +19,12 @@ export interface RealtimeEvent {
 
 export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
   const queryClient = useQueryClient();
-  const token = useAuthStore((state) => state.token);
+  // A logged-in user is enough to attempt the connection — the actual
+  // credential is the httpOnly access_token cookie, which the browser
+  // attaches to the WebSocket upgrade request automatically (same as any
+  // other same-site request), so it never needs to be read into JS or put
+  // in the URL the way a query-string token would.
+  const isLoggedIn = useAuthStore((state) => Boolean(state.user));
 
   const [isConnected, setIsConnected] = useState(false);
   const [isWebSocketActive, setIsWebSocketActive] = useState(false);
@@ -43,7 +48,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
 
   // 1. Primary WebSocket Real-time Push
   useEffect(() => {
-    if (typeof window === "undefined" || !token) return;
+    if (typeof window === "undefined" || !isLoggedIn) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     let host = process.env.NEXT_PUBLIC_WS_HOST;
@@ -55,9 +60,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
         host = `${hostname}:8080`;
       }
     }
-    const wsUrl = `${protocol}//${host}/api/v1/ws?token=${encodeURIComponent(token)}${
-      kawasanId ? `&kawasan_id=${encodeURIComponent(kawasanId)}` : ""
-    }`;
+    const wsUrl = `${protocol}//${host}/api/v1/ws${kawasanId ? `?kawasan_id=${encodeURIComponent(kawasanId)}` : ""}`;
 
     let socket: WebSocket | null = null;
     let pingInterval: NodeJS.Timeout | null = null;
@@ -106,12 +109,12 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
         socket.close();
       }
     };
-  }, [token, kawasanId, queryClient]);
+  }, [isLoggedIn, kawasanId, queryClient]);
 
   // 2. Fallback HTTP Polling (Active ONLY if WebSocket is down & Tab is Visible)
   useEffect(() => {
     // If WebSocket is actively pushing events, SKIP HTTP polling 100%!
-    if (isWebSocketActive || !token) return;
+    if (isWebSocketActive || !isLoggedIn) return;
 	if (lastPollTimeRef.current === 0) {
 		lastPollTimeRef.current = Date.now() - 10000;
 	}
@@ -143,7 +146,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
       isMounted = false;
       clearInterval(timer);
     };
-  }, [isWebSocketActive, token, kawasanId, pollIntervalMs]);
+  }, [isWebSocketActive, isLoggedIn, kawasanId, pollIntervalMs]);
 
   return {
     isConnected,

@@ -56,14 +56,14 @@ interface ProfileUserShape {
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
-  const { user, setAuth, token, logout } = useAuthStore();
+  const { user, setAuth, logout } = useAuthStore();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Fetch latest user data from server
   const { data: meData } = useQuery({
     queryKey: ["me"],
     queryFn: authApi.me,
-    enabled: !!token,
+    enabled: !!user,
   });
 
   // Fetch master roles from backend database
@@ -159,8 +159,8 @@ export default function ProfilePage() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["me"] });
       // Update zustand store
-      if (token && user) {
-        setAuth(token, { ...user, name: res.data.full_name, email: res.data.email });
+      if (user) {
+        setAuth({ ...user, name: res.data.full_name, email: res.data.email });
       }
       toast.success("Profil berhasil diperbarui");
       setIsEditingProfile(false);
@@ -180,7 +180,19 @@ export default function ProfilePage() {
       toast.error(getApiErrorMessage(err, "Gagal mengubah password")),
   });
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // access_token/refresh_token are httpOnly — only the backend can clear
+    // them. Calling logout() here first would just wipe the local profile
+    // copy while leaving the real session cookies (and server-side refresh
+    // token) fully valid, so the /auth/me bootstrap on the next page load
+    // would silently sign the user back in.
+    try {
+      await authApi.logout();
+    } catch {
+      // Best-effort: still clear local state and leave even if the network
+      // call fails — the access token cookie will simply expire on its own
+      // shortly (15 min TTL) if the revoke call above didn't land.
+    }
     logout();
     window.location.href = "/login";
   };

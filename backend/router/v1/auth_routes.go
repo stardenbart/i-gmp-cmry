@@ -2,6 +2,7 @@ package v1
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/config"
 	"github.com/monitoring-system/backend/internal/domain/logging"
 	"github.com/monitoring-system/backend/internal/handler/auth"
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
@@ -16,17 +17,18 @@ import (
 )
 
 // RegisterAuthRoutes wires auth dependencies and mounts routes.
-func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logging.ActivityLogUseCase) {
+func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logging.ActivityLogUseCase, cfg *config.Config) {
 	// ── Wire dependencies ──────────────────────────────────────────────
 	userRepo := authrepo.NewUserRepository(db)
 	passwordResetOTPRepo := authrepo.NewPasswordResetOTPRepository(db)
 	loginLogRepo := authrepo.NewLoginLogRepository(db)
+	refreshTokenRepo := authrepo.NewRefreshTokenRepository(db)
 	rolePermRepo := authrepo.NewRolePermissionRepository(db)
 	userPermRepo := authrepo.NewUserPermissionRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
 	picMappingRepo := picrepo.NewPICMappingRepository(db)
 
-	authUC := authusecase.NewAuthUseCase(userRepo, loginLogRepo, jwtManager)
+	authUC := authusecase.NewAuthUseCase(userRepo, loginLogRepo, refreshTokenRepo, jwtManager, cfg.RefreshTokenTTL)
 	userUC := authusecase.NewUserUseCase(userRepo, mailer, settingRepo, picMappingRepo, passwordResetOTPRepo)
 	rolePermUC := authusecase.NewRolePermissionUseCase(rolePermRepo)
 	userPermUC := authusecase.NewUserPermissionUseCase(userPermRepo)
@@ -35,7 +37,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	userFilterRepo := authrepo.NewUserFilterRepository(db)
 	userFilterUC := authusecase.NewUserFilterUseCase(userFilterRepo)
 
-	authHandler := auth.NewAuthHandler(authUC)
+	authHandler := auth.NewAuthHandler(authUC, cfg)
 	userHandler := auth.NewUserHandler(userUC)
 	userPermHandler := auth.NewUserPermissionHandler(userPermUC)
 	userFilterHandler := auth.NewUserFilterHandler(userFilterUC)
@@ -48,6 +50,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	authGroup := rg.Group("/auth")
 	{
 		authGroup.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
+		authGroup.Post("/refresh", middleware.AuthRateLimiter(), authHandler.Refresh)
 		authGroup.Post("/forgot-password", middleware.AuthRateLimiter(), userHandler.ForgotPassword)
 		authGroup.Post("/reset-password", middleware.AuthRateLimiter(), userHandler.ResetPasswordWithOTP)
 	}
