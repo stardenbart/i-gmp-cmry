@@ -12,7 +12,7 @@ export function TemuanSection() {
   return (
     <SectionShell
       id="temuan"
-      index={4}
+      index={5}
       title="Temuan Inspeksi"
       lede="Setiap penilaian NG menjadi satu Temuan yang harus ditindaklanjuti hingga tuntas."
       role={<RoleBadge role="all" label="Melibatkan semua peran" />}

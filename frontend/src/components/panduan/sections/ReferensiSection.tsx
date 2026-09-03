@@ -28,7 +28,7 @@ export function ReferensiSection() {
   return (
     <SectionShell
       id="referensi"
-      index={9}
+      index={10}
       title="Referensi"
       lede="Tabel kode izin, istilah, dan pertanyaan yang sering muncul."
       role={<RoleBadge role="all" />}

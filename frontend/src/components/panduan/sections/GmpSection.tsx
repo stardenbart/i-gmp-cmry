@@ -6,7 +6,7 @@ export function GmpSection() {
   return (
     <SectionShell
       id="gmp"
-      index={6}
+      index={7}
       title="Data Inspeksi (GMP) & Export"
       lede="Menjelajah dan mengekspor rekap data inspeksi yang sudah selesai."
       role={<RoleBadge role="admin" />}
