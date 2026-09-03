@@ -3,6 +3,7 @@ import { RoleBadge } from "../RoleBadge";
 import { RoleScope } from "../PanduanFilterContext";
 import { Callout } from "../Callout";
 import { StepList } from "../StepList";
+import { GuideImage } from "../GuideImage";
 
 export function KpiSection() {
   return (
@@ -25,6 +26,7 @@ export function KpiSection() {
             kanvas kosong — Anda membangun sendiri visualisasi apa pun dari data audit yang tersedia, lalu
             mengatur tata letaknya sendiri.
           </p>
+          <GuideImage src="/guide/kpi-dashboard.png" alt="Halaman Dashboard KPI" caption="Dashboard KPI dengan beberapa visualisasi kustom." />
         </div>
 
         <div className="space-y-3">
@@ -43,6 +45,7 @@ export function KpiSection() {
               <>Isi <strong>judul</strong>, lalu tekan <strong>&ldquo;Tambahkan&rdquo;</strong>.</>,
             ]}
           />
+          <GuideImage src="/guide/kpi-tambah-visualisasi.png" alt="Modal Tambah Visualisasi" caption="Builder Tambah Visualisasi — pilih Kategori dan Nilai, lalu periksa preview." />
         </div>
 
         <div className="space-y-3">
@@ -78,6 +81,7 @@ export function KpiSection() {
             Tekan &ldquo;Sesuaikan Dashboard&rdquo; untuk memindah atau mengubah ukuran widget, sama seperti di
             Dashboard utama.
           </p>
+          <GuideImage src="/guide/kpi-edit-visualisasi.png" alt="Modal Edit Visualisasi" caption="Edit Visualisasi — ganti Nilai, jenis chart, atau opsi tampilan kapan saja." />
         </div>
 
         <RoleScope roles={["admin"]}>
@@ -97,6 +101,11 @@ export function KpiSection() {
                   segera.</>,
                 <><strong>Rotasi</strong> membuat token baru dan langsung membatalkan token lama; <strong>Cabut</strong> menonaktifkan link untuk selamanya. Keduanya bisa dilakukan kapan saja dari daftar link yang sama.</>,
               ]}
+            />
+            <GuideImage
+              src="/guide/kpi-share-public.png"
+              alt="Tampilan publik Dashboard KPI"
+              caption="Yang dilihat pengunjung lewat link publik — bertanda “Tampilan publik · hanya baca”, tanpa perlu login."
             />
           </div>
         </RoleScope>
