@@ -50,8 +50,8 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 	issueusecase.StartDeadlineReminderWorker(context.Background(), issueUC, 1*time.Hour)
 
 	issueH := issuehandler.NewIssueHandler(issueUC)
-	issueDelegateH := issuehandler.NewIssueDelegateHandler(issueDelegateUC)
-	photoH := issuehandler.NewIssuePhotoHandler(photoUC)
+	issueDelegateH := issuehandler.NewIssueDelegateHandler(issueDelegateUC, issueUC)
+	photoH := issuehandler.NewIssuePhotoHandler(photoUC, issueUC)
 	issueFilterH := issuehandler.NewIssueFilterHandler(issueFilterUC)
 	followupFilterH := issuehandler.NewFollowupFilterHandler(followupFilterUC)
 

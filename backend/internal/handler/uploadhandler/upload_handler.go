@@ -2,6 +2,7 @@ package uploadhandler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/domain/upload"
 	"github.com/monitoring-system/backend/internal/usecase/uploadusecase"
 	"github.com/monitoring-system/backend/pkg/response"
@@ -9,12 +10,30 @@ import (
 
 // UploadHandler handles HTTP requests for file uploads
 type UploadHandler struct {
-	uc *uploadusecase.UploadUseCase
+	uc       *uploadusecase.UploadUseCase
+	headerUC inspection.InspectionHeaderUseCase
 }
 
 // NewUploadHandler creates a new upload handler instance
-func NewUploadHandler(uc *uploadusecase.UploadUseCase) *UploadHandler {
-	return &UploadHandler{uc: uc}
+func NewUploadHandler(uc *uploadusecase.UploadUseCase, headerUC inspection.InspectionHeaderUseCase) *UploadHandler {
+	return &UploadHandler{uc: uc, headerUC: headerUC}
+}
+
+// requireInspectionAccess checks that the caller's plant scope covers
+// inspectionID, exactly like InspectionHeaderHandler's own helper of the
+// same name — uploads are only ever meaningful attached to an inspection,
+// so they inherit that inspection's access rule rather than defining a
+// separate one. Nil headerUC (e.g. a caller that hasn't wired one) skips
+// the check rather than panicking.
+func (h *UploadHandler) requireInspectionAccess(c *fiber.Ctx, inspectionID string) error {
+	if h.headerUC == nil {
+		return nil
+	}
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	if _, err := h.headerUC.GetByIDScoped(inspectionID, userPlantID); err != nil {
+		return response.NotFound(c, "inspection not found")
+	}
+	return nil
 }
 
 // Upload handles file upload requests
@@ -50,6 +69,9 @@ func (h *UploadHandler) Upload(c *fiber.Ctx) error {
 	inspectionID := c.FormValue("inspection_id")
 	if inspectionID == "" {
 		return response.BadRequest(c, "inspection_id is required", nil)
+	}
+	if err := h.requireInspectionAccess(c, inspectionID); err != nil {
+		return err
 	}
 
 	// Build request
@@ -107,6 +129,9 @@ func (h *UploadHandler) GetStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return response.NotFound(c, "upload not found")
 	}
+	if err := h.requireInspectionAccess(c, upload.InspectionID); err != nil {
+		return err
+	}
 
 	return response.OK(c, "success", fiber.Map{
 		"id":            upload.ID,
@@ -133,6 +158,9 @@ func (h *UploadHandler) GetByInspection(c *fiber.Ctx) error {
 	inspectionID := c.Params("inspectionId")
 	if inspectionID == "" {
 		return response.BadRequest(c, "inspection_id is required", nil)
+	}
+	if err := h.requireInspectionAccess(c, inspectionID); err != nil {
+		return err
 	}
 
 	uploads, err := h.uc.GetByInspectionID(inspectionID)

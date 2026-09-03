@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/monitoring-system/backend/internal/authz"
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
 	"github.com/monitoring-system/backend/internal/domain/issue"
@@ -81,6 +82,42 @@ func (uc *inspectionHeaderUseCase) GetByID(id string) (*inspection.InspectionHea
 	// Delegasikan langsung ke repo — repo layer sudah punya singleflight + TTL cache 5 menit sendiri.
 	// Menambah singleflight kedua di sini justru menciptakan serial blocking dengan shared 3s deadline.
 	return uc.repo.FindByID(id)
+}
+
+// GetByIDScoped is GetByID plus a per-record plant check — see the
+// interface doc comment for why this exists as a separate method rather
+// than changing GetByID's behavior.
+func (uc *inspectionHeaderUseCase) GetByIDScoped(id, userPlantID string) (*inspection.InspectionHeader, error) {
+	item, err := uc.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, errors.New("inspection not found")
+	}
+	if !uc.callerMayAccessArea(userPlantID, item.AreaID) {
+		return nil, errors.New("inspection not found")
+	}
+	return item, nil
+}
+
+// callerMayAccessArea resolves areaID's owning plant and checks it against
+// userPlantID. Fails CLOSED: if the area can't be resolved at all (bad
+// data, repo error), a plant-scoped caller is denied rather than let
+// through — an unscoped caller (userPlantID == "") is unaffected either
+// way, matching authz.PlantMatches' own contract.
+func (uc *inspectionHeaderUseCase) callerMayAccessArea(userPlantID, areaID string) bool {
+	if userPlantID == "" {
+		return true
+	}
+	if uc.areaRepo == nil {
+		return false
+	}
+	area, err := uc.areaRepo.FindByID(areaID)
+	if err != nil || area == nil {
+		return false
+	}
+	return authz.PlantMatches(userPlantID, area.PlantID)
 }
 
 func (uc *inspectionHeaderUseCase) GetAreaStatus(areaID string) (inspection.AreaProgress, error) {

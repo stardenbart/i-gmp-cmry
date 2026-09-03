@@ -8,11 +8,12 @@ import (
 )
 
 type IssueDelegateHandler struct {
-	uc issue.IssueDelegateUseCase
+	uc      issue.IssueDelegateUseCase
+	issueUC issue.IssueUseCase
 }
 
-func NewIssueDelegateHandler(uc issue.IssueDelegateUseCase) *IssueDelegateHandler {
-	return &IssueDelegateHandler{uc: uc}
+func NewIssueDelegateHandler(uc issue.IssueDelegateUseCase, issueUC issue.IssueUseCase) *IssueDelegateHandler {
+	return &IssueDelegateHandler{uc: uc, issueUC: issueUC}
 }
 
 // @Summary      Add Issue Delegate
@@ -28,6 +29,9 @@ func NewIssueDelegateHandler(uc issue.IssueDelegateUseCase) *IssueDelegateHandle
 // @Router       /issues/{id}/delegates [post]
 func (h *IssueDelegateHandler) AddDelegate(c *fiber.Ctx) error {
 	issueID := c.Params("id")
+	if _, err := checkIssueAccess(c, h.issueUC, issueID); err != nil {
+		return err
+	}
 	actorID := middleware.GetUserID(c)
 
 	var req issue.AddIssueDelegateRequest
@@ -55,6 +59,9 @@ func (h *IssueDelegateHandler) AddDelegate(c *fiber.Ctx) error {
 // @Router       /issues/{id}/delegates/{user_id} [delete]
 func (h *IssueDelegateHandler) RemoveDelegate(c *fiber.Ctx) error {
 	issueID := c.Params("id")
+	if _, err := checkIssueAccess(c, h.issueUC, issueID); err != nil {
+		return err
+	}
 	delegateUserID := c.Params("user_id")
 	actorID := middleware.GetUserID(c)
 
@@ -77,6 +84,9 @@ func (h *IssueDelegateHandler) RemoveDelegate(c *fiber.Ctx) error {
 // @Router       /issues/{id}/delegates [get]
 func (h *IssueDelegateHandler) GetDelegates(c *fiber.Ctx) error {
 	issueID := c.Params("id")
+	if _, err := checkIssueAccess(c, h.issueUC, issueID); err != nil {
+		return err
+	}
 	delegates, err := h.uc.GetDelegatesByIssue(issueID)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
