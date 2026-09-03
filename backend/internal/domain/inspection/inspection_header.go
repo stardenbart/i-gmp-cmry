@@ -105,6 +105,15 @@ type InspectionHeaderRepository interface {
 type InspectionHeaderUseCase interface {
 	GetAll(page, limit int, plantID, areaID, status, inspectorID string) ([]InspectionHeader, int64, error)
 	GetByID(id string) (*InspectionHeader, error)
+	// GetByIDScoped is GetByID plus a per-record plant check: userPlantID
+	// ("" for Super Admin / global-scope users) must match the plant that
+	// owns the inspection's AreaID, via authz.PlantMatches. Returns the same
+	// "inspection not found" error as GetByID for a denied scope — a
+	// wrong-plant caller must not be able to distinguish "doesn't exist"
+	// from "exists but isn't yours" by ID alone (GetByID/GetAll never
+	// enforced this on their own; a guessable, unauthenticated-by-plant ID
+	// was the only thing stopping cross-plant reads before this).
+	GetByIDScoped(id, userPlantID string) (*InspectionHeader, error)
 	GetAreaStatus(areaID string) (AreaProgress, error)
 	GetCurrentPeriodInfo(areaID string) (InspectionPeriodInfo, error)
 	GetTrend(contextID string, year int) ([]TrendData, error)

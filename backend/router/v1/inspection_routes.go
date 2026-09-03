@@ -62,7 +62,7 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	uploadUC := uploadusecase.NewUploadUseCase(minioStorage, docxProc, imageProc, fileUploadRepo)
 
 	headerH := inspectionhandler.NewInspectionHeaderHandler(headerUC, resultUC, uploadUC, rdb)
-	resultH := inspectionhandler.NewInspectionResultHandler(resultUC)
+	resultH := inspectionhandler.NewInspectionResultHandler(resultUC, headerUC)
 	filterH := inspectionhandler.NewInspectionFilterHandler(filterUC)
 
 	rpRepo := authrepo.NewRolePermissionRepository(db)

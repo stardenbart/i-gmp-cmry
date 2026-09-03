@@ -70,7 +70,8 @@ func (h *InspectionHeaderHandler) GetAll(c *fiber.Ctx) error {
 // @Router /inspections/{id} [get]
 // @Security BearerAuth
 func (h *InspectionHeaderHandler) GetByID(c *fiber.Ctx) error {
-	item, err := h.uc.GetByID(c.Params("id"))
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	item, err := h.uc.GetByIDScoped(c.Params("id"), userPlantID)
 	if err != nil {
 		if err.Error() == "record not found" || err.Error() == "inspection not found" {
 			return response.NotFound(c, "inspection not found")
@@ -83,8 +84,25 @@ func (h *InspectionHeaderHandler) GetByID(c *fiber.Ctx) error {
 	return response.OK(c, "success", item)
 }
 
+// requireInspectionAccess verifies the caller may see the inspection at id
+// under their current plant scope (see InspectionHeaderUseCase.GetByIDScoped)
+// before an endpoint that doesn't otherwise need the fetched header goes on
+// to read/mutate one of its sub-resources. Returns a ready-to-send 404 when
+// they may not — nil means "allowed, proceed".
+func (h *InspectionHeaderHandler) requireInspectionAccess(c *fiber.Ctx, id string) error {
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	if _, err := h.uc.GetByIDScoped(id, userPlantID); err != nil {
+		return response.NotFound(c, "inspection not found")
+	}
+	return nil
+}
+
 func (h *InspectionHeaderHandler) GetChecklist(c *fiber.Ctx) error {
-	item, err := h.uc.GetChecklist(c.Params("id"))
+	id := c.Params("id")
+	if err := h.requireInspectionAccess(c, id); err != nil {
+		return err
+	}
+	item, err := h.uc.GetChecklist(id)
 	if err != nil {
 		if err.Error() == "record not found" || err.Error() == "inspection not found" {
 			return response.NotFound(c, "inspection not found")
@@ -212,6 +230,10 @@ func (h *InspectionHeaderHandler) UpdateStatus(c *fiber.Ctx) error {
 	actorID := middleware.GetUserID(c)
 	inspectionID := c.Params("id")
 
+	if err := h.requireInspectionAccess(c, inspectionID); err != nil {
+		return err
+	}
+
 	// Jika status berubah ke Completed: finalisasi foto base64 WebP dari Redis ke MinIO
 	if req.Status == "Completed" && h.uploadUC != nil {
 		go func() {
@@ -244,7 +266,11 @@ func (h *InspectionHeaderHandler) UpdateStatus(c *fiber.Ctx) error {
 // @Router /inspections/{id} [delete]
 // @Security BearerAuth
 func (h *InspectionHeaderHandler) Delete(c *fiber.Ctx) error {
-	if err := h.uc.Delete(c.Params("id")); err != nil {
+	id := c.Params("id")
+	if err := h.requireInspectionAccess(c, id); err != nil {
+		return err
+	}
+	if err := h.uc.Delete(id); err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
 	return response.OK(c, "inspection deleted", nil)
@@ -259,9 +285,10 @@ func (h *InspectionHeaderHandler) Delete(c *fiber.Ctx) error {
 // @Security BearerAuth
 func (h *InspectionHeaderHandler) ExportExcel(c *fiber.Ctx) error {
 	id := c.Params("id")
+	userPlantID, _ := c.Locals("userPlantID").(string)
 
 	// 1. Fetch Header
-	header, err := h.uc.GetByID(id)
+	header, err := h.uc.GetByIDScoped(id, userPlantID)
 	if err != nil {
 		return response.NotFound(c, "inspection not found")
 	}
@@ -333,11 +360,23 @@ func (h *InspectionHeaderHandler) ExportExcel(c *fiber.Ctx) error {
 // ── Inspection Result Handler ─────────────────────────────────────────────
 
 type InspectionResultHandler struct {
-	uc inspection.InspectionResultUseCase
+	uc       inspection.InspectionResultUseCase
+	headerUC inspection.InspectionHeaderUseCase
 }
 
-func NewInspectionResultHandler(uc inspection.InspectionResultUseCase) *InspectionResultHandler {
-	return &InspectionResultHandler{uc: uc}
+func NewInspectionResultHandler(uc inspection.InspectionResultUseCase, headerUC inspection.InspectionHeaderUseCase) *InspectionResultHandler {
+	return &InspectionResultHandler{uc: uc, headerUC: headerUC}
+}
+
+// requireInspectionAccess mirrors InspectionHeaderHandler's helper of the
+// same name — results/photos/etc. carry their own resource IDs, but access
+// to them is still governed by the plant that owns their parent inspection.
+func (h *InspectionResultHandler) requireInspectionAccess(c *fiber.Ctx, inspectionID string) error {
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	if _, err := h.headerUC.GetByIDScoped(inspectionID, userPlantID); err != nil {
+		return response.NotFound(c, "inspection not found")
+	}
+	return nil
 }
 
 // @Summary Get inspection results by inspection ID
@@ -351,7 +390,11 @@ func NewInspectionResultHandler(uc inspection.InspectionResultUseCase) *Inspecti
 // @Router /inspections/{id}/results [get]
 // @Security BearerAuth
 func (h *InspectionResultHandler) GetByInspectionID(c *fiber.Ctx) error {
-	items, err := h.uc.GetByInspectionID(c.Params("id"))
+	id := c.Params("id")
+	if err := h.requireInspectionAccess(c, id); err != nil {
+		return err
+	}
+	items, err := h.uc.GetByInspectionID(id)
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch results", err.Error())
 	}
@@ -376,6 +419,9 @@ func (h *InspectionResultHandler) BulkSave(c *fiber.Ctx) error {
 		return response.BadRequest(c, "invalid body", err.Error())
 	}
 	req.InspectionID = c.Params("id")
+	if err := h.requireInspectionAccess(c, req.InspectionID); err != nil {
+		return err
+	}
 	items, err := h.uc.BulkSave(&req)
 	if err != nil {
 		return response.InternalServerError(c, err.Error(), nil)
@@ -399,7 +445,15 @@ func (h *InspectionResultHandler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid body", err.Error())
 	}
-	item, err := h.uc.Update(c.Params("result_id"), &req)
+	resultID := c.Params("result_id")
+	existing, err := h.uc.GetByID(resultID)
+	if err != nil {
+		return response.NotFound(c, "result not found")
+	}
+	if err := h.requireInspectionAccess(c, existing.InspectionID); err != nil {
+		return err
+	}
+	item, err := h.uc.Update(resultID, &req)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
@@ -417,7 +471,15 @@ func (h *InspectionResultHandler) Update(c *fiber.Ctx) error {
 // @Router /inspection-results/{result_id} [delete]
 // @Security BearerAuth
 func (h *InspectionResultHandler) Delete(c *fiber.Ctx) error {
-	if err := h.uc.Delete(c.Params("result_id")); err != nil {
+	resultID := c.Params("result_id")
+	existing, err := h.uc.GetByID(resultID)
+	if err != nil {
+		return response.NotFound(c, "result not found")
+	}
+	if err := h.requireInspectionAccess(c, existing.InspectionID); err != nil {
+		return err
+	}
+	if err := h.uc.Delete(resultID); err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
 	return response.OK(c, "result deleted", nil)

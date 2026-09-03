@@ -81,11 +81,35 @@ func (h *IssueHandler) GetAll(c *fiber.Ctx) error {
 // @Router /api/v1/issues/{id} [get]
 // @Security BearerAuth
 func (h *IssueHandler) GetByID(c *fiber.Ctx) error {
-	item, err := h.uc.GetByID(c.Params("id"))
+	item, err := h.checkAccess(c, c.Params("id"))
 	if err != nil {
-		return response.NotFound(c, "issue not found")
+		return err
 	}
 	return response.OK(c, "success", item)
+}
+
+// checkAccess wraps checkIssueAccess with this handler's own usecase — see
+// that function's doc comment for the actual scoping rules.
+func (h *IssueHandler) checkAccess(c *fiber.Ctx, id string) (*issue.Issue, error) {
+	return checkIssueAccess(c, h.uc, id)
+}
+
+// checkIssueAccess wraps IssueUseCase.CheckAccess with the request-scoped
+// plant and role/PIC context, returning a ready-to-send 404 response when
+// the caller may not see this issue (see CheckAccess's doc comment for why
+// that's a 404, not a 403). nil error means access is granted and item is
+// the (already decrypted/enriched) issue. Shared by every handler in this
+// package that acts on an issue or one of its sub-resources (photos,
+// delegates) by ID — not just IssueHandler itself.
+func checkIssueAccess(c *fiber.Ctx, uc issue.IssueUseCase, id string) (*issue.Issue, error) {
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	actorID := middleware.GetUserID(c)
+	actorRole := middleware.GetRoleID(c)
+	item, err := uc.CheckAccess(id, userPlantID, actorID, isAuditor(actorRole))
+	if err != nil {
+		return nil, response.NotFound(c, "issue not found")
+	}
+	return item, nil
 }
 
 // @Summary Create a new issue
@@ -171,8 +195,12 @@ func (h *IssueHandler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid body", err.Error())
 	}
+	id := c.Params("id")
+	if _, err := h.checkAccess(c, id); err != nil {
+		return err
+	}
 	actorID := middleware.GetUserID(c)
-	item, err := h.uc.Update(c.Params("id"), actorID, &req)
+	item, err := h.uc.Update(id, actorID, &req)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
@@ -203,6 +231,10 @@ func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error {
 		return response.BadRequest(c, "validation failed", errs)
 	}
 
+	id := c.Params("id")
+	if _, err := h.checkAccess(c, id); err != nil {
+		return err
+	}
 	actorID := middleware.GetUserID(c)
 
 	// Parse Time manually since it's an extension
@@ -211,7 +243,7 @@ func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error {
 		return response.BadRequest(c, "invalid date format, must be RFC3339", err.Error())
 	}
 
-	item, err := h.uc.ExtendDueDate(c.Params("id"), actorID, importTime)
+	item, err := h.uc.ExtendDueDate(id, actorID, importTime)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
@@ -229,8 +261,12 @@ func (h *IssueHandler) ExtendDueDate(c *fiber.Ctx) error {
 // @Router /api/v1/issues/{id} [delete]
 // @Security BearerAuth
 func (h *IssueHandler) Delete(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if _, err := h.checkAccess(c, id); err != nil {
+		return err
+	}
 	actorID := middleware.GetUserID(c)
-	if err := h.uc.Delete(c.Params("id"), actorID); err != nil {
+	if err := h.uc.Delete(id, actorID); err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
 	return response.OK(c, "issue deleted", nil)
@@ -238,10 +274,25 @@ func (h *IssueHandler) Delete(c *fiber.Ctx) error {
 
 // ── Issue Photo Handler ───────────────────────────────────────────────────
 
-type IssuePhotoHandler struct{ uc issue.IssuePhotoUseCase }
+type IssuePhotoHandler struct {
+	uc      issue.IssuePhotoUseCase
+	issueUC issue.IssueUseCase
+}
 
-func NewIssuePhotoHandler(uc issue.IssuePhotoUseCase) *IssuePhotoHandler {
-	return &IssuePhotoHandler{uc: uc}
+func NewIssuePhotoHandler(uc issue.IssuePhotoUseCase, issueUC issue.IssueUseCase) *IssuePhotoHandler {
+	return &IssuePhotoHandler{uc: uc, issueUC: issueUC}
+}
+
+// checkPhotoAccess mirrors checkIssueAccess for a request keyed by photo_id
+// instead of an issue id directly.
+func (h *IssuePhotoHandler) checkPhotoAccess(c *fiber.Ctx, photoID string) error {
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	actorID := middleware.GetUserID(c)
+	actorRole := middleware.GetRoleID(c)
+	if _, err := h.uc.CheckAccess(photoID, userPlantID, actorID, isAuditor(actorRole)); err != nil {
+		return response.NotFound(c, "photo not found")
+	}
+	return nil
 }
 
 // @Summary Get photos by issue ID
@@ -255,6 +306,9 @@ func NewIssuePhotoHandler(uc issue.IssuePhotoUseCase) *IssuePhotoHandler {
 // @Router /api/v1/issues/{id}/photos [get]
 // @Security BearerAuth
 func (h *IssuePhotoHandler) GetByIssueID(c *fiber.Ctx) error {
+	if _, err := checkIssueAccess(c, h.issueUC, c.Params("id")); err != nil {
+		return err
+	}
 	photos, err := h.uc.GetByIssueID(c.Params("id"))
 	if err != nil {
 		return response.InternalServerError(c, "failed to fetch photos", err.Error())
@@ -298,8 +352,12 @@ func (h *IssuePhotoHandler) Upload(c *fiber.Ctx) error {
 		photoType = issue.PhotoTypeFollowUp
 	}
 
-	picUserID := middleware.GetUserID(c)
 	issueID := c.Params("id")
+	if _, err := checkIssueAccess(c, h.issueUC, issueID); err != nil {
+		return err
+	}
+
+	picUserID := middleware.GetUserID(c)
 	if picUserID == "" {
 		picUserID = "SYSTEM"
 	}
@@ -424,7 +482,11 @@ func (h *IssuePhotoHandler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid body", err.Error())
 	}
-	photo, err := h.uc.Update(c.UserContext(), c.Params("photo_id"), req.Keterangan)
+	photoID := c.Params("photo_id")
+	if err := h.checkPhotoAccess(c, photoID); err != nil {
+		return err
+	}
+	photo, err := h.uc.Update(c.UserContext(), photoID, req.Keterangan)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
@@ -436,7 +498,11 @@ func (h *IssuePhotoHandler) UpdateHEI(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid body", err.Error())
 	}
-	photo, err := h.uc.UpdateHEI(c.UserContext(), c.Params("photo_id"), &req)
+	photoID := c.Params("photo_id")
+	if err := h.checkPhotoAccess(c, photoID); err != nil {
+		return err
+	}
+	photo, err := h.uc.UpdateHEI(c.UserContext(), photoID, &req)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
@@ -452,7 +518,11 @@ func (h *IssuePhotoHandler) UpdateWOWR(c *fiber.Ctx) error {
 		!middleware.IsAuditorRole(middleware.GetRoleID(c)) {
 		return response.Forbidden(c, "hanya Admin atau Auditor yang dapat memvalidasi WO/WR")
 	}
-	photo, err := h.uc.UpdateWOWR(c.UserContext(), c.Params("photo_id"), &req)
+	photoID := c.Params("photo_id")
+	if err := h.checkPhotoAccess(c, photoID); err != nil {
+		return err
+	}
+	photo, err := h.uc.UpdateWOWR(c.UserContext(), photoID, &req)
 	if err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
@@ -470,7 +540,11 @@ func (h *IssuePhotoHandler) UpdateWOWR(c *fiber.Ctx) error {
 // @Router /api/v1/issues/photos/{photo_id} [delete]
 // @Security BearerAuth
 func (h *IssuePhotoHandler) Delete(c *fiber.Ctx) error {
-	if err := h.uc.Delete(c.UserContext(), c.Params("photo_id")); err != nil {
+	photoID := c.Params("photo_id")
+	if err := h.checkPhotoAccess(c, photoID); err != nil {
+		return err
+	}
+	if err := h.uc.Delete(c.UserContext(), photoID); err != nil {
 		return response.BadRequest(c, err.Error(), nil)
 	}
 	return response.OK(c, "photo deleted", nil)

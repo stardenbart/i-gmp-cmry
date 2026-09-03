@@ -61,16 +61,16 @@ type Issue struct {
 	// DeadlineReminderSentAt marks when the pre-deadline reminder was sent,
 	// so DeadlineReminderWorker never re-sends it for the same DueDate. Reset
 	// to nil by ExtendDueDate so a new deadline gets its own reminder.
-	DeadlineReminderSentAt *time.Time  `gorm:"column:DeadlineReminderSentAt" json:"deadline_reminder_sent_at,omitempty"`
-	Label               string      `gorm:"column:Label;size:100" json:"label"`
-	NeedsWOWR           bool        `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
-	WO_ID               string      `gorm:"column:WO_ID;size:100" json:"wo_id"`
-	WR_ID               string      `gorm:"column:WR_ID;size:100" json:"wr_id"`
-	WOWRStatus          WOWRStatus  `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
-	Keterangan          string      `gorm:"column:Keterangan;type:text" json:"keterangan"`
-	PICName             string      `gorm:"-" json:"pic_name"`
-	IssueCreatedAt      time.Time   `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
-	IssueUpdatedAt      time.Time   `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
+	DeadlineReminderSentAt *time.Time `gorm:"column:DeadlineReminderSentAt" json:"deadline_reminder_sent_at,omitempty"`
+	Label                  string     `gorm:"column:Label;size:100" json:"label"`
+	NeedsWOWR              bool       `gorm:"column:NeedsWOWR;default:false" json:"needs_wo_wr"`
+	WO_ID                  string     `gorm:"column:WO_ID;size:100" json:"wo_id"`
+	WR_ID                  string     `gorm:"column:WR_ID;size:100" json:"wr_id"`
+	WOWRStatus             WOWRStatus `gorm:"column:WOWRStatus;default:None" json:"wowr_status"`
+	Keterangan             string     `gorm:"column:Keterangan;type:text" json:"keterangan"`
+	PICName                string     `gorm:"-" json:"pic_name"`
+	IssueCreatedAt         time.Time  `gorm:"column:IssueCreatedAt;autoCreateTime" json:"created_at"`
+	IssueUpdatedAt         time.Time  `gorm:"column:IssueUpdatedAt;autoUpdateTime" json:"updated_at"`
 
 	// Joined Name Fields (not saved to DB)
 	AreaName           string `gorm:"column:AreaName;->" json:"area_name,omitempty"`
@@ -155,6 +155,10 @@ type IssueRepository interface {
 	// for the issue's Kawasan. Mirrors the scope used to list "my issues"
 	// (see FindAll's picUserID clause) so the two never drift apart.
 	IsScopedToUser(issueID, userID string) (bool, error)
+	// FindPlantID resolves the PlantID of the area that owns issueID (via
+	// Inspection_Result -> Inspection_Header -> Area_Master). nil means the
+	// owning area has no PlantID of its own (shared/global data).
+	FindPlantID(issueID string) (*string, error)
 	// FindReminderCandidates returns every not-yet-closed issue with a
 	// DueDate that hasn't had its pre-deadline reminder sent yet.
 	// DeadlineReminderWorker applies the (per-plant) days-before threshold
@@ -179,6 +183,15 @@ type IssueUseCase interface {
 	GetAll(page, limit int, plantID, status, picUserID string, needsWOWR *bool) ([]Issue, int64, error)
 	GetByID(id string) (*Issue, error)
 	GetByResultID(resultID string) (*Issue, error)
+	// CheckAccess verifies the issue at id is visible to a caller scoped to
+	// userPlantID and — when isAuditorCaller is false — assigned to actorID
+	// as PIC (mirrors GetAll's own scoping: see IssueRepository.
+	// IsScopedToUser for exactly what "assigned" covers — direct
+	// assignment, delegation, or PIC_Mapping for the issue's kawasan).
+	// Returns the same not-found error as GetByID for a denied scope, so a
+	// caller can't distinguish "doesn't exist" from "exists but isn't
+	// yours" by ID alone.
+	CheckAccess(id, userPlantID, actorID string, isAuditorCaller bool) (*Issue, error)
 	Create(actorID string, req *CreateIssueRequest) (*Issue, error)
 	Update(id string, actorID string, req *UpdateIssueRequest) (*Issue, error)
 	ExtendDueDate(id string, actorID string, newDueDate time.Time) (*Issue, error)

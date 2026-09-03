@@ -96,6 +96,12 @@ type IssuePhotoRepository interface {
 
 type IssuePhotoUseCase interface {
 	GetByIssueID(issueID string) ([]IssuePhoto, error)
+	// CheckAccess resolves photoID's owning issue and applies the same
+	// plant + PIC-ownership scoping as IssueUseCase.CheckAccess, returning
+	// the (decrypted) photo when allowed — see that method's doc comment
+	// for the exact rule and why a denied scope isn't distinguishable from
+	// "doesn't exist".
+	CheckAccess(photoID, userPlantID, actorID string, isAuditorCaller bool) (*IssuePhoto, error)
 	Upload(ctx context.Context, req *UploadPhotoRequest, fileReader io.Reader, fileSize int64, originalFileName, contentType string) (*IssuePhoto, error)
 	Update(ctx context.Context, photoID string, keterangan string) (*IssuePhoto, error)
 	UpdateHEI(ctx context.Context, photoID string, req *UpdatePhotoHEIRequest) (*IssuePhoto, error)

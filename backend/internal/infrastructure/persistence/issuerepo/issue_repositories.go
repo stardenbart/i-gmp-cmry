@@ -203,6 +203,23 @@ func (r *issueRepository) IsScopedToUser(issueID, userID string) (bool, error) {
 	return count > 0, err
 }
 
+// FindPlantID resolves the PlantID of the area that owns issueID, via
+// Issue -> Inspection_Result -> Inspection_Header -> Area_Master (the same
+// join chain IsScopedToUser's PIC_Mapping branch above already uses).
+// Returns nil (no error) if the issue exists but its area has no PlantID of
+// its own — shared/global data, same convention as everywhere else.
+func (r *issueRepository) FindPlantID(issueID string) (*string, error) {
+	var plantID *string
+	err := r.db.Table(`"Issue" i`).
+		Joins(`JOIN "Inspection_Result" ir ON i."ResultID" = ir."ResultID"`).
+		Joins(`JOIN "Inspection_Header" ih ON ir."InspectionID" = ih."InspectionID"`).
+		Joins(`JOIN "Area_Master" am ON ih."AreaID" = am."AreaID"`).
+		Where(`i."IssueID" = ?`, issueID).
+		Select(`am."PlantID"`).
+		Scan(&plantID).Error
+	return plantID, err
+}
+
 func (r *issueRepository) FindReminderCandidates() ([]issue.Issue, error) {
 	var items []issue.Issue
 	err := r.db.

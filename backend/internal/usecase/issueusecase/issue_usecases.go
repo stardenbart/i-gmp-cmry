@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/monitoring-system/backend/internal/authz"
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/internal/domain/events"
 	"github.com/monitoring-system/backend/internal/domain/issue"
@@ -134,6 +135,33 @@ func (uc *issueUseCase) GetByID(id string) (*issue.Issue, error) {
 		}
 	}
 	return item, err
+}
+
+// CheckAccess is GetByID plus the same plant + PIC-ownership scoping
+// GetAll already applies at the list level — see the interface doc comment
+// for why a denied scope returns the plain not-found error rather than a
+// distinguishable 403.
+func (uc *issueUseCase) CheckAccess(id, userPlantID, actorID string, isAuditorCaller bool) (*issue.Issue, error) {
+	item, err := uc.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, errors.New("issue not found")
+	}
+	if userPlantID != "" {
+		plantID, err := uc.repo.FindPlantID(id)
+		if err != nil || !authz.PlantMatches(userPlantID, plantID) {
+			return nil, errors.New("issue not found")
+		}
+	}
+	if !isAuditorCaller {
+		scoped, err := uc.repo.IsScopedToUser(id, actorID)
+		if err != nil || !scoped {
+			return nil, errors.New("issue not found")
+		}
+	}
+	return item, nil
 }
 
 func (uc *issueUseCase) GetByResultID(resultID string) (*issue.Issue, error) {
@@ -715,6 +743,26 @@ type issuePhotoUseCase struct {
 
 func NewIssuePhotoUseCase(repo issue.IssuePhotoRepository, issueRepo issue.IssueRepository, s *storage.MinioStorage, cryptoSvc *crypto.Service, rdb *redis.Client, producer kafka.EventProducer, issueUC issue.IssueUseCase) issue.IssuePhotoUseCase {
 	return &issuePhotoUseCase{repo: repo, issueRepo: issueRepo, storage: s, cryptoSvc: cryptoSvc, rdb: rdb, producer: producer, issueUC: issueUC}
+}
+
+// CheckAccess resolves photoID's owning issue and applies the same plant +
+// PIC-ownership scoping as IssueUseCase.CheckAccess.
+func (uc *issuePhotoUseCase) CheckAccess(photoID, userPlantID, actorID string, isAuditorCaller bool) (*issue.IssuePhoto, error) {
+	photo, err := uc.repo.FindByID(photoID)
+	if err != nil {
+		return nil, err
+	}
+	if photo == nil {
+		return nil, errors.New("photo not found")
+	}
+	if uc.issueUC != nil {
+		if _, err := uc.issueUC.CheckAccess(photo.IssueID, userPlantID, actorID, isAuditorCaller); err != nil {
+			return nil, errors.New("photo not found")
+		}
+	}
+	photo.ImageUrl = uc.cryptoSvc.DecryptWithFallback(photo.ImageUrl)
+	photo.FileName = uc.cryptoSvc.DecryptWithFallback(photo.FileName)
+	return photo, nil
 }
 
 func (uc *issuePhotoUseCase) GetByIssueID(issueID string) ([]issue.IssuePhoto, error) {
