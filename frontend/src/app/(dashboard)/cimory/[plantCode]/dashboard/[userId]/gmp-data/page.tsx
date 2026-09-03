@@ -31,6 +31,50 @@ import {
 } from "@/store/slices/gmpFilterSlice";
 
 import { useParams } from "next/navigation";
+import type { PreviewExportRow } from "@/types/api/dashboard";
+
+/** Per-row rowSpan for each hierarchical "path" column — 0 means this row
+ * is a continuation of the group started above it and must render NO <td>
+ * for that column at all (that's what lets the cell above visually span
+ * down over it); a value > 0 means this row starts a new group and should
+ * render the cell with `rowSpan={value}`.
+ *
+ * Relies on the backend's fixed sort order (gmpDataRelationOrder in
+ * gmp_export_helpers.go: InspectionID, then AspekName, DetailName,
+ * UraianID) already keeping every row of one group physically adjacent —
+ * this only merges rows that are already consecutive, never reorders them.
+ *
+ * `inspeksi` covers BOTH the "ID Inspeksi" and "Kawasan / Detail" columns:
+ * Kawasan/DetailKawasan come from Inspection_Header, so they're constant
+ * for every row sharing one inspection_id and always span identically.
+ */
+interface GmpRowSpans {
+  inspeksi: number;
+  aspek: number;
+  detailAspek: number;
+  uraian: number;
+}
+
+function computeGmpRowSpans(rows: PreviewExportRow[]): GmpRowSpans[] {
+  const spans: GmpRowSpans[] = rows.map(() => ({ inspeksi: 0, aspek: 0, detailAspek: 0, uraian: 0 }));
+
+  const fillLevel = (key: keyof GmpRowSpans, sameGroup: (a: PreviewExportRow, b: PreviewExportRow) => boolean) => {
+    let start = 0;
+    for (let i = 1; i <= rows.length; i++) {
+      if (i === rows.length || !sameGroup(rows[i], rows[start])) {
+        spans[start][key] = i - start;
+        start = i;
+      }
+    }
+  };
+
+  fillLevel("inspeksi", (a, b) => a.inspection_id === b.inspection_id);
+  fillLevel("aspek", (a, b) => a.inspection_id === b.inspection_id && a.aspek === b.aspek);
+  fillLevel("detailAspek", (a, b) => a.inspection_id === b.inspection_id && a.aspek === b.aspek && a.detail === b.detail);
+  fillLevel("uraian", (a, b) => a.inspection_id === b.inspection_id && a.aspek === b.aspek && a.detail === b.detail && a.uraian_id === b.uraian_id);
+
+  return spans;
+}
 
 export default function GmpDataAdminPage() {
   const mounted = useMounted();
@@ -153,6 +197,7 @@ export default function GmpDataAdminPage() {
   // Search is applied by the backend so preview and both XLSX export modes
   // always contain the same rows.
   const filteredData = previewData?.data || [];
+  const rowSpans = computeGmpRowSpans(filteredData);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-8">
@@ -397,34 +442,49 @@ export default function GmpDataAdminPage() {
                   </td>
                 </tr>
               ) : (
-                filteredData.map((row, idx: number) => (
+                filteredData.map((row, idx: number) => {
+                  const span = rowSpans[idx];
+                  return (
                   <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                    {/* ID Inspeksi & Info Header */}
-                    <td className="px-4 py-3 font-medium text-primary whitespace-nowrap">
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{row.inspection_id}</span>
-                        <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-3 w-3 inline" /> {row.area || "-"}
-                        </span>
-                      </div>
-                    </td>
+                    {/* ID Inspeksi & Info Header — merged (rowSpan) across
+                        every row belonging to the same inspection. */}
+                    {span.inspeksi > 0 && (
+                      <td className="px-4 py-3 font-medium text-primary whitespace-nowrap align-top" rowSpan={span.inspeksi}>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{row.inspection_id}</span>
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <MapPin className="h-3 w-3 inline" /> {row.area || "-"}
+                          </span>
+                        </div>
+                      </td>
+                    )}
 
-                    {/* Kawasan & Detail Kawasan */}
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-foreground">{row.kawasan || "-"}</span>
-                        <span className="text-[11px] text-muted-foreground">{row.detail_kawasan || "-"}</span>
-                      </div>
-                    </td>
+                    {/* Kawasan & Detail Kawasan — same span as ID Inspeksi:
+                        both come from Inspection_Header, so they're constant
+                        for every row of one inspection. */}
+                    {span.inspeksi > 0 && (
+                      <td className="px-4 py-3 whitespace-nowrap align-top" rowSpan={span.inspeksi}>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">{row.kawasan || "-"}</span>
+                          <span className="text-[11px] text-muted-foreground">{row.detail_kawasan || "-"}</span>
+                        </div>
+                      </td>
+                    )}
 
-                    {/* Aspek */}
-                    <td className="px-4 py-3 font-medium whitespace-nowrap">{row.aspek || "-"}</td>
+                    {/* Aspek — merged within each inspection. */}
+                    {span.aspek > 0 && (
+                      <td className="px-4 py-3 font-medium whitespace-nowrap align-top" rowSpan={span.aspek}>{row.aspek || "-"}</td>
+                    )}
 
-                    {/* Detail Aspek */}
-                    <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{row.detail || "-"}</td>
+                    {/* Detail Aspek — merged within each Aspek. */}
+                    {span.detailAspek > 0 && (
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground align-top" rowSpan={span.detailAspek}>{row.detail || "-"}</td>
+                    )}
 
-                    {/* Uraian ID */}
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">{row.uraian_id || "-"}</td>
+                    {/* Uraian ID — merged within each Detail Aspek. */}
+                    {span.uraian > 0 && (
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap align-top" rowSpan={span.uraian}>{row.uraian_id || "-"}</td>
+                    )}
 
                     {/* Nilai */}
                     <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -550,7 +610,8 @@ export default function GmpDataAdminPage() {
                       )}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
