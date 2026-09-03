@@ -28,6 +28,7 @@ const (
 	JoinAreaChain       JoinID = "area_chain"
 	JoinAspekChain      JoinID = "aspek_chain"
 	JoinHEIChain        JoinID = "hei_chain"
+	JoinPhotoCounts     JoinID = "photo_counts"
 )
 
 // ValueType classifies a measure's numeric meaning, driving both display
@@ -266,6 +267,21 @@ func DefaultCatalog() Catalog {
 				JOIN "HEI_Master" h ON h."HEIID" = ihei."HEIID"
 			)`,
 			JoinSQL: `LEFT JOIN hei_chain hc ON hc."IssueID" = si."IssueID"`,
+		},
+		JoinPhotoCounts: {
+			ID: JoinPhotoCounts,
+			// Issue_Photo is 1:N per Issue (multiple angles/uploads per
+			// PhotoType) — pre-aggregated per IssueID here before joining,
+			// same as kawasan_chain/aspek_chain, so this stays 1:1 against
+			// si and never fans out (see the package doc's grain contract).
+			CTE: `photo_counts AS (
+				SELECT "IssueID",
+					COUNT(*) FILTER (WHERE "PhotoType" = 'Initial')  AS initial_photo_count,
+					COUNT(*) FILTER (WHERE "PhotoType" = 'FollowUp') AS followup_photo_count
+				FROM "Issue_Photo"
+				GROUP BY "IssueID"
+			)`,
+			JoinSQL: `LEFT JOIN photo_counts pc ON pc."IssueID" = si."IssueID"`,
 		},
 	}
 
@@ -540,6 +556,47 @@ func DefaultCatalog() Catalog {
 			SelectExpr:       `AVG(si."FollowUpDelay") FILTER (WHERE si."FollowUpDelay" IS NOT NULL)`,
 			ValueType:        ValueTypeDays,
 			Format:           FormatMeta{Style: "duration", Decimals: 1, Suffix: "hari"},
+			CompatibleCharts: chartsRatio,
+		},
+		"temuan_dengan_foto": {
+			ID:               "temuan_dengan_foto",
+			Label:            "Temuan dengan Foto",
+			Description:      "Jumlah temuan yang punya minimal 1 foto bukti awal.",
+			SelectExpr:       `COUNT(*) FILTER (WHERE COALESCE(pc.initial_photo_count, 0) > 0)`,
+			RequiredJoins:    []JoinID{JoinPhotoCounts},
+			ValueType:        ValueTypeCount,
+			Format:           FormatMeta{Style: "number", Decimals: 0},
+			CompatibleCharts: chartsAll,
+		},
+		"temuan_tanpa_foto": {
+			ID:               "temuan_tanpa_foto",
+			Label:            "Temuan Tanpa Foto",
+			Description:      "Jumlah temuan yang belum punya foto bukti awal sama sekali.",
+			SelectExpr:       `COUNT(*) FILTER (WHERE COALESCE(pc.initial_photo_count, 0) = 0)`,
+			RequiredJoins:    []JoinID{JoinPhotoCounts},
+			ValueType:        ValueTypeCount,
+			Format:           FormatMeta{Style: "number", Decimals: 0},
+			CompatibleCharts: chartsAll,
+		},
+		"total_follow_up": {
+			ID:               "total_follow_up",
+			Label:            "Total Follow-Up",
+			Description:      "Jumlah temuan yang sudah punya minimal 1 foto bukti follow-up.",
+			SelectExpr:       `COUNT(*) FILTER (WHERE COALESCE(pc.followup_photo_count, 0) > 0)`,
+			RequiredJoins:    []JoinID{JoinPhotoCounts},
+			ValueType:        ValueTypeCount,
+			Format:           FormatMeta{Style: "number", Decimals: 0},
+			CompatibleCharts: chartsAll,
+		},
+		"persentase_temuan_dengan_followup": {
+			ID:          "persentase_temuan_dengan_followup",
+			Label:       "Persentase Temuan dengan Follow-Up",
+			Description: "Persentase temuan yang sudah punya foto bukti follow-up, dari total temuan.",
+			SelectExpr: `(COUNT(*) FILTER (WHERE COALESCE(pc.followup_photo_count, 0) > 0) * 100.0)
+				/ NULLIF(COUNT(*), 0)`,
+			RequiredJoins:    []JoinID{JoinPhotoCounts},
+			ValueType:        ValueTypePercent,
+			Format:           FormatMeta{Style: "percent", Decimals: 1, Suffix: "%"},
 			CompatibleCharts: chartsRatio,
 		},
 	}

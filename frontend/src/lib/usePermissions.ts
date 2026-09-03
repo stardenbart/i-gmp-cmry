@@ -64,8 +64,8 @@ export function usePermissions() {
     // 3. Fallback during initial load before queries resolve
     if (isLoading) {
       // Do NOT grant admin/management permissions speculatively during initial load to prevent UI flashing
-      const isRestrictedAdminKey = ["PERM-MSTR", "PERM-USR", "PERM-LOG", "PERM-STNG", "PERM-GMP"].some((prefix) =>
-        permissionId.startsWith(prefix)
+      const isRestrictedAdminKey = ["PERM-MSTR", "PERM-USR", "PERM-LOG", "PERM-STNG", "PERM-GMP", "PERM-KPI"].some(
+        (prefix) => permissionId.startsWith(prefix)
       );
       if (isRestrictedAdminKey) return false;
 

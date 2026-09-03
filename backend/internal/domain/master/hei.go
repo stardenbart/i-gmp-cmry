@@ -45,6 +45,7 @@ type HEIRepository interface {
 	Create(h *HEIMaster) error
 	Update(h *HEIMaster) error
 	Delete(id string) error
+	InvalidateCache()
 }
 
 type HEIUseCase interface {

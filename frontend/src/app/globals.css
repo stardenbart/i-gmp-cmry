@@ -132,6 +132,43 @@
   }
 }
 
+/* Public KPI links are presentation views for external audiences and always
+ * use a predictable light palette, regardless of the viewer's saved dashboard
+ * theme. The variables are scoped so the authenticated application keeps its
+ * own light/dark preference. */
+.public-kpi-light {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --border: #e2e8f0;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --ring: #2563eb;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+html[data-public-kpi-theme="light"],
+html[data-public-kpi-theme="light"] body {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --border: #e2e8f0;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --ring: #2563eb;
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
 @layer base {
   * {
     @apply border-border outline-primary/50;

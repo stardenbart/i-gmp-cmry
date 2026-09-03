@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Share2, Sparkles } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DashboardGrid } from "@/components/dashboard/DashboardGrid";
-import { kpiWidgetRegistry } from "@/components/dashboard/widgets/kpi/registry";
 import { KPIDashboardProvider, useKPIDashboard } from "@/components/dashboard/kpi/KPIDashboardContext";
-import { DynamicKPIWidget } from "@/components/dashboard/kpi/DynamicKPIWidget";
 import { VisualizationBuilder, type BuiltVisualization } from "@/components/dashboard/kpi/VisualizationBuilder";
+import { buildDynamicWidgetDefinition } from "@/components/dashboard/kpi/dynamicWidgetDefinition";
 import { dashboardLayoutApi, type WidgetConfig } from "@/lib/api/dashboard-layout.api";
 import { getApiErrorMessage } from "@/lib/api/error";
+import { isAdminUser } from "@/lib/useAdminGuard";
+import { KPIShareDialog } from "@/components/dashboard/kpi/KPIShareDialog";
 import type { WidgetDefinition, VizType } from "@/components/dashboard/types";
 
 // Must match DashboardGrid's own internal queryKey/queryFn EXACTLY (same
@@ -19,64 +20,6 @@ import type { WidgetDefinition, VizType } from "@/components/dashboard/types";
 // against the one DashboardGrid performs internally — one network request,
 // not two. See DashboardGrid.tsx's `queryKey` construction.
 const KPI_LAYOUT_QUERY_KEY = ["dashboard-layout", "self", "kpi"];
-
-// Every ECharts-backed chart type the builder can produce — "list" is
-// deliberately excluded (custom widgets have no bespoke fallback markup),
-// and this list is intentionally the FULL set: unlike the 6 built-in
-// widgets (each declaring its own narrow subset in registry.ts), a custom
-// widget's actual compatibility was already enforced once at build time by
-// VisualizationBuilder, so its header picker can safely offer everything —
-// re-picking an incompatible type here just gets rejected by the backend
-// (400) and surfaced as DynamicKPIWidget's "invalid configuration" state.
-const DYNAMIC_WIDGET_VIZ_TYPES: VizType[] = [
-  "bar",
-  "horizontal_bar",
-  "stacked_bar",
-  "line",
-  "area",
-  "radar",
-  "scatter",
-  "pie",
-  "donut",
-  "treemap",
-  "funnel",
-  "number_card",
-  "gauge",
-  "heatmap",
-  "sankey",
-  "table",
-];
-
-function buildDynamicWidget(cfg: WidgetConfig, onEditWidget?: (cfg: WidgetConfig) => void): WidgetDefinition | null {
-  const cq = cfg.custom_query;
-  if (!cq || cq.version !== 1 || !cq.dimension || cq.measures.length === 0) return null;
-  const title = cq.title?.trim() || "Visualisasi Kustom";
-  return {
-    id: cfg.widget_id,
-    title,
-    // DynamicKPIWidget ignores nothing here — measures/dimension(2) are
-    // fixed per widget instance via this closure; only vizType still comes
-    // from DashboardGrid's own Power BI-style picker, exactly like the 6
-    // built-in widgets.
-    Component: ({ vizType }: { vizType?: VizType }) => (
-      <DynamicKPIWidget
-        title={title}
-        measures={cq.measures}
-        dimension={cq.dimension}
-        dimension2={cq.dimension2}
-        drillDimensions={cq.drillDimensions}
-        showLabels={cq.showLabels}
-        showLabelValues={cq.showLabelValues}
-        showTrendLine={cq.showTrendLine}
-        vizType={vizType}
-        onEdit={onEditWidget ? () => onEditWidget(cfg) : undefined}
-      />
-    ),
-    defaultLayout: { x: 0, y: 9999, w: 6, h: 10 },
-    supportedVizTypes: DYNAMIC_WIDGET_VIZ_TYPES,
-    defaultVizType: cq.dimension2 ? "heatmap" : "bar",
-  };
-}
 
 /** Reconstructs the builder's `initial` prop from a saved widget — the
  * inverse of the `custom_query`/`viz_type` shape saveVisualizationMutation
@@ -99,9 +42,14 @@ function toBuiltVisualization(cfg: WidgetConfig): BuiltVisualization | null {
 }
 
 function KPIDashboardBody() {
-  const { mounted, user, isSuperAdmin, selectedPlant, setSelectedPlant, plantsResponse } = useKPIDashboard();
+  const {
+    mounted, user, isSuperAdmin, selectedPlant, setSelectedPlant, plantsResponse,
+    effectivePlant, trendMode, trendRange, trendGranularity,
+  } = useKPIDashboard();
   const queryClient = useQueryClient();
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const canShare = !!user && isAdminUser(user.role_id, user.role?.role_name);
   // Set only while editing an EXISTING custom widget (via its pencil icon)
   // — mutually exclusive with `builderOpen` (add-new) in practice, but kept
   // as its own state so the builder's `mode`/`initial` props stay simple
@@ -124,7 +72,7 @@ function KPIDashboardBody() {
   // written to directly here except via the same PUT /dashboard/layout
   // dashboardLayoutApi.save call DashboardGrid's own "Simpan" button uses,
   // so DashboardGrid.tsx needs no changes to pick up widgets added here.
-  const { data: savedLayout } = useQuery({
+  const { data: savedLayout, isLoading: isLayoutLoading } = useQuery({
     queryKey: KPI_LAYOUT_QUERY_KEY,
     queryFn: () => dashboardLayoutApi.get({ dashboardKey: "kpi" }),
     enabled: mounted && !!user,
@@ -132,14 +80,18 @@ function KPIDashboardBody() {
   });
 
   const dynamicWidgets = useMemo<WidgetDefinition[]>(() => {
-    return (savedLayout ?? []).map((cfg) => buildDynamicWidget(cfg, openEditBuilder)).filter((w): w is WidgetDefinition => !!w);
+    return (savedLayout ?? []).map((cfg) => buildDynamicWidgetDefinition(cfg, openEditBuilder)).filter((w): w is WidgetDefinition => !!w);
   }, [savedLayout, openEditBuilder]);
-
-  const registry = useMemo<WidgetDefinition[]>(() => [...kpiWidgetRegistry, ...dynamicWidgets], [dynamicWidgets]);
 
   const saveVisualizationMutation = useMutation({
     mutationFn: (built: BuiltVisualization) => {
-      const existing = savedLayout ?? [];
+      // Read at mutation time so an edit never writes an older x/y/w/h
+      // snapshot captured before the user last saved/rearranged the grid.
+      // KPI sekarang khusus untuk visualisasi kustom. Widget KPI bawaan
+      // versi lama sengaja tidak ikut ditulis kembali agar layout pengguna
+      // dibersihkan tanpa menghapus visualisasi yang mereka buat sendiri.
+      const existing = (queryClient.getQueryData<WidgetConfig[]>(KPI_LAYOUT_QUERY_KEY) ?? savedLayout ?? [])
+        .filter((widget) => !!widget.custom_query);
       const customQuery: NonNullable<WidgetConfig["custom_query"]> = {
         version: 1,
         title: built.title,
@@ -157,6 +109,9 @@ function KPIDashboardBody() {
       };
 
       if (editingWidget) {
+        if (!existing.some((widget) => widget.widget_id === editingWidget.widget_id)) {
+          throw new Error("Visualisasi yang diedit tidak ditemukan pada tata letak terbaru");
+        }
         // Update in place — id/position/size/order/visibility untouched,
         // only the visual definition itself changes.
         const updated = existing.map((w) => (w.widget_id === editingWidget.widget_id ? { ...w, viz_type: built.vizType, custom_query: customQuery } : w));
@@ -210,6 +165,12 @@ function KPIDashboardBody() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {canShare && (
+            <Button size="sm" variant="outline" className="gap-1.5 whitespace-nowrap px-3 sm:gap-2" onClick={() => setShareDialogOpen(true)}>
+              <Share2 className="h-4 w-4" />
+              Bagikan
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="gap-1.5 whitespace-nowrap px-3 sm:gap-2" onClick={openNewBuilder}>
             <Sparkles className="h-4 w-4" />
             Tambah Visualisasi
@@ -232,15 +193,23 @@ function KPIDashboardBody() {
         </div>
       </section>
 
-      {/* Widget area — every user (Admin/Auditor/Auditee) customizes their
-          own KPI layout directly here (unlike the main role dashboards,
-          which are centrally configured via Edit User), including the
-          drag-and-drop Toolbox for adding widgets back, and any custom
-          visualizations built above. Saved separately from the main
-          dashboard layout via dashboardKey="kpi". DashboardGrid itself
-          knows nothing about custom_query — it only ever sees `registry`,
-          which already has the dynamic widgets merged in. */}
-      <DashboardGrid registry={registry} enabled={mounted && !!user} dashboardKey="kpi" editable toolboxMode />
+      {!isLayoutLoading && dynamicWidgets.length === 0 ? (
+        <section className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 px-6 py-12 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Sparkles className="h-6 w-6" />
+          </span>
+          <h2 className="mt-4 text-lg font-semibold text-foreground">Belum ada visualisasi kustom</h2>
+          <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
+            Dashboard KPI kini hanya berisi visualisasi yang Anda susun sendiri. Ringkasan bawaan tetap tersedia di dashboard utama.
+          </p>
+          <Button className="mt-5 gap-2" onClick={openNewBuilder}>
+            <Sparkles className="h-4 w-4" />
+            Buat Visualisasi Pertama
+          </Button>
+        </section>
+      ) : (
+        <DashboardGrid registry={dynamicWidgets} enabled={mounted && !!user} dashboardKey="kpi" editable toolboxMode />
+      )}
 
       {(builderOpen || editingWidget) && (
         <VisualizationBuilder
@@ -251,6 +220,13 @@ function KPIDashboardBody() {
           isSubmitting={saveVisualizationMutation.isPending}
         />
       )}
+      <KPIShareDialog
+        open={shareDialogOpen}
+        onClose={() => setShareDialogOpen(false)}
+        plantId={effectivePlant}
+        plants={plantsResponse?.data?.items}
+        filter={{ period: trendMode, start_date: trendRange.start, end_date: trendRange.end, granularity: trendGranularity }}
+      />
     </div>
   );
 }

@@ -33,11 +33,13 @@ export function Sidebar() {
 
   const MAIN_MENU = [
     { href: `${basePath}`, label: "Dasbor", icon: Home },
-    // Dashboard KPI/analitik — dibuka untuk semua role (Admin, Auditor,
-    // Auditee); tidak ada permission-module gate karena endpoint
-    // /dashboard/* yang dipakainya juga tidak digate, cuma di-scope per
-    // plant/area otomatis lewat auth.
-    { href: `${basePath}/kpi`, label: "Dashboard KPI", icon: BarChart3 },
+    // Dashboard KPI/analitik (PERM-KPI-R). Endpoint /dashboard/* yang
+    // dipakai widget bawaan tetap tidak digate (shared dengan fitur lain),
+    // tapi /analytics/* (Custom Visualization Builder) sudah digate di
+    // backend — gate menu ini juga supaya konsisten dengan halamannya.
+    ...(hasPermission("PERM-KPI-R")
+      ? [{ href: `${basePath}/kpi`, label: "Dashboard KPI", icon: BarChart3 }]
+      : []),
     // Inspeksi (PERM-INSP-R)
     ...(hasPermission("PERM-INSP-R")
       ? [{ href: `${basePath}/inspections`, label: "Inspections", icon: ClipboardCheck }]
@@ -102,11 +104,11 @@ export function Sidebar() {
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-card md:flex">
       <div className="flex h-16 items-center gap-3 border-b border-border px-6">
         <div className="flex items-center justify-center">
-          <Image 
-            src="/Logo_Cimory.png" 
-            alt="Cimory Logo" 
-            width={140} 
-            height={48} 
+          <Image
+            src="/Logo_Cimory.png"
+            alt="Cimory Logo"
+            width={140}
+            height={48}
             priority
             className="h-8 w-auto object-contain"
           />

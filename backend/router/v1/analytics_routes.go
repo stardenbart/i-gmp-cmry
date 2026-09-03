@@ -7,6 +7,7 @@ import (
 	"github.com/monitoring-system/backend/internal/infrastructure/persistence/authrepo"
 	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/internal/usecase/analyticsusecase"
+	"github.com/monitoring-system/backend/internal/usecase/authusecase"
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"gorm.io/gorm"
@@ -23,10 +24,16 @@ func RegisterAnalyticsRoutes(rg fiber.Router, db *gorm.DB, jwtManager *jwt.Manag
 	service := analyticsusecase.NewQueryService(db, repo, log)
 	handler := analytichandler.NewAnalyticsHandler(service)
 
+	rpRepo := authrepo.NewRolePermissionRepository(db)
+	rpUC := authusecase.NewRolePermissionUseCase(rpRepo)
+	upRepo := authrepo.NewUserPermissionRepository(db)
+	upUC := authusecase.NewUserPermissionUseCase(upRepo)
+	permRead := middleware.PermissionMiddleware(rpUC, upUC, "MOD-KPI", "READ")
+
 	authMW := middleware.AuthMiddleware(jwtManager)
 	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
 
 	analyticsGroup := rg.Group("/analytics", authMW, plantScopeMW)
-	analyticsGroup.Get("/catalog", handler.GetCatalog)
-	analyticsGroup.Post("/query", handler.RunQuery)
+	analyticsGroup.Get("/catalog", permRead, handler.GetCatalog)
+	analyticsGroup.Post("/query", permRead, handler.RunQuery)
 }

@@ -34,8 +34,8 @@ type WidgetConfig struct {
 	VizType *string `json:"viz_type,omitempty"`
 
 	// CustomQuery marks this widget as a user-built visualization from the
-	// Custom KPI Visualization Builder (/kpi's "Tambah Visualisasi" panel)
-	// instead of one of the 6 built-in KPI widgets. Only ever present on
+	// Custom KPI Visualization Builder (/kpi's "Tambah Visualisasi" panel).
+	// Only ever present on
 	// dashboard_key="kpi" rows. Unlike VizType, this IS validated — see
 	// ValidateCustomQuery, called from SaveLayout — because it carries
 	// user-chosen measure/dimension IDs that get sent straight to
@@ -100,6 +100,12 @@ func (UserDashboardLayout) TableName() string { return "User_Dashboard_Layout" }
 // pure per the layering rule. Change both together if the guardrail moves.
 const maxCustomQueryMeasures = 4
 
+// maxCustomQueryMeasuresTable is the higher ceiling that applies only when
+// the widget's VizType is "table" — every other chart type stays at
+// maxCustomQueryMeasures (more than 4 series is unreadable on a chart, but
+// a table just gets another column). See ValidateCustomQuery.
+const maxCustomQueryMeasuresTable = 30
+
 // maxCustomQueryDrillLevels caps the extra drill-down levels beyond the
 // primary Dimension (level 0), keeping the total (4) consistent with
 // maxCustomQueryMeasures.
@@ -117,7 +123,12 @@ var customQueryIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 // time): a widget referencing a since-removed field must still be able to
 // load its layout (and show "Konfigurasi widget sudah tidak tersedia"),
 // not fail to save/reload entirely.
-func ValidateCustomQuery(cq *CustomQueryConfig) error {
+//
+// vizType is the sibling WidgetConfig.VizType (nil for legacy rows saved
+// before VizType existed, treated the same as "not table") — the only
+// input here that lets this function tell Table apart from every other
+// chart type, since CustomQueryConfig itself carries no chart-type info.
+func ValidateCustomQuery(cq *CustomQueryConfig, vizType *string) error {
 	if cq == nil {
 		return nil
 	}
@@ -134,8 +145,12 @@ func ValidateCustomQuery(cq *CustomQueryConfig) error {
 	if len(cq.Measures) == 0 {
 		return fmt.Errorf("custom_query harus punya minimal 1 measure")
 	}
-	if len(cq.Measures) > maxCustomQueryMeasures {
-		return fmt.Errorf("custom_query maksimal %d measure", maxCustomQueryMeasures)
+	measuresLimit := maxCustomQueryMeasures
+	if vizType != nil && *vizType == "table" {
+		measuresLimit = maxCustomQueryMeasuresTable
+	}
+	if len(cq.Measures) > measuresLimit {
+		return fmt.Errorf("custom_query maksimal %d measure", measuresLimit)
 	}
 	if !customQueryIDPattern.MatchString(cq.Dimension) {
 		return fmt.Errorf("custom_query dimension tidak valid")
@@ -203,13 +218,6 @@ const (
 
 	WidgetAuditeeStats    = "auditee-stats"
 	WidgetAuditeeTaskList = "auditee-task-list"
-
-	WidgetKPISummaryCards   = "kpi-summary-cards"
-	WidgetKPITrendChart     = "kpi-trend-chart"
-	WidgetKPIPICRanking     = "kpi-pic-ranking"
-	WidgetKPIAuditorRanking = "kpi-auditor-ranking"
-	WidgetKPIWOWRByArea     = "kpi-wowr-by-area"
-	WidgetKPIAreaProgress   = "kpi-area-progress"
 )
 
 // DefaultLayoutForRole returns the out-of-the-box widget arrangement for a
@@ -242,19 +250,11 @@ func DefaultLayoutForRole(roleID string) []WidgetConfig {
 	}
 }
 
-// DefaultLayoutKPI is the out-of-the-box widget arrangement for the KPI
-// dashboard — same for every role (Admin/Auditor/Auditee all see the same
-// widget set; each widget's own data is scoped server-side by whichever
-// role's token calls it).
+// DefaultLayoutKPI intentionally starts empty. The KPI dashboard is a
+// workspace for user-created visualizations; fixed operational summaries
+// remain on the main role dashboard and are not duplicated here.
 func DefaultLayoutKPI() []WidgetConfig {
-	return []WidgetConfig{
-		{WidgetID: WidgetKPISummaryCards, Visible: true, Order: 0},
-		{WidgetID: WidgetKPITrendChart, Visible: true, Order: 1},
-		{WidgetID: WidgetKPIPICRanking, Visible: true, Order: 2},
-		{WidgetID: WidgetKPIAuditorRanking, Visible: true, Order: 3},
-		{WidgetID: WidgetKPIWOWRByArea, Visible: true, Order: 4},
-		{WidgetID: WidgetKPIAreaProgress, Visible: true, Order: 5},
-	}
+	return []WidgetConfig{}
 }
 
 // DefaultLayoutForDashboard resolves the out-of-the-box widget arrangement

@@ -62,6 +62,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 	permReadIss := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "READ")
 	permCreateIss := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "CREATE")
 	permUpdateIss := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "UPDATE")
+	permExportIss := middleware.PermissionMiddleware(rpUC, upUC, "MOD-ISS", "EXPORT")
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	actLogMW := middleware.ActivityLogMiddleware(actLogUC)
@@ -73,6 +74,7 @@ func RegisterIssueRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client
 		issues.Post("", permCreateIss, issueH.Create)
 		// Static filter routes MUST come before /:id
 		issues.Get("/filter", permReadIss, issueFilterH.GetFiltered)
+		issues.Get("/export", permExportIss, issueFilterH.ExportFiltered)
 		issues.Get("/followup/filter", permReadIss, followupFilterH.GetFiltered)
 		issues.Post("/close-by-result", permUpdateIss, issueH.CloseByResult)
 		issues.Get("/by-result/:result_id", permReadIss, issueH.GetByResultID)

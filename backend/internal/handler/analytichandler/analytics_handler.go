@@ -34,13 +34,14 @@ func (h *AnalyticsHandler) GetCatalog(c *fiber.Ctx) error {
 
 // analyticsQueryRequest is the wire shape for POST /api/v1/analytics/query.
 type analyticsQueryRequest struct {
-	Measures   []string                    `json:"measures"`
-	Dimension  string                      `json:"dimension"`
-	Dimension2 string                      `json:"dimension2"`
-	Filters    []analyticsQueryFilterInput `json:"filters"`
-	AreaID     string                      `json:"area_id"`
-	StartDate  string                      `json:"start_date"`
-	EndDate    string                      `json:"end_date"`
+	Measures            []string                    `json:"measures"`
+	Dimension           string                      `json:"dimension"`
+	Dimension2          string                      `json:"dimension2"`
+	HierarchyDimensions []string                    `json:"hierarchy_dimensions"`
+	Filters             []analyticsQueryFilterInput `json:"filters"`
+	AreaID              string                      `json:"area_id"`
+	StartDate           string                      `json:"start_date"`
+	EndDate             string                      `json:"end_date"`
 }
 
 // analyticsQueryFilterInput is one ad-hoc "dimension = value" drill-down
@@ -71,13 +72,14 @@ func (h *AnalyticsHandler) RunQuery(c *fiber.Ctx) error {
 
 	scope := resolveScope(c)
 	req := analyticsusecase.QueryRequest{
-		Measures:   body.Measures,
-		Dimension:  strings.TrimSpace(body.Dimension),
-		Dimension2: strings.TrimSpace(body.Dimension2),
-		Filters:    filters,
-		AreaID:     strings.TrimSpace(body.AreaID),
-		StartDate:  strings.TrimSpace(body.StartDate),
-		EndDate:    strings.TrimSpace(body.EndDate),
+		Measures:            body.Measures,
+		Dimension:           strings.TrimSpace(body.Dimension),
+		Dimension2:          strings.TrimSpace(body.Dimension2),
+		HierarchyDimensions: body.HierarchyDimensions,
+		Filters:             filters,
+		AreaID:              strings.TrimSpace(body.AreaID),
+		StartDate:           strings.TrimSpace(body.StartDate),
+		EndDate:             strings.TrimSpace(body.EndDate),
 	}
 
 	result, err := h.service.RunQuery(c.Context(), scope, req)

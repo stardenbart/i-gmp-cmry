@@ -40,6 +40,12 @@ const VIZ_TYPE_LABELS: Record<VizType, string> = {
 const BREAKPOINTS = { lg: 768, xs: 0 };
 const COLS = { lg: 12, xs: 1 };
 const ROW_HEIGHT = 32;
+const GRID_MARGIN_Y = 16;
+
+function gridItemPixelHeight(rows: number): number {
+  const normalizedRows = Math.max(1, Math.round(rows));
+  return ROW_HEIGHT * normalizedRows + GRID_MARGIN_Y * (normalizedRows - 1);
+}
 
 /**
  * Measures the width of the element it's attached to.
@@ -84,6 +90,9 @@ function useElementWidth() {
 interface DashboardGridProps {
   registry: WidgetDefinition[];
   enabled: boolean;
+  /** Read-only layout supplied by a public dashboard snapshot. When set,
+   * DashboardGrid never calls the authenticated layout API. */
+  providedLayout?: WidgetConfig[];
   /** Whose layout to load/save. Omit to act on the caller themself. */
   target?: LayoutTarget;
   /**
@@ -320,7 +329,19 @@ function NaturalDashboardLayout({
               <div
                 key={widget.def.id}
                 className="min-w-0"
-                style={wide ? { gridColumn: `${start} / span ${span}` } : undefined}
+                style={
+                  wide
+                    ? {
+                        gridColumn: `${start} / span ${span}`,
+                        // Custom widgets contain optional drill controls. In
+                        // natural/view mode their card must still honor the
+                        // same saved `h` used by react-grid-layout; otherwise
+                        // controls/breadcrumbs grow the DOM height and push
+                        // every following row farther down after an edit.
+                        ...(widget.customQuery ? { height: gridItemPixelHeight(widget.layout.h) } : {}),
+                      }
+                    : undefined
+                }
               >
                 <DashboardWidgetFrame
                   widget={widget}
@@ -345,7 +366,7 @@ function NaturalDashboardLayout({
  * manipulation, in an explicit "Edit Layout" mode (view mode stays static
  * so normal dashboard browsing isn't accidentally draggable).
  */
-export function DashboardGrid({ registry, enabled, target, editable = false, previewOnly = false, dashboardKey = "main", toolboxMode = false }: DashboardGridProps) {
+export function DashboardGrid({ registry, enabled, providedLayout, target, editable = false, previewOnly = false, dashboardKey = "main", toolboxMode = false }: DashboardGridProps) {
   const queryClient = useQueryClient();
   const { width, containerRef, mounted } = useElementWidth();
   const queryKey = ["dashboard-layout", target?.userId ?? "self", dashboardKey];
@@ -354,11 +375,12 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
   const { data: saved, isLoading } = useQuery({
     queryKey,
     queryFn: () => dashboardLayoutApi.get(layoutTarget),
-    enabled,
+    enabled: enabled && !providedLayout,
     staleTime: 60_000,
   });
 
-  const resolved = useMemo(() => resolveWidgets(registry, saved), [registry, saved]);
+  const effectiveSaved = providedLayout ?? saved;
+  const resolved = useMemo(() => resolveWidgets(registry, effectiveSaved), [registry, effectiveSaved]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ResolvedWidget[]>(resolved);
@@ -514,7 +536,7 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
     setIsEditing(true);
   };
 
-  if (isLoading) {
+  if (!providedLayout && isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -610,7 +632,7 @@ export function DashboardGrid({ registry, enabled, target, editable = false, pre
               cols={COLS}
               width={width}
               rowHeight={ROW_HEIGHT}
-              margin={[16, 16]}
+              margin={[16, GRID_MARGIN_Y]}
               dragConfig={{ enabled: true, handle: ".widget-drag-handle" }}
               resizeConfig={{ enabled: true }}
               onLayoutChange={handleLayoutChange}

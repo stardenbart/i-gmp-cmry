@@ -137,7 +137,7 @@ export function MasterTable({
 
                         if (isRelationCol && val !== "-") {
                           return (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-secondary text-secondary-foreground font-medium border border-border/50">
+                            <span className="inline-flex items-center rounded-full border border-emerald-800/30 bg-emerald-700 px-2 py-0.5 text-xs font-semibold text-white shadow-sm dark:border-emerald-400/30 dark:bg-emerald-600 dark:text-white">
                               {val}
                             </span>
                           );

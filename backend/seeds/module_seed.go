@@ -19,6 +19,7 @@ var defaultModules = []authdomain.Module{
 	{ModuleID: "MOD-GMP", ModuleName: "Data Inspeksi (GMP)"},
 	{ModuleID: "MOD-STNG", ModuleName: "Pengaturan Sistem"},
 	{ModuleID: "MOD-WOWR", ModuleName: "Perintah Kerja (WO/WR)"},
+	{ModuleID: "MOD-KPI", ModuleName: "Dashboard KPI & Analitik"},
 }
 
 // SeedModules inserts default application modules if they don't exist.

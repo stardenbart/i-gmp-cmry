@@ -21,11 +21,14 @@ import { MasterToolbar } from "../fragments/MasterToolbar";
 import { MasterTable } from "../fragments/MasterTable";
 import { MasterFormFields } from "../fragments/MasterFormFields";
 import { MasterFormModal, MasterDeleteModal } from "../fragments/MasterModals";
+import { MasterImportDialog } from "../import/MasterImportDialog";
+import { IMPORT_TYPE_BY_TAB, TAB_BY_IMPORT_TYPE, type MasterImportType } from "../import/master-import.types";
 
 export function MasterLayout() {
   const user = useAuthStore((state) => state.user);
   const { hasPermission, isLoading: isGuardLoading } = usePermissions();
   const isAdmin = hasPermission("PERM-MSTR-R");
+  const canImportMaster = hasPermission("PERM-MSTR-I");
   const mounted = useMounted();
   const queryClient = useQueryClient();
 
@@ -37,6 +40,7 @@ export function MasterLayout() {
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [deleteItemName, setDeleteItemName] = useState("");
+  const [importType, setImportType] = useState<MasterImportType | null>(null);
 
   const currentTab = MASTER_TABS.find((tab) => tab.id === activeTab)!;
 
@@ -270,6 +274,8 @@ export function MasterLayout() {
           setPage(1);
         }}
         onAddClick={() => setIsModalOpen(true)}
+        canImport={canImportMaster && Boolean(IMPORT_TYPE_BY_TAB[activeTab])}
+        onImportClick={() => setImportType(IMPORT_TYPE_BY_TAB[activeTab] || null)}
       />
 
       <MasterTable
@@ -302,6 +308,25 @@ export function MasterLayout() {
         isLoading={deleteMutation.isPending}
         itemName={deleteItemName}
       />
+
+      {importType && (
+        <MasterImportDialog
+          key={importType}
+          isOpen
+          importType={importType}
+          onClose={() => setImportType(null)}
+          onCommitted={(type) => {
+            queryClient.invalidateQueries({ queryKey: ["master", TAB_BY_IMPORT_TYPE[type]] });
+          }}
+          onContinue={(nextType) => {
+            const nextTab = TAB_BY_IMPORT_TYPE[nextType];
+            setActiveTab(nextTab);
+            setPage(1);
+            setSearchQuery("");
+            setImportType(nextType);
+          }}
+        />
+      )}
     </div>
   );
 }

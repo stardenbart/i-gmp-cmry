@@ -21,6 +21,27 @@ func TestNormalizeGMPExportFormat(t *testing.T) {
 	}
 }
 
+func TestGMPAspectGroupKeyNormalizesAspectButKeepsInspectionBoundary(t *testing.T) {
+	if gmpAspectGroupKey("INSP-001", "  Kebersihan ") != gmpAspectGroupKey("INSP-001", "KEBERSIHAN") {
+		t.Fatal("expected equivalent aspect labels in one inspection to share a group")
+	}
+	if gmpAspectGroupKey("INSP-001", "Kebersihan") == gmpAspectGroupKey("INSP-002", "Kebersihan") {
+		t.Fatal("expected identical aspect labels from different inspections to remain separate")
+	}
+}
+
+func TestResolveGMPExportPlantIDPrefersAuthenticatedUserPlant(t *testing.T) {
+	if plantID := resolveGMPExportPlantID("PLT-SENTUL", "PLT-PASURUAN"); plantID != "PLT-SENTUL" {
+		t.Fatalf("expected authenticated user's plant, got %q", plantID)
+	}
+	if plantID := resolveGMPExportPlantID("", "PLT-CICURUG"); plantID != "PLT-CICURUG" {
+		t.Fatalf("expected explicit plant filter, got %q", plantID)
+	}
+	if plantID := resolveGMPExportPlantID("", "all"); plantID != "" {
+		t.Fatalf("expected all-plant selection to remain global, got %q", plantID)
+	}
+}
+
 func TestValidateGMPDateRange(t *testing.T) {
 	if err := validateGMPDateRange("2026-09-01", "2026-09-02"); err != nil {
 		t.Fatalf("expected valid range: %v", err)

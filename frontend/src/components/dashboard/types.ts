@@ -8,11 +8,8 @@ export interface WidgetGridPosition {
 }
 
 // "list" = the widget's own bespoke markup (ranked cards, progress bars,
-// etc. — whatever it already renders today). Any other value routes the
-// same underlying data through VisualizationSwitch (the 6 built-in
-// widgets, Recharts) or DynamicKPIWidget (custom widgets, ECharts —
-// everything past "pie" below is ECharts-only, never wired into
-// VisualizationSwitch/the 6 built-in widgets' supportedVizTypes).
+// etc. — whatever it already renders today). Custom KPI widgets render the
+// chart types below through DynamicKPIWidget/ECharts.
 export type VizType =
   | "list"
   | "table"

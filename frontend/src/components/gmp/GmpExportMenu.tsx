@@ -94,7 +94,7 @@ export function GmpExportMenu({ filters, disabled = false }: GmpExportMenuProps)
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-120 mt-2 w-[310px] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl"
+          className="absolute right-0 top-full z-[120] mt-2 w-[310px] overflow-hidden rounded-xl border border-border bg-card p-1.5 text-card-foreground opacity-100 shadow-2xl ring-1 ring-black/5 dark:ring-white/10"
         >
           {exportOptions.map(({ format, title, description, Icon }) => (
             <button

@@ -50,15 +50,22 @@ func (r *Repository) Execute(ctx context.Context, plan analyticsusecase.QueryPla
 	var out []analyticsusecase.ResultRow
 	for rows.Next() {
 		var key, category, key2, category2 *string
+		var totalRows int
 		values := make([]*float64, len(measureIDs))
-		scanArgs := make([]interface{}, 0, 4+len(values))
+		hierarchyKeys := make([]*string, len(plan.Hierarchy))
+		hierarchyCategories := make([]*string, len(plan.Hierarchy))
+		scanArgs := make([]interface{}, 0, 5+len(values)+len(plan.Hierarchy)*2)
 		scanArgs = append(scanArgs, &key, &category)
 		if hasDim2 {
 			scanArgs = append(scanArgs, &key2, &category2)
 		}
+		for i := range plan.Hierarchy {
+			scanArgs = append(scanArgs, &hierarchyKeys[i], &hierarchyCategories[i])
+		}
 		for i := range values {
 			scanArgs = append(scanArgs, &values[i])
 		}
+		scanArgs = append(scanArgs, &totalRows)
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, err
 		}
@@ -72,6 +79,18 @@ func (r *Repository) Execute(ctx context.Context, plan analyticsusecase.QueryPla
 		}
 		row.Key2 = key2
 		row.Category2 = category2
+		row.TotalRows = totalRows
+		row.Hierarchy = make([]analyticsusecase.HierarchyValue, 0, len(plan.Hierarchy))
+		for i, hierarchyDimension := range plan.Hierarchy {
+			item := analyticsusecase.HierarchyValue{DimensionID: hierarchyDimension.ID}
+			if hierarchyKeys[i] != nil {
+				item.Key = *hierarchyKeys[i]
+			}
+			if hierarchyCategories[i] != nil {
+				item.Category = *hierarchyCategories[i]
+			}
+			row.Hierarchy = append(row.Hierarchy, item)
+		}
 		for i, mID := range measureIDs {
 			row.Measures[mID] = values[i]
 		}
@@ -150,9 +169,13 @@ func buildSQL(plan analyticsusecase.QueryPlan) (string, []interface{}) {
 	if plan.Dimension2 != nil {
 		fmt.Fprintf(&b, ", %s AS \"cat_key2\", %s AS \"cat_label2\"", plan.Dimension2.KeyExpr, plan.Dimension2.LabelExpr)
 	}
+	for i, hierarchyDimension := range plan.Hierarchy {
+		fmt.Fprintf(&b, ", %s AS \"hierarchy_key_%d\", %s AS \"hierarchy_label_%d\"", hierarchyDimension.KeyExpr, i, hierarchyDimension.LabelExpr, i)
+	}
 	for i, m := range plan.Measures {
 		fmt.Fprintf(&b, ", (%s)::double precision AS \"m%d\"", m.SelectExpr, i)
 	}
+	b.WriteString(`, COUNT(*) OVER() AS "total_rows"`)
 
 	b.WriteString(`
 	FROM scoped_issues si`)
@@ -163,7 +186,7 @@ func buildSQL(plan analyticsusecase.QueryPlan) (string, []interface{}) {
 		}
 	}
 
-	// Ad-hoc drill-down filters ("dimension = value"), applied at the outer
+	// Ad-hoc equality filters ("dimension = value"), applied at the outer
 	// query level (not inside scoped_issues) because a filter dimension's
 	// KeyExpr may reference a column only available after the LEFT JOINs
 	// above (e.g. arc."AreaName", aspc."AspekID") — never inside the CTE.
@@ -194,8 +217,14 @@ func buildSQL(plan analyticsusecase.QueryPlan) (string, []interface{}) {
 	if plan.Dimension2 != nil {
 		fmt.Fprintf(&b, ", %s, %s", plan.Dimension2.KeyExpr, plan.Dimension2.LabelExpr)
 	}
-	b.WriteString(`
-	ORDER BY "m0" DESC NULLS LAST, "cat_label" ASC
+	for _, hierarchyDimension := range plan.Hierarchy {
+		fmt.Fprintf(&b, ", %s, %s", hierarchyDimension.KeyExpr, hierarchyDimension.LabelExpr)
+	}
+	b.WriteString("\n\tORDER BY ")
+	for i := range plan.Hierarchy {
+		fmt.Fprintf(&b, "\"hierarchy_label_%d\" ASC NULLS LAST, ", i)
+	}
+	b.WriteString(`"m0" DESC NULLS LAST, "cat_label" ASC
 	LIMIT ?`)
 
 	sqlText := b.String()

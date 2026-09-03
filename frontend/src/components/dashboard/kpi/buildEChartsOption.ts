@@ -42,6 +42,13 @@ function numericValue(row: AnalyticsQueryResult["rows"][number], key: string): n
 /** Reads a row's category label for a given field ("category"/"category2"),
  * falling back to its key, then to an empty string. */
 function labelOf(row: AnalyticsQueryResult["rows"][number], labelKey: string, keyKey: string): string {
+  if (labelKey === "category" && Array.isArray(row.path)) {
+    const pathLabel = row.path
+      .map((item) => item.category || item.key)
+      .filter(Boolean)
+      .join("\n");
+    if (pathLabel) return pathLabel;
+  }
   const label = row[labelKey];
   if (typeof label === "string") return label;
   if (typeof label === "number") return String(label);
@@ -113,6 +120,23 @@ interface BarLineSeries extends ChartSeriesBase {
   label?: SeriesLabel;
 }
 
+interface CustomTrendRenderAPI {
+  coord: (values: (string | number)[]) => number[];
+  barLayout: (options: { count: number; barGap: string }) => { offsetCenter: number }[] | undefined;
+}
+
+interface CustomTrendSeries extends ChartSeriesBase {
+  type: "custom";
+  data: (number | null)[];
+  silent: boolean;
+  z: number;
+  tooltip: { show: boolean };
+  renderItem: (
+    params: { dataIndex: number },
+    api: CustomTrendRenderAPI,
+  ) => Record<string, unknown> | undefined;
+}
+
 interface PieSeries extends ChartSeriesBase {
   type: "pie";
   radius: string | [string, string];
@@ -178,13 +202,94 @@ interface SankeySeries {
   links: { source: string; target: string; value: number }[];
 }
 
-type ChartSeries = BarLineSeries | PieSeries | RadarSeries | ScatterSeries | TreemapSeries | FunnelSeries | GaugeSeries | HeatmapSeries | SankeySeries;
+type ChartSeries = BarLineSeries | CustomTrendSeries | PieSeries | RadarSeries | ScatterSeries | TreemapSeries | FunnelSeries | GaugeSeries | HeatmapSeries | SankeySeries;
 
 interface CategoryAxis {
   type: "category";
   data: string[];
   name?: string;
   axisLabel?: { interval: number; rotate: number; hideOverlap: boolean };
+}
+
+/**
+ * ECharts places every ordinary line point at the category tick center, but
+ * clustered bars are shifted left/right around that center. A custom series
+ * can ask ECharts for the exact bar layout (`api.barLayout`) and draw both
+ * its curve segment and symbol at the corresponding bar's center. This keeps
+ * the overlay responsive without guessing a fixed pixel offset.
+ */
+function buildAlignedClusterTrendSeries({
+  name,
+  color,
+  values,
+  categories,
+  measureIndex,
+  measureCount,
+  horizontal,
+}: {
+  name: string;
+  color: string;
+  values: (number | null)[];
+  categories: string[];
+  measureIndex: number;
+  measureCount: number;
+  horizontal: boolean;
+}): CustomTrendSeries {
+  const pointAt = (api: CustomTrendRenderAPI, categoryIndex: number, value: number, offset: number) => {
+    const point = horizontal
+      ? api.coord([value, categories[categoryIndex]])
+      : api.coord([categories[categoryIndex], value]);
+    if (horizontal) point[1] += offset;
+    else point[0] += offset;
+    return point;
+  };
+
+  return {
+    type: "custom",
+    name,
+    data: values,
+    itemStyle: { color },
+    silent: true,
+    z: 4,
+    tooltip: { show: false },
+    renderItem: (params, api) => {
+      const value = values[params.dataIndex];
+      if (value === null || value === undefined) return undefined;
+      // BaseBarSeries' default gap is 10%; using the same value here makes
+      // this calculation identical to ECharts' own clustered-bar layout.
+      const barLayouts = api.barLayout({ count: measureCount, barGap: "10%" });
+      const offset = barLayouts?.[measureIndex]?.offsetCenter;
+      if (offset === null || offset === undefined) return undefined;
+
+      const [x, y] = pointAt(api, params.dataIndex, value, offset);
+      const children: Record<string, unknown>[] = [];
+      const previousValue = values[params.dataIndex - 1];
+      if (params.dataIndex > 0 && previousValue !== null && previousValue !== undefined) {
+        const [previousX, previousY] = pointAt(api, params.dataIndex - 1, previousValue, offset);
+        if (horizontal) {
+          const middleY = (previousY + y) / 2;
+          children.push({
+            type: "bezierCurve",
+            shape: { x1: previousX, y1: previousY, x2: x, y2: y, cpx1: previousX, cpy1: middleY, cpx2: x, cpy2: middleY },
+            style: { stroke: color, lineWidth: 2, fill: null },
+          });
+        } else {
+          const middleX = (previousX + x) / 2;
+          children.push({
+            type: "bezierCurve",
+            shape: { x1: previousX, y1: previousY, x2: x, y2: y, cpx1: middleX, cpy1: previousY, cpx2: middleX, cpy2: y },
+            style: { stroke: color, lineWidth: 2, fill: null },
+          });
+        }
+      }
+      children.push({
+        type: "circle",
+        shape: { cx: x, cy: y, r: 4 },
+        style: { fill: color, stroke: "#ffffff", lineWidth: 1 },
+      });
+      return { type: "group", children };
+    },
+  };
 }
 interface ValueAxis {
   type: "value";
@@ -225,6 +330,15 @@ export interface ChartOption {
   yAxis?: ChartAxis;
   radar?: { indicator: { name: string; max: number }[] };
   visualMap?: { min: number; max: number; calculable: boolean; orient: "horizontal"; left: string; bottom: number };
+  dataZoom?: Array<{
+    type: "inside" | "slider";
+    xAxisIndex?: number;
+    yAxisIndex?: number;
+    start: number;
+    end: number;
+    filterMode: "filter";
+    showDetail?: boolean;
+  }>;
   series: ChartSeries[];
 }
 
@@ -237,6 +351,7 @@ function buildPieFamilyOption(
   const format = measure?.format;
   const data = result.rows.map((row) => ({ name: labelOf(row, "category", "key"), value: measure ? numericValue(row, measure.id) ?? 0 : 0 }));
   const colors = [MEASURE_COLORS[0]];
+  const tooltipLabel = (name: string) => name.replaceAll("\n", "<br/>");
 
   const showLabels = options?.showLabels ?? defaultShowLabels(vizType);
   const labelText = (name: string, value: number) => (options?.showLabelValues ? `${name}: ${formatMeasureValue(value, format)}` : name);
@@ -244,7 +359,7 @@ function buildPieFamilyOption(
   if (vizType === "treemap") {
     return {
       color: colors,
-      tooltip: { trigger: "item", formatter: (p) => `${Array.isArray(p) ? "" : (p.name ?? "")}: ${formatMeasureValue(Array.isArray(p) ? null : p.value as number, format)}` },
+      tooltip: { trigger: "item", formatter: (p) => `${tooltipLabel(Array.isArray(p) ? "" : (p.name ?? ""))}: ${formatMeasureValue(Array.isArray(p) ? null : p.value as number, format)}` },
       series: [
         {
           type: "treemap",
@@ -258,7 +373,7 @@ function buildPieFamilyOption(
   if (vizType === "funnel") {
     return {
       color: colors,
-      tooltip: { trigger: "item", formatter: (p) => `${Array.isArray(p) ? "" : (p.name ?? "")}: ${formatMeasureValue(Array.isArray(p) ? null : p.value as number, format)}` },
+      tooltip: { trigger: "item", formatter: (p) => `${tooltipLabel(Array.isArray(p) ? "" : (p.name ?? ""))}: ${formatMeasureValue(Array.isArray(p) ? null : p.value as number, format)}` },
       series: [
         {
           type: "funnel",
@@ -278,7 +393,7 @@ function buildPieFamilyOption(
       formatter: (params) => {
         const p = Array.isArray(params) ? params[0] : params;
         const value = typeof p?.value === "number" ? p.value : null;
-        return `${p?.name ?? ""}: ${formatMeasureValue(value, format)}`;
+        return `${(p?.name ?? "").replaceAll("\n", "<br/>")}: ${formatMeasureValue(value, format)}`;
       },
     },
     legend: { bottom: 0, type: "scroll" },
@@ -336,7 +451,7 @@ function buildComparisonOption(
         }
       : undefined;
 
-  const series: BarLineSeries[] = result.measures.map((measure, idx) => ({
+  const series: ChartSeries[] = result.measures.map((measure, idx) => ({
     type: seriesType,
     name: measure.label,
     smooth: seriesType === "line",
@@ -357,15 +472,32 @@ function buildComparisonOption(
   // gets its own legend entry.
   if (options?.showTrendLine && (vizType === "bar" || vizType === "horizontal_bar")) {
     for (const [idx, measure] of result.measures.entries()) {
-      series.push({
-        type: "line",
-        name: measure.label,
-        smooth: true,
-        symbol: "circle",
-        lineStyle: { width: 2 },
-        itemStyle: { color: colors[idx] },
-        data: result.rows.map((row) => numericValue(row, measure.id)),
-      });
+      const values = result.rows.map((row) => numericValue(row, measure.id));
+      if (result.measures.length === 1) {
+        // A single bar is already centered on its category tick, so the
+        // native line series is exact and keeps ECharts' built-in animation.
+        series.push({
+          type: "line",
+          name: measure.label,
+          smooth: true,
+          symbol: "circle",
+          lineStyle: { width: 2 },
+          itemStyle: { color: colors[idx] },
+          data: values,
+        });
+      } else {
+        series.push(
+          buildAlignedClusterTrendSeries({
+            name: measure.label,
+            color: colors[idx],
+            values,
+            categories,
+            measureIndex: idx,
+            measureCount: result.measures.length,
+            horizontal: vizType === "horizontal_bar",
+          }),
+        );
+      }
     }
   } else if (options?.showTrendLine && vizType === "stacked_bar") {
     series.push({
@@ -398,23 +530,43 @@ function buildComparisonOption(
       const value = typeof p.value === "number" ? p.value : null;
       return `${p.marker ?? ""}${p.seriesName ?? ""}: ${formatMeasureValue(value, measure?.format)}`;
     });
-    return [points[0]?.axisValueLabel ?? "", ...lines].join("<br/>");
+    return [(points[0]?.axisValueLabel ?? "").replaceAll("\n", "<br/>"), ...lines].join("<br/>");
   };
 
   const categoryAxis: CategoryAxis = {
     type: "category",
     data: categories,
-    axisLabel: { interval: 0, rotate: categories.length > 6 ? 30 : 0, hideOverlap: true },
+    axisLabel: { interval: 0, rotate: result.hierarchy?.length ? 0 : categories.length > 6 ? 30 : 0, hideOverlap: true },
   };
   const valueAxis: ValueAxis = { type: "value" };
+
+  const zoomEnd = categories.length > 12 ? Math.max(5, (12 / categories.length) * 100) : 100;
+  const dataZoom: ChartOption["dataZoom"] = categories.length > 12
+    ? vizType === "horizontal_bar"
+      ? [
+          { type: "inside", yAxisIndex: 0, start: 0, end: zoomEnd, filterMode: "filter" },
+          { type: "slider", yAxisIndex: 0, start: 0, end: zoomEnd, filterMode: "filter", showDetail: false },
+        ]
+      : [
+          { type: "inside", xAxisIndex: 0, start: 0, end: zoomEnd, filterMode: "filter" },
+          { type: "slider", xAxisIndex: 0, start: 0, end: zoomEnd, filterMode: "filter", showDetail: false },
+        ]
+    : undefined;
 
   return {
     color: colors,
     tooltip: { trigger: "axis", formatter: tooltipFormatter },
     legend: series.length > 1 ? { bottom: 0, type: "scroll" } : undefined,
-    grid: { left: 48, right: 16, top: 24, bottom: series.length > 1 ? 48 : 32, containLabel: true },
+    grid: {
+      left: 48,
+      right: vizType === "horizontal_bar" && dataZoom ? 40 : 16,
+      top: 24,
+      bottom: vizType !== "horizontal_bar" && dataZoom ? 72 : series.length > 1 ? 48 : 32,
+      containLabel: true,
+    },
     xAxis: vizType === "horizontal_bar" ? valueAxis : categoryAxis,
     yAxis: vizType === "horizontal_bar" ? categoryAxis : valueAxis,
+    dataZoom,
     series,
   };
 }

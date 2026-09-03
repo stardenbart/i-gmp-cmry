@@ -50,3 +50,31 @@ func TestFollowUpImageURLsKeepsEveryEvidenceImageInOrder(t *testing.T) {
 		t.Fatalf("unexpected follow-up images: %#v", images)
 	}
 }
+
+func TestInitialEvidenceKeepsOneDescriptionPerVisual(t *testing.T) {
+	evidence := []gmpInitialEvidence{
+		{PhotoID: "PHOTO-1", ImageURL: "/uploads/initial-1.jpg", Keterangan: "Lantai kotor"},
+		{PhotoID: "PHOTO-2", ImageURL: "/uploads/initial-2.jpg", Keterangan: ""},
+	}
+
+	images := initialImageURLs(evidence)
+	if len(images) != 2 || images[0] != "/uploads/initial-1.jpg" || images[1] != "/uploads/initial-2.jpg" {
+		t.Fatalf("unexpected initial images: %#v", images)
+	}
+	if descriptions := initialEvidenceDescriptions(evidence, "fallback"); descriptions != "Lantai kotor\nTanpa keterangan" {
+		t.Fatalf("unexpected initial descriptions: %q", descriptions)
+	}
+}
+
+func TestInitialEvidenceDescriptionFallsBackWithoutVisual(t *testing.T) {
+	if description := initialEvidenceDescriptions(nil, "Keterangan temuan lama"); description != "Keterangan temuan lama" {
+		t.Fatalf("expected legacy fallback, got %q", description)
+	}
+}
+
+func TestFormatGMPTemplateDescriptionsUsesSemicolonSeparator(t *testing.T) {
+	got := formatGMPTemplateDescriptions("Lantai kotor\nSaluran kotor\nDinding bernoda")
+	if got != "Lantai kotor; Saluran kotor; Dinding bernoda" {
+		t.Fatalf("unexpected template description list: %q", got)
+	}
+}

@@ -51,13 +51,15 @@ export interface AnalyticsCatalog {
 export interface AnalyticsQueryParams {
   measures: string[];
   dimension: string;
+  /** Ordered root-to-current hierarchy path. The backend groups by every
+   * item so moving down expands all children while retaining parents. */
+  hierarchyDimensions?: string[];
   /** Second grouping dimension — only used by Heatmap/Sankey (a dim1 x
    * dim2 x 1 measure matrix). Omit for every other chart type. */
   dimension2?: string;
-  /** Ad-hoc "dimension = value" equality filters — the primitive behind
-   * drill-down (see DynamicKPIWidget): each accumulated click pins one
-   * ancestor level's exact key value here while `dimension` moves on to the
-   * next hierarchy level. Independent of dimension2/matrix mode. */
+  /** Optional ad-hoc "dimension = value" equality filters. Hierarchy
+   * navigation in DynamicKPIWidget does not use these: it groups by the
+   * complete root-to-current path so every child remains under its parent. */
   filters?: { dimensionId: string; value: string }[];
   areaId?: string;
   /** SuperAdmin's plant filter — sent as a URL query param (`?plant_id=`),
@@ -72,15 +74,27 @@ export interface AnalyticsQueryParams {
   signal?: AbortSignal;
 }
 
-export type AnalyticsRowValue = string | number | null;
+export interface AnalyticsHierarchyValue {
+  dimension_id: string;
+  key: string;
+  category: string;
+}
+
+export type AnalyticsRowValue = string | number | null | AnalyticsHierarchyValue[];
 
 export interface AnalyticsQueryResult {
   dimension: CatalogField;
   /** Present only when a dimension2 was requested (Heatmap/Sankey) — rows
    * then carry both "category"/"key" (dim1) and "category2"/"key2" (dim2). */
   dimension2?: CatalogField;
+  hierarchy?: CatalogField[];
   measures: CatalogField[];
   rows: Record<string, AnalyticsRowValue>[];
+  meta?: {
+    total_rows: number;
+    returned_rows: number;
+    truncated: boolean;
+  };
 }
 
 export const analyticsApi = {
@@ -96,6 +110,7 @@ export const analyticsApi = {
         measures: params.measures,
         dimension: params.dimension,
         dimension2: params.dimension2,
+        hierarchy_dimensions: params.hierarchyDimensions,
         filters: params.filters?.map((f) => ({ dimension_id: f.dimensionId, value: f.value })),
         area_id: params.areaId,
         start_date: params.startDate,

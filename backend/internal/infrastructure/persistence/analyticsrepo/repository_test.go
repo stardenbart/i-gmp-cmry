@@ -66,6 +66,9 @@ func TestBuildSQL_EveryDimensionBuildsCleanly(t *testing.T) {
 				Limit:        10,
 			}
 			sqlText, args := buildSQL(plan)
+			if !strings.Contains(sqlText, `COUNT(*) OVER() AS "total_rows"`) {
+				t.Fatalf("dimension %q + measure %q: grouped total metadata is missing:\n%s", dimID, measureID, sqlText)
+			}
 			placeholderCount := strings.Count(sqlText, "?")
 			if placeholderCount != len(args) {
 				t.Fatalf("dimension %q + measure %q: placeholder count (%d) != arg count (%d):\n%s", dimID, measureID, placeholderCount, len(args), sqlText)
@@ -108,10 +111,37 @@ func TestBuildSQL_Dimension2AddsMatrixColumns(t *testing.T) {
 	}
 }
 
+func TestBuildSQL_HierarchyGroupsEveryParentLevel(t *testing.T) {
+	cat := analytics.DefaultCatalog()
+	dim := cat.Dimensions["area"]
+	parent := cat.Dimensions["periode"]
+	joins, err := analyticsusecase.ResolveJoins(append(dim.RequiredJoins, parent.RequiredJoins...), cat.Joins)
+	if err != nil {
+		t.Fatalf("unexpected error resolving joins: %v", err)
+	}
+	plan := analyticsusecase.QueryPlan{
+		Dimension: dim, Hierarchy: []analytics.DimensionDef{parent},
+		Measures: []analytics.MeasureDef{cat.Measures["total_temuan"]}, Joins: joins, Limit: 100,
+	}
+	sqlText, args := buildSQL(plan)
+	if !strings.Contains(sqlText, `AS "hierarchy_key_0"`) || !strings.Contains(sqlText, `AS "hierarchy_label_0"`) {
+		t.Fatalf("hierarchy select columns are missing:\n%s", sqlText)
+	}
+	if !strings.Contains(sqlText, parent.KeyExpr) || !strings.Contains(sqlText, parent.LabelExpr) {
+		t.Fatalf("parent hierarchy must be retained in GROUP BY:\n%s", sqlText)
+	}
+	if !strings.Contains(sqlText, `ORDER BY "hierarchy_label_0" ASC`) {
+		t.Fatalf("rows must remain grouped by their parent hierarchy:\n%s", sqlText)
+	}
+	if strings.Count(sqlText, "?") != len(args) {
+		t.Fatalf("placeholder count must match args: %s", sqlText)
+	}
+}
+
 // TestBuildSQL_FiltersProduceCorrectArgOrder is a regression test for the
 // exact class of bug this file's DetailKawasanID fix came from: a mismatch
 // between the TEXTUAL order of "?" placeholders in the assembled SQL and
-// the ORDER of the args slice supplied to Raw(sql, args...). Drill-down
+// the ORDER of the args slice supplied to Raw(sql, args...). Equality
 // filters are assembled (textually) AFTER the SELECT list's "@now" tokens
 // but their arg values must not be spliced in before the now-values in the
 // final args slice — see buildSQL's comment on filterArgs.

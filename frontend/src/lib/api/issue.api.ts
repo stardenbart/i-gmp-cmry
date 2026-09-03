@@ -98,6 +98,7 @@ export interface Issue {
   created_at: string;
   updated_at: string;
   photos?: IssuePhoto[];
+  plant_name?: string;
   area_name?: string;
   kawasan_name?: string;
   detail_kawasan_name?: string;
@@ -291,6 +292,24 @@ export const issueApi = {
     const disposition = res.headers["content-disposition"] as string | undefined;
     const fileName = disposition?.match(/filename="?([^";]+)"?/i)?.[1]
       || `Laporan_WO_WR_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    return { blob: res.data, fileName };
+  },
+
+  exportIssues: async (params?: {
+    q?: string;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+    sort_by?: string;
+    sort_order?: string;
+  }) => {
+    const res = await api.get<Blob>("/issues/export", {
+      params,
+      responseType: "blob",
+    });
+    const disposition = res.headers["content-disposition"] as string | undefined;
+    const fileName = disposition?.match(/filename="?([^";]+)"?/i)?.[1]
+      || `Temuan_Inspeksi_${new Date().toISOString().slice(0, 10)}.xlsx`;
     return { blob: res.data, fileName };
   },
 };

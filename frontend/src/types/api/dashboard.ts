@@ -24,11 +24,13 @@ export interface PreviewExportRow {
   aspek?: string;
   detail?: string;
   uraian_id?: string;
+  uraian?: string;
   keterangan?: string;
   nilai?: number;
   total_nilai?: number;
   /** Σ Nilai ÷ Σ StandardScore for this row's Detail Kawasan × 100. */
   persentase_kepatuhan_detail_kawasan?: number;
+  /** One when this uraian has an Issue, otherwise zero. */
   total_temuan?: number;
   image_url?: string;
   image_urls?: string[];

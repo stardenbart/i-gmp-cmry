@@ -41,10 +41,10 @@ import type { PreviewExportRow } from "@/types/api/dashboard";
  *
  * Relies on the backend's fixed sort order (gmpDataRelationOrder in
  * gmp_export_helpers.go: InspectionID, then AspekName, DetailName,
- * UraianID) already keeping every row of one group physically adjacent —
+ * Uraian) already keeping every row of one group physically adjacent —
  * this only merges rows that are already consecutive, never reorders them.
  *
- * `inspeksi` covers BOTH the "ID Inspeksi" and "Kawasan / Detail" columns:
+ * `inspeksi` covers the "ID Inspeksi", "Kawasan", and "Detail Kawasan" columns:
  * Kawasan/DetailKawasan come from Inspection_Header, so they're constant
  * for every row sharing one inspection_id and always span identically.
  */
@@ -53,10 +53,19 @@ interface GmpRowSpans {
   aspek: number;
   detailAspek: number;
   uraian: number;
+  totalNilaiKawasan: number;
+  complianceDetailKawasan: number;
 }
 
 function computeGmpRowSpans(rows: PreviewExportRow[]): GmpRowSpans[] {
-  const spans: GmpRowSpans[] = rows.map(() => ({ inspeksi: 0, aspek: 0, detailAspek: 0, uraian: 0 }));
+  const spans: GmpRowSpans[] = rows.map(() => ({
+    inspeksi: 0,
+    aspek: 0,
+    detailAspek: 0,
+    uraian: 0,
+    totalNilaiKawasan: 0,
+    complianceDetailKawasan: 0,
+  }));
 
   const fillLevel = (key: keyof GmpRowSpans, sameGroup: (a: PreviewExportRow, b: PreviewExportRow) => boolean) => {
     let start = 0;
@@ -72,6 +81,11 @@ function computeGmpRowSpans(rows: PreviewExportRow[]): GmpRowSpans[] {
   fillLevel("aspek", (a, b) => a.inspection_id === b.inspection_id && a.aspek === b.aspek);
   fillLevel("detailAspek", (a, b) => a.inspection_id === b.inspection_id && a.aspek === b.aspek && a.detail === b.detail);
   fillLevel("uraian", (a, b) => a.inspection_id === b.inspection_id && a.aspek === b.aspek && a.detail === b.detail && a.uraian_id === b.uraian_id);
+  fillLevel("totalNilaiKawasan", (a, b) => (a.kawasan_id || a.kawasan) === (b.kawasan_id || b.kawasan));
+  fillLevel("complianceDetailKawasan", (a, b) => (
+    (a.kawasan_id || a.kawasan) === (b.kawasan_id || b.kawasan)
+    && (a.detail_kawasan_id || a.detail_kawasan) === (b.detail_kawasan_id || b.detail_kawasan)
+  ));
 
   return spans;
 }
@@ -87,7 +101,7 @@ export default function GmpDataAdminPage() {
 
   const { hasPermission, isLoading: isGuardLoading } = usePermissions();
   const isAdmin = hasPermission("PERM-MSTR-R");
-  
+
   const dispatch = useAppDispatch();
   const {
     selectedArea,
@@ -144,11 +158,11 @@ export default function GmpDataAdminPage() {
   });
 
   // Filtered dropdown options (cascading)
-  const kawasanOptions = kawasanLookup?.items?.filter((k) => 
+  const kawasanOptions = kawasanLookup?.items?.filter((k) =>
     !selectedArea || k.area_id === selectedArea
   ) || [];
 
-  const detailKawasanOptions = detailKawasanLookup?.items?.filter((dk) => 
+  const detailKawasanOptions = detailKawasanLookup?.items?.filter((dk) =>
     !selectedKawasan || dk.kawasan_id === selectedKawasan
   ) || [];
 
@@ -211,7 +225,7 @@ export default function GmpDataAdminPage() {
             Laporan lengkap hasil inspeksi kebersihan & kelayakan pabrik
           </p>
         </div>
-        
+
         <GmpExportMenu
           disabled={isPreviewLoading || filteredData.length === 0}
           filters={{
@@ -233,13 +247,13 @@ export default function GmpDataAdminPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Cari Inspeksi ID, Aspek, Detail, Uraian ID, Area, Kawasan, PIC, Keterangan..."
+              placeholder="Cari Inspeksi ID, Aspek, Detail, Uraian, Area, Kawasan, PIC, Keterangan..."
               value={searchInputValue}
               onChange={e => setSearchInputValue(e.target.value)}
               className="pl-9 bg-background/50"
             />
           </div>
-          
+
           <SearchLatencyBadge
             searchQuery={q}
             isFetching={isPreviewLoading}
@@ -259,8 +273,8 @@ export default function GmpDataAdminPage() {
               <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
                 <Building2 className="h-3 w-3 text-primary" /> Pabrik / Plant:
               </label>
-              <select 
-                value={selectedPlant} 
+              <select
+                value={selectedPlant}
                 onChange={(e) => handlePlantChange(e.target.value)}
                 className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary"
               >
@@ -279,8 +293,8 @@ export default function GmpDataAdminPage() {
             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
               <MapPin className="h-3 w-3 text-primary" /> Area:
             </label>
-            <select 
-              value={selectedArea} 
+            <select
+              value={selectedArea}
               onChange={(e) => handleAreaChange(e.target.value)}
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary"
             >
@@ -298,8 +312,8 @@ export default function GmpDataAdminPage() {
             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
               <Layers className="h-3 w-3 text-primary" /> Kawasan:
             </label>
-            <select 
-              value={selectedKawasan} 
+            <select
+              value={selectedKawasan}
               onChange={(e) => handleKawasanChange(e.target.value)}
               disabled={!selectedArea && kawasanOptions.length === 0}
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary disabled:opacity-50"
@@ -318,8 +332,8 @@ export default function GmpDataAdminPage() {
             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
               <ListChecks className="h-3 w-3 text-primary" /> Detail Kawasan:
             </label>
-            <select 
-              value={selectedDetailKawasan} 
+            <select
+              value={selectedDetailKawasan}
               onChange={(e) => dispatch(setSelectedDetailKawasan(e.target.value))}
               disabled={!selectedKawasan && detailKawasanOptions.length === 0}
               className="w-full px-3 py-2 border border-border rounded-md text-sm bg-background text-foreground h-9 focus:ring-1 focus:ring-primary disabled:opacity-50"
@@ -359,10 +373,10 @@ export default function GmpDataAdminPage() {
                 className="h-9 text-xs bg-background flex-1"
               />
               {hasActiveFilters && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleResetFilters} 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetFilters}
                   title="Reset Semua Filter"
                   className="h-9 px-2 shrink-0 border-destructive/30 hover:bg-destructive/10 text-destructive"
                 >
@@ -377,38 +391,39 @@ export default function GmpDataAdminPage() {
       {/* Table Section */}
       <Card className="overflow-hidden border-border/50 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1900px] text-sm text-left border-collapse">
+          <table className="w-full min-w-[2050px] text-sm text-left border-collapse">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">ID Inspeksi</th>
-                <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Kawasan / Detail</th>
+                <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Kawasan</th>
+                <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Detail Kawasan</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Aspek</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Detail Aspek</th>
-                <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Uraian ID</th>
+                <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Uraian</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Nilai per Detail Kawasan">Nilai</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai per Kawasan">Total Nilai (Kawasan)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai ÷ Total Nilai Maksimal (semua uraian OK) pada Detail Kawasan ini × 100">Persentase Kepatuhan (Detail Kawasan)</th>
-                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="1 jika uraian ini memiliki issue, 0 jika tidak">Temuan (Uraian)</th>
+                <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="1 jika uraian ini memiliki Issue, 0 jika tidak">Temuan (Uraian)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti temuan awal pada uraian">Visual Temuan Awal</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti perbaikan dengan tipe FollowUp">Visual Follow-Up</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan pada setiap foto FollowUp">Keterangan Follow-Up</th>
-                <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan temuan per Detail Kawasan">Keterangan Temuan</th>
+                <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan setiap foto bukti temuan awal dari Issue Photo">Keterangan Foto Temuan Awal</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Follow Up Datetime per Detail Kawasan">Follow Up Datetime</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Due Date per Detail Kawasan">Due Date</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Selisih hari kalender: tanggal follow-up dikurangi due date">Gap Follow-Up</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/50">
+            <tbody className="divide-y divide-border/50 [&_td]:align-middle">
               {isPreviewLoading ? (
                 <tr>
-                  <td colSpan={16} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={17} className="px-6 py-12 text-center text-muted-foreground">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary/50" />
                     Memuat data inspeksi GMP...
                   </td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="p-6 sm:p-10">
+                  <td colSpan={17} className="p-6 sm:p-10">
                     <div className="w-full rounded-3xl border border-dashed border-border/70 bg-gradient-to-b from-card/80 via-card/40 to-background p-8 sm:p-12 text-center shadow-sm">
                       <div className="mx-auto w-full max-w-md text-center space-y-4" style={{ width: "100%", maxWidth: "28rem", marginLeft: "auto", marginRight: "auto" }}>
                         <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-inner mx-auto mb-2">
@@ -449,7 +464,7 @@ export default function GmpDataAdminPage() {
                     {/* ID Inspeksi & Info Header — merged (rowSpan) across
                         every row belonging to the same inspection. */}
                     {span.inspeksi > 0 && (
-                      <td className="px-4 py-3 font-medium text-primary whitespace-nowrap align-top" rowSpan={span.inspeksi}>
+                      <td className="px-4 py-3 font-medium text-primary whitespace-nowrap align-middle" rowSpan={span.inspeksi}>
                         <div className="flex flex-col">
                           <span className="font-semibold">{row.inspection_id}</span>
                           <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -459,31 +474,36 @@ export default function GmpDataAdminPage() {
                       </td>
                     )}
 
-                    {/* Kawasan & Detail Kawasan — same span as ID Inspeksi:
-                        both come from Inspection_Header, so they're constant
-                        for every row of one inspection. */}
+                    {/* Kawasan — same span as ID Inspeksi because it comes
+                        from Inspection_Header. */}
                     {span.inspeksi > 0 && (
-                      <td className="px-4 py-3 whitespace-nowrap align-top" rowSpan={span.inspeksi}>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-foreground">{row.kawasan || "-"}</span>
-                          <span className="text-[11px] text-muted-foreground">{row.detail_kawasan || "-"}</span>
-                        </div>
+                      <td className="px-4 py-3 whitespace-nowrap align-middle" rowSpan={span.inspeksi}>
+                        <span className="font-medium text-foreground">{row.kawasan || "-"}</span>
+                      </td>
+                    )}
+
+                    {/* Detail Kawasan — rendered as its own field. */}
+                    {span.inspeksi > 0 && (
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground align-middle" rowSpan={span.inspeksi}>
+                        {row.detail_kawasan || "-"}
                       </td>
                     )}
 
                     {/* Aspek — merged within each inspection. */}
                     {span.aspek > 0 && (
-                      <td className="px-4 py-3 font-medium whitespace-nowrap align-top" rowSpan={span.aspek}>{row.aspek || "-"}</td>
+                      <td className="px-4 py-3 font-medium whitespace-nowrap align-middle" rowSpan={span.aspek}>{row.aspek || "-"}</td>
                     )}
 
                     {/* Detail Aspek — merged within each Aspek. */}
                     {span.detailAspek > 0 && (
-                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground align-top" rowSpan={span.detailAspek}>{row.detail || "-"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground align-middle" rowSpan={span.detailAspek}>{row.detail || "-"}</td>
                     )}
 
-                    {/* Uraian ID — merged within each Detail Aspek. */}
+                    {/* Uraian — merged within each Detail Aspek. */}
                     {span.uraian > 0 && (
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap align-top" rowSpan={span.uraian}>{row.uraian_id || "-"}</td>
+                      <td className="max-w-sm px-4 py-3 text-xs leading-relaxed text-muted-foreground whitespace-normal align-middle" rowSpan={span.uraian}>
+                        {row.uraian || "-"}
+                      </td>
                     )}
 
                     {/* Nilai */}
@@ -499,36 +519,40 @@ export default function GmpDataAdminPage() {
                     </td>
 
                     {/* Total Nilai */}
-                    <td className="px-4 py-3 text-center whitespace-nowrap font-semibold">
-                      <span className="px-2 py-0.5 rounded bg-muted/60 text-xs">
-                        {row.total_nilai ?? "-"}
-                      </span>
-                    </td>
+                    {span.totalNilaiKawasan > 0 && (
+                      <td className="px-4 py-3 text-center whitespace-nowrap font-semibold align-middle" rowSpan={span.totalNilaiKawasan}>
+                        <span className="px-2 py-0.5 rounded bg-muted/60 text-xs">
+                          {row.total_nilai ?? "-"}
+                        </span>
+                      </td>
+                    )}
 
                     {/* Persentase Kepatuhan (Detail Kawasan) */}
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {(() => {
-                        const pct = row.persentase_kepatuhan_detail_kawasan;
-                        if (pct === undefined || pct === null) return <span className="text-muted-foreground">-</span>;
-                        return (
-                          <span className={cn(
-                            "px-2.5 py-1 rounded-full text-xs font-bold border",
-                            pct >= 80 ? "bg-green-500/10 text-green-600 border-green-500/20" :
-                            pct >= 60 ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" :
-                            "bg-red-500/10 text-red-600 border-red-500/20"
-                          )}>
-                            {pct.toFixed(1)}%
-                          </span>
-                        );
-                      })()}
-                    </td>
+                    {span.complianceDetailKawasan > 0 && (
+                      <td className="px-4 py-3 text-center whitespace-nowrap align-middle" rowSpan={span.complianceDetailKawasan}>
+                        {(() => {
+                          const pct = row.persentase_kepatuhan_detail_kawasan;
+                          if (pct === undefined || pct === null) return <span className="text-muted-foreground">-</span>;
+                          return (
+                            <span className={cn(
+                              "px-2.5 py-1 rounded-full text-xs font-bold border",
+                              pct >= 80 ? "bg-green-500/10 text-green-600 border-green-500/20" :
+                              pct >= 60 ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" :
+                              "bg-red-500/10 text-red-600 border-red-500/20"
+                            )}>
+                              {pct.toFixed(1)}%
+                            </span>
+                          );
+                        })()}
+                      </td>
+                    )}
 
                     {/* Total Temuan */}
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span className={cn(
                         "px-2.5 py-0.5 rounded-full text-xs font-bold border",
-                        (row.total_temuan ?? 0) > 0 
-                          ? "bg-red-500/10 text-red-500 border-red-500/20" 
+                        (row.total_temuan ?? 0) > 0
+                          ? "bg-red-500/10 text-red-500 border-red-500/20"
                           : "bg-muted text-muted-foreground border-transparent"
                       )}>
                         {row.total_temuan ?? 0}
@@ -558,13 +582,17 @@ export default function GmpDataAdminPage() {
                     </td>
 
                     {/* Keterangan per Foto Follow-Up */}
-                    <td className="px-4 py-3 align-top">
+                    <td className="px-4 py-3 align-middle">
                       <GmpFollowUpDescriptions evidence={row.follow_up_evidence} />
                     </td>
 
                     {/* Keterangan Temuan */}
-                    <td className="px-4 py-3 max-w-xs truncate" title={row.keterangan}>
-                      {row.keterangan || <span className="text-muted-foreground italic">-</span>}
+                    <td className="max-w-sm px-4 py-3 align-middle" title={row.keterangan}>
+                      {row.keterangan ? (
+                        <span className="block whitespace-pre-line break-words text-xs leading-relaxed">{row.keterangan}</span>
+                      ) : (
+                        <span className="text-muted-foreground italic">-</span>
+                      )}
                     </td>
 
                     {/* Follow Up Datetime */}
@@ -620,7 +648,7 @@ export default function GmpDataAdminPage() {
 
       {/* Lightbox Image Preview Modal */}
       {previewImage && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => setPreviewImage(null)}
         >
@@ -632,11 +660,11 @@ export default function GmpDataAdminPage() {
               <X className="h-5 w-5" />
             </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={formatImageUrl(previewImage) || "/placeholder.png"} 
-              alt="Visual Issue Large" 
+            <img
+              src={formatImageUrl(previewImage) || "/placeholder.png"}
+              alt="Visual Issue Large"
               onError={(e) => { e.currentTarget.src = "/placeholder.png"; }}
-              className="max-h-[80vh] w-auto object-contain rounded-xl" 
+              className="max-h-[80vh] w-auto object-contain rounded-xl"
             />
           </div>
         </div>

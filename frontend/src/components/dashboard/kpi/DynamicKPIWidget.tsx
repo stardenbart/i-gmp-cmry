@@ -5,46 +5,45 @@ import { useQuery } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
 import { AlertTriangle, ChevronRight, Loader2, Pencil, RotateCcw } from "lucide-react";
 import { analyticsApi, type AnalyticsQueryResult } from "@/lib/api/analytics.api";
+import { kpiShareApi } from "@/lib/api/kpi-share.api";
 import { getApiErrorStatus } from "@/lib/api/error";
 import { useKPIDashboard } from "@/components/dashboard/kpi/KPIDashboardContext";
 import { aggregateSingleMeasure, buildEChartsOption, formatMeasureValue } from "./buildEChartsOption";
+import { DrillDownToolbar } from "./DrillDownToolbar";
 import type { VizType } from "@/components/dashboard/types";
 
 export interface DynamicKPIWidgetProps {
+  widgetId?: string;
   title: string;
   measures: string[];
   dimension: string;
   /** Only set for Heatmap/Sankey (a dim1 x dim2 x 1 measure matrix). */
   dimension2?: string;
-  /** Ordered drill-down levels beyond `dimension` (level 0) — clicking a
-   * category mark in a compatible chart descends one level, filtered to the
-   * clicked value. Mutually exclusive with dimension2. */
+  /** Ordered drill-down levels beyond `dimension` (level 0). Moving down
+   * displays every value of the next dimension, without selecting or
+   * filtering a single value from the previous level. */
   drillDimensions?: string[];
   /** Pure rendering options — see buildEChartsOption.ts's ChartDisplayOptions. */
   showLabels?: boolean;
   showLabelValues?: boolean;
   showTrendLine?: boolean;
   vizType?: VizType;
+  /** Badge shown in the widget header. The builder uses "Preview" while
+   * persisted dashboard widgets keep the default "Custom" label. */
+  badgeLabel?: string;
   /** When set, renders a small pencil icon next to the "Custom" badge that
    * opens the builder pre-filled with this widget's config (see
-   * DashboardKPI.tsx). Absent for the 6 built-in widgets — they never
-   * render DynamicKPIWidget at all. */
+   * DashboardKPI.tsx). */
   onEdit?: () => void;
 }
 
-/** One accumulated drill-down step: which dimension was pinned, its exact
- * key value (used to filter), and its display label (used in the
- * breadcrumb — never sent to the backend). */
-interface DrillStep {
-  dimensionId: string;
-  value: string;
-  label: string;
-}
-
-// Mirrors VisualizationBuilder's DRILLABLE_CHARTS — chart types with one
-// clickable mark per category row. Kept in sync manually (small, stable
-// list); duplicating rather than importing avoids a builder-UI ->
-// rendering-widget dependency for a single const array.
+// Mirrors VisualizationBuilder's DRILLABLE_CHARTS — chart types that step
+// through one hierarchy level at a time via the DrillDownToolbar. "table"
+// is deliberately absent: it shows every configured level at once as a
+// static multi-column breakdown instead (see the isTable branch below and
+// DynamicTable's hierarchy/path rendering), no progressive stepping. Kept
+// in sync manually (small, stable list); duplicating rather than importing
+// avoids a builder-UI -> rendering-widget dependency for a single const array.
 const DRILLABLE_VIZ_TYPES: VizType[] = ["bar", "horizontal_bar", "stacked_bar", "line", "area", "pie", "donut", "treemap", "funnel"];
 
 /**
@@ -55,6 +54,7 @@ const DRILLABLE_VIZ_TYPES: VizType[] = ["bar", "horizontal_bar", "stacked_bar", 
  * later drops one of those IDs (see `isInvalidConfig` below).
  */
 export function DynamicKPIWidget({
+  widgetId,
   title,
   measures,
   dimension,
@@ -64,9 +64,10 @@ export function DynamicKPIWidget({
   showLabelValues,
   showTrendLine,
   vizType,
+  badgeLabel = "Custom",
   onEdit,
 }: DynamicKPIWidgetProps) {
-  const { effectivePlant } = useKPIDashboard();
+  const { effectivePlant, isPublic, publicShareToken, analyticsCatalog } = useKPIDashboard();
 
   // Sorted so two widgets picking the same measures in a different order
   // (or the same widget re-rendering with a new-but-equivalent array
@@ -74,7 +75,7 @@ export function DynamicKPIWidget({
   const sortedMeasures = useMemo(() => [...measures].sort(), [measures]);
   const chartVizType: VizType = vizType && vizType !== "list" ? vizType : "bar";
 
-  // Accumulated drill-down path — session-only UI state, never persisted
+  // Current hierarchy level — session-only UI state, never persisted
   // (reloading a widget always starts back at level 0/`dimension`). Reset
   // whenever the widget's underlying config identity changes (e.g. its
   // measures/dimension/drillDimensions were rebuilt) so a stale filter never
@@ -83,40 +84,59 @@ export function DynamicKPIWidget({
   // computed from props) rather than an effect + setState, per
   // https://react.dev/learn/you-might-not-need-an-effect — no extra
   // render/commit cycle, and avoids the react-hooks/set-state-in-effect rule.
-  const configSignature = `${dimension}|${(drillDimensions ?? []).join(",")}|${sortedMeasures.join(",")}`;
-  const [drillPath, setDrillPath] = useState<DrillStep[]>([]);
+  const configSignature = `${dimension}|${dimension2 ?? ""}|${(drillDimensions ?? []).join(",")}|${sortedMeasures.join(",")}`;
+  const [drillLevel, setDrillLevel] = useState(0);
   const [lastConfigSignature, setLastConfigSignature] = useState(configSignature);
   if (configSignature !== lastConfigSignature) {
     setLastConfigSignature(configSignature);
-    setDrillPath([]);
+    setDrillLevel(0);
   }
 
-  const currentDimension = drillPath.length === 0 ? dimension : drillDimensions![drillPath.length - 1];
-  const canDrillDeeper = !!drillDimensions && drillPath.length < drillDimensions.length;
-  const isDrillableChart = DRILLABLE_VIZ_TYPES.includes(chartVizType);
-  const filters = useMemo(() => drillPath.map((p) => ({ dimensionId: p.dimensionId, value: p.value })), [drillPath]);
+  const hierarchy = useMemo(() => [dimension, ...(drillDimensions ?? [])], [dimension, drillDimensions]);
+  // Table never drills progressively — it always queries every configured
+  // level at once and renders them as stacked breadcrumb columns (see
+  // DynamicTable below), so it always runs as if fully drilled-in, with no
+  // toolbar/breadcrumb-bar and no drillLevel state of its own.
+  const isTable = chartVizType === "table";
+  const effectiveDrillLevel = isTable ? hierarchy.length - 1 : drillLevel;
+  const currentDimension = hierarchy[effectiveDrillLevel] ?? dimension;
+  const canDrillDeeper = !isTable && drillLevel < hierarchy.length - 1;
+  const isDrillableChart = !isTable && DRILLABLE_VIZ_TYPES.includes(chartVizType);
+  const nextDimensionId = canDrillDeeper ? hierarchy[drillLevel + 1] : undefined;
+
+  const { data: fetchedCatalog } = useQuery({
+    queryKey: ["analytics-catalog"],
+    queryFn: () => analyticsApi.getCatalog(),
+    enabled: !isPublic && !!drillDimensions?.length,
+    staleTime: 10 * 60_000,
+  });
+  const catalog = analyticsCatalog ?? fetchedCatalog;
 
   const queryKey = [
     "analytics-query",
+    isPublic ? "public" : "private",
+    isPublic ? widgetId : "",
     sortedMeasures,
     currentDimension,
     dimension2 ?? "",
-    drillPath.map((p) => `${p.dimensionId}:${p.value}`).join("|"),
-    chartVizType,
+    effectiveDrillLevel,
     effectivePlant || "",
   ] as const;
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<AnalyticsQueryResult>({
     queryKey,
     queryFn: ({ signal }) =>
-      analyticsApi.runQuery({
-        measures: sortedMeasures,
-        dimension: currentDimension,
-        dimension2,
-        filters,
-        plantId: effectivePlant || undefined,
-        signal,
-      }),
+      isPublic && publicShareToken && widgetId
+        ? kpiShareApi.runCustomQuery(publicShareToken, widgetId, effectiveDrillLevel, signal)
+        : analyticsApi.runQuery({
+            measures: sortedMeasures,
+            dimension: currentDimension,
+            hierarchyDimensions: hierarchy.slice(0, effectiveDrillLevel + 1),
+            dimension2,
+            plantId: effectivePlant || undefined,
+            signal,
+          }),
+    enabled: !isPublic || (!!publicShareToken && !!widgetId),
     staleTime: 30_000,
     retry: 1,
   });
@@ -132,22 +152,14 @@ export function DynamicKPIWidget({
     [data, chartVizType, showLabels, showLabelValues, showTrendLine]
   );
 
-  // Clicking a category mark (bar/slice/point) descends one drill level,
-  // filtered to the row that mark represents. Reads straight from the fetch
-  // result rather than the ECharts option — `params.name` is the category
-  // LABEL ECharts shows, but the filter sent to the backend must be the raw
-  // `key` (e.g. an id), never the label.
-  const handleChartClick = (params: { name?: string }) => {
-    if (!canDrillDeeper || !drillDimensions || !data || !params.name) return;
-    const row = data.rows.find((r) => String(r.category ?? r.key ?? "") === params.name);
-    if (!row) return;
-    const value = row.key ?? row.category;
-    if (value === null || value === undefined) return;
-    setDrillPath((prev) => [...prev, { dimensionId: currentDimension, value: String(value), label: params.name! }]);
-  };
+  const nextDimensionLabel = nextDimensionId
+    ? catalog?.dimensions.find((dimensionItem) => dimensionItem.id === nextDimensionId)?.label ?? nextDimensionId
+    : undefined;
+
+  const dimensionLabel = (id: string) => catalog?.dimensions.find((item) => item.id === id)?.label ?? id;
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-border bg-card p-5 shadow-sm">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-2 border-b border-border pb-3">
         <h3 className="truncate text-base font-semibold text-foreground">{title}</h3>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -162,35 +174,44 @@ export function DynamicKPIWidget({
               <Pencil className="h-3.5 w-3.5" />
             </button>
           )}
-          <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Custom</span>
+          <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">{badgeLabel}</span>
         </div>
       </div>
 
-      {drillPath.length > 0 && (
+      {drillLevel > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-0.5 text-[11px]">
-          <button type="button" onClick={() => setDrillPath([])} className="font-medium text-primary hover:underline">
-            Semua
-          </button>
-          {drillPath.map((step, idx) => {
-            const isLast = idx === drillPath.length - 1;
+          {hierarchy.slice(0, drillLevel + 1).map((dimensionId, idx) => {
+            const isLast = idx === drillLevel;
             return (
-              <span key={`${step.dimensionId}-${idx}`} className="flex items-center gap-0.5">
-                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+              <span key={`${dimensionId}-${idx}`} className="flex items-center gap-0.5">
+                {idx > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                 {isLast ? (
-                  <span className="font-semibold text-foreground">{step.label}</span>
+                  <span className="font-semibold text-foreground">{dimensionLabel(dimensionId)}</span>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setDrillPath((prev) => prev.slice(0, idx + 1))}
+                    onClick={() => setDrillLevel(idx)}
                     className="font-medium text-primary hover:underline"
                   >
-                    {step.label}
+                    {dimensionLabel(dimensionId)}
                   </button>
                 )}
               </span>
             );
           })}
         </div>
+      )}
+
+      {!!drillDimensions?.length && isDrillableChart && data && data.rows.length > 0 && (
+        <DrillDownToolbar
+          currentDimensionLabel={data.dimension.label}
+          nextDimensionLabel={nextDimensionLabel}
+          onDrillDown={() => setDrillLevel((level) => Math.min(level + 1, hierarchy.length - 1))}
+          onDrillUp={() => setDrillLevel((level) => Math.max(0, level - 1))}
+          onReset={() => setDrillLevel(0)}
+          canDrillUp={drillLevel > 0}
+          isBusy={isFetching}
+        />
       )}
 
       <div className="min-h-0 flex-1">
@@ -233,8 +254,7 @@ export function DynamicKPIWidget({
               notMerge
               lazyUpdate
               opts={{ renderer: "canvas" }}
-              style={{ height: "100%", width: "100%", minHeight: 200, cursor: canDrillDeeper && isDrillableChart ? "pointer" : undefined }}
-              onEvents={canDrillDeeper && isDrillableChart ? { click: handleChartClick } : undefined}
+              style={{ height: "100%", width: "100%", minHeight: 120 }}
             />
           )
         )}
@@ -243,6 +263,11 @@ export function DynamicKPIWidget({
       {isFetching && !isLoading && (
         <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" /> Memperbarui...
+        </div>
+      )}
+      {data?.meta?.truncated && (
+        <div className="mt-1 flex items-center gap-1 text-[10px] font-medium text-amber-600">
+          <AlertTriangle className="h-3 w-3" /> Menampilkan {data.meta.returned_rows} dari {data.meta.total_rows} value teratas.
         </div>
       )}
     </div>
@@ -266,36 +291,68 @@ function NumberCard({ result }: { result: AnalyticsQueryResult }) {
 }
 
 function DynamicTable({ result }: { result: AnalyticsQueryResult }) {
+  const categoryColumns = result.hierarchy?.length
+    ? result.hierarchy
+    : [result.dimension];
+
   return (
     <div className="h-full overflow-auto rounded-lg border border-border">
-      <table className="w-full text-left text-xs">
+      <table className="min-w-full text-left text-xs">
         <thead className="sticky top-0 bg-muted/60">
           <tr>
-            <th className="px-3 py-2 font-semibold text-muted-foreground">{result.dimension.label}</th>
+            {categoryColumns.map((dimensionItem) => (
+              <th
+                key={dimensionItem.id}
+                className="whitespace-nowrap px-3 py-2 font-semibold text-muted-foreground"
+              >
+                {dimensionItem.label}
+              </th>
+            ))}
             {result.measures.map((m) => (
-              <th key={m.id} className="px-3 py-2 font-semibold text-muted-foreground">
+              <th key={m.id} className="whitespace-nowrap px-3 py-2 font-semibold text-muted-foreground">
                 {m.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {result.rows.map((row, idx) => (
-            <tr key={idx} className="hover:bg-muted/30">
-              <td className="px-3 py-2 font-medium text-foreground">{String(row.category ?? "")}</td>
-              {result.measures.map((m) => {
-                const raw = row[m.id];
-                return (
-                  <td key={m.id} className="px-3 py-2 text-foreground">
-                    {formatMeasureValue(typeof raw === "number" ? raw : null, m.format)}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {result.rows.map((row, idx) => {
+            const hierarchyPath = Array.isArray(row.path) ? row.path : [];
+
+            return (
+              <tr key={idx} className="hover:bg-muted/30">
+                {categoryColumns.map((dimensionItem, columnIndex) => {
+                  const pathItem = hierarchyPath[columnIndex];
+                  const legacyValue = columnIndex === categoryColumns.length - 1
+                    ? row.category ?? row.key
+                    : null;
+
+                  return (
+                    <td
+                      key={`${dimensionItem.id}-${columnIndex}`}
+                      className="whitespace-nowrap px-3 py-2 font-medium text-foreground"
+                    >
+                      {pathItem?.category || pathItem?.key || String(legacyValue ?? "-")}
+                    </td>
+                  );
+                })}
+                {result.measures.map((m) => {
+                  const raw = row[m.id];
+                  return (
+                    <td key={m.id} className="whitespace-nowrap px-3 py-2 text-foreground">
+                      {formatMeasureValue(typeof raw === "number" ? raw : null, m.format)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
           {result.rows.length === 0 && (
             <tr>
-              <td colSpan={result.measures.length + 1} className="px-3 py-6 text-center italic text-muted-foreground">
+              <td
+                colSpan={result.measures.length + categoryColumns.length}
+                className="px-3 py-6 text-center italic text-muted-foreground"
+              >
                 Belum ada data
               </td>
             </tr>

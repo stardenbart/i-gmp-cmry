@@ -12,6 +12,8 @@ import (
 const (
 	gmpExportFormatTemplate = "template"
 	gmpExportFormatTable    = "table"
+	gmpDataRelationOrder    = `ih."InspectionHeaderCreatedAt" DESC, ih."InspectionID" DESC, am."AspekName" ASC, am."AspekID" ASC, dm."DetailName" ASC, dm."DetailID" ASC, um."UraianID" ASC, ir."ResultID" ASC`
+	gmpCompanyName          = "PT CISARUA MOUNTAIN DAIRY TBK"
 )
 
 func normalizeGMPExportFormat(value string) (string, bool) {
@@ -25,6 +27,36 @@ func normalizeGMPExportFormat(value string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+func gmpAspectGroupKey(inspectionID, aspectName string) string {
+	return strings.TrimSpace(inspectionID) + "\x00" + strings.ToLower(strings.TrimSpace(aspectName))
+}
+
+func resolveGMPExportPlantID(userPlantID, queryPlantID string) string {
+	if plantID := strings.TrimSpace(userPlantID); plantID != "" {
+		return plantID
+	}
+	plantID := strings.TrimSpace(queryPlantID)
+	if strings.EqualFold(plantID, "all") || strings.EqualFold(plantID, "global") || strings.EqualFold(plantID, "null") {
+		return ""
+	}
+	return plantID
+}
+
+func (h *DashboardHandler) resolveGMPExportPlantName(c *fiber.Ctx, areaID string) string {
+	userPlantID, _ := c.Locals("userPlantID").(string)
+	plantID := resolveGMPExportPlantID(userPlantID, c.Query("plant_id"))
+	if plantID == "" && areaID != "" {
+		_ = h.db.Table(`"Area_Master"`).Select(`"PlantID"`).Where(`"AreaID" = ?`, areaID).Scan(&plantID).Error
+	}
+	if plantID == "" {
+		return "Semua Plant"
+	}
+
+	plantName := plantID
+	_ = h.db.Table(`"Plant_Master"`).Select(`"PlantName"`).Where(`"PlantID" = ?`, plantID).Scan(&plantName).Error
+	return plantName
 }
 
 func validateGMPDateRange(startDate, endDate string) error {

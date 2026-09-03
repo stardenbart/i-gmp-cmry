@@ -32,6 +32,7 @@ var defaultRolePermissions = []rolePermissionEntry{
 	{"RP-ADM-MSTR-R", "ROLE-001", "PERM-MSTR-R"},
 	{"RP-ADM-MSTR-U", "ROLE-001", "PERM-MSTR-U"},
 	{"RP-ADM-MSTR-D", "ROLE-001", "PERM-MSTR-D"},
+	{"RP-ADM-MSTR-I", "ROLE-001", "PERM-MSTR-I"},
 	{"RP-ADM-PIC-C", "ROLE-001", "PERM-PIC-C"},
 	{"RP-ADM-PIC-R", "ROLE-001", "PERM-PIC-R"},
 	{"RP-ADM-PIC-U", "ROLE-001", "PERM-PIC-U"},
@@ -44,6 +45,7 @@ var defaultRolePermissions = []rolePermissionEntry{
 	{"RP-ADM-ISS-C", "ROLE-001", "PERM-ISS-C"},
 	{"RP-ADM-ISS-R", "ROLE-001", "PERM-ISS-R"},
 	{"RP-ADM-ISS-U", "ROLE-001", "PERM-ISS-U"},
+	{"RP-ADM-ISS-E", "ROLE-001", "PERM-ISS-E"},
 	{"RP-ADM-LOG-R", "ROLE-001", "PERM-LOG-R"},
 
 	// ── ROLE-002: Auditor (inspeksi penuh, issue update/wowr, log baca) ──────
@@ -53,6 +55,7 @@ var defaultRolePermissions = []rolePermissionEntry{
 	{"RP-AUD-INSP-A", "ROLE-002", "PERM-INSP-A"},
 	{"RP-AUD-INSP-E", "ROLE-002", "PERM-INSP-E"},
 	{"RP-AUD-ISS-U", "ROLE-002", "PERM-ISS-U"},
+	{"RP-AUD-ISS-E", "ROLE-002", "PERM-ISS-E"},
 	{"RP-AUD-LOG-R", "ROLE-002", "PERM-LOG-R"},
 	{"RP-AUD-MSTR-R", "ROLE-002", "PERM-MSTR-R"},
 	{"RP-AUD-PIC-R", "ROLE-002", "PERM-PIC-R"},
@@ -78,6 +81,7 @@ var defaultRolePermissions = []rolePermissionEntry{
 	{"RP-MGR-INSP-E", "ROLE-005", "PERM-INSP-E"},
 	{"RP-MGR-ISS-R", "ROLE-005", "PERM-ISS-R"},
 	{"RP-MGR-ISS-U", "ROLE-005", "PERM-ISS-U"},
+	{"RP-MGR-ISS-E", "ROLE-005", "PERM-ISS-E"},
 	{"RP-MGR-LOG-R", "ROLE-005", "PERM-LOG-R"},
 	{"RP-MGR-MSTR-R", "ROLE-005", "PERM-MSTR-R"},
 	{"RP-MGR-PIC-R", "ROLE-005", "PERM-PIC-R"},

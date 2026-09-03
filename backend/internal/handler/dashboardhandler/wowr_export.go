@@ -298,6 +298,13 @@ func (h *DashboardHandler) ExportWOWRReport(c *fiber.Ctx) error {
 	payload.Headers["pending"] = pending
 	payload.Headers["rejected"] = rejected
 	payload.Headers["awaiting"] = awaiting
+	payload.TotalRow = &exporter.TableTotalRow{
+		Label:            "TOTAL KESELURUHAN WO/WR",
+		LabelStartColumn: "A",
+		LabelEndColumn:   "R",
+		ValueColumn:      "S",
+		Value:            len(filtered),
+	}
 
 	buf, err := exporter.GenerateExcelWithPlaceholder("./templates/wowr_report.xlsx", "Laporan WO-WR", payload)
 	if err != nil {

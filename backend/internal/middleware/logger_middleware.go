@@ -17,6 +17,7 @@ import (
 // base64ImageRegex mencocokkan data URL base64 gambar di dalam JSON string
 // Contoh: "data:image/webp;base64,UklGR..." (bisa ratusan KB)
 var base64ImageRegex = regexp.MustCompile(`data:image/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]{100,}`)
+var publicKPITokenPathRegex = regexp.MustCompile(`/public/kpi/[^/]+`)
 
 // stripBase64FromJSON mengganti semua base64 data URL dengan placeholder ringkas
 // sehingga Activity_Log tidak menyimpan data biner besar
@@ -26,12 +27,15 @@ func stripBase64FromJSON(s string) string {
 	})
 }
 
+func redactSensitivePath(path string) string {
+	return publicKPITokenPathRegex.ReplaceAllString(path, "/public/kpi/[redacted]")
+}
 
 // LoggerMiddleware logs every incoming HTTP request using Zap structured logger.
 func LoggerMiddleware(log *logger.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		start := time.Now()
-		path := c.Path()
+		path := redactSensitivePath(c.Path())
 		query := string(c.Request().URI().QueryString())
 
 		err := c.Next()

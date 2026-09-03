@@ -26,6 +26,7 @@ var defaultPermissions = []authdomain.Permission{
 	{PermissionID: "PERM-MSTR-R", ModuleID: "MOD-MSTR", PermissionCode: "READ", PermissionName: "View Master Data"},
 	{PermissionID: "PERM-MSTR-U", ModuleID: "MOD-MSTR", PermissionCode: "UPDATE", PermissionName: "Update Master Data"},
 	{PermissionID: "PERM-MSTR-D", ModuleID: "MOD-MSTR", PermissionCode: "DELETE", PermissionName: "Delete Master Data"},
+	{PermissionID: "PERM-MSTR-I", ModuleID: "MOD-MSTR", PermissionCode: "IMPORT", PermissionName: "Import Master Data"},
 
 	// PIC Mapping
 	{PermissionID: "PERM-PIC-C", ModuleID: "MOD-PIC", PermissionCode: "CREATE", PermissionName: "Create PIC Mapping"},
@@ -44,6 +45,7 @@ var defaultPermissions = []authdomain.Permission{
 	{PermissionID: "PERM-ISS-C", ModuleID: "MOD-ISS", PermissionCode: "CREATE", PermissionName: "Create Issue"},
 	{PermissionID: "PERM-ISS-R", ModuleID: "MOD-ISS", PermissionCode: "READ", PermissionName: "View Issues"},
 	{PermissionID: "PERM-ISS-U", ModuleID: "MOD-ISS", PermissionCode: "UPDATE", PermissionName: "Update Issue / Follow Up"},
+	{PermissionID: "PERM-ISS-E", ModuleID: "MOD-ISS", PermissionCode: "EXPORT", PermissionName: "Export Issue Report"},
 
 	// Logging
 	{PermissionID: "PERM-LOG-R", ModuleID: "MOD-LOG", PermissionCode: "READ", PermissionName: "View Logs"},
@@ -58,6 +60,12 @@ var defaultPermissions = []authdomain.Permission{
 	// Perintah Kerja (WO/WR)
 	{PermissionID: "PERM-WOWR-R", ModuleID: "MOD-WOWR", PermissionCode: "READ", PermissionName: "View Perintah Kerja (WO/WR)"},
 	{PermissionID: "PERM-WOWR-U", ModuleID: "MOD-WOWR", PermissionCode: "UPDATE", PermissionName: "Update / Validasi Bukti WO/WR"},
+
+	// Dashboard KPI & Analitik (halaman /kpi — Custom Visualization
+	// Builder). Satu permission READ saja, sama seperti pola
+	// MOD-GMP — ini gerbang "boleh buka halaman ini atau tidak", bukan
+	// permission per-aksi CRUD.
+	{PermissionID: "PERM-KPI-R", ModuleID: "MOD-KPI", PermissionCode: "READ", PermissionName: "View Dashboard KPI"},
 }
 
 // SeedPermissions inserts all module permissions and grants default permissions to Admin in Role_Permission table.
@@ -92,11 +100,11 @@ func SeedPermissions(db *gorm.DB) {
 	// Seed default permissions for Non-Admin Roles (Auditor, Auditee, Supervisor, Manager, Staff)
 	// Non-Admin roles receive PERM-MSTR-R so they can view Master Data dropdowns (Area, Department, Kawasan, etc.)
 	defaultRolePerms := map[string][]string{
-		"ROLE-002": {"PERM-MSTR-R", "PERM-INSP-C", "PERM-INSP-R", "PERM-INSP-U", "PERM-INSP-A", "PERM-INSP-E", "PERM-ISS-C", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"}, // Auditor
-		"ROLE-003": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"},                                                                                          // Auditee
-		"ROLE-004": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                                        // Supervisor
-		"ROLE-005": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-INSP-E", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                         // Manager
-		"ROLE-006": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R"},                                                                                                         // Staff
+		"ROLE-002": {"PERM-MSTR-R", "PERM-INSP-C", "PERM-INSP-R", "PERM-INSP-U", "PERM-INSP-A", "PERM-INSP-E", "PERM-ISS-C", "PERM-ISS-R", "PERM-ISS-U", "PERM-ISS-E", "PERM-WOWR-R", "PERM-WOWR-U"}, // Auditor
+		"ROLE-003": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R", "PERM-WOWR-U"},                                                                                                        // Auditee
+		"ROLE-004": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-ISS-R", "PERM-WOWR-R"},                                                                                                                      // Supervisor
+		"ROLE-005": {"PERM-MSTR-R", "PERM-INSP-R", "PERM-INSP-E", "PERM-ISS-R", "PERM-ISS-E", "PERM-WOWR-R"},                                                                                         // Manager
+		"ROLE-006": {"PERM-MSTR-R", "PERM-ISS-R", "PERM-ISS-U", "PERM-WOWR-R"},                                                                                                                       // Staff
 	}
 
 	for roleID, permIDs := range defaultRolePerms {

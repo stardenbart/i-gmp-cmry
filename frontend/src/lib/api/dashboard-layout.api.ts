@@ -31,9 +31,9 @@ export interface CustomQueryConfig {
   /** Only present for Heatmap/Sankey widgets (a dim1 x dim2 x 1 measure
    * matrix). Absent for every other chart type. */
   dimension2?: string;
-  /** Ordered drill-down levels beyond `dimension` (level 0) — level 1, 2...
-   * Mutually exclusive with dimension2. Absent for every widget without
-   * drill-down. */
+  /** Ordered hierarchy levels beyond `dimension` (level 0). Moving down
+   * displays every value at level 1, 2, and so on. Mutually exclusive with
+   * dimension2. */
   drillDimensions?: string[];
   /** Pure rendering options — never sent to /analytics/query. See
    * buildEChartsOption.ts's ChartDisplayOptions for how each is used. */
@@ -113,6 +113,10 @@ function fromWireWidget(widget: WireWidgetConfig): WidgetConfig {
   return { ...widget, custom_query: widget.custom_query ? fromWireCustomQuery(widget.custom_query) : undefined };
 }
 
+export function deserializeWidgetConfigs(widgets: WireWidgetConfig[]): WidgetConfig[] {
+  return widgets.map(fromWireWidget);
+}
+
 export interface LayoutTarget {
   /** Defaults to the caller themself. Targeting another user is only
    * permitted for Admin/Super Admin (enforced server-side, 403 otherwise). */
@@ -133,13 +137,13 @@ export const dashboardLayoutApi = {
     const res = await api.get<SingleItemResponse<WireWidgetConfig[]>>("/dashboard/layout", {
       params: { user_id: target?.userId, role_id: target?.roleId, dashboard_key: target?.dashboardKey },
     });
-    return res.data.data.map(fromWireWidget);
+    return deserializeWidgetConfigs(res.data.data);
   },
 
   save: async (widgets: WidgetConfig[], target?: LayoutTarget): Promise<WidgetConfig[]> => {
     const res = await api.put<SingleItemResponse<WireWidgetConfig[]>>("/dashboard/layout", widgets.map(toWireWidget), {
       params: { user_id: target?.userId, role_id: target?.roleId, dashboard_key: target?.dashboardKey },
     });
-    return res.data.data.map(fromWireWidget);
+    return deserializeWidgetConfigs(res.data.data);
   },
 };

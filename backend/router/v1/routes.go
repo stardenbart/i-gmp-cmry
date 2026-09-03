@@ -35,9 +35,10 @@ func Register(app *fiber.App, rg fiber.Router, db *gorm.DB, redisClient *redis.C
 	RegisterAPIKeyRoutes(rg, db, apiKeyUC, jwtManager, log)
 	RegisterPowerBIRoutes(rg, db, apiKeyUC, cryptoSvc, log)
 	RegisterPollingRoutes(app, rg, redisClient, jwtManager)
+	RegisterKPIShareRoutes(rg, db, jwtManager, log, actLogUC)
 
 	RegisterAuthRoutes(rg, db, mailer, jwtManager, log, actLogUC, cfg)
-	RegisterMasterRoutes(rg, db, minioStorage, cryptoSvc, jwtManager, log, actLogUC)
+	RegisterMasterRoutes(rg, db, redisClient, minioStorage, cryptoSvc, jwtManager, log, actLogUC)
 	RegisterPICRoutes(rg, db, jwtManager, log, actLogUC)
 	RegisterInspectionRoutes(rg, db, producer, mailer, jwtManager, log, actLogUC, minioStorage, redisClient, cryptoSvc, cfg)
 	RegisterDistributedInspectionRoutes(app, rg, db, redisClient, producer, jwtManager, log)

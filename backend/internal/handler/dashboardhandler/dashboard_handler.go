@@ -27,9 +27,11 @@ type DashboardHandler struct {
 	settingRepo masterdomain.SettingRepository
 }
 
-type issueEvidencePhoto struct {
-	IssueID  string `gorm:"column:issue_id"`
-	ImageURL string `gorm:"column:image_url"`
+type gmpInitialEvidence struct {
+	IssueID    string `gorm:"column:issue_id"`
+	PhotoID    string `gorm:"column:photo_id"`
+	ImageURL   string `gorm:"column:image_url"`
+	Keterangan string `gorm:"column:keterangan"`
 }
 
 type gmpFollowUpEvidence struct {
@@ -40,39 +42,76 @@ type gmpFollowUpEvidence struct {
 	FollowUpDate *time.Time `gorm:"column:follow_up_date" json:"follow_up_date"`
 }
 
-func (h *DashboardHandler) loadIssueEvidenceImages(issueIDs []string, photoType string) (map[string][]string, error) {
-	grouped := make(map[string][]string)
+// loadInitialIssueEvidence keeps the Initial image and its own description
+// together so their one-to-one relationship is not lost during export.
+func (h *DashboardHandler) loadInitialIssueEvidence(issueIDs []string) (map[string][]gmpInitialEvidence, error) {
+	grouped := make(map[string][]gmpInitialEvidence)
 	if len(issueIDs) == 0 {
 		return grouped, nil
 	}
 
-	var photos []issueEvidencePhoto
+	var evidence []gmpInitialEvidence
 	err := h.db.Table(`"Issue_Photo"`).
-		Select(`"IssueID" as issue_id, "ImageUrl" as image_url`).
-		Where(`"IssueID" IN ? AND "PhotoType" = ?`, issueIDs, photoType).
+		Select(`"IssueID" as issue_id, "IssuePhotoID" as photo_id, "ImageUrl" as image_url, "Keterangan" as keterangan`).
+		Where(`"IssueID" IN ? AND "PhotoType" = ?`, issueIDs, "Initial").
 		Order(`"IssueID" ASC, "PhotoCreatedAt" ASC`).
-		Scan(&photos).Error
+		Scan(&evidence).Error
 	if err != nil {
 		return nil, err
 	}
 
-	for _, photo := range photos {
-		if photo.ImageURL == "" {
+	for i := range evidence {
+		if evidence[i].ImageURL == "" {
 			continue
 		}
-		imageURL := photo.ImageURL
 		if h.cryptoSvc != nil {
-			imageURL = h.cryptoSvc.DecryptWithFallback(imageURL)
+			evidence[i].ImageURL = h.cryptoSvc.DecryptWithFallback(evidence[i].ImageURL)
+			evidence[i].Keterangan = h.cryptoSvc.DecryptWithFallback(evidence[i].Keterangan)
 		}
-		grouped[photo.IssueID] = append(grouped[photo.IssueID], imageURL)
+		grouped[evidence[i].IssueID] = append(grouped[evidence[i].IssueID], evidence[i])
 	}
-
 	return grouped, nil
 }
 
-// loadInitialIssueImages returns only the original finding evidence.
-func (h *DashboardHandler) loadInitialIssueImages(issueIDs []string) (map[string][]string, error) {
-	return h.loadIssueEvidenceImages(issueIDs, "Initial")
+func initialImageURLs(evidence []gmpInitialEvidence) []string {
+	images := make([]string, 0, len(evidence))
+	for _, item := range evidence {
+		if item.ImageURL != "" {
+			images = append(images, item.ImageURL)
+		}
+	}
+	return images
+}
+
+func initialEvidenceDescriptions(evidence []gmpInitialEvidence, fallback string) string {
+	descriptions := make([]string, 0, len(evidence))
+	for _, item := range evidence {
+		if item.ImageURL == "" {
+			continue
+		}
+		description := strings.TrimSpace(item.Keterangan)
+		if description == "" {
+			description = "Tanpa keterangan"
+		}
+		descriptions = append(descriptions, description)
+	}
+	if len(descriptions) == 0 {
+		return fallback
+	}
+	return strings.Join(descriptions, "\n")
+}
+
+func formatGMPTemplateDescriptions(value string) string {
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		return r == '\n' || r == '\r'
+	})
+	for index := range parts {
+		parts[index] = strings.TrimSpace(parts[index])
+	}
+	if len(parts) <= 1 {
+		return strings.TrimSpace(value)
+	}
+	return strings.Join(parts, "; ")
 }
 
 // loadFollowUpIssueEvidence returns every corrective-action photo together
@@ -239,7 +278,7 @@ func (h *DashboardHandler) SaveLayout(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Layout must contain at least one widget", nil)
 	}
 	for _, w := range widgets {
-		if err := dashboarddomain.ValidateCustomQuery(w.CustomQuery); err != nil {
+		if err := dashboarddomain.ValidateCustomQuery(w.CustomQuery, w.VizType); err != nil {
 			return response.BadRequest(c, "Invalid custom_query for widget "+w.WidgetID, err.Error())
 		}
 	}
@@ -657,7 +696,7 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 
 	query = h.applyGMPDataFilters(c, query, areaID, kawasanID, detailKawasanID, startDate, endDate)
 
-	err := query.Order(`ih."InspectionHeaderCreatedAt" DESC`).Scan(&results).Error
+	err := query.Order(gmpDataRelationOrder).Scan(&results).Error
 	if err != nil {
 		h.log.Error("Failed to fetch preview export data", logger.Error(err))
 		return response.InternalServerError(c, "Failed to load data", err.Error())
@@ -669,7 +708,7 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			issueIDs = append(issueIDs, *result.IssueID)
 		}
 	}
-	initialImages, err := h.loadInitialIssueImages(issueIDs)
+	initialEvidenceByIssue, err := h.loadInitialIssueEvidence(issueIDs)
 	if err != nil {
 		h.log.Error("Failed to fetch GMP initial issue photos", logger.Error(err))
 		return response.InternalServerError(c, "Failed to load issue photos", err.Error())
@@ -680,8 +719,8 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 		return response.InternalServerError(c, "Failed to load follow-up photos", err.Error())
 	}
 
-	// TotalNilai remains an aggregate per kawasan. TotalTemuan is intentionally
-	// per uraian so the same kawasan count is not repeated on every row.
+	// TotalNilai remains an aggregate per kawasan. TotalTemuan is one when
+	// this uraian has an Issue and zero otherwise.
 	kawasanNilai := make(map[string]int)
 
 	for _, res := range results {
@@ -711,6 +750,9 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 	}
 
 	for i := range results {
+		if h.cryptoSvc != nil && results[i].Keterangan != "" {
+			results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
+		}
 		key := results[i].KawasanID
 		if key == "" {
 			key = results[i].Kawasan
@@ -727,8 +769,10 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 
 		results[i].TotalTemuan = 0
 		if results[i].IssueID != nil && *results[i].IssueID != "" {
+			initialEvidence := initialEvidenceByIssue[*results[i].IssueID]
+			results[i].ImageURLs = initialImageURLs(initialEvidence)
 			results[i].TotalTemuan = 1
-			results[i].ImageURLs = initialImages[*results[i].IssueID]
+			results[i].Keterangan = initialEvidenceDescriptions(initialEvidence, results[i].Keterangan)
 			if len(results[i].ImageURLs) > 0 {
 				firstImage := results[i].ImageURLs[0]
 				results[i].ImageURL = &firstImage
@@ -741,9 +785,6 @@ func (h *DashboardHandler) GetPreviewExport(c *fiber.Ctx) error {
 			}
 		}
 		results[i].FollowUpGapDays = calculateFollowUpGapDays(results[i].DueDate, results[i].FollowUpDate)
-		if h.cryptoSvc != nil && results[i].Keterangan != "" {
-			results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
-		}
 	}
 
 	if strings.TrimSpace(searchQuery) != "" {
@@ -848,8 +889,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		h.db.Table(`"PIC_Mapping" pm`).Select(`u."FullName"`).Joins(`JOIN "Users" u ON u."UserID" = pm."UserID"`).Where(`pm."AreaID" = ?`, areaID).Limit(1).Scan(&picName)
 	}
 	query = h.applyGMPDataFilters(c, query, areaID, kawasanID, detailKawasanID, startDate, endDate)
+	plantName := h.resolveGMPExportPlantName(c, areaID)
 
-	err := query.Order(`ih."InspectionHeaderCreatedAt" DESC`).Scan(&results).Error
+	err := query.Order(gmpDataRelationOrder).Scan(&results).Error
 	if err != nil {
 		h.log.Error("Failed to fetch export stats data", logger.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -877,7 +919,7 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			issueIDs = append(issueIDs, *result.IssueID)
 		}
 	}
-	initialImages, err := h.loadInitialIssueImages(issueIDs)
+	initialEvidenceByIssue, err := h.loadInitialIssueEvidence(issueIDs)
 	if err != nil {
 		h.log.Error("Failed to fetch GMP export issue photos", logger.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -895,6 +937,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	}
 
 	for i := range results {
+		if h.cryptoSvc != nil && results[i].Keterangan != "" {
+			results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
+		}
 		totalNilai += results[i].Nilai
 		key := results[i].KawasanID
 		if key == "" {
@@ -910,8 +955,10 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		detailKawasanMax[dkKey] += results[i].StandardScore
 
 		if results[i].IssueID != nil && *results[i].IssueID != "" {
+			initialEvidence := initialEvidenceByIssue[*results[i].IssueID]
+			results[i].ImageURLs = initialImageURLs(initialEvidence)
+			results[i].Keterangan = initialEvidenceDescriptions(initialEvidence, results[i].Keterangan)
 			totalTemuan++
-			results[i].ImageURLs = initialImages[*results[i].IssueID]
 			results[i].FollowUpEvidence = followUpEvidence[*results[i].IssueID]
 			results[i].FollowUpImageURLs = followUpImageURLs(results[i].FollowUpEvidence)
 			if len(results[i].ImageURLs) > 0 {
@@ -920,11 +967,6 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			}
 		}
 
-		if h.cryptoSvc != nil {
-			if results[i].Keterangan != "" {
-				results[i].Keterangan = h.cryptoSvc.DecryptWithFallback(results[i].Keterangan)
-			}
-		}
 	}
 
 	if strings.TrimSpace(searchQuery) != "" {
@@ -960,24 +1002,18 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	// location/date result set as the web preview.
 	totalNilai = 0
 	totalTemuan = 0
+	aspectNilai := make(map[string]int)
+	aspectTemuan := make(map[string]int)
 	for _, result := range results {
 		totalNilai += result.Nilai
+		issueUraianCount := 0
 		if result.IssueID != nil && *result.IssueID != "" {
-			totalTemuan++
+			issueUraianCount = 1
 		}
-	}
-
-	// Prepare header DueDate from the first inspection date or leave empty
-	headerDueDate := ""
-	if len(results) > 0 {
-		headerDueDate = results[0].Tanggal.Format("02-Jan-2006")
-		// If any result has an issue due date, use the latest one
-		for _, r := range results {
-			if r.DueDate != nil {
-				headerDueDate = r.DueDate.Format("02-Jan-2006")
-				break
-			}
-		}
+		totalTemuan += issueUraianCount
+		aspectGroup := gmpAspectGroupKey(result.InspectionID, result.Aspek)
+		aspectNilai[aspectGroup] += result.Nilai
+		aspectTemuan[aspectGroup] += issueUraianCount
 	}
 
 	// Prepare payload for placeholder exporter
@@ -986,11 +1022,27 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"datetime.now()":     time.Now().Format("02-Jan-06"),
 			"AreaName":           areaName,
 			"PICName":            picName,
-			"DueDate":            headerDueDate,
+			"DueDate":            "",
 			"total_semua_nilai":  totalNilai,
 			"total_semua_temuan": totalTemuan,
 		},
-		Items: make([]map[string]interface{}, 0, len(results)),
+		Items:                      make([]map[string]interface{}, 0, len(results)),
+		FlattenItemRows:            true,
+		TrimReservedItemRows:       true,
+		MergeDuplicateItemFields:   []string{"aspekName", "detailAspekName", "total_nilai_peraspek", "total_temuan_peraspek"},
+		MergeDuplicateWithinFields: []string{"inspectionID", "aspekName"},
+		FixedCells: map[string]interface{}{
+			"C1": gmpCompanyName + "\n" + strings.ToUpper(plantName),
+			"K3": "",
+		},
+		LogoCell: "A1",
+		LogoPaths: []string{
+			"../frontend/public/Logo_Cimory.png",
+			"frontend/public/Logo_Cimory.png",
+			"http://frontend:3000/Logo_Cimory.png",
+			"http://localhost:3000/Logo_Cimory.png",
+		},
+		RemoveColumns: []string{"D"},
 	}
 	tableRows := make([]exporter.GMPTableRow, 0, len(results))
 
@@ -1003,9 +1055,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		if res.FollowUpDate != nil {
 			followUpStr = res.FollowUpDate.Format("02-Jan-2006 15:04")
 		}
-		rowTemuan := 0
+		issueUraianCount := 0
 		if res.IssueID != nil && *res.IssueID != "" {
-			rowTemuan = 1
+			issueUraianCount = 1
 		}
 		var imageValue interface{} = ""
 		if len(res.ImageURLs) > 0 {
@@ -1049,9 +1101,11 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		if max := detailKawasanMax[dkKey]; max > 0 {
 			persentaseKepatuhan = float64(detailKawasanNilai[dkKey]) / float64(max) * 100
 		}
+		aspectGroup := gmpAspectGroupKey(res.InspectionID, res.Aspek)
 
 		payload.Items = append(payload.Items, map[string]interface{}{
 			"no":                                 i + 1,
+			"inspectionID":                       res.InspectionID,
 			"pic":                                res.PIC,
 			"picName":                            res.PIC,
 			"pic_name":                           res.PIC,
@@ -1059,16 +1113,15 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			"detailKawasanName":                  res.DetailKawasan,
 			"aspekName":                          res.Aspek,
 			"detailAspekName":                    res.Detail,
-			"uraianID":                           res.UraianID,
 			"uraianName":                         res.Uraian,
 			"uraian":                             res.Uraian,
 			"persentase_kepatuhan_detailkawasan": persentaseKepatuhan,
 			"nilai":                              res.Nilai,
 			"total_nilai_perkawasan":             kawasanNilai[key],
-			"total_temuan_perkawasan":            rowTemuan,
-			"total_nilai_peraspek":               kawasanNilai[key],
-			"total_temuan_peraspek":              rowTemuan,
-			"keterangan":                         keterangan,
+			"total_temuan_perkawasan":            issueUraianCount,
+			"total_nilai_peraspek":               aspectNilai[aspectGroup],
+			"total_temuan_peraspek":              aspectTemuan[aspectGroup],
+			"keterangan":                         formatGMPTemplateDescriptions(keterangan),
 			"dueDate":                            dueDateStr,
 			"due_date":                           dueDateStr,
 			"DueDate":                            dueDateStr,
@@ -1086,15 +1139,18 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		tableRows = append(tableRows, exporter.GMPTableRow{
 			InspectionID:        res.InspectionID,
 			Area:                res.Area,
+			KawasanID:           res.KawasanID,
 			Kawasan:             res.Kawasan,
+			DetailKawasanID:     res.DetailKawasanID,
 			DetailKawasan:       res.DetailKawasan,
 			Aspek:               res.Aspek,
 			DetailAspek:         res.Detail,
-			UraianID:            res.UraianID,
+			Uraian:              res.Uraian,
 			Nilai:               res.Nilai,
+			StandardScore:       res.StandardScore,
 			TotalNilaiKawasan:   kawasanNilai[key],
 			CompliancePercent:   persentaseKepatuhan,
-			Temuan:              rowTemuan,
+			IssueUraianCount:    issueUraianCount,
 			InitialImages:       res.ImageURLs,
 			FollowUpImages:      res.FollowUpImageURLs,
 			FollowUpDescription: strings.Join(followUpDescriptions, "\n"),
@@ -1106,11 +1162,6 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	}
 
 	if exportFormat == gmpExportFormatTable {
-		plantName := ""
-		if plantID := c.Query("plant_id"); plantID != "" && plantID != "all" {
-			plantName = plantID
-			_ = h.db.Table(`"Plant_Master"`).Select(`"PlantName"`).Where(`"PlantID" = ?`, plantID).Scan(&plantName).Error
-		}
 		kawasanName := ""
 		if kawasanID != "" {
 			kawasanName = kawasanID

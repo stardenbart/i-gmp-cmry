@@ -1,6 +1,8 @@
 package masterrepo
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/monitoring-system/backend/internal/domain/master"
@@ -78,7 +80,7 @@ func (r *areaRepository) Create(a *master.Area) error {
 	if a.AreaID == "" {
 		a.AreaID = idgen.GenerateSequential(r.db, "Area_Master", "AreaID", "AREA", 3)
 	}
-	return r.db.Create(a).Error
+	return friendlyMasterWriteError(r.db.Create(a).Error, "aspek dengan nama yang sama sudah tersedia pada area tersebut")
 }
 func (r *areaRepository) Update(a *master.Area) error { return r.db.Save(a).Error }
 func (r *areaRepository) Delete(id string) error {
@@ -252,12 +254,32 @@ func (r *aspekRepository) FindByAreaID(areaID string) ([]master.Aspek, error) {
 }
 
 func (r *aspekRepository) Create(a *master.Aspek) error {
+	a.AreaID = strings.TrimSpace(a.AreaID)
+	cleaned, err := cleanMasterText(r.db, a.AspekName)
+	if err != nil {
+		return err
+	}
+	a.AspekName = cleaned
+	if err := ensureNoNormalizedDuplicate(r.db, "Aspek_Master", "AspekID", a.AspekID, "AreaID", a.AreaID, "AspekName", a.AspekName, "aspek"); err != nil {
+		return err
+	}
 	if a.AspekID == "" {
 		a.AspekID = idgen.GenerateSequential(r.db, "Aspek_Master", "AspekID", "ASP", 3)
 	}
 	return r.db.Create(a).Error
 }
-func (r *aspekRepository) Update(a *master.Aspek) error { return r.db.Save(a).Error }
+func (r *aspekRepository) Update(a *master.Aspek) error {
+	a.AreaID = strings.TrimSpace(a.AreaID)
+	cleaned, err := cleanMasterText(r.db, a.AspekName)
+	if err != nil {
+		return err
+	}
+	a.AspekName = cleaned
+	if err := ensureNoNormalizedDuplicate(r.db, "Aspek_Master", "AspekID", a.AspekID, "AreaID", a.AreaID, "AspekName", a.AspekName, "aspek"); err != nil {
+		return err
+	}
+	return friendlyMasterWriteError(r.db.Save(a).Error, "aspek dengan nama yang sama sudah tersedia pada area tersebut")
+}
 func (r *aspekRepository) Delete(id string) error {
 	return r.db.Where("\"AspekID\" = ?", id).Delete(&master.Aspek{}).Error
 }
@@ -304,12 +326,32 @@ func (r *detailRepository) FindByAspekID(aspekID string) ([]master.Detail, error
 }
 
 func (r *detailRepository) Create(d *master.Detail) error {
+	d.AspekID = strings.TrimSpace(d.AspekID)
+	cleaned, err := cleanMasterText(r.db, d.DetailName)
+	if err != nil {
+		return err
+	}
+	d.DetailName = cleaned
+	if err := ensureNoNormalizedDuplicate(r.db, "Detail_Master", "DetailID", d.DetailID, "AspekID", d.AspekID, "DetailName", d.DetailName, "detail aspek"); err != nil {
+		return err
+	}
 	if d.DetailID == "" {
 		d.DetailID = idgen.GenerateSequential(r.db, "Detail_Master", "DetailID", "DET", 3)
 	}
-	return r.db.Create(d).Error
+	return friendlyMasterWriteError(r.db.Create(d).Error, "detail aspek dengan nama yang sama sudah tersedia pada aspek tersebut")
 }
-func (r *detailRepository) Update(d *master.Detail) error { return r.db.Save(d).Error }
+func (r *detailRepository) Update(d *master.Detail) error {
+	d.AspekID = strings.TrimSpace(d.AspekID)
+	cleaned, err := cleanMasterText(r.db, d.DetailName)
+	if err != nil {
+		return err
+	}
+	d.DetailName = cleaned
+	if err := ensureNoNormalizedDuplicate(r.db, "Detail_Master", "DetailID", d.DetailID, "AspekID", d.AspekID, "DetailName", d.DetailName, "detail aspek"); err != nil {
+		return err
+	}
+	return friendlyMasterWriteError(r.db.Save(d).Error, "detail aspek dengan nama yang sama sudah tersedia pada aspek tersebut")
+}
 func (r *detailRepository) Delete(id string) error {
 	return r.db.Where("\"DetailID\" = ?", id).Delete(&master.Detail{}).Error
 }
@@ -356,12 +398,68 @@ func (r *uraianRepository) FindByDetailID(detailID string) ([]master.Uraian, err
 }
 
 func (r *uraianRepository) Create(u *master.Uraian) error {
+	u.DetailID = strings.TrimSpace(u.DetailID)
+	cleaned, err := cleanMasterText(r.db, u.UraianText)
+	if err != nil {
+		return err
+	}
+	u.UraianText = cleaned
+	if err := ensureNoNormalizedDuplicate(r.db, "Uraian_Master", "UraianID", u.UraianID, "DetailID", u.DetailID, "UraianText", u.UraianText, "uraian"); err != nil {
+		return err
+	}
 	if u.UraianID == "" {
 		u.UraianID = idgen.GenerateSequential(r.db, "Uraian_Master", "UraianID", "URN", 3)
 	}
-	return r.db.Create(u).Error
+	return friendlyMasterWriteError(r.db.Create(u).Error, "uraian yang sama sudah tersedia pada detail tersebut")
 }
-func (r *uraianRepository) Update(u *master.Uraian) error { return r.db.Save(u).Error }
+func (r *uraianRepository) Update(u *master.Uraian) error {
+	u.DetailID = strings.TrimSpace(u.DetailID)
+	cleaned, err := cleanMasterText(r.db, u.UraianText)
+	if err != nil {
+		return err
+	}
+	u.UraianText = cleaned
+	if err := ensureNoNormalizedDuplicate(r.db, "Uraian_Master", "UraianID", u.UraianID, "DetailID", u.DetailID, "UraianText", u.UraianText, "uraian"); err != nil {
+		return err
+	}
+	return friendlyMasterWriteError(r.db.Save(u).Error, "uraian yang sama sudah tersedia pada detail tersebut")
+}
 func (r *uraianRepository) Delete(id string) error {
 	return r.db.Where("\"UraianID\" = ?", id).Delete(&master.Uraian{}).Error
+}
+
+func ensureNoNormalizedDuplicate(db *gorm.DB, table, idColumn, id, parentColumn, parentID, valueColumn, value, label string) error {
+	query := db.Table(table).
+		Where(fmt.Sprintf(`"%s" = ?`, parentColumn), parentID).
+		Where(fmt.Sprintf(`master_normalize_text("%s") = master_normalize_text(?)`, valueColumn), value)
+	if id != "" {
+		query = query.Where(fmt.Sprintf(`"%s" <> ?`, idColumn), id)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("%s dengan nama yang sama sudah tersedia pada parent tersebut", label)
+	}
+	return nil
+}
+
+func cleanMasterText(db *gorm.DB, value string) (string, error) {
+	var cleaned string
+	if err := db.Raw(`SELECT coalesce(master_clean_text(?), '')`, value).Scan(&cleaned).Error; err != nil {
+		return "", err
+	}
+	return cleaned, nil
+}
+
+func friendlyMasterWriteError(err error, duplicateMessage string) error {
+	if err == nil {
+		return nil
+	}
+	lower := strings.ToLower(err.Error())
+	if strings.Contains(lower, "sqlstate 23505") || strings.Contains(lower, "duplicate key") {
+		return fmt.Errorf("%s", duplicateMessage)
+	}
+	return err
 }

@@ -15,7 +15,15 @@ import (
 // Guardrail constants (see the approved plan §6). Kept here, not scattered
 // across handler/repo, so a future adjustment touches exactly one place.
 const (
-	MaxMeasuresPerQuery = 4
+	// MaxMeasuresPerQuery is a pure performance/sanity guardrail — this
+	// endpoint is deliberately chart-type-agnostic (no vizType in
+	// QueryRequest/the wire format; see analytics_handler.go), so it can't
+	// enforce "4 for most charts, more for Table" itself. That per-chart-type
+	// business rule lives in the frontend UI (visualizationCompatibility.ts)
+	// and in ValidateCustomQuery (dashboard_layout.go) at save time, both of
+	// which DO know the chosen chart type. This constant is sized to match
+	// their "Table" ceiling so it never blocks a legitimate Table query.
+	MaxMeasuresPerQuery = 30
 	MaxRowsReturned     = 100
 	QueryTimeout        = 10 * time.Second
 	maxDateRangeDays    = 365 * 2
@@ -72,27 +80,28 @@ func isAuditorFamilyRole(roleID string) bool {
 type QueryRequest struct {
 	Measures  []string
 	Dimension string
+	// HierarchyDimensions is the ordered path from the root dimension to
+	// Dimension (inclusive). When present, every ancestor is retained in the
+	// GROUP BY so drill level N expands all children under every parent
+	// instead of replacing or filtering the parent category.
+	HierarchyDimensions []string
 	// Dimension2 is optional — only Heatmap/Sankey use a second grouping
 	// dimension (a matrix: dim1 x dim2 x 1 measure). "" = classic
 	// single-dimension query, unchanged behavior.
 	Dimension2 string
 	// Filters is an optional set of ad-hoc "dimension = value" equality
-	// filters, independent of Dimension/Dimension2 — the primitive that
-	// powers the Custom KPI Builder's drill-down (see DynamicKPIWidget):
-	// drilling into a category re-issues the query with that category
-	// pinned here and the NEXT hierarchy level as the new Dimension. Backend
-	// has no concept of "hierarchy" — that ordering lives purely in the
-	// frontend/persisted widget config.
+	// filters, independent of Dimension/Dimension2. KPI hierarchy navigation
+	// intentionally does not use it: moving down adds the next Dimension to
+	// the grouping so every child is returned under every retained parent.
 	Filters   []DimensionFilter
 	AreaID    string
 	StartDate string // "YYYY-MM-DD", inclusive; "" = no lower bound
 	EndDate   string // "YYYY-MM-DD", exclusive; "" = no upper bound
 }
 
-// DimensionFilter pins one catalog dimension to an exact key value (the
-// `key` a prior query response returned for some row, never the display
-// label) — the generic building block drill-down filters accumulate as the
-// user goes deeper.
+// DimensionFilter pins one catalog dimension to an exact key value. It is
+// retained for explicit analytical filtering; global KPI hierarchy
+// navigation does not add these filters when moving between levels.
 type DimensionFilter struct {
 	DimensionID string
 	Value       string
@@ -108,6 +117,17 @@ type ResultRow struct {
 	Key2      *string
 	Category2 *string
 	Measures  map[string]*float64
+	Hierarchy []HierarchyValue
+	// TotalRows is COUNT(*) OVER() from the grouped result before LIMIT,
+	// allowing the UI to disclose when a high-cardinality dimension was
+	// truncated instead of silently claiming every value is visible.
+	TotalRows int
+}
+
+type HierarchyValue struct {
+	DimensionID string
+	Key         string
+	Category    string
 }
 
 // QueryPlan is the fully-resolved, semantic description of one query: which
@@ -117,6 +137,9 @@ type ResultRow struct {
 // keeping "how SQL gets built" out of the usecase layer.
 type QueryPlan struct {
 	Dimension analytics.DimensionDef
+	// Hierarchy contains ancestor dimensions only, ordered root-to-parent.
+	// Dimension remains the active/leaf level for backward compatibility.
+	Hierarchy []analytics.DimensionDef
 	// Dimension2 is nil for a classic single-dimension query, or set for a
 	// Heatmap/Sankey matrix query (see RunQuery — always paired with
 	// exactly 1 measure when set).
@@ -171,8 +194,22 @@ type CatalogResponse struct {
 type QueryResultDTO struct {
 	Dimension  CatalogFieldDTO          `json:"dimension"`
 	Dimension2 *CatalogFieldDTO         `json:"dimension2,omitempty"`
+	Hierarchy  []CatalogFieldDTO        `json:"hierarchy,omitempty"`
 	Measures   []CatalogFieldDTO        `json:"measures"`
 	Rows       []map[string]interface{} `json:"rows"`
+	Meta       QueryResultMeta          `json:"meta"`
+}
+
+type QueryResultMeta struct {
+	TotalRows    int  `json:"total_rows"`
+	ReturnedRows int  `json:"returned_rows"`
+	Truncated    bool `json:"truncated"`
+}
+
+type HierarchyValueDTO struct {
+	DimensionID string `json:"dimension_id"`
+	Key         string `json:"key"`
+	Category    string `json:"category"`
 }
 
 // QueryService validates and executes semantic analytics queries. It owns
@@ -236,6 +273,31 @@ func (s *QueryService) RunQuery(ctx context.Context, scope Scope, req QueryReque
 		dim2 = &d2
 	}
 
+	hierarchyDefs := make([]analytics.DimensionDef, 0, len(req.HierarchyDimensions))
+	if len(req.HierarchyDimensions) > 0 {
+		if dim2 != nil {
+			return nil, badRequest("Hierarchy drill-down tidak dapat digunakan bersama dimension2")
+		}
+		if len(req.HierarchyDimensions) > 4 {
+			return nil, badRequest("Hierarchy maksimal 4 level")
+		}
+		seenHierarchy := make(map[string]bool, len(req.HierarchyDimensions))
+		for _, hierarchyID := range req.HierarchyDimensions {
+			if seenHierarchy[hierarchyID] {
+				return nil, badRequest("Hierarchy memiliki dimension duplikat: %s", hierarchyID)
+			}
+			seenHierarchy[hierarchyID] = true
+			hierarchyDimension, exists := s.catalog.Dimensions[hierarchyID]
+			if !exists {
+				return nil, badRequest("Hierarchy dimension tidak dikenal: %s", hierarchyID)
+			}
+			hierarchyDefs = append(hierarchyDefs, hierarchyDimension)
+		}
+		if req.HierarchyDimensions[len(req.HierarchyDimensions)-1] != req.Dimension {
+			return nil, badRequest("Level terakhir hierarchy harus sama dengan dimension aktif")
+		}
+	}
+
 	seen := make(map[string]bool, len(req.Measures))
 	measureDefs := make([]analytics.MeasureDef, 0, len(req.Measures))
 	for _, mID := range req.Measures {
@@ -262,6 +324,9 @@ func (s *QueryService) RunQuery(ctx context.Context, scope Scope, req QueryReque
 
 	planFilters := make([]PlanFilter, 0, len(req.Filters))
 	seenFilterDims := map[string]bool{req.Dimension: true}
+	for _, hierarchyDimension := range hierarchyDefs {
+		seenFilterDims[hierarchyDimension.ID] = true
+	}
 	for _, f := range req.Filters {
 		if seenFilterDims[f.DimensionID] {
 			return nil, badRequest("Filter dimension duplikat atau sama dengan dimension yang ditampilkan: %s", f.DimensionID)
@@ -294,6 +359,9 @@ func (s *QueryService) RunQuery(ctx context.Context, scope Scope, req QueryReque
 
 	requestedJoins := make([]analytics.JoinID, 0, 4)
 	requestedJoins = append(requestedJoins, dim.RequiredJoins...)
+	for _, hierarchyDimension := range hierarchyDefs {
+		requestedJoins = append(requestedJoins, hierarchyDimension.RequiredJoins...)
+	}
 	if dim2 != nil {
 		requestedJoins = append(requestedJoins, dim2.RequiredJoins...)
 	}
@@ -314,6 +382,7 @@ func (s *QueryService) RunQuery(ctx context.Context, scope Scope, req QueryReque
 
 	plan := QueryPlan{
 		Dimension:    dim,
+		Hierarchy:    hierarchyDefs[:max(0, len(hierarchyDefs)-1)],
 		Dimension2:   dim2,
 		Measures:     measureDefs,
 		Filters:      planFilters,
@@ -348,8 +417,20 @@ func (s *QueryService) RunQuery(ctx context.Context, scope Scope, req QueryReque
 		logger.String("duration", duration.String()))
 
 	respRows := make([]map[string]interface{}, 0, len(rows))
+	totalRows := 0
 	for _, r := range rows {
+		if r.TotalRows > totalRows {
+			totalRows = r.TotalRows
+		}
 		row := map[string]interface{}{"key": r.Key, "category": r.Category}
+		if len(hierarchyDefs) > 0 {
+			path := make([]HierarchyValueDTO, 0, len(r.Hierarchy)+1)
+			for _, item := range r.Hierarchy {
+				path = append(path, HierarchyValueDTO{DimensionID: item.DimensionID, Key: item.Key, Category: item.Category})
+			}
+			path = append(path, HierarchyValueDTO{DimensionID: dim.ID, Key: r.Key, Category: r.Category})
+			row["path"] = path
+		}
 		if r.Key2 != nil {
 			row["key2"] = *r.Key2
 		}
@@ -364,6 +445,9 @@ func (s *QueryService) RunQuery(ctx context.Context, scope Scope, req QueryReque
 			}
 		}
 		respRows = append(respRows, row)
+	}
+	if totalRows < len(respRows) {
+		totalRows = len(respRows)
 	}
 
 	measureDTOs := make([]CatalogFieldDTO, len(measureDefs))
@@ -380,12 +464,23 @@ func (s *QueryService) RunQuery(ctx context.Context, scope Scope, req QueryReque
 	if dim2 != nil {
 		dim2DTO = &CatalogFieldDTO{ID: dim2.ID, Label: dim2.Label, Description: dim2.Description, Kind: string(dim2.Kind), FansOut: dim2.FansOut}
 	}
+	hierarchyDTOs := make([]CatalogFieldDTO, 0, len(hierarchyDefs))
+	for _, hierarchyDimension := range hierarchyDefs {
+		hierarchyDTOs = append(hierarchyDTOs, CatalogFieldDTO{
+			ID: hierarchyDimension.ID, Label: hierarchyDimension.Label, Description: hierarchyDimension.Description,
+			Kind: string(hierarchyDimension.Kind), FansOut: hierarchyDimension.FansOut,
+		})
+	}
 
 	return &QueryResultDTO{
 		Dimension:  CatalogFieldDTO{ID: dim.ID, Label: dim.Label, Description: dim.Description, Kind: string(dim.Kind), FansOut: dim.FansOut},
 		Dimension2: dim2DTO,
+		Hierarchy:  hierarchyDTOs,
 		Measures:   measureDTOs,
 		Rows:       respRows,
+		Meta: QueryResultMeta{
+			TotalRows: totalRows, ReturnedRows: len(respRows), Truncated: totalRows > len(respRows),
+		},
 	}, nil
 }
 

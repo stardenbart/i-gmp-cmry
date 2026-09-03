@@ -2,6 +2,7 @@ package analyticsusecase
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/monitoring-system/backend/pkg/logger"
@@ -64,8 +65,15 @@ func TestRunQuery_UnknownDimension(t *testing.T) {
 
 func TestRunQuery_TooManyMeasures(t *testing.T) {
 	s := newTestService(&fakeExecutor{})
+	// The length check runs before any per-ID catalog lookup (see RunQuery),
+	// so synthetic ids are enough to exercise this guardrail without having
+	// to enumerate MaxMeasuresPerQuery+1 real catalog measures.
+	measures := make([]string, MaxMeasuresPerQuery+1)
+	for i := range measures {
+		measures[i] = fmt.Sprintf("measure_%d", i)
+	}
 	_, err := s.RunQuery(context.Background(), superAdminUnrestrictedScope(), QueryRequest{
-		Measures:  []string{"total_temuan", "temuan_terbuka", "temuan_overdue", "wowr_total", "wowr_verified"},
+		Measures:  measures,
 		Dimension: "kawasan",
 	})
 	if err == nil {
@@ -132,6 +140,58 @@ func TestRunQuery_EmptyResultSet(t *testing.T) {
 	}
 	if result.Rows == nil || len(result.Rows) != 0 {
 		t.Fatalf("expected an empty (non-nil) rows slice, got %#v", result.Rows)
+	}
+}
+
+func TestRunQueryReportsTruncatedGroupedValues(t *testing.T) {
+	value := 4.0
+	exec := &fakeExecutor{rows: []ResultRow{
+		{Key: "A", Category: "Area A", Measures: map[string]*float64{"total_temuan": &value}, TotalRows: 125},
+		{Key: "B", Category: "Area B", Measures: map[string]*float64{"total_temuan": &value}, TotalRows: 125},
+	}}
+	s := newTestService(exec)
+	result, err := s.RunQuery(context.Background(), superAdminUnrestrictedScope(), QueryRequest{
+		Measures: []string{"total_temuan"}, Dimension: "area",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Meta.TotalRows != 125 || result.Meta.ReturnedRows != 2 || !result.Meta.Truncated {
+		t.Fatalf("unexpected result metadata: %+v", result.Meta)
+	}
+}
+
+func TestRunQueryHierarchyRetainsParentsAndExpandsAllChildren(t *testing.T) {
+	value := 7.0
+	exec := &fakeExecutor{rows: []ResultRow{
+		{
+			Key: "AREA-1", Category: "Produksi", Measures: map[string]*float64{"total_temuan": &value},
+			Hierarchy: []HierarchyValue{{DimensionID: "periode", Key: "2026-09", Category: "September 2026"}},
+		},
+	}}
+	s := newTestService(exec)
+	result, err := s.RunQuery(context.Background(), superAdminUnrestrictedScope(), QueryRequest{
+		Measures: []string{"total_temuan"}, Dimension: "area", HierarchyDimensions: []string{"periode", "area"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(exec.lastPlan.Hierarchy) != 1 || exec.lastPlan.Hierarchy[0].ID != "periode" || len(exec.lastPlan.Filters) != 0 {
+		t.Fatalf("unexpected expand-all hierarchy plan: %+v", exec.lastPlan)
+	}
+	path, ok := result.Rows[0]["path"].([]HierarchyValueDTO)
+	if !ok || len(path) != 2 || path[0].Category != "September 2026" || path[1].Category != "Produksi" {
+		t.Fatalf("unexpected hierarchy response path: %#v", result.Rows[0]["path"])
+	}
+}
+
+func TestRunQueryRejectsHierarchyWhoseLeafDiffersFromDimension(t *testing.T) {
+	s := newTestService(&fakeExecutor{})
+	_, err := s.RunQuery(context.Background(), superAdminUnrestrictedScope(), QueryRequest{
+		Measures: []string{"total_temuan"}, Dimension: "area", HierarchyDimensions: []string{"periode", "kawasan"},
+	})
+	if err == nil {
+		t.Fatal("expected mismatched hierarchy leaf to be rejected")
 	}
 }
 
