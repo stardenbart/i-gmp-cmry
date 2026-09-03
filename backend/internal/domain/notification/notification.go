@@ -47,7 +47,10 @@ type PushSubscriptionRequest struct {
 type NotificationRepository interface {
 	Create(notification *Notification) error
 	FindByUserID(userID string, offset int, limit int) ([]Notification, int64, error)
-	MarkAsRead(notificationID string) error
+	// MarkAsRead scopes the update to userID's own notification — without
+	// that check, any authenticated user could mark another user's
+	// notification as read just by knowing/guessing its ID.
+	MarkAsRead(userID, notificationID string) error
 	MarkAllAsRead(userID string) error
 }
 

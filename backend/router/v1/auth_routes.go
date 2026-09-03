@@ -13,6 +13,7 @@ import (
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/mail"
+	"github.com/monitoring-system/backend/pkg/response"
 	"gorm.io/gorm"
 )
 
@@ -29,7 +30,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 	picMappingRepo := picrepo.NewPICMappingRepository(db)
 
 	authUC := authusecase.NewAuthUseCase(userRepo, loginLogRepo, refreshTokenRepo, jwtManager, cfg.RefreshTokenTTL)
-	userUC := authusecase.NewUserUseCase(userRepo, mailer, settingRepo, picMappingRepo, passwordResetOTPRepo)
+	userUC := authusecase.NewUserUseCase(userRepo, mailer, settingRepo, picMappingRepo, passwordResetOTPRepo, refreshTokenRepo)
 	rolePermUC := authusecase.NewRolePermissionUseCase(rolePermRepo)
 	userPermUC := authusecase.NewUserPermissionUseCase(userPermRepo)
 
@@ -85,7 +86,18 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 				return middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "UPDATE")(c)
 			}, userHandler.Update)
 			users.Delete("/:id", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "DELETE"), userHandler.Delete)
-			users.Put("/:id/change-password", authMW, userHandler.ChangePassword)
+			// Self-service only: this flow authorizes solely by knowing the
+			// current password, so it must never be reachable for anyone
+			// else's id — otherwise any authenticated user could use it as
+			// an unrestricted password-guessing oracle against arbitrary
+			// accounts. Changing someone ELSE's password is the separate,
+			// permission-gated admin reset-password route below.
+			users.Put("/:id/change-password", middleware.AuthRateLimiter(), func(c *fiber.Ctx) error {
+				if middleware.GetUserID(c) != c.Params("id") {
+					return response.Forbidden(c, "you can only change your own password")
+				}
+				return c.Next()
+			}, userHandler.ChangePassword)
 			users.Put("/:id/reset-password", middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "UPDATE"), userHandler.ResetPassword)
 
 			// User Permissions Overrides

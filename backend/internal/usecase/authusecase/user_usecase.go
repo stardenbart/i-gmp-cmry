@@ -21,6 +21,7 @@ type userUseCase struct {
 	settingRepo masterdomain.SettingRepository
 	picRepo     pic.PICMappingRepository
 	otpRepo     authdomain.PasswordResetOTPRepository
+	refreshRepo authdomain.RefreshTokenRepository
 }
 
 const (
@@ -29,9 +30,25 @@ const (
 	passwordResetOTPMaxAttempts = 5
 )
 
-// NewUserUseCase creates a new UserUseCase implementation.
-func NewUserUseCase(userRepo authdomain.UserRepository, mailer mail.Mailer, settingRepo masterdomain.SettingRepository, picRepo pic.PICMappingRepository, otpRepo authdomain.PasswordResetOTPRepository) authdomain.UserUseCase {
-	return &userUseCase{userRepo: userRepo, mailer: mailer, settingRepo: settingRepo, picRepo: picRepo, otpRepo: otpRepo}
+// NewUserUseCase creates a new UserUseCase implementation. refreshRepo may be
+// nil (e.g. in tests that don't exercise a password-changing path) — every
+// call site below treats a nil refreshRepo as "skip revocation" rather than
+// panicking, since revocation is defense-in-depth on top of the password
+// change itself, not the primary effect.
+func NewUserUseCase(userRepo authdomain.UserRepository, mailer mail.Mailer, settingRepo masterdomain.SettingRepository, picRepo pic.PICMappingRepository, otpRepo authdomain.PasswordResetOTPRepository, refreshRepo authdomain.RefreshTokenRepository) authdomain.UserUseCase {
+	return &userUseCase{userRepo: userRepo, mailer: mailer, settingRepo: settingRepo, picRepo: picRepo, otpRepo: otpRepo, refreshRepo: refreshRepo}
+}
+
+// revokeSessions best-effort revokes every refresh token for a user. Called
+// whenever a password changes (self-service change, admin reset, or OTP
+// reset) so a session/refresh token stolen before the change doesn't stay
+// valid for the rest of its TTL (up to 7 days) after the legitimate owner
+// has changed their credentials specifically to shut that access out.
+func (uc *userUseCase) revokeSessions(userID string) {
+	if uc.refreshRepo == nil {
+		return
+	}
+	_ = uc.refreshRepo.RevokeAllForUser(userID)
 }
 
 func (uc *userUseCase) GetAll(page, limit int, search, roleID, deptID, plantID string) ([]authdomain.User, int64, error) {
@@ -193,7 +210,11 @@ func (uc *userUseCase) ChangePassword(id string, req *authdomain.ChangePasswordR
 		return errors.New("failed to hash new password")
 	}
 	user.PasswordHash = hashed
-	return uc.userRepo.Update(user)
+	if err := uc.userRepo.Update(user); err != nil {
+		return err
+	}
+	uc.revokeSessions(user.UserID)
+	return nil
 }
 
 func (uc *userUseCase) AdminResetPassword(id string, req *authdomain.AdminResetPasswordRequest) error {
@@ -206,7 +227,11 @@ func (uc *userUseCase) AdminResetPassword(id string, req *authdomain.AdminResetP
 		return errors.New("failed to hash new password")
 	}
 	user.PasswordHash = hashed
-	return uc.userRepo.Update(user)
+	if err := uc.userRepo.Update(user); err != nil {
+		return err
+	}
+	uc.revokeSessions(user.UserID)
+	return nil
 }
 
 // ForgotPassword creates a short-lived OTP without changing the current password.
@@ -291,6 +316,7 @@ func (uc *userUseCase) ResetPasswordWithOTP(req *authdomain.ResetPasswordWithOTP
 	if err := uc.userRepo.Update(user); err != nil {
 		return errors.New("gagal menyimpan password baru")
 	}
+	uc.revokeSessions(user.UserID)
 	return nil
 }
 

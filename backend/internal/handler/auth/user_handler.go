@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	authdomain "github.com/monitoring-system/backend/internal/domain/auth"
+	"github.com/monitoring-system/backend/internal/middleware"
 	"github.com/monitoring-system/backend/pkg/pagination"
 	"github.com/monitoring-system/backend/pkg/response"
 	"github.com/monitoring-system/backend/pkg/validator"
@@ -124,6 +125,23 @@ func (h *UserHandler) Update(c *fiber.Ctx) error {
 	var req authdomain.UpdateUserRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body", err.Error())
+	}
+
+	// The route lets a user reach this handler for their OWN id without the
+	// MOD-USR UPDATE permission (see router/v1/auth_routes.go), specifically
+	// so anyone can edit their own name/email without needing user-management
+	// rights. That bypass must never let the request also change fields that
+	// grant privilege — role_id, user_status, department_id, or PIC mapping
+	// scope — or any authenticated user could simply PUT their own id with
+	// e.g. {"role_id":"ROLE-000"} and grant themselves Super Admin. Only an
+	// admin going through the PermissionMiddleware-gated path (someone
+	// else's id) may set those fields.
+	if middleware.GetUserID(c) == id {
+		req.RoleID = ""
+		req.UserStatus = ""
+		req.DepartmentID = ""
+		req.PICKawasanIDs = nil
+		req.PICKategori = nil
 	}
 
 	userPlantID, _ := c.Locals("userPlantID").(string)

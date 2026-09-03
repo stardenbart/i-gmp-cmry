@@ -52,6 +52,18 @@ func (uc *UploadUseCase) UploadFile(ctx context.Context, fileHeader *multipart.F
 		return nil, fmt.Errorf("invalid file type: %s", req.FileType)
 	}
 
+	// InspectionID is never actually validated by the handler today (the
+	// "uuid" tag on upload.UploadRequest is dead code — real inspection IDs
+	// are never UUIDs, so enforcing it here would reject every legitimate
+	// upload). Still reject path-separator/traversal characters before it's
+	// used to build the MinIO object key below — defense in depth even
+	// though MinIO's flat keyspace makes real traversal unlikely.
+	if strings.TrimSpace(req.InspectionID) == "" ||
+		strings.ContainsAny(req.InspectionID, "/\\") ||
+		strings.Contains(req.InspectionID, "..") {
+		return nil, fmt.Errorf("invalid inspection_id")
+	}
+
 	// 2. Open the uploaded file
 	file, err := fileHeader.Open()
 	if err != nil {
