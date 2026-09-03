@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useMemo } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -15,11 +15,14 @@ import {
   Image as ImageIcon,
   ShieldAlert,
   CircleDot,
+  Download,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 
-import { Issue, IssueStatus } from "@/lib/api/issue.api";
+import { Issue, issueApi, IssueStatus } from "@/lib/api/issue.api";
 import { filterApi, IssueFilterParams } from "@/lib/api/filter.api";
+import { getApiErrorMessage } from "@/lib/api/error";
 import { Button } from "@/components/ui/button";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -33,7 +36,9 @@ const STATUS_OPTIONS: { label: string; value: IssueStatus | "all" }[] = [
   { label: "Open", value: "Open" },
   { label: "Open Overdue", value: "OpenOverdue" },
   { label: "In Progress", value: "InProgress" },
+  { label: "Menunggu Validasi", value: "PendingValidation" },
   { label: "Closed", value: "Closed" },
+  { label: "Verified", value: "Verified" },
   { label: "Closed Overdue", value: "ClosedOverdue" },
 ];
 
@@ -207,6 +212,8 @@ function IssueSkeleton() {
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   setActiveStatus,
+  setDateFrom,
+  setDateTo,
   setSearch,
   resetFilters,
 } from "@/store/slices/issueFilterSlice";
@@ -217,6 +224,8 @@ export default function IssuesPage() {
   const user = useAuthStore((state) => state.user);
   const { hasPermission, isLoading: isPermLoading } = usePermissions();
   const canAccess = hasPermission("PERM-ISS-R");
+  const canExport = hasPermission("PERM-ISS-E");
+  const [isExporting, setIsExporting] = useState(false);
 
   const plantCode = paramsNav?.plantCode || user?.plant_id || "global";
   const userId = paramsNav?.userId || user?.id || "overview";
@@ -224,23 +233,27 @@ export default function IssuesPage() {
   usePolling();
 
   const dispatch = useAppDispatch();
-  const { activeStatus, search } = useAppSelector((state) => state.issueFilter);
+  const { activeStatus, search, dateFrom, dateTo } = useAppSelector((state) => state.issueFilter);
 
   // Debounce search via React 18 useDeferredValue
   const deferredSearch = useDeferredValue(search);
 
-  const params: IssueFilterParams = {
-    page: 1,
-    limit: 100,
-    sort_by: "created_at",
-    sort_order: "desc",
-    ...(deferredSearch && { q: deferredSearch }),
-  };
+  const dateRangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const params = useMemo<IssueFilterParams>(() => ({
+      page: 1,
+      limit: 100,
+      sort_by: "created_at",
+      sort_order: "desc",
+      ...(deferredSearch && { q: deferredSearch }),
+      ...(activeStatus !== "all" && { status: activeStatus }),
+      ...(dateFrom && { date_from: dateFrom }),
+      ...(dateTo && { date_to: dateTo }),
+    }), [activeStatus, dateFrom, dateTo, deferredSearch]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["issues-filter", params],
     queryFn: () => filterApi.issues(params),
-    enabled: canAccess,
+    enabled: canAccess && !dateRangeInvalid,
     staleTime: 0,
     refetchOnMount: "always",
     refetchInterval: 5000,
@@ -268,23 +281,55 @@ export default function IssuesPage() {
     }
     return Array.from(map.values());
   }, [rawItems]);
-  const statusCardCounts = useMemo(() => {
-    const counts: Partial<Record<IssueStatus, number>> = {};
-    for (const group of allLocationGroups) {
-      const status = group.representative.computed_status || group.representative.issue_status;
-      counts[status] = (counts[status] || 0) + 1;
-    }
-    return counts;
-  }, [allLocationGroups]);
-  const locationGroups = useMemo(
-    () => activeStatus === "all"
-      ? allLocationGroups
-      : allLocationGroups.filter((group) =>
-          (group.representative.computed_status || group.representative.issue_status) === activeStatus
-        ),
-    [activeStatus, allLocationGroups]
+  const statusIssueCounts = useMemo(
+    () => data?.facets.status ?? {},
+    [data?.facets.status]
   );
-  const totalIssues = allLocationGroups.length;
+  const allStatusIssueCount = useMemo(
+    () => Object.values(statusIssueCounts).reduce((total, count) => total + count, 0),
+    [statusIssueCounts]
+  );
+  const locationGroups = allLocationGroups;
+  const totalIssues = data?.total ?? 0;
+  const actionRequiredCount = (statusIssueCounts.Open ?? 0)
+    + (statusIssueCounts.InProgress ?? 0)
+    + (statusIssueCounts.OpenOverdue ?? 0);
+
+  const handleExport = async () => {
+    if (dateRangeInvalid) {
+      toast.error("Tanggal Dari tidak boleh melewati tanggal Sampai.");
+      return;
+    }
+    if (totalIssues === 0) {
+      toast.error("Tidak ada data temuan yang sesuai dengan filter.");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const { blob, fileName } = await issueApi.exportIssues({
+        ...(deferredSearch && { q: deferredSearch }),
+        ...(activeStatus !== "all" && { status: activeStatus }),
+        ...(dateFrom && { date_from: dateFrom }),
+        ...(dateTo && { date_to: dateTo }),
+        sort_by: "created_at",
+        sort_order: "desc",
+      });
+      const objectURL = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectURL;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectURL);
+      toast.success("Laporan temuan berhasil diunduh.");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Gagal mengekspor laporan temuan."));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (!isPermLoading && !canAccess) {
     return (
@@ -305,19 +350,21 @@ export default function IssuesPage() {
     <div className="space-y-5 pb-6">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Temuan</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {isLoading ? "Memuat..." : `${locationGroups.length} dari ${totalIssues} kartu lokasi`}
+            {isLoading
+              ? "Memuat..."
+              : `${locationGroups.length} kartu lokasi · ${totalIssues} temuan sesuai filter`}
           </p>
         </div>
         {/* Summary pill */}
-        {!isLoading && (statusCardCounts.Open ?? 0) > 0 && (
+        {!isLoading && actionRequiredCount > 0 && (
           <div className="flex items-center gap-1.5 rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1">
             <div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
             <span className="text-xs font-semibold text-red-400">
-              {statusCardCounts.Open} Perlu Tindakan
+              {actionRequiredCount} Perlu Tindakan
             </span>
           </div>
         )}
@@ -349,6 +396,62 @@ export default function IssuesPage() {
         />
       </div>
 
+      {/* ── Date range and export ── */}
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border/60 bg-card/50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+        <label className="space-y-1.5 text-xs font-semibold text-muted-foreground">
+          <span>Tanggal Dari</span>
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(event) => dispatch(setDateFrom(event.target.value))}
+            className="h-11 w-full rounded-xl border border-border/60 bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+        </label>
+        <label className="space-y-1.5 text-xs font-semibold text-muted-foreground">
+          <span>Tanggal Sampai</span>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(event) => dispatch(setDateTo(event.target.value))}
+            className={cn(
+              "h-11 w-full rounded-xl border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2",
+              dateRangeInvalid
+                ? "border-destructive focus:ring-destructive/40"
+                : "border-border/60 focus:ring-primary/40"
+            )}
+          />
+        </label>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => dispatch(resetFilters())}
+          disabled={!search && activeStatus === "all" && !dateFrom && !dateTo}
+          className="h-11 rounded-xl"
+        >
+          <X className="mr-2 h-4 w-4" /> Reset
+        </Button>
+        {canExport && (
+          <Button
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting || isLoading || dateRangeInvalid || totalIssues === 0}
+            className="h-11 rounded-xl"
+          >
+            {isExporting
+              ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              : <Download className="mr-2 h-4 w-4" />}
+            {isExporting ? "Mengekspor..." : "Export Excel"}
+          </Button>
+        )}
+        {dateRangeInvalid && (
+          <p className="text-xs font-medium text-destructive sm:col-span-4">
+            Tanggal Dari tidak boleh melewati tanggal Sampai.
+          </p>
+        )}
+      </div>
+
       {/* ── Status filter chips — facet counts from API ── */}
       <div className="-mx-4 sm:-mx-6 px-4 sm:px-6">
         <div
@@ -360,8 +463,8 @@ export default function IssuesPage() {
         {STATUS_OPTIONS.map((opt) => {
           // Use real facet counts from API, not local computation
           const count = opt.value === "all"
-            ? totalIssues
-            : (statusCardCounts[opt.value] ?? 0);
+            ? allStatusIssueCount
+            : (statusIssueCounts[opt.value] ?? 0);
           const isActive = activeStatus === opt.value;
           return (
             <button
@@ -410,7 +513,7 @@ export default function IssuesPage() {
               </div>
 
               <h3 className="w-full text-lg font-bold text-foreground tracking-tight text-center block">
-                {search || activeStatus !== "all" ? "Tidak Ada Temuan Ditemukan" : "Belum Ada Temuan"}
+                {search || activeStatus !== "all" || dateFrom || dateTo ? "Tidak Ada Temuan Ditemukan" : "Belum Ada Temuan"}
               </h3>
 
               <p className="w-full text-sm text-muted-foreground leading-relaxed text-center block" style={{ wordBreak: "normal", overflowWrap: "break-word" }}>
@@ -418,10 +521,12 @@ export default function IssuesPage() {
                   ? `Tidak ada temuan yang cocok dengan kata kunci "${search}".`
                   : activeStatus !== "all"
                   ? `Tidak ada temuan berstatus "${activeStatus}".`
+                  : dateFrom || dateTo
+                  ? "Tidak ada temuan pada rentang tanggal yang dipilih."
                   : "Temuan akan secara otomatis tercatat ketika ada poin inspeksi yang tidak sesuai (NG)."}
               </p>
 
-              {(search || activeStatus !== "all") && (
+              {(search || activeStatus !== "all" || dateFrom || dateTo) && (
                 <div className="w-full flex items-center justify-center pt-2">
                   <Button
                     variant="outline"

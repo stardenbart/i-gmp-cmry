@@ -7,7 +7,7 @@ export function InspeksiSection() {
   return (
     <SectionShell
       id="inspeksi"
-      index={3}
+      index={4}
       title="Inspeksi"
       lede="Mengisi checklist audit di lapangan — sumber utama lahirnya Temuan."
       role={

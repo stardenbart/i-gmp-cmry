@@ -2,10 +2,7 @@
 
 import { LayoutGrid } from "lucide-react";
 import { DashboardGrid } from "@/components/dashboard/DashboardGrid";
-import { adminWidgetRegistry } from "@/components/dashboard/widgets/admin/registry";
-import { auditorWidgetRegistry } from "@/components/dashboard/widgets/auditor/registry";
-import { auditeeWidgetRegistry } from "@/components/dashboard/widgets/auditee/registry";
-import { isAdminUser, isAuditorUser } from "@/lib/useAdminGuard";
+import { allMainDashboardWidgets } from "@/components/dashboard/widgets/registry";
 
 interface UserDashboardLayoutTabProps {
   userId: string;
@@ -16,18 +13,14 @@ interface UserDashboardLayoutTabProps {
 /**
  * Dashboard customization lives here — on the Edit User screen, Admin/Super
  * Admin only — rather than as self-service on each user's own dashboard.
- * Which registry applies mirrors exactly how that user's own dashboard page
- * picks a view (see dashboard/[userId]/page.tsx): Admin roles get the admin
- * widgets, Auditor roles get the auditor widgets, everyone else (Auditee,
- * Supervisor, Manager, Staff) gets the auditee widgets.
+ * Every main-dashboard widget across every role is offered here regardless
+ * of the target user's own role (allMainDashboardWidgets) — a widget only
+ * ever ends up VISIBLE on that user's real dashboard once Admin explicitly
+ * adds it here and saves (see DashboardGrid.tsx's resolveWidgets: a widget
+ * with no saved config defaults to hidden, not shown), so mixing widgets
+ * across roles is entirely opt-in per user, controlled from this one place.
  */
-export function UserDashboardLayoutTab({ userId, roleId, username }: UserDashboardLayoutTabProps) {
-  const registry = isAdminUser(roleId)
-    ? adminWidgetRegistry
-    : isAuditorUser(roleId, undefined, username)
-      ? auditorWidgetRegistry
-      : auditeeWidgetRegistry;
-
+export function UserDashboardLayoutTab({ userId, roleId }: UserDashboardLayoutTabProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-2.5 p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
@@ -38,7 +31,7 @@ export function UserDashboardLayoutTab({ userId, roleId, username }: UserDashboa
           placeholder posisi widget (bukan data live pengguna tersebut).
         </p>
       </div>
-      <DashboardGrid registry={registry} enabled={!!userId} target={{ userId, roleId }} editable previewOnly />
+      <DashboardGrid registry={allMainDashboardWidgets} enabled={!!userId} target={{ userId, roleId }} editable previewOnly />
     </div>
   );
 }

@@ -144,20 +144,87 @@ func clearSyncMap(m *sync.Map) {
 	})
 }
 
-func (r *heiRepository) Create(h *master.HEIMaster) error {
+func (r *heiRepository) InvalidateCache() {
 	clearSyncMap(&globalHEICache)
 	clearSyncMap(&globalHEICatCache)
-	return r.db.Create(h).Error
+}
+
+func (r *heiRepository) Create(h *master.HEIMaster) error {
+	if err := r.cleanValues(h); err != nil {
+		return err
+	}
+	if err := r.ensureNoDuplicate(h); err != nil {
+		return err
+	}
+	r.InvalidateCache()
+	return friendlyMasterWriteError(r.db.Create(h).Error, "nama atau kode HEI sudah tersedia pada kategori tersebut")
 }
 
 func (r *heiRepository) Update(h *master.HEIMaster) error {
-	clearSyncMap(&globalHEICache)
-	clearSyncMap(&globalHEICatCache)
-	return r.db.Save(h).Error
+	if err := r.cleanValues(h); err != nil {
+		return err
+	}
+	if err := r.ensureNoDuplicate(h); err != nil {
+		return err
+	}
+	r.InvalidateCache()
+	return friendlyMasterWriteError(r.db.Save(h).Error, "nama atau kode HEI sudah tersedia pada kategori tersebut")
+}
+
+func (r *heiRepository) ensureNoDuplicate(h *master.HEIMaster) error {
+	query := r.db.Model(&master.HEIMaster{}).
+		Where(`master_normalize_text("CategoryName") = master_normalize_text(?)`, h.CategoryName).
+		Where(`master_normalize_text("HEIName") = master_normalize_text(?)`, h.HEIName)
+	if h.HEIID != "" {
+		query = query.Where(`"HEIID" <> ?`, h.HEIID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("item HEI dengan nama yang sama sudah tersedia pada kategori tersebut")
+	}
+	if strings.TrimSpace(h.HEICode) == "" {
+		return nil
+	}
+	count = 0
+	query = r.db.Model(&master.HEIMaster{}).
+		Where(`master_normalize_text("CategoryName") = master_normalize_text(?)`, h.CategoryName).
+		Where(`master_normalize_code("HEICode") = master_normalize_code(?)`, h.HEICode)
+	if h.HEIID != "" {
+		query = query.Where(`"HEIID" <> ?`, h.HEIID)
+	}
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("kode HEI yang sama sudah tersedia pada kategori tersebut")
+	}
+	return nil
+}
+
+func (r *heiRepository) cleanValues(h *master.HEIMaster) error {
+	var values struct {
+		Category, Code, Name, Description string
+	}
+	if err := r.db.Raw(`
+		SELECT coalesce(master_clean_text(?), '') AS category,
+		       coalesce(master_normalize_code(?), '') AS code,
+		       coalesce(master_clean_text(?), '') AS name,
+		       coalesce(master_clean_text(?), '') AS description`,
+		h.CategoryName, h.HEICode, h.HEIName, h.Description).Scan(&values).Error; err != nil {
+		return err
+	}
+	h.CategoryName = values.Category
+	h.HEICode = values.Code
+	h.HEIName = values.Name
+	h.Description = values.Description
+	h.Status = strings.TrimSpace(h.Status)
+	return nil
 }
 
 func (r *heiRepository) Delete(id string) error {
-	clearSyncMap(&globalHEICache)
-	clearSyncMap(&globalHEICatCache)
+	r.InvalidateCache()
 	return r.db.Where("\"HEIID\" = ?", id).Delete(&master.HEIMaster{}).Error
 }

@@ -3,12 +3,16 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 export interface IssueFilterState {
   activeStatus: string;
   search: string;
+  dateFrom: string;
+  dateTo: string;
   page: number;
 }
 
 const initialState: IssueFilterState = {
   activeStatus: "all",
   search: "",
+  dateFrom: "",
+  dateTo: "",
   page: 1,
 };
 
@@ -24,12 +28,22 @@ export const issueFilterSlice = createSlice({
       state.search = action.payload;
       state.page = 1;
     },
+    setDateFrom: (state, action: PayloadAction<string>) => {
+      state.dateFrom = action.payload;
+      state.page = 1;
+    },
+    setDateTo: (state, action: PayloadAction<string>) => {
+      state.dateTo = action.payload;
+      state.page = 1;
+    },
     setPage: (state, action: PayloadAction<number>) => {
       state.page = action.payload;
     },
     resetFilters: (state) => {
       state.activeStatus = "all";
       state.search = "";
+      state.dateFrom = "";
+      state.dateTo = "";
       state.page = 1;
     },
   },
@@ -38,6 +52,8 @@ export const issueFilterSlice = createSlice({
 export const {
   setActiveStatus,
   setSearch,
+  setDateFrom,
+  setDateTo,
   setPage,
   resetFilters,
 } = issueFilterSlice.actions;

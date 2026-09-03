@@ -6,7 +6,7 @@ export function GmpSection() {
   return (
     <SectionShell
       id="gmp"
-      index={6}
+      index={7}
       title="Data Inspeksi (GMP) & Export"
       lede="Menjelajah dan mengekspor rekap data inspeksi yang sudah selesai."
       role={<RoleBadge role="admin" />}
@@ -17,8 +17,9 @@ export function GmpSection() {
           lintas plant. Hasil saringan tampil sebagai tabel pratinjau di layar.
         </p>
         <p className="text-sm text-muted-foreground">
-          Tekan &ldquo;Export Report&rdquo; untuk mengunduh rekap sebagai berkas Excel (.xlsx), diberi nama
-          otomatis sesuai area dan waktu unduh.
+          Buka menu &ldquo;Export&rdquo;, lalu pilih &ldquo;Laporan Template&rdquo; untuk format laporan resmi atau
+          &ldquo;Tabel seperti di Web&rdquo; untuk susunan kolom yang sama dengan tabel Data GMP. Keduanya
+          diunduh sebagai berkas Excel (.xlsx) dan mengikuti seluruh filter serta pencarian aktif.
         </p>
         <GuideImage src="/guide/gmp-data.png" alt="Halaman Data Inspeksi GMP" caption="Data Inspeksi (GMP)." />
       </div>

@@ -1,8 +1,10 @@
 package issueusecase
 
 import (
+	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/monitoring-system/backend/internal/domain/issue"
 	"github.com/monitoring-system/backend/pkg/crypto"
@@ -50,15 +52,7 @@ func (uc *issueFilterUseCase) GetFiltered(f *issue.IssueFilter) (*issue.IssueFil
 		return nil, errFacets
 	}
 
-	if uc.cryptoSvc != nil {
-		for i := range items {
-			items[i].Keterangan = uc.cryptoSvc.DecryptWithFallback(items[i].Keterangan)
-			for j := range items[i].Photos {
-				items[i].Photos[j].ImageUrl = uc.cryptoSvc.DecryptWithFallback(items[i].Photos[j].ImageUrl)
-				items[i].Photos[j].FileName = uc.cryptoSvc.DecryptWithFallback(items[i].Photos[j].FileName)
-			}
-		}
-	}
+	uc.prepareItems(items, f.Now)
 
 	// Deduplicate items by IssueID to prevent SQL join duplication
 	seen := make(map[string]bool)
@@ -82,4 +76,33 @@ func (uc *issueFilterUseCase) GetFiltered(f *issue.IssueFilter) (*issue.IssueFil
 		FiltersApplied: f.FiltersApplied(),
 		Facets:         facets,
 	}, nil
+}
+
+func (uc *issueFilterUseCase) GetForExport(f *issue.IssueFilter, limit int) ([]issue.Issue, error) {
+	items, err := uc.repo.FindForExport(f, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) > limit {
+		return nil, fmt.Errorf("hasil ekspor melebihi batas %d temuan; persempit filter terlebih dahulu", limit)
+	}
+	uc.prepareItems(items, f.Now)
+	return items, nil
+}
+
+func (uc *issueFilterUseCase) prepareItems(items []issue.Issue, now time.Time) {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	for i := range items {
+		items[i].ComputedIssueStatus = items[i].ComputedStatus(now)
+		if uc.cryptoSvc == nil {
+			continue
+		}
+		items[i].Keterangan = uc.cryptoSvc.DecryptWithFallback(items[i].Keterangan)
+		for j := range items[i].Photos {
+			items[i].Photos[j].ImageUrl = uc.cryptoSvc.DecryptWithFallback(items[i].Photos[j].ImageUrl)
+			items[i].Photos[j].FileName = uc.cryptoSvc.DecryptWithFallback(items[i].Photos[j].FileName)
+		}
+	}
 }

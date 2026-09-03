@@ -17,11 +17,12 @@ import (
 	"github.com/monitoring-system/backend/pkg/jwt"
 	"github.com/monitoring-system/backend/pkg/logger"
 	"github.com/monitoring-system/backend/pkg/storage"
+	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 // RegisterMasterRoutes wires master data dependencies and mounts routes.
-func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
+func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, redisClient *redis.Client, minioStorage *storage.MinioStorage, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger, actLogUC logdomain.ActivityLogUseCase) {
 	// ── Wire dependencies ──────────────────────────────────────────────
 	deptRepo := masterrepo.NewDepartmentRepository(db)
 	plantRepo := masterrepo.NewPlantRepository(db)
@@ -78,6 +79,8 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 	heiMasterRepo := masterrepo.NewHEIRepository(db)
 	heiMasterUC := masterusecase.NewHEIUseCase(heiMasterRepo)
 	heiMasterH := masterhandler.NewHEIHandler(heiMasterUC)
+	masterImportUC := masterusecase.NewMasterImportUseCase(db, redisClient, heiMasterRepo)
+	masterImportH := masterhandler.NewMasterImportHandler(masterImportUC)
 
 	userRepo := authrepo.NewUserRepository(db)
 	authMW := middleware.AuthMiddleware(jwtManager)
@@ -89,8 +92,16 @@ func RegisterMasterRoutes(rg fiber.Router, db *gorm.DB, minioStorage *storage.Mi
 		permCreateMstr := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-MSTR", "CREATE")
 		permUpdateMstr := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-MSTR", "UPDATE")
 		permDeleteMstr := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-MSTR", "DELETE")
+		permImportMstr := middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-MSTR", "IMPORT")
 
 		requireSuperAdmin := middleware.RequireSuperAdminMiddleware()
+
+		// Strict XLSX imports. These static routes must be registered before any
+		// master entity /:id routes so "import" is never interpreted as an ID.
+		imports := master.Group("/import")
+		imports.Get("/:type/template", permImportMstr, masterImportH.DownloadTemplate)
+		imports.Post("/:type/validate", permImportMstr, masterImportH.Validate)
+		imports.Post("/:type/commit", permImportMstr, masterImportH.Commit)
 
 		// Plants (CRUD modification exclusively accessible by SuperAdmin, GET list readable for plant filter dropdowns)
 		plant := master.Group("/plants")

@@ -36,8 +36,11 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+
     try {
-      setIsLoading(true);
       const res = await api.post("/auth/login", data);
       
       const token = res.data.data.token;
@@ -52,13 +55,12 @@ export default function LoginPage() {
       setAuth(token, user);
       
       toast.success("Login berhasil!");
-      router.push(`/cimory/${plantCode}/dashboard/${user.id}`);
+      router.replace(`/cimory/${plantCode}/dashboard/${user.id}`);
     } catch (error) {
+      setIsLoading(false);
       toast.error(
         getApiErrorMessage(error, "Login gagal. Periksa kembali username/email dan password Anda.")
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 

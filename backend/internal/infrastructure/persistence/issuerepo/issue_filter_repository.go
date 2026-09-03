@@ -11,6 +11,44 @@ import (
 
 type issueFilterRepository struct{ db *gorm.DB }
 
+const issueFilterSelect = `"Issue".*,
+	(SELECT pm."PlantName" FROM "Inspection_Result" ir2
+	  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+	  JOIN "Area_Master" am ON am."AreaID" = ih2."AreaID"
+	  LEFT JOIN "Plant_Master" pm ON pm."PlantID" = am."PlantID"
+	  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "PlantName",
+	(SELECT am."AreaName" FROM "Inspection_Result" ir2
+	  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+	  JOIN "Area_Master" am ON am."AreaID" = ih2."AreaID"
+	  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "AreaName",
+	(SELECT km."KawasanName" FROM "Inspection_Result" ir2
+	  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+	  JOIN "Kawasan_Master" km ON km."KawasanID" = ih2."KawasanID"
+	  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "KawasanName",
+	(SELECT dkm."DetailKawasanName" FROM "Inspection_Result" ir2
+	  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
+	  JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih2."DetailKawasanID"
+	  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
+	(SELECT asp."AspekName" FROM "Inspection_Result" ir2
+	  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+	  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
+	  JOIN "Aspek_Master" asp ON asp."AspekID" = dm."AspekID"
+	  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "AspekName",
+	(SELECT dm."DetailName" FROM "Inspection_Result" ir2
+	  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+	  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
+	  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailAspekName",
+	(SELECT um."UraianText" FROM "Inspection_Result" ir2
+	  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
+	  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "UraianText",
+	(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName",
+	(SELECT COALESCE(NULLIF(hei."CategoryName", ''), ip."HEICategory")
+	  FROM "Issue_Photo" ip LEFT JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID"
+	  WHERE ip."IssueID" = "Issue"."IssueID" ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEICategory",
+	(SELECT hei."HEIName" FROM "Issue_Photo" ip
+	  JOIN "HEI_Master" hei ON hei."HEIID" = ip."HEIID"
+	  WHERE ip."IssueID" = "Issue"."IssueID" ORDER BY ip."PhotoCreatedAt" ASC LIMIT 1) AS "HEIName"`
+
 // NewIssueFilterRepository creates a new IssueFilterRepository.
 func NewIssueFilterRepository(db *gorm.DB) issue.IssueFilterRepository {
 	return &issueFilterRepository{db: db}
@@ -27,32 +65,29 @@ func (r *issueFilterRepository) FindFiltered(f *issue.IssueFilter) ([]issue.Issu
 
 	// Use subqueries for area/kawasan names — no JOINs, no row inflation
 	err := f.ApplySort(f.ApplyTo(r.db.Model(&issue.Issue{}))).
-		Select(`"Issue".*,
-			(SELECT am."AreaName" FROM "Inspection_Result" ir2
-			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
-			  JOIN "Area_Master" am ON am."AreaID" = ih2."AreaID"
-			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "AreaName",
-			(SELECT km."KawasanName" FROM "Inspection_Result" ir2
-			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
-			  JOIN "Kawasan_Master" km ON km."KawasanID" = ih2."KawasanID"
-			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "KawasanName",
-			(SELECT dkm."DetailKawasanName" FROM "Inspection_Result" ir2
-			  JOIN "Inspection_Header" ih2 ON ih2."InspectionID" = ir2."InspectionID"
-			  JOIN "DetailKawasan_Master" dkm ON dkm."DetailKawasanID" = ih2."DetailKawasanID"
-			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailKawasanName",
-			(SELECT dm."DetailName" FROM "Inspection_Result" ir2
-			  JOIN "Uraian_Master" um ON um."UraianID" = ir2."UraianID"
-			  JOIN "Detail_Master" dm ON dm."DetailID" = um."DetailID"
-			  WHERE ir2."ResultID" = "Issue"."ResultID" LIMIT 1) AS "DetailAspekName",
-			(SELECT u."FullName" FROM "Users" u WHERE u."UserID" = "Issue"."IssuePICUserID" LIMIT 1) AS "PICName"`).
+		Select(issueFilterSelect).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order(`"PhotoCreatedAt" ASC`)
 		}).
+		Preload("HEI.HEI").
 		Offset((f.Page - 1) * f.Limit).
 		Limit(f.Limit).
 		Find(&items).Error
 
 	return items, total, err
+}
+
+func (r *issueFilterRepository) FindForExport(f *issue.IssueFilter, limit int) ([]issue.Issue, error) {
+	var items []issue.Issue
+	err := f.ApplySort(f.ApplyTo(r.db.Model(&issue.Issue{}))).
+		Select(issueFilterSelect).
+		Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order(`"PhotoCreatedAt" ASC`)
+		}).
+		Preload("HEI.HEI").
+		Limit(limit).
+		Find(&items).Error
+	return items, err
 }
 
 func (r *issueFilterRepository) FindFacets(f *issue.IssueFilter) (issue.IssueFacets, error) {
@@ -82,6 +117,7 @@ func (r *issueFilterRepository) FindFacets(f *issue.IssueFilter) (issue.IssueFac
 			NeedsWOWR:       f.NeedsWOWR,
 			Label:           f.Label,
 			DetailKawasanID: f.DetailKawasanID,
+			Now:             f.Now,
 		}
 		if !excludeStatus {
 			tmp.Status = f.Status
@@ -108,9 +144,10 @@ func (r *issueFilterRepository) FindFacets(f *issue.IssueFilter) (issue.IssueFac
 
 	// Status facet
 	var statusRows []kv
+	statusExpr, statusArgs := f.StatusFacetExpression()
 	if err := baseWithout(true, false, false, false, false).
-		Select(`"IssueStatus" AS key, COUNT(*) AS count`).
-		Group(`"IssueStatus"`).
+		Select(statusExpr+` AS key, COUNT(*) AS count`, statusArgs...).
+		Group(`key`).
 		Scan(&statusRows).Error; err == nil {
 		for _, row := range statusRows {
 			facets.Status[row.Key] = row.Count

@@ -32,11 +32,11 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       setAuth: (token, user) => {
-        setAuthCookie(token, user.id);
+        setAuthCookie(token, user.id, user.plant_id || "global");
         set({ token, user });
       },
       logout: () => {
-        setAuthCookie(null, null);
+        setAuthCookie(null, null, null);
         set({ token: null, user: null });
       },
     }),

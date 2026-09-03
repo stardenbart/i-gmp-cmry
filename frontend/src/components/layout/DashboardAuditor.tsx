@@ -3,7 +3,7 @@
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardGrid } from "@/components/dashboard/DashboardGrid";
-import { auditorWidgetRegistry } from "@/components/dashboard/widgets/auditor/registry";
+import { allMainDashboardWidgets } from "@/components/dashboard/widgets/registry";
 import { AuditorDashboardProvider, useAuditorDashboard } from "@/components/dashboard/auditor/AuditorDashboardContext";
 
 function AuditorDashboardBody() {
@@ -40,7 +40,7 @@ function AuditorDashboardBody() {
         </div>
       </section>
 
-      <DashboardGrid registry={auditorWidgetRegistry} enabled={mounted && !!user} />
+      <DashboardGrid registry={allMainDashboardWidgets} enabled={mounted && !!user} />
     </div>
   );
 }

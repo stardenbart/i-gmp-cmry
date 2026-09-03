@@ -12,7 +12,8 @@ import {
   Users,
   History,
   Settings,
-  FileBox
+  FileBox,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -32,6 +33,13 @@ export function Sidebar() {
 
   const MAIN_MENU = [
     { href: `${basePath}`, label: "Dasbor", icon: Home },
+    // Dashboard KPI/analitik (PERM-KPI-R). Endpoint /dashboard/* yang
+    // dipakai widget bawaan tetap tidak digate (shared dengan fitur lain),
+    // tapi /analytics/* (Custom Visualization Builder) sudah digate di
+    // backend — gate menu ini juga supaya konsisten dengan halamannya.
+    ...(hasPermission("PERM-KPI-R")
+      ? [{ href: `${basePath}/kpi`, label: "Dashboard KPI", icon: BarChart3 }]
+      : []),
     // Inspeksi (PERM-INSP-R)
     ...(hasPermission("PERM-INSP-R")
       ? [{ href: `${basePath}/inspections`, label: "Inspections", icon: ClipboardCheck }]

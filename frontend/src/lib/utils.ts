@@ -6,16 +6,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Utility to set/remove auth cookie for Next.js middleware
-export function setAuthCookie(token: string | null, userId?: string | null) {
+export function setAuthCookie(
+  token: string | null,
+  userId?: string | null,
+  plantCode?: string | null
+) {
   if (typeof document === "undefined") return;
   if (token) {
     document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`;
     if (userId) {
       document.cookie = `user-id=${userId}; path=/; max-age=86400; SameSite=Lax`;
     }
+    if (plantCode) {
+      document.cookie = `plant-code=${plantCode}; path=/; max-age=86400; SameSite=Lax`;
+    }
   } else {
     document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "user-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "plant-code=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   }
 }
 

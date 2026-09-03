@@ -85,6 +85,13 @@ export function DashboardSection() {
               ini hanya dilakukan Admin/Super Admin, dari menu Manajemen Pengguna → pilih pengguna → tab Tata
               Letak Dashboard.
             </Callout>
+            <Callout variant="info">
+              Daftar widget di tab ini <strong>tidak lagi dibatasi sesuai peran pengguna yang diedit</strong> —
+              Admin bisa memasang widget milik peran mana pun (Admin, Auditor, atau Auditee) ke dashboard
+              siapa saja, misalnya memberi seorang Auditee salah satu widget yang biasanya cuma tampil di
+              dashboard Auditor. Widget yang belum pernah ditambahkan tetap tersembunyi secara default di
+              dashboard pengguna tersebut — baru muncul setelah Admin menambahkannya secara eksplisit di sini.
+            </Callout>
             <StepList
               steps={[
                 <><strong>Aktifkan mode edit</strong> lewat tombol &ldquo;Sesuaikan Dashboard&rdquo;.</>,

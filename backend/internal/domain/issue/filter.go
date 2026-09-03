@@ -1,6 +1,7 @@
 package issue
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -47,10 +48,13 @@ type IssueFilter struct {
 	Label           string
 	DetailKawasanID string
 
-	DateFrom *time.Time
-	DateTo   *time.Time
-	DueFrom  *time.Time
-	DueTo    *time.Time
+	DateFrom    *time.Time
+	DateTo      *time.Time
+	DueFrom     *time.Time
+	DueTo       *time.Time
+	DateFromRaw string
+	DateToRaw   string
+	Now         time.Time
 
 	// Scope override: if set, only issues with IssuePICUserID==ScopeUserID or delegated to ScopeUserID
 	ScopeUserID string
@@ -123,9 +127,17 @@ func (f *IssueFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 	}
 
 	if len(f.StatusIn) > 0 {
-		q = q.Where(`"IssueStatus" IN ?`, f.StatusIn)
+		conditions := make([]string, 0, len(f.StatusIn))
+		args := make([]interface{}, 0, len(f.StatusIn)*2)
+		for _, status := range f.StatusIn {
+			condition, conditionArgs := issueStatusCondition(status, f.effectiveNow())
+			conditions = append(conditions, "("+condition+")")
+			args = append(args, conditionArgs...)
+		}
+		q = q.Where(strings.Join(conditions, " OR "), args...)
 	} else if f.Status != "" {
-		q = q.Where(`"IssueStatus" = ?`, f.Status)
+		condition, args := issueStatusCondition(f.Status, f.effectiveNow())
+		q = q.Where(condition, args...)
 	}
 
 	if len(f.PICUserIDIn) > 0 {
@@ -202,7 +214,7 @@ func (f *IssueFilter) ApplyTo(q *gorm.DB) *gorm.DB {
 		q = q.Where(`"IssueCreatedAt" >= ?`, f.DateFrom)
 	}
 	if f.DateTo != nil {
-		q = q.Where(`"IssueCreatedAt" <= ?`, f.DateTo)
+		q = q.Where(`"IssueCreatedAt" < ?`, f.DateTo)
 	}
 	if f.DueFrom != nil {
 		q = q.Where(`"DueDate" >= ?`, f.DueFrom)
@@ -247,10 +259,10 @@ func (f *IssueFilter) FiltersApplied() map[string]interface{} {
 		applied["detail_kawasan_id"] = []string{f.DetailKawasanID}
 	}
 	if f.DateFrom != nil {
-		applied["date_from"] = f.DateFrom.Format(time.RFC3339)
+		applied["date_from"] = f.DateFromRaw
 	}
 	if f.DateTo != nil {
-		applied["date_to"] = f.DateTo.Format(time.RFC3339)
+		applied["date_to"] = f.DateToRaw
 	}
 	if f.DueFrom != nil {
 		applied["due_from"] = f.DueFrom.Format(time.RFC3339)
@@ -277,12 +289,14 @@ type IssueFilterResult struct {
 // IssueFilterRepository is implemented by issuerepo.
 type IssueFilterRepository interface {
 	FindFiltered(f *IssueFilter) ([]Issue, int64, error)
+	FindForExport(f *IssueFilter, limit int) ([]Issue, error)
 	FindFacets(f *IssueFilter) (IssueFacets, error)
 }
 
 // IssueFilterUseCase is implemented by issueusecase.
 type IssueFilterUseCase interface {
 	GetFiltered(f *IssueFilter) (*IssueFilterResult, error)
+	GetForExport(f *IssueFilter, limit int) ([]Issue, error)
 }
 
 // ─── Query Helper ─────────────────────────────────────────────────────────
@@ -299,6 +313,34 @@ func splitCSV(v string) []string {
 	return out
 }
 
+func jakartaLocation() *time.Location {
+	location, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return time.FixedZone("WIB", 7*60*60)
+	}
+	return location
+}
+
+func parseIssueDate(v string, endExclusive bool) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, v); err == nil {
+		if endExclusive {
+			return t.Add(time.Nanosecond), nil
+		}
+		return t, nil
+	}
+	t, err := time.ParseInLocation("2006-01-02", v, jakartaLocation())
+	if err != nil {
+		return time.Time{}, fmt.Errorf("format tanggal harus YYYY-MM-DD atau RFC3339")
+	}
+	if endExclusive {
+		return t.AddDate(0, 0, 1), nil
+	}
+	return t, nil
+}
+
+// parseDate is retained for the follow-up filter, which uses the original
+// inclusive date semantics. Issue list/export ranges use parseIssueDate so a
+// date-only date_to includes the entire selected day.
 func parseDate(v string) (time.Time, error) {
 	if t, err := time.Parse(time.RFC3339, v); err == nil {
 		return t, nil
@@ -307,7 +349,7 @@ func parseDate(v string) (time.Time, error) {
 }
 
 // NewIssueFilter parses an IssueFilter from a Fiber request context.
-func NewIssueFilter(c *fiber.Ctx) *IssueFilter {
+func NewIssueFilter(c *fiber.Ctx) (*IssueFilter, error) {
 	p := pagination.FromQuery(c)
 
 	f := &IssueFilter{
@@ -321,6 +363,7 @@ func NewIssueFilter(c *fiber.Ctx) *IssueFilter {
 		WOWRStatus:      c.Query("wowr_status"),
 		Label:           c.Query("label"),
 		DetailKawasanID: c.Query("detail_kawasan_id"),
+		Now:             time.Now(),
 	}
 
 	if v := c.Query("status__in"); v != "" {
@@ -339,25 +382,71 @@ func NewIssueFilter(c *fiber.Ctx) *IssueFilter {
 	}
 
 	if v := c.Query("date_from"); v != "" {
-		if t, err := parseDate(v); err == nil {
-			f.DateFrom = &t
+		t, err := parseIssueDate(v, false)
+		if err != nil {
+			return nil, fmt.Errorf("date_from tidak valid: %w", err)
 		}
+		f.DateFrom = &t
+		f.DateFromRaw = v
 	}
 	if v := c.Query("date_to"); v != "" {
-		if t, err := parseDate(v); err == nil {
-			f.DateTo = &t
+		t, err := parseIssueDate(v, true)
+		if err != nil {
+			return nil, fmt.Errorf("date_to tidak valid: %w", err)
 		}
+		f.DateTo = &t
+		f.DateToRaw = v
 	}
 	if v := c.Query("due_from"); v != "" {
-		if t, err := parseDate(v); err == nil {
+		if t, err := parseIssueDate(v, false); err == nil {
 			f.DueFrom = &t
 		}
 	}
 	if v := c.Query("due_to"); v != "" {
-		if t, err := parseDate(v); err == nil {
+		if t, err := parseIssueDate(v, false); err == nil {
 			f.DueTo = &t
 		}
 	}
 
-	return f
+	if f.DateFrom != nil && f.DateTo != nil && !f.DateFrom.Before(*f.DateTo) {
+		return nil, fmt.Errorf("tanggal Dari tidak boleh melewati tanggal Sampai")
+	}
+
+	return f, nil
+}
+
+func (f *IssueFilter) effectiveNow() time.Time {
+	if f.Now.IsZero() {
+		return time.Now()
+	}
+	return f.Now
+}
+
+func issueStatusCondition(status string, now time.Time) (string, []interface{}) {
+	switch status {
+	case string(IssueStatusOpen):
+		return `"IssueStatus" = ? AND ("DueDate" IS NULL OR "DueDate" >= ?)`, []interface{}{IssueStatusOpen, now}
+	case string(IssueStatusInProgress):
+		return `"IssueStatus" = ? AND ("DueDate" IS NULL OR "DueDate" >= ?)`, []interface{}{IssueStatusInProgress, now}
+	case string(IssueStatusOpenOverdue), "Overdue":
+		return `"IssueStatus" IN ? AND "DueDate" IS NOT NULL AND "DueDate" < ?`, []interface{}{[]IssueStatus{IssueStatusOpen, IssueStatusInProgress}, now}
+	case string(IssueStatusClosed):
+		return `"IssueStatus" = ? AND COALESCE("FollowUpDelay", 0) <= 0 AND ("DueDate" IS NULL OR "DueDate" >= ?)`, []interface{}{IssueStatusClosed, now}
+	case string(IssueStatusVerified):
+		return `"IssueStatus" = ? AND COALESCE("FollowUpDelay", 0) <= 0 AND ("DueDate" IS NULL OR "DueDate" >= ?)`, []interface{}{IssueStatusVerified, now}
+	case string(IssueStatusClosedOverdue):
+		return `"IssueStatus" IN ? AND (COALESCE("FollowUpDelay", 0) > 0 OR ("DueDate" IS NOT NULL AND "DueDate" < ?))`, []interface{}{[]IssueStatus{IssueStatusClosed, IssueStatusVerified}, now}
+	default:
+		return `"IssueStatus" = ?`, []interface{}{status}
+	}
+}
+
+// StatusFacetExpression mirrors Issue.ComputedStatus for SQL facet/export filtering.
+func (f *IssueFilter) StatusFacetExpression() (string, []interface{}) {
+	now := f.effectiveNow()
+	return `CASE
+		WHEN "IssueStatus" IN ('Open', 'InProgress') AND "DueDate" IS NOT NULL AND "DueDate" < ? THEN 'OpenOverdue'
+		WHEN "IssueStatus" IN ('Closed', 'Verified') AND (COALESCE("FollowUpDelay", 0) > 0 OR ("DueDate" IS NOT NULL AND "DueDate" < ?)) THEN 'ClosedOverdue'
+		ELSE "IssueStatus"::text
+	END`, []interface{}{now, now}
 }

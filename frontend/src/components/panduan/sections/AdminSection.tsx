@@ -7,7 +7,7 @@ export function AdminSection() {
   return (
     <SectionShell
       id="admin"
-      index={8}
+      index={9}
       title="Administrasi"
       lede="Pengaturan data induk, pengguna, hak akses, dan konfigurasi sistem."
       role={<RoleBadge role="admin" />}

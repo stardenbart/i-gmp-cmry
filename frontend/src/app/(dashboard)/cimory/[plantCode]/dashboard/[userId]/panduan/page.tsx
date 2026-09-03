@@ -6,6 +6,7 @@ import { ChapterTabs, type ChapterItem } from "@/components/panduan/ChapterTabs"
 import { WelcomeSection } from "@/components/panduan/sections/WelcomeSection";
 import { MulaiSection } from "@/components/panduan/sections/MulaiSection";
 import { DashboardSection } from "@/components/panduan/sections/DashboardSection";
+import { KpiSection } from "@/components/panduan/sections/KpiSection";
 import { InspeksiSection } from "@/components/panduan/sections/InspeksiSection";
 import { TemuanSection } from "@/components/panduan/sections/TemuanSection";
 import { WowrSection } from "@/components/panduan/sections/WowrSection";
@@ -18,6 +19,7 @@ const CHAPTERS: ChapterItem[] = [
   { id: "selamat-datang", label: "Selamat Datang" },
   { id: "memulai", label: "Memulai" },
   { id: "dashboard", label: "Dashboard" },
+  { id: "kpi", label: "Dashboard KPI" },
   { id: "inspeksi", label: "Inspeksi" },
   { id: "temuan", label: "Temuan Inspeksi" },
   { id: "wowr", label: "Perintah Kerja" },
@@ -40,6 +42,7 @@ export default function PanduanPage() {
           <WelcomeSection />
           <MulaiSection />
           <DashboardSection />
+          <KpiSection />
           <InspeksiSection />
           <TemuanSection />
           <WowrSection />

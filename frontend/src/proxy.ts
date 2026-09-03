@@ -12,8 +12,9 @@ export default function proxy(request: NextRequest) {
   }
 
   const isAuthRoute = pathname === '/login' || pathname === '/forgot-password';
+  const isPublicKPIShare = pathname.startsWith('/shared/kpi/');
 
-  if (!token && !isAuthRoute) {
+  if (!token && !isAuthRoute && !isPublicKPIShare) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
