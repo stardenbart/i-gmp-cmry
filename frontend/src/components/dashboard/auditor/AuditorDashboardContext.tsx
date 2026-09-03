@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useCallback, type ComponentType, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { filterApi } from "@/lib/api/filter.api";
 import { api } from "@/lib/api/axios";
@@ -171,4 +171,18 @@ export function useAuditorDashboard() {
     throw new Error("useAuditorDashboard must be used within AuditorDashboardProvider");
   }
   return ctx;
+}
+
+/** See withAdminDashboardContext (AdminDashboardContext.tsx) for the full
+ * rationale — same pattern, for auditor-family widgets. */
+export function withAuditorDashboardContext<P extends object>(Component: ComponentType<P>): ComponentType<P> {
+  return function WithAuditorDashboardContext(props: P) {
+    const existing = useContext(AuditorDashboardContext);
+    if (existing) return <Component {...props} />;
+    return (
+      <AuditorDashboardProvider>
+        <Component {...props} />
+      </AuditorDashboardProvider>
+    );
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useCallback, type ComponentType, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { filterApi } from "@/lib/api/filter.api";
 import { useAuthStore } from "@/stores/authStore";
@@ -109,4 +109,18 @@ export function useAuditeeDashboard() {
     throw new Error("useAuditeeDashboard must be used within AuditeeDashboardProvider");
   }
   return ctx;
+}
+
+/** See withAdminDashboardContext (AdminDashboardContext.tsx) for the full
+ * rationale — same pattern, for auditee-family widgets. */
+export function withAuditeeDashboardContext<P extends object>(Component: ComponentType<P>): ComponentType<P> {
+  return function WithAuditeeDashboardContext(props: P) {
+    const existing = useContext(AuditeeDashboardContext);
+    if (existing) return <Component {...props} />;
+    return (
+      <AuditeeDashboardProvider>
+        <Component {...props} />
+      </AuditeeDashboardProvider>
+    );
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ComponentType, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api/axios";
@@ -183,4 +183,29 @@ export function useAdminDashboard() {
     throw new Error("useAdminDashboard must be used within AdminDashboardProvider");
   }
   return ctx;
+}
+
+/**
+ * Wraps an admin-family widget so it can render on ANY role's dashboard,
+ * not just Admin's own — needed since Admin's "Tata Letak Dashboard" (Edit
+ * User) can now add an admin widget to an Auditor/Auditee's layout (see
+ * components/dashboard/widgets/registry.ts's allMainDashboardWidgets).
+ * DashboardAdmin.tsx already wraps its whole page in AdminDashboardProvider,
+ * so on Admin's own dashboard `useContext` here finds it immediately and
+ * this is a no-op passthrough — zero extra renders/queries for the common
+ * case. Only when no AdminDashboardProvider exists yet (a foreign host
+ * dashboard) does this mount a fresh one scoped to just this one widget
+ * instance, so the extra data-fetching only ever happens for a user who
+ * actually has an admin widget turned on for them.
+ */
+export function withAdminDashboardContext<P extends object>(Component: ComponentType<P>): ComponentType<P> {
+  return function WithAdminDashboardContext(props: P) {
+    const existing = useContext(AdminDashboardContext);
+    if (existing) return <Component {...props} />;
+    return (
+      <AdminDashboardProvider>
+        <Component {...props} />
+      </AdminDashboardProvider>
+    );
+  };
 }
