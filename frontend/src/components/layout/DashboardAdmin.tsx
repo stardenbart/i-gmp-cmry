@@ -2,7 +2,7 @@
 
 import { Factory } from "lucide-react";
 import { DashboardGrid } from "@/components/dashboard/DashboardGrid";
-import { adminWidgetRegistry } from "@/components/dashboard/widgets/admin/registry";
+import { allMainDashboardWidgets } from "@/components/dashboard/widgets/registry";
 import { AdminDashboardProvider, useAdminDashboard } from "@/components/dashboard/admin/AdminDashboardContext";
 
 function AdminDashboardBody() {
@@ -74,7 +74,7 @@ function AdminDashboardBody() {
       {/* Widget area — drag to reorder, resize the corner, in Edit mode.
           Falls back to the default arrangement while it loads or if the
           user has never customized it. */}
-      <DashboardGrid registry={adminWidgetRegistry} enabled={mounted && !!user} />
+      <DashboardGrid registry={allMainDashboardWidgets} enabled={mounted && !!user} />
     </div>
   );
 }
