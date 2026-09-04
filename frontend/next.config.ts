@@ -153,6 +153,10 @@ const nextConfig: NextConfig = {
       : (isProd ? "http://minio:9000" : "http://127.0.0.1:9000");
 
     return [
+      // /api/v1/auth/* is handled first by the filesystem Route Handler in
+      // app/api/v1/auth/[...path]/route.ts so repeated Set-Cookie headers are
+      // preserved. This rewrite remains the fallback for every other API,
+      // including the WebSocket endpoint.
       {
         source: "/api/v1/:path*",
         destination: `${backendUrl}/api/v1/:path*`,
