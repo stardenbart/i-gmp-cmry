@@ -57,8 +57,11 @@ let refreshInFlight: Promise<boolean> | null = null;
 
 function refreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
+    const csrfToken = readCookie("csrf_token");
     refreshInFlight = refreshClient
-      .post("/auth/refresh")
+      .post("/auth/refresh", undefined, {
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
+      })
       .then(() => true)
       .catch(() => false)
       .finally(() => {

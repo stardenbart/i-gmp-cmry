@@ -19,6 +19,12 @@ var csrfProtectedMethods = map[string]bool{
 	fiber.MethodDelete: true,
 }
 
+var csrfExemptPaths = map[string]bool{
+	"/api/v1/auth/login":           true,
+	"/api/v1/auth/forgot-password": true,
+	"/api/v1/auth/reset-password":  true,
+}
+
 // CSRFMiddleware enforces the double-submit-cookie pattern for browser
 // (cookie-authenticated) requests.
 //
@@ -37,6 +43,13 @@ var csrfProtectedMethods = map[string]bool{
 func CSRFMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if !csrfProtectedMethods[c.Method()] {
+			return c.Next()
+		}
+		// These public authentication endpoints do not authorize an action
+		// using the caller's existing session cookie. In particular, login
+		// must remain usable when a browser still holds an expired or partial
+		// session so a successful login can replace those stale cookies.
+		if csrfExemptPaths[c.Path()] {
 			return c.Next()
 		}
 		if c.Get("Authorization") != "" {
