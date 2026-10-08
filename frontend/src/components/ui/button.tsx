@@ -20,17 +20,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={isLoading || props.disabled}
         className={cn(
-          "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+          "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
           {
-            "bg-primary text-primary-foreground shadow hover:bg-primary/90": variant === "default",
-            "bg-destructive text-white shadow-sm hover:bg-destructive/90": variant === "destructive",
-            "border border-border bg-transparent shadow-sm hover:bg-muted": variant === "outline",
+            "bg-primary text-primary-foreground hover:bg-primary/90": variant === "default",
+            "bg-destructive text-destructive-foreground hover:bg-destructive/90": variant === "destructive",
+            "border border-border bg-card text-foreground hover:bg-muted": variant === "outline",
             "hover:bg-muted hover:text-foreground": variant === "ghost",
             "text-primary underline-offset-4 hover:underline": variant === "link",
-            "h-12 px-6 py-2": size === "default",
-            "h-8 rounded-full px-3 text-xs": size === "sm",
-            "h-14 rounded-full px-8 text-base": size === "lg",
-            "h-12 w-12": size === "icon",
+            "h-9 px-4 py-2": size === "default",
+            "h-8 rounded-sm px-3 text-xs": size === "sm",
+            "h-11 px-6 text-sm": size === "lg",
+            "h-9 w-9": size === "icon",
           },
           className
         )}

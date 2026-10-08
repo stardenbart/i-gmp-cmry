@@ -18,6 +18,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
+import { formatTimeAgo } from "@/lib/date";
 import { useMounted } from "@/lib/useMounted";
 import { notificationApi, Notification } from "@/lib/api/notification.api";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -34,22 +35,6 @@ const getNotificationIcon = (type: Notification["type"]) => {
     default:
       return <Info className="h-4 w-4 text-blue-500" />;
   }
-};
-
-// Helper to format time ago
-const formatTimeAgo = (dateString: string): string => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffMins < 1) return "Baru saja";
-  if (diffMins < 60) return `${diffMins}m lalu`;
-  if (diffHours < 24) return `${diffHours}j lalu`;
-  if (diffDays < 7) return `${diffDays}h lalu`;
-  return date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 };
 
 // Single Notification Item Component
@@ -119,7 +104,7 @@ function NotificationItem({
 }
 
 // Main Notification Bell Component
-export function NotificationBell() {
+export function NotificationBell({ triggerClassName }: { triggerClassName?: string } = {}) {
   const router = useRouter();
   const params = useParams();
   const user = useAuthStore((state) => state.user);
@@ -201,7 +186,7 @@ export function NotificationBell() {
         type="button"
         disabled
         aria-label="Memuat notifikasi"
-        className="relative flex h-9 w-9 items-center justify-center rounded-full"
+        className={cn("relative flex h-9 w-9 items-center justify-center rounded-full", triggerClassName)}
       >
         <Bell aria-hidden="true" className="h-4 w-4" />
       </button>
@@ -215,14 +200,15 @@ export function NotificationBell() {
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex h-9 w-9 min-h-[36px] min-w-[36px] items-center justify-center rounded-full hover:bg-muted transition-colors relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-          isOpen && "bg-muted"
+          isOpen && "bg-muted",
+          triggerClassName
         )}
         aria-label={`Pusat Notifikasi${unreadCount > 0 ? `, ${unreadCount} belum dibaca` : ""}`}
         title="Notifikasi"
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-background">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-brand-blue-dark">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

@@ -10,6 +10,12 @@ import { useMounted } from "@/lib/useMounted";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { InstallAppButton } from "./InstallAppButton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { cn } from "@/lib/utils";
+
+// Translucent white controls that sit on the brand gradient (style guide
+// `.btn-header`): white 15% fill, white 30% border, 4px radius.
+const HEADER_ACTION =
+  "h-8 w-8 min-h-8 min-w-8 rounded-[4px] border border-white/30 bg-white/15 text-white shadow-none transition-colors duration-150 hover:bg-white/25 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70";
 
 export function Header() {
   const pathname = usePathname();
@@ -28,6 +34,10 @@ export function Header() {
     if (pathname.includes("/users")) return "Manajemen Pengguna";
     if (pathname.includes("/logs")) return "Riwayat Aktivitas";
     if (pathname.includes("/settings")) return "Pengaturan";
+    if (pathname.includes("/wowr")) return "Perintah Kerja";
+    if (pathname.includes("/kpi")) return "Dashboard KPI";
+    if (pathname.includes("/gmp-data")) return "Data Inspeksi (GMP)";
+    if (pathname.includes("/notifications")) return "Notifikasi";
     if (pathname.includes("/dashboard")) return "Dasbor Utama";
     return "";
   };
@@ -50,55 +60,57 @@ export function Header() {
   };
 
   return (
-    <header className="pwa-header-safe sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/80 px-3 backdrop-blur-xl sm:px-6">
-      <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
-        {/* Mobile Logo */}
-        <div className="md:hidden flex items-center gap-3">
-          <div className="flex items-center justify-center">
-            <Image 
-              src="/Logo_Cimory.png" 
-              alt="Cimory Logo" 
-              width={88}
-              height={32} 
-              priority
-              className="h-7 w-auto max-w-[88px] object-contain"
-            />
-          </div>
+    <header className="app-header pwa-header-safe fixed inset-x-0 top-0 z-50 flex items-center justify-between gap-3 px-3 text-white sm:px-5">
+      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
+        <Image
+          src="/Logo_Cimory.png"
+          alt="Cimory"
+          width={68}
+          height={36}
+          priority
+          className="h-6 w-auto shrink-0 object-contain md:h-9"
+        />
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-[13px] font-semibold md:text-base">I-GMP</span>
+          <span className="truncate text-[8px] tracking-wide text-white/60 md:text-[11px]">PT CISARUA MOUNTAIN DAIRY TBK</span>
         </div>
-        
-        {/* Desktop Title */}
-        <h1 className="hidden truncate pr-3 text-lg font-semibold tracking-tight lg:block">{getTitle()}</h1>
+        {getTitle() && (
+          <>
+            <span aria-hidden="true" className="mx-1 hidden h-6 w-px bg-white/25 lg:block" />
+            <h1 className="hidden truncate text-sm font-medium text-white/85 lg:block">{getTitle()}</h1>
+          </>
+        )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 lg:gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="mr-1 hidden max-w-48 truncate text-xs text-white/80 xl:inline">
+          Halo, {mounted && user?.name ? user.name : "Pengguna"}
+        </span>
         <Link
           href={`/cimory/${plantCode}/dashboard/${mounted ? user?.id : "overview"}/panduan`}
           aria-label="Buka Panduan Pengguna"
           title="Panduan"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(HEADER_ACTION, "flex items-center justify-center")}
         >
           <BookOpen aria-hidden="true" className="h-4 w-4" />
         </Link>
-        <InstallAppButton />
-        <ThemeToggle />
-        <NotificationBell />
-        <div className="mx-1 hidden h-6 w-px bg-border lg:block"></div>
-        <Link className="hidden lg:block" href={`/cimory/${plantCode}/dashboard/${mounted ? user?.id : 'overview'}/profile`}>
-          <div className="flex items-center gap-2 rounded-full px-2 py-1.5 hover:bg-muted cursor-pointer transition-colors">
-            <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
-              {mounted && user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-            </div>
-            <span className="hidden max-w-30 truncate text-sm font-medium 2xl:inline-block">
-              {mounted && user?.name ? user.name : "Profil"}
-            </span>
-          </div>
+        <InstallAppButton className={cn(HEADER_ACTION, "xl:rounded-[4px]")} />
+        <ThemeToggle className={HEADER_ACTION} />
+        <NotificationBell triggerClassName={HEADER_ACTION} />
+        <Link
+          className={cn(HEADER_ACTION, "hidden items-center justify-center text-xs font-bold lg:flex")}
+          href={`/cimory/${plantCode}/dashboard/${mounted ? user?.id : "overview"}/profile`}
+          aria-label="Profil pengguna"
+          title="Profil"
+        >
+          {mounted && user?.name ? user.name.charAt(0).toUpperCase() : "U"}
         </Link>
         <button
           onClick={handleLogout}
           type="button"
           aria-label="Keluar dari aplikasi"
           title="Keluar"
-          className="hidden h-9 w-9 items-center justify-center rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground lg:flex 2xl:w-auto 2xl:gap-2 2xl:rounded-full 2xl:px-3"
+          className={cn(HEADER_ACTION, "hidden items-center justify-center gap-2 text-[11px] font-medium lg:flex 2xl:w-auto 2xl:px-3")}
         >
           <LogOut aria-hidden="true" className="h-4 w-4" />
           <span className="hidden 2xl:inline-block">Keluar</span>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +10,8 @@ import { ArrowLeft, CheckCircle2, KeyRound, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AUTH_BUTTON, AUTH_ERROR, AUTH_INPUT, AUTH_LABEL, AuthCard } from "@/components/auth/AuthCard";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api/axios";
 import { getApiErrorMessage, getApiErrorStatus } from "@/lib/api/error";
 
@@ -99,98 +100,82 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const title = step === "request" ? "Lupa Password" : step === "verify" ? "Verifikasi OTP" : "Password Diubah";
+  const subtitle =
+    step === "request"
+      ? "Masukkan email terdaftar untuk menerima kode OTP"
+      : step === "verify"
+        ? "Masukkan OTP dari email lalu buat password baru"
+        : "Password baru Anda sudah dapat digunakan";
+
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#050505] px-4 py-12 sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute -left-[10%] -top-[10%] h-[50vw] max-h-[600px] w-[50vw] max-w-[600px] rounded-full bg-primary/20 blur-[100px] lg:blur-[140px]" />
-      <div className="pointer-events-none absolute -right-[10%] bottom-0 h-[40vw] max-h-[500px] w-[40vw] max-w-[500px] rounded-full bg-purple-600/20 blur-[100px] lg:blur-[140px]" />
-      <div className="pointer-events-none absolute left-[20%] top-[40%] h-[30vw] max-h-[400px] w-[30vw] max-w-[400px] rounded-full bg-emerald-500/10 blur-[120px]" />
-
-      <div className="relative z-10 w-full max-w-[440px]">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-24 w-44 items-center justify-center rounded-3xl border border-white/20 bg-white/95 px-5 shadow-[0_0_40px_rgba(99,102,241,0.35)] backdrop-blur-xl">
-            {step === "success" ? (
-              <CheckCircle2 className="h-11 w-11 text-emerald-500" />
-            ) : (
-              <Image src="/Logo_Cimory.png" alt="Cimory" width={150} height={80} priority className="h-auto w-32 object-contain" />
-            )}
+    <AuthCard
+      title={title}
+      subtitle={subtitle}
+      icon={step === "success" ? <CheckCircle2 aria-hidden="true" className="h-14 w-14 text-success" /> : undefined}
+      hint="OTP disimpan sebagai hash satu arah dan hanya dapat digunakan sekali."
+    >
+      {step === "request" && (
+        <form className="space-y-4" onSubmit={requestForm.handleSubmit(onRequestOTP)}>
+          <div>
+            <label htmlFor="email" className={AUTH_LABEL}>Alamat Email</label>
+            <div className="relative">
+              <Mail aria-hidden="true" className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input id="email" type="email" autoComplete="email" className={cn(AUTH_INPUT, "pl-10")} placeholder="nama@perusahaan.com" {...requestForm.register("email")} />
+            </div>
+            {requestForm.formState.errors.email && <p className={AUTH_ERROR}>{requestForm.formState.errors.email.message}</p>}
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-            {step === "request" ? "Lupa Password" : step === "verify" ? "Verifikasi OTP" : "Password Diubah"}
-          </h1>
-          <p className="mt-3 text-sm text-zinc-400 sm:text-base">
-            {step === "request" && "Masukkan email terdaftar untuk menerima kode OTP"}
-            {step === "verify" && "Masukkan OTP dari email lalu buat password baru"}
-            {step === "success" && "Password baru Anda sudah dapat digunakan"}
-          </p>
+          <Button type="submit" className={AUTH_BUTTON} isLoading={isLoading}>Kirim Kode OTP</Button>
+        </form>
+      )}
+
+      {step === "verify" && (
+        <form className="space-y-4" onSubmit={resetForm.handleSubmit(onResetPassword)}>
+          <div className="rounded-sm border-l-4 border-info bg-info/10 px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground">
+            OTP berlaku 10 menit dan dikirim ke <strong>{email}</strong>.
+          </div>
+
+          <div>
+            <label htmlFor="otp" className={AUTH_LABEL}>Kode OTP</label>
+            <Input id="otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className={cn(AUTH_INPUT, "h-12 text-center font-mono text-xl tracking-[0.45em] placeholder:tracking-normal")} placeholder="000000" {...resetForm.register("otp", { onChange: (event) => { event.target.value = event.target.value.replace(/\D/g, "").slice(0, 6); } })} />
+            {resetForm.formState.errors.otp && <p className={AUTH_ERROR}>{resetForm.formState.errors.otp.message}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="new-password" className={AUTH_LABEL}>Password Baru</label>
+            <Input id="new-password" type="password" autoComplete="new-password" className={AUTH_INPUT} {...resetForm.register("newPassword")} />
+            {resetForm.formState.errors.newPassword && <p className={AUTH_ERROR}>{resetForm.formState.errors.newPassword.message}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="confirm-password" className={AUTH_LABEL}>Konfirmasi Password</label>
+            <Input id="confirm-password" type="password" autoComplete="new-password" className={AUTH_INPUT} {...resetForm.register("confirmPassword")} />
+            {resetForm.formState.errors.confirmPassword && <p className={AUTH_ERROR}>{resetForm.formState.errors.confirmPassword.message}</p>}
+          </div>
+
+          <Button type="submit" className={AUTH_BUTTON} isLoading={isLoading}>
+            <KeyRound aria-hidden="true" className="h-4 w-4" /> Atur Password Baru
+          </Button>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+            <button type="button" onClick={() => setStep("request")} className="text-muted-foreground hover:text-foreground">Ganti alamat email</button>
+            <button type="button" onClick={onResendOTP} disabled={isResending} className="rounded-sm px-2 py-1 font-semibold text-info hover:underline disabled:opacity-50">{isResending ? "Mengirim..." : "Kirim ulang OTP"}</button>
+          </div>
+        </form>
+      )}
+
+      {step === "success" && (
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-muted-foreground">Silakan masuk menggunakan password baru Anda.</p>
+          <Button type="button" onClick={() => router.replace("/login")} className={AUTH_BUTTON}>Masuk Sekarang</Button>
         </div>
+      )}
 
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-2xl sm:p-10">
-          {step === "request" && (
-            <form className="space-y-6" onSubmit={requestForm.handleSubmit(onRequestOTP)}>
-              <div className="space-y-2.5">
-                <label htmlFor="email" className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Alamat Email</label>
-                <div className="relative">
-                  <Mail aria-hidden="true" className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <Input id="email" type="email" autoComplete="email" className="h-12 border-white/10 bg-black/40 pl-11 text-white placeholder:text-zinc-600 focus-visible:border-primary/50 focus-visible:bg-black/60" placeholder="nama@perusahaan.com" {...requestForm.register("email")} />
-                </div>
-                {requestForm.formState.errors.email && <p className="ml-1 text-xs font-medium text-red-400">{requestForm.formState.errors.email.message}</p>}
-              </div>
-              <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-primary to-purple-600 font-bold text-white" isLoading={isLoading}>Kirim Kode OTP</Button>
-            </form>
-          )}
-
-          {step === "verify" && (
-            <form className="space-y-5" onSubmit={resetForm.handleSubmit(onResetPassword)}>
-              <div className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-xs text-zinc-300">
-                OTP berlaku 10 menit dan dikirim ke <strong className="text-white">{email}</strong>.
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="otp" className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Kode OTP</label>
-                <Input id="otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="h-14 border-white/10 bg-black/40 text-center font-mono text-xl tracking-[0.45em] text-white placeholder:tracking-normal" placeholder="000000" {...resetForm.register("otp", { onChange: (event) => { event.target.value = event.target.value.replace(/\D/g, "").slice(0, 6); } })} />
-                {resetForm.formState.errors.otp && <p className="text-xs font-medium text-red-400">{resetForm.formState.errors.otp.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="new-password" className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Password Baru</label>
-                <Input id="new-password" type="password" autoComplete="new-password" className="border-white/10 bg-black/40 text-white" {...resetForm.register("newPassword")} />
-                {resetForm.formState.errors.newPassword && <p className="text-xs font-medium text-red-400">{resetForm.formState.errors.newPassword.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="confirm-password" className="ml-1 text-xs font-semibold uppercase tracking-wider text-zinc-400">Konfirmasi Password</label>
-                <Input id="confirm-password" type="password" autoComplete="new-password" className="border-white/10 bg-black/40 text-white" {...resetForm.register("confirmPassword")} />
-                {resetForm.formState.errors.confirmPassword && <p className="text-xs font-medium text-red-400">{resetForm.formState.errors.confirmPassword.message}</p>}
-              </div>
-
-              <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-primary to-purple-600 font-bold text-white" isLoading={isLoading}>
-                <KeyRound aria-hidden="true" className="mr-2 h-4 w-4" /> Atur Password Baru
-              </Button>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                <button type="button" onClick={() => setStep("request")} className="text-zinc-400 hover:text-white">Ganti alamat email</button>
-                <button type="button" onClick={onResendOTP} disabled={isResending} className="rounded-lg px-2 py-1 font-semibold text-indigo-300 transition-colors hover:bg-indigo-500/10 hover:text-indigo-200 disabled:opacity-50">{isResending ? "Mengirim..." : "Kirim ulang OTP"}</button>
-              </div>
-            </form>
-          )}
-
-          {step === "success" && (
-            <div className="space-y-5 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 text-green-400"><CheckCircle2 className="h-8 w-8" /></div>
-              <div><h2 className="text-xl font-bold text-white">Password Berhasil Diubah</h2><p className="mt-2 text-sm text-zinc-400">Silakan masuk menggunakan password baru Anda.</p></div>
-              <Button type="button" onClick={() => router.replace("/login")} className="h-12 w-full rounded-2xl">Masuk Sekarang</Button>
-            </div>
-          )}
-
-          {step !== "success" && (
-            <div className="mt-8 text-center">
-              <button type="button" onClick={() => router.push("/login")} className="inline-flex items-center text-sm font-medium text-zinc-400 transition-colors hover:text-white"><ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />Kembali ke Halaman Login</button>
-            </div>
-          )}
+      {step !== "success" && (
+        <div className="mt-6 text-center">
+          <button type="button" onClick={() => router.push("/login")} className="inline-flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" />Kembali ke Halaman Login</button>
         </div>
-
-        <p className="mt-8 text-center text-xs text-zinc-500">OTP disimpan sebagai hash satu arah dan hanya dapat digunakan sekali.</p>
-      </div>
-    </div>
+      )}
+    </AuthCard>
   );
 }

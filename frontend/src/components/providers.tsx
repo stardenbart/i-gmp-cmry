@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 
 import { StoreProvider } from "@/store/provider";
 import { useMounted } from "@/lib/useMounted";
+import { DEFAULT_THEME } from "@/lib/theme";
 
 interface ThemeContextType {
   theme: string;
@@ -14,14 +15,14 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: "dark",
+  theme: DEFAULT_THEME,
   setTheme: () => {},
-  resolvedTheme: "dark",
+  resolvedTheme: DEFAULT_THEME,
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<string>("dark");
-  const [resolvedTheme, setResolvedTheme] = useState<string>("dark");
+  const [theme, setThemeState] = useState<string>(DEFAULT_THEME);
+  const [resolvedTheme, setResolvedTheme] = useState<string>(DEFAULT_THEME);
 
   const applyTheme = useCallback((t: string) => {
     const root = document.documentElement;
@@ -39,7 +40,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const stored = localStorage.getItem("theme") || "dark";
+      const stored = localStorage.getItem("theme") || DEFAULT_THEME;
       setThemeState(stored);
       applyTheme(stored);
     });
@@ -70,7 +71,7 @@ function ToasterWithTheme() {
   const mounted = useMounted();
 
   if (!mounted) return null;
-  return <Toaster position="top-center" theme={(resolvedTheme as "light" | "dark" | "system") || "dark"} />;
+  return <Toaster position="top-center" theme={(resolvedTheme as "light" | "dark" | "system") || DEFAULT_THEME} />;
 }
 
 import { PerformanceMonitorGate } from "@/components/performance/PerformanceMonitorGate";

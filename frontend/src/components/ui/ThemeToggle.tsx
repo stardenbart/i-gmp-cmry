@@ -48,7 +48,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       <Sun 
         className={cn(
           "h-4 w-4 transition-all duration-300 transform",
-          isDark ? "rotate-0 scale-100 opacity-100 text-amber-400" : "-rotate-90 scale-0 opacity-0 absolute"
+          isDark ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0 absolute"
         )} 
       />
       
@@ -56,7 +56,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       <Moon 
         className={cn(
           "h-4 w-4 transition-all duration-300 transform",
-          !isDark ? "rotate-0 scale-100 opacity-100 text-indigo-600 dark:text-indigo-400" : "rotate-90 scale-0 opacity-0 absolute"
+          !isDark ? "rotate-0 scale-100 opacity-100" : "rotate-90 scale-0 opacity-0 absolute"
         )} 
       />
 

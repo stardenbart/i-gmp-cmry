@@ -33,7 +33,7 @@ export default function PanduanPage() {
   return (
     <PanduanFilterProvider>
       <div className="space-y-10 pb-16">
-        <div className="sticky top-16 z-20 -mx-3.5 space-y-3 border-b border-border bg-background/95 px-3.5 py-3 shadow-sm backdrop-blur-xl sm:-mx-6 sm:px-6">
+        <div className="sticky top-[calc(3.5rem+var(--safe-area-top))] z-20 -mx-3.5 space-y-3 border-b border-border bg-background/95 px-3.5 py-3 shadow-sm backdrop-blur-xl sm:-mx-5 sm:px-5">
           <RoleFilterBar />
           <ChapterTabs chapters={CHAPTERS} />
         </div>

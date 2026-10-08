@@ -115,7 +115,7 @@ export default function MonitoringPage() {
       </section>
 
       {/* Tabs Navigation */}
-      <nav className="flex border-b border-border w-full overflow-x-auto hide-scrollbar sticky top-[64px] bg-background z-30 pt-2 pb-0">
+      <nav className="flex border-b border-border w-full overflow-x-auto hide-scrollbar sticky top-[calc(3.5rem+var(--safe-area-top))] bg-background z-30 pt-2 pb-0">
         <button 
           className={cn(
             "flex-1 py-2.5 px-4 text-center font-semibold border-b-2 transition-colors flex items-center justify-center gap-2 text-sm",

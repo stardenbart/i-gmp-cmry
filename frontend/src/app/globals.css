@@ -14,9 +14,32 @@
   --color-border: var(--border);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-footer: var(--footer);
+
+  /* Cimory brand constants (style guide "Plant Sentul"), same in both themes */
+  --color-brand-blue: #1b3a6f;
+  --color-brand-blue-dark: #122854;
+  --color-brand-blue-light: #2a4f8f;
+  --color-brand-red: #e63946;
+  --color-brand-red-dark: #c62833;
+
+  /* Radius: lg 8px cards, md 5px buttons/inputs, sm 4px small controls */
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) - 3px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  --font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* Stitch Custom Colors */
   --color-on-primary: #ffffff;
@@ -66,15 +89,15 @@
   --color-surface-container: #e5eeff;
 
   /* Fonts */
-  --font-headline-md: "Inter", sans-serif;
-  --font-label-md: "Inter", sans-serif;
-  --font-display-lg: "Inter", sans-serif;
-  --font-headline-sm: "Inter", sans-serif;
-  --font-headline-lg-mobile: "Inter", sans-serif;
-  --font-title-lg: "Inter", sans-serif;
-  --font-label-sm: "Inter", sans-serif;
-  --font-body-lg: "Inter", sans-serif;
-  --font-body-md: "Inter", sans-serif;
+  --font-headline-md: var(--font-sans);
+  --font-label-md: var(--font-sans);
+  --font-display-lg: var(--font-sans);
+  --font-headline-sm: var(--font-sans);
+  --font-headline-lg-mobile: var(--font-sans);
+  --font-title-lg: var(--font-sans);
+  --font-label-sm: var(--font-sans);
+  --font-body-lg: var(--font-sans);
+  --font-body-md: var(--font-sans);
 
   /* Font Sizes */
   --text-headline-md: 24px;
@@ -104,31 +127,56 @@
 @custom-variant dark (&:is(.dark *));
 
 @layer base {
+  /* Light (default) — values from the Cimory style guide. */
   :root {
-    --background: #ffffff;
-    --foreground: #09090b;
-    --primary: #171717;
-    --primary-foreground: #fafafa;
-    --muted: #f4f4f5;
-    --muted-foreground: #71717a;
-    --border: #e4e4e7;
+    --background: #f8fafc;
+    --foreground: #1f2937;
+    --primary: #1b3a6f;
+    --primary-foreground: #ffffff;
+    --muted: #f1f5f9;
+    --muted-foreground: #6b7280;
+    --border: #e5e7eb;
     --card: #ffffff;
-    --card-foreground: #09090b;
-    --ring: #171717;
-    --radius: 0.75rem;
+    --card-foreground: #1f2937;
+    --ring: #2a4f8f;
+    --destructive: #c62833;
+    --destructive-foreground: #ffffff;
+    --accent: #e63946;
+    --success: #1e8449;
+    --warning: #9c640c;
+    --info: #1b4f72;
+    --sidebar: #1b3a6f;
+    --sidebar-foreground: #ffffff;
+    --sidebar-muted: #bbc4d4;
+    --sidebar-active: #443a67;
+    --footer: #ffffff;
+    --radius: 0.5rem;
   }
 
+  /* Dark — the style guide has no dark mode; derived from the same navy
+   * and red, every text pair kept at WCAG AA (see theme-tokens.test.ts). */
   .dark {
-    --background: #000000;
-    --foreground: #fafafa;
-    --primary: #6366f1;
-    --primary-foreground: #ffffff;
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
-    --border: #27272a;
-    --card: #09090b;
-    --card-foreground: #fafafa;
-    --ring: #6366f1;
+    --background: #0b1220;
+    --foreground: #e5e7eb;
+    --primary: #8fb3f0;
+    --primary-foreground: #0b1220;
+    --muted: #1a2540;
+    --muted-foreground: #9ca3af;
+    --border: #24314d;
+    --card: #111a2e;
+    --card-foreground: #e5e7eb;
+    --ring: #8fb3f0;
+    --destructive: #f28b93;
+    --destructive-foreground: #2a0a0d;
+    --accent: #e63946;
+    --success: #5fd08f;
+    --warning: #f0b45b;
+    --info: #8cc3ea;
+    --sidebar: #0f1f3d;
+    --sidebar-foreground: #ffffff;
+    --sidebar-muted: #b4bdcc;
+    --sidebar-active: #3a243f;
+    --footer: #111a2e;
   }
 }
 
@@ -190,9 +238,53 @@ html[data-public-kpi-theme="light"] body {
   }
 }
 
+@layer components {
+  /* Header: 135deg navy -> deep navy -> Cimory red, identical in both themes. */
+  .app-header {
+    background: linear-gradient(135deg, var(--color-brand-blue) 0%, var(--color-brand-blue-dark) 60%, var(--color-brand-red) 100%);
+    box-shadow: 0 2px 8px rgba(27, 58, 111, 0.25);
+  }
+
+  /* Login: the only screen outside the shell. Slow moving gradient behind a
+   * frosted 400px card. */
+  .login-page {
+    background: linear-gradient(135deg, #1b3a6f 0%, #2a4f8f 40%, #f8fafc 70%, #e63946 100%);
+    background-size: 400% 400%;
+    animation: login-gradient 12s ease infinite;
+  }
+  .dark .login-page {
+    background-image: linear-gradient(135deg, #0f1f3d 0%, #1b3a6f 40%, #0b1220 70%, #c62833 100%);
+  }
+  .login-card {
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  }
+  .login-btn {
+    background: linear-gradient(135deg, var(--color-brand-blue) 0%, var(--color-brand-red-dark) 100%);
+    color: #ffffff;
+  }
+  .login-btn:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .login-page {
+      animation: none;
+    }
+  }
+}
+
+@keyframes login-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 @layer utilities {
   .pwa-header-safe {
-    height: calc(4rem + var(--safe-area-top));
+    height: calc(3.5rem + var(--safe-area-top));
     padding-top: var(--safe-area-top);
   }
 
@@ -203,6 +295,11 @@ html[data-public-kpi-theme="light"] body {
 
   .pwa-content-safe {
     padding-bottom: calc(7rem + var(--safe-area-bottom));
+  }
+
+  /* Keeps the footer clear of the mobile bottom nav. */
+  .pwa-footer-safe {
+    margin-bottom: calc(4rem + var(--safe-area-bottom));
   }
 
   .notification-panel-mobile {
@@ -223,12 +320,16 @@ html[data-public-kpi-theme="light"] body {
 
   @media (min-width: 768px) {
     .pwa-header-safe {
-      height: 4rem;
+      height: 3.5rem;
       padding-top: 0;
     }
 
     .pwa-content-safe {
       padding-bottom: 1.5rem;
+    }
+
+    .pwa-footer-safe {
+      margin-bottom: 0;
     }
   }
 }

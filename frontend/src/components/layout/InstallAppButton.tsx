@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useInstallPrompt } from "@/components/pwa/InstallPromptProvider";
 
-export function InstallAppButton() {
+export function InstallAppButton({ className }: { className?: string }) {
   const [showGuideModal, setShowGuideModal] = useState(false);
   const { canPrompt, isStandalone, hasCheckedStandalone, requestInstall } = useInstallPrompt();
 
@@ -59,7 +59,8 @@ export function InstallAppButton() {
         className={cn(
           "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary shadow-sm transition-all",
           "hover:bg-primary hover:text-primary-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-          "xl:w-auto xl:gap-2 xl:rounded-full xl:px-3"
+          "xl:w-auto xl:gap-2 xl:rounded-full xl:px-3",
+          className
         )}
         title="Install Aplikasi ke Perangkat"
         aria-label="Install aplikasi ke perangkat"

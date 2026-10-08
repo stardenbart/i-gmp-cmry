@@ -2,9 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { SerwistProvider } from "@serwist/turbopack/react";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-
-const geistSans = { variable: "font-sans" };
-const geistMono = { variable: "font-mono" };
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: {
@@ -36,10 +34,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "dark light",
+  colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { media: "(prefers-color-scheme: light)", color: "#1b3a6f" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1f3d" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -54,8 +52,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className="font-sans antialiased"
         suppressHydrationWarning
       >
         <SerwistProvider swUrl="/serwist/sw.js" disable={process.env.NODE_ENV === "development"}>
