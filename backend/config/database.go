@@ -12,6 +12,10 @@ import (
 // OpenDatabase creates and validates a GORM database connection without
 // applying schema changes. Maintenance tools should use this function.
 func OpenDatabase(cfg *Config) (*gorm.DB, error) {
+	if err := ApplyProcessTimezone(cfg.DBTimezone); err != nil {
+		return nil, err
+	}
+
 	// DSN format: host=localhost user=gorm password=gorm dbname=gorm port=9920 sslmode=disable TimeZone=Asia/Jakarta
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s statement_timeout=3000 connect_timeout=5",
 		cfg.DBHost,

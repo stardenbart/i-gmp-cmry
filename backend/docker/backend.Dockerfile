@@ -24,7 +24,8 @@ FROM docker.io/library/alpine:3.22
 
 WORKDIR /app
 
-# Set timezone
+# Set timezone (ApplyProcessTimezone also enforces DB_TIMEZONE at startup)
+ENV TZ=Asia/Jakarta
 RUN apk add --no-cache ca-certificates su-exec tzdata \
     && addgroup -S -g 10001 app \
     && adduser -S -D -H -u 10001 -G app app

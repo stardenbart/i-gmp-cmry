@@ -14,8 +14,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { formatTimeAgo } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { useRouter, useParams } from "next/navigation";
 
@@ -158,10 +157,7 @@ export default function NotificationsPage() {
                       {notification.title}
                     </h4>
                     <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                      {formatDistanceToNow(new Date(notification.created_at), {
-                        addSuffix: true,
-                        locale: idLocale,
-                      })}
+                      {formatTimeAgo(notification.created_at)}
                     </span>
                   </div>
                   <p

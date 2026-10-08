@@ -162,6 +162,7 @@ services:
     environment:
       APP_ENV: production
       APP_PORT: "8080"
+      TZ: Asia/Jakarta
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ${DB_USER:?DB_USER is required}

@@ -207,6 +207,7 @@ services:
     environment:
       APP_ENV: production
       APP_PORT: "8080"
+      TZ: Asia/Jakarta
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_OUTPUT: console
       DB_HOST: db
