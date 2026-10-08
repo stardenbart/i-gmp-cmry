@@ -12,6 +12,8 @@ import { usePolling } from "@/hooks/usePolling";
 import type { DashboardStats as StatDashboardStats } from "@/components/admin/StatCard";
 import { dashboardApi, type DashboardTrendData, type TrendMode, type TrendGranularity } from "@/lib/api/dashboard.api";
 import { useTrendModeState, useTrendRangeState, useTrendGranularityState, type TrendDateRange } from "@/components/dashboard/useTrendPeriodState";
+import type { DateRange } from "@/components/dashboard/DateRangeFilter";
+import { buildStatsParams } from "./stats-params";
 
 export interface AdminDashboardStats extends StatDashboardStats {
   inspections_completed?: number;
@@ -35,9 +37,9 @@ export interface AdminDashboardStats extends StatDashboardStats {
   }>;
 }
 
-const fetchDashboardStats = async (areaId?: string, plantId?: string) => {
+const fetchDashboardStats = async (areaId: string, plantId: string, range: DateRange) => {
   const res = await api.get("/dashboard/stats", {
-    params: { area_id: areaId, plant_id: plantId, include_trend: false },
+    params: buildStatsParams({ areaId, plantId, range }),
   });
   return res.data.data as AdminDashboardStats;
 };
@@ -51,6 +53,8 @@ interface AdminDashboardContextValue {
   setSelectedPlant: (plant: string) => void;
   selectedArea: string;
   setSelectedArea: (area: string) => void;
+  statsRange: DateRange;
+  setStatsRange: (range: DateRange) => void;
   trendMode: TrendMode;
   setTrendMode: (mode: TrendMode) => void;
   trendRange: TrendDateRange;
@@ -80,6 +84,7 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
 
   const [selectedPlant, setSelectedPlant] = useState<string>("");
   const [selectedArea, setSelectedArea] = useState<string>("");
+  const [statsRange, setStatsRange] = useState<DateRange>({ start: "", end: "" });
   const [trendMode, setTrendMode] = useTrendModeState();
   const [trendRange, setTrendRange] = useTrendRangeState();
   const [trendGranularity, setTrendGranularity] = useTrendGranularityState();
@@ -119,8 +124,8 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ["dashboard-stats-stitch", selectedArea, effectivePlant],
-    queryFn: () => fetchDashboardStats(selectedArea, effectivePlant),
+    queryKey: ["dashboard-stats-stitch", selectedArea, effectivePlant, statsRange.start, statsRange.end],
+    queryFn: () => fetchDashboardStats(selectedArea, effectivePlant, statsRange),
     enabled: mounted && !!user,
     staleTime: 10000,
   });
@@ -156,6 +161,8 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
         setSelectedPlant,
         selectedArea,
         setSelectedArea,
+        statsRange,
+        setStatsRange,
         trendMode,
         setTrendMode,
         trendRange,

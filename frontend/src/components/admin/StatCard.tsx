@@ -11,6 +11,7 @@ export interface DashboardStats {
   total_open_issues: number;
   issue_overdue_trend: number;
   issue_overdue: number;
+  issues_resolved?: number;
 }
 
 interface StatCardConfig {
@@ -137,13 +138,12 @@ export const StatsCards = ({
       badgeColor: 'text-amber-600'
     },
     {
-      id: 'overdue',
-      title: 'Temuan Jatuh Tempo',
-      value: 'issue_overdue',
-      color: 'bg-red-500',
-      showTrend: true,
-      trendValue: 'issue_overdue_trend',
-      badgeColor: 'text-red-500',
+      id: 'closed',
+      title: 'Temuan Closed',
+      value: 'issues_resolved',
+      color: 'bg-success',
+      badgeText: 'Selesai',
+      badgeColor: 'text-success',
     }
   ];
 

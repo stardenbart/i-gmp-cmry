@@ -4,9 +4,10 @@ import { Factory } from "lucide-react";
 import { DashboardGrid } from "@/components/dashboard/DashboardGrid";
 import { allMainDashboardWidgets } from "@/components/dashboard/widgets/registry";
 import { AdminDashboardProvider, useAdminDashboard } from "@/components/dashboard/admin/AdminDashboardContext";
+import { DateRangeFilter } from "@/components/dashboard/DateRangeFilter";
 
 function AdminDashboardBody() {
-  const { mounted, user, isSuperAdmin, selectedPlant, setSelectedPlant, selectedArea, setSelectedArea, plantsResponse, filteredAreas } =
+  const { mounted, user, isSuperAdmin, selectedPlant, setSelectedPlant, selectedArea, setSelectedArea, statsRange, setStatsRange, plantsResponse, filteredAreas } =
     useAdminDashboard();
 
   if (!mounted) {
@@ -68,6 +69,8 @@ function AdminDashboardBody() {
               </option>
             ))}
           </select>
+
+          <DateRangeFilter value={statsRange} onChange={setStatsRange} />
         </div>
       </section>
 

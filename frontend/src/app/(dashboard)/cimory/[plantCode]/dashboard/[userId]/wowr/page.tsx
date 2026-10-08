@@ -8,8 +8,6 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Search,
-  CheckCircle2,
-  XCircle,
   Loader2,
   Image as ImageIcon,
   UploadCloud,
@@ -32,6 +30,8 @@ import { usePolling } from "@/hooks/usePolling";
 import { cn, formatImageUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { EditEvidenceDescriptionModal } from "@/components/wowr/EditEvidenceDescriptionModal";
+import { WOWRStatusBadge } from "@/components/wowr/WOWRStatusBadge";
+import { countWOWRByDisplayStatus, displayStatusOf, getWOWRDisplayStatus } from "@/lib/wowr-status";
 
 // Interface untuk item WOWR yang terisolasi per foto
 interface WOWRItem {
@@ -304,6 +304,7 @@ function IssueRow({
   // verifying — the "Belum ada foto bukti WO/WR" warning showed even
   // when a valid photo existed.
   const hasWOWRProofImage = item.wowr_photos.some((photo) => Boolean(photo.image_url));
+  const displayStatus = getWOWRDisplayStatus(item.wowr_status, hasWOWRProofImage);
 
   const queryClient = useQueryClient();
   
@@ -392,28 +393,13 @@ function IssueRow({
           {item.keterangan || "-"}
         </td>
         <td className="px-4 py-3">
-          {(!item.wowr_status || item.wowr_status === "None") ? (
-            <span className="text-xs text-muted-foreground font-medium">Menunggu Bukti</span>
-          ) : item.wowr_status === "PendingValidation" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-              <Loader2 className="h-3 w-3 animate-spin" /> Menunggu Validasi Auditor
-            </span>
-          ) : item.wowr_status === "Verified" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 className="h-3 w-3" /> Terverifikasi
-            </span>
-          ) : item.wowr_status === "Rejected" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
-              <XCircle className="h-3 w-3" /> Ditolak
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">{item.wowr_status}</span>
-          )}
+          <WOWRStatusBadge status={displayStatus} />
         </td>
         <td className="px-4 py-3 text-right">
           <div className="flex justify-end items-center gap-2">
             {/* Actions for Auditor (Dynamic permission: PERM-WOWR-U) */}
-            {canValidate && item.wowr_status === "PendingValidation" && (
+            {/* Nothing to validate until execution proof is uploaded. */}
+            {canValidate && displayStatus === "PendingValidation" && (
               <>
                 <Button 
                   size="sm" 
@@ -444,11 +430,6 @@ function IssueRow({
                 </Button>
               </>
             )}
-            {canValidate && item.wowr_status === "PendingValidation" && !hasWOWRProofImage && (
-              <span className="max-w-40 text-right text-[10px] font-semibold leading-tight text-red-500">
-                Belum ada foto bukti WO/WR
-              </span>
-            )}
 
             {/* Actions for Auditee / PIC (Dynamic permission: PERM-ISS-U or PERM-WOWR-R) */}
             {canUploadProof && !isClosed && item.wowr_status !== "Verified" && (
@@ -462,7 +443,7 @@ function IssueRow({
                 }}
               >
                 <UploadCloud className="h-3.5 w-3.5 mr-1" />
-                {item.wowr_status === "PendingValidation" ? "Re-upload Bukti" : "Upload Bukti"}
+                {hasWOWRProofImage ? "Re-upload Bukti" : "Upload Bukti"}
               </Button>
             )}
           </div>
@@ -823,10 +804,13 @@ export default function WOWRPage() {
 
   // Summary statistics calculations based on isolated WOWRItems
   const totalCount = wowrItems.length;
-  const verifiedCount = useMemo(() => wowrItems.filter(i => i.wowr_status === "Verified").length, [wowrItems]);
-  const pendingCount = useMemo(() => wowrItems.filter(i => i.wowr_status === "PendingValidation").length, [wowrItems]);
-  const rejectedCount = useMemo(() => wowrItems.filter(i => i.wowr_status === "Rejected").length, [wowrItems]);
-  const awaitingCount = useMemo(() => wowrItems.filter(i => !i.wowr_status || i.wowr_status === "None").length, [wowrItems]);
+  // Counted by display status: PendingValidation without a proof photo is
+  // still waiting for execution proof, not for the auditor.
+  const statusCounts = useMemo(() => countWOWRByDisplayStatus(wowrItems), [wowrItems]);
+  const verifiedCount = statusCounts.Verified;
+  const pendingCount = statusCounts.PendingValidation;
+  const rejectedCount = statusCounts.Rejected;
+  const awaitingCount = statusCounts.AwaitingEvidence;
 
   const verifiedRate = totalCount > 0 ? (verifiedCount / totalCount) * 100 : 0;
   const pendingRate = totalCount > 0 ? (pendingCount / totalCount) * 100 : 0;
@@ -836,11 +820,7 @@ export default function WOWRPage() {
     let result = wowrItems;
 
     if (statusFilter !== "ALL") {
-      if (statusFilter === "None") {
-        result = result.filter(i => !i.wowr_status || i.wowr_status === "None");
-      } else {
-        result = result.filter(i => i.wowr_status === statusFilter);
-      }
+      result = result.filter(i => displayStatusOf(i) === statusFilter);
     }
 
     if (!search.trim()) return result;
@@ -947,7 +927,7 @@ export default function WOWRPage() {
               { id: "PendingValidation", label: "Menunggu Validasi", count: pendingCount, color: "text-purple-500 bg-purple-500/10 border-purple-500/20" },
               { id: "Verified", label: "Terverifikasi", count: verifiedCount, color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" },
               { id: "Rejected", label: "Ditolak", count: rejectedCount, color: "text-red-500 bg-red-500/10 border-red-500/20" },
-              { id: "None", label: "Menunggu Bukti", count: awaitingCount },
+              { id: "AwaitingEvidence", label: "Menunggu Bukti Eksekusi", count: awaitingCount },
             ].map((tab) => (
               <button
                 key={tab.id}

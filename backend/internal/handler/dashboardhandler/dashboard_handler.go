@@ -340,27 +340,42 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		allowedAreas = filterAreas
 	}
 
-	qRunning := h.db.Model(&inspection.InspectionHeader{}).Where("\"InspectionHeaderStatus\" = ?", "Ongoing")
+	// Overview date range (start_date/end_date, WIB days). Every figure below
+	// is scoped by the inspection's date so the cards, bars and area list all
+	// describe the same set of inspections and their findings.
+	statsRange, err := parseStatsDateRange(c.Query("start_date"), c.Query("end_date"), dashboardLocation())
+	if err != nil {
+		return response.BadRequest(c, err.Error(), nil)
+	}
+	inRange := func(q *gorm.DB, column string) *gorm.DB {
+		if statsRange == nil {
+			return q
+		}
+		cond, args := statsRange.condition(column)
+		return q.Where(cond, args...)
+	}
+
+	qRunning := inRange(h.db.Model(&inspection.InspectionHeader{}).Where("\"InspectionHeaderStatus\" = ?", "Ongoing"), `"InspectionHeaderCreatedAt"`)
 	if allowedAreas != nil {
 		qRunning = qRunning.Where("\"AreaID\" IN ?", allowedAreas)
 	}
 	qRunning.Count(&totalInspectionsRunning)
 
-	qCompleted := h.db.Model(&inspection.InspectionHeader{}).Where("\"InspectionHeaderStatus\" = ?", "Completed")
+	qCompleted := inRange(h.db.Model(&inspection.InspectionHeader{}).Where("\"InspectionHeaderStatus\" = ?", "Completed"), `"InspectionHeaderCreatedAt"`)
 	if allowedAreas != nil {
 		qCompleted = qCompleted.Where("\"AreaID\" IN ?", allowedAreas)
 	}
 	qCompleted.Count(&inspectionsCompleted)
 
 	// Issue queries need join with Inspection_Header
-	qIssueBase := h.db.Table("\"Issue\" i").Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"")
+	qIssueBase := inRange(h.db.Table("\"Issue\" i").Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\""), `ih."InspectionHeaderCreatedAt"`)
 	// Dashboard "Total Issue" represents each initial finding photo as one
 	// issue. Follow-up and WO/WR proof photos are deliberately excluded.
-	qIssuePhotoBase := h.db.Table(`"Issue_Photo" ip`).
+	qIssuePhotoBase := inRange(h.db.Table(`"Issue_Photo" ip`).
 		Joins(`JOIN "Issue" i ON i."IssueID" = ip."IssueID"`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."ResultID" = i."ResultID"`).
 		Joins(`JOIN "Inspection_Header" ih ON ih."InspectionID" = ir."InspectionID"`).
-		Where(`ip."PhotoType" = ?`, "Initial")
+		Where(`ip."PhotoType" = ?`, "Initial"), `ih."InspectionHeaderCreatedAt"`)
 	qIssueTotal := qIssuePhotoBase.Session(&gorm.Session{})
 	if allowedAreas != nil {
 		qIssueTotal = qIssueTotal.Where("ih.\"AreaID\" IN ?", allowedAreas)
@@ -385,7 +400,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	}
 	qIssueOverdue.Count(&picFollowupOverdue)
 
-	qResultBase := h.db.Table("\"Inspection_Result\" ir").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"")
+	qResultBase := inRange(h.db.Table("\"Inspection_Result\" ir").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\""), `ih."InspectionHeaderCreatedAt"`)
 	qCheck := qResultBase.Session(&gorm.Session{})
 	if allowedAreas != nil {
 		qCheck = qCheck.Where("ih.\"AreaID\" IN ?", allowedAreas)
@@ -420,11 +435,19 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 			COUNT(DISTINCT CASE WHEN ir."Checking" = 'OK' THEN ir."ResultID" END) as total_ok,
 			COUNT(DISTINCT CASE WHEN i."IssueStatus" != 'Closed' AND i."IssueStatus" != 'Verified' AND i."IssueStatus" IS NOT NULL THEN i."IssueID" END) as open_issues
 		FROM "Area_Master" am
-		LEFT JOIN "Inspection_Header" ih ON ih."AreaID" = am."AreaID"
+		LEFT JOIN "Inspection_Header" ih ON ih."AreaID" = am."AreaID"`
+	var args []interface{}
+	if statsRange != nil {
+		// In the JOIN, not WHERE, so areas with no inspection in the range
+		// still appear (at 0%).
+		cond, condArgs := statsRange.condition(`ih."InspectionHeaderCreatedAt"`)
+		queryStr += ` AND ` + cond
+		args = append(args, condArgs...)
+	}
+	queryStr += `
 		LEFT JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"
 		LEFT JOIN "Issue" i ON i."ResultID" = ir."ResultID"
 	`
-	var args []interface{}
 	if allowedAreas != nil {
 		queryStr += ` WHERE am."AreaID" IN ? `
 		args = append(args, allowedAreas)
@@ -571,18 +594,19 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 
 	// Calculate WOWR Statistics
 	var wowrTotal, wowrVerified, wowrPending, wowrRejected, wowrAwaiting int64
-	qWOWRBase := h.db.Table("\"Issue\" i").
+	qWOWRBase := inRange(h.db.Table("\"Issue\" i").
 		Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").
 		Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\"").
-		Where("i.\"NeedsWOWR\" = true OR (i.\"WO_ID\" IS NOT NULL AND i.\"WO_ID\" != '') OR (i.\"WR_ID\" IS NOT NULL AND i.\"WR_ID\" != '')")
+		Where("i.\"NeedsWOWR\" = true OR (i.\"WO_ID\" IS NOT NULL AND i.\"WO_ID\" != '') OR (i.\"WR_ID\" IS NOT NULL AND i.\"WR_ID\" != '')"), `ih."InspectionHeaderCreatedAt"`)
 	if allowedAreas != nil {
 		qWOWRBase = qWOWRBase.Where("ih.\"AreaID\" IN ?", allowedAreas)
 	}
 	qWOWRBase.Session(&gorm.Session{}).Count(&wowrTotal)
 	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ?", "Verified").Count(&wowrVerified)
-	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ?", "PendingValidation").Count(&wowrPending)
+	wowrConds := wowrStatusConditions()
+	qWOWRBase.Session(&gorm.Session{}).Where(wowrConds.Pending).Count(&wowrPending)
 	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ?", "Rejected").Count(&wowrRejected)
-	qWOWRBase.Session(&gorm.Session{}).Where("i.\"WOWRStatus\" = ? OR i.\"WOWRStatus\" IS NULL", "None").Count(&wowrAwaiting)
+	qWOWRBase.Session(&gorm.Session{}).Where(wowrConds.Awaiting).Count(&wowrAwaiting)
 
 	wowrVerifiedRate := 0.0
 	if wowrTotal > 0 {
@@ -601,6 +625,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 		"inspections_running":       inspectionsRunning,
 		"pic_followup_completed":    picFollowupCompleted,
 		"issues_resolved":           picFollowupCompleted,
+		"total_closed_issues":       picFollowupCompleted,
 		"pic_followup_overdue":      picFollowupOverdue,
 		"auditee_status":            auditeeStatusList,
 		"compliance_trend":          complianceTrend,

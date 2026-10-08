@@ -22,10 +22,7 @@ export function StatusAuditeeWidget() {
           ) : (
             stats?.auditee_status?.map((item, idx: number) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border/70 hover:bg-muted/70 transition-colors">
-                <div>
-                  <p className="text-xs font-semibold text-foreground">{item.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{item.type}</p>
-                </div>
+                <p className="text-xs font-semibold text-foreground">{item.name}</p>
                 <div className="text-right">
                   <p className={cn("text-xs font-bold", item.compliance < 70 ? "text-red-500" : "text-green-600")}>
                     {item.compliance}%
