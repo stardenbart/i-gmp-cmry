@@ -38,7 +38,12 @@ func RegisterInspectionRoutes(rg fiber.Router, db *gorm.DB, producer kafka.Event
 	settingRepo := masterrepo.NewSettingRepository(db)
 	notificationUC := buildNotificationUseCase(db, cfg)
 
-	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, kawasanRepo, settingRepo, notificationUC)
+	var decryptKeterangan func(string) string
+	if cryptoSvc != nil {
+		decryptKeterangan = cryptoSvc.DecryptWithFallback
+	}
+	emailNotifier := inspectionusecase.NewInspectionEmailNotifier(mailer, picRepo, authRepo, headerRepo, kawasanRepo, settingRepo, notificationUC).
+		WithKawasanReport(inspectionrepo.NewKawasanReportRepository(db), decryptKeterangan, cfg.AppBaseURL)
 
 	headerUC := inspectionusecase.NewInspectionHeaderUseCase(headerRepo, producer, detailKawasanRepo, kawasanRepo, areaRepo, emailNotifier)
 

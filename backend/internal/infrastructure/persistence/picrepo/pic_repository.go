@@ -47,7 +47,7 @@ func (r *picMappingRepository) FindByAreaAndKawasan(areaID, kawasanID string) ([
 func (r *picMappingRepository) FindResponsibleUsers(kawasanID string, kategori string) ([]pic.ResponsibleUser, error) {
 	var users []pic.ResponsibleUser
 	q := r.db.Table(`"PIC_Mapping" pm`).
-		Select(`u."UserID" as user_id, u."FullName" as full_name, u."Email" as email, u."PlantID" as plant_id`).
+		Select(`u."UserID" as user_id, u."FullName" as full_name, u."Email" as email, u."PlantID" as plant_id, COALESCE(pm."KategoriPIC", '') as kategori_pic`).
 		Joins(`JOIN "Users" u ON u."UserID" = pm."UserID"`).
 		Where(`pm."KawasanID" = ?`, kawasanID)
 	if kategori != "" {
@@ -60,7 +60,7 @@ func (r *picMappingRepository) FindResponsibleUsers(kawasanID string, kategori s
 func (r *picMappingRepository) FindResponsibleUsersByResultID(resultID string, kategori string) ([]pic.ResponsibleUser, error) {
 	var users []pic.ResponsibleUser
 	q := r.db.Table(`"PIC_Mapping" pm`).
-		Select(`u."UserID" as user_id, u."FullName" as full_name, u."Email" as email, u."PlantID" as plant_id`).
+		Select(`u."UserID" as user_id, u."FullName" as full_name, u."Email" as email, u."PlantID" as plant_id, COALESCE(pm."KategoriPIC", '') as kategori_pic`).
 		Joins(`JOIN "Users" u ON u."UserID" = pm."UserID"`).
 		Where(`pm."KawasanID" = (
 			SELECT ih."KawasanID" FROM "Inspection_Result" ir

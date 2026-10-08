@@ -3,6 +3,9 @@ package inspectionusecase
 import (
 	"fmt"
 	"log"
+	"strings"
+	"time"
+	"unicode"
 
 	"github.com/monitoring-system/backend/internal/domain/auth"
 	"github.com/monitoring-system/backend/internal/domain/inspection"
@@ -20,6 +23,20 @@ type InspectionEmailNotifier struct {
 	kawasanRepo    master.KawasanRepository
 	settingRepo    master.SettingRepository
 	notificationUC notificationdomain.NotificationUseCase // in-app bell notifications, alongside email
+
+	// Kawasan report email (score per Detail Kawasan + issue list).
+	reportRepo inspection.KawasanReportRepository
+	decrypt    func(string) string // opens encrypted issue Keterangan
+	appBaseURL string              // website address used for links
+}
+
+// WithKawasanReport enables the detailed Kawasan report email. Without it
+// the notifier only sends the in-app notification for a completed Kawasan.
+func (n *InspectionEmailNotifier) WithKawasanReport(repo inspection.KawasanReportRepository, decrypt func(string) string, appBaseURL string) *InspectionEmailNotifier {
+	n.reportRepo = repo
+	n.decrypt = decrypt
+	n.appBaseURL = appBaseURL
+	return n
 }
 
 func NewInspectionEmailNotifier(
@@ -126,11 +143,12 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 }
 
 // SendKawasanInspectionSummary is called when a Kawasan's status becomes
-// Confirmed (every DetailKawasan under it completed this month). Notifies
-// everyone mapped to that Kawasan — PIC and Manager alike — matching the
-// same "everyone responsible for this Kawasan" audience used for finding
-// notifications, not just Managers.
-func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string, progress inspection.KawasanProgress) error {
+// Confirmed (every DetailKawasan under it completed in the period). Everyone
+// mapped to that Kawasan (PIC, Manager, ...) gets one "Laporan Hasil
+// Inspeksi GMP" email: score per Detail Kawasan, the Kawasan average, the
+// issue list and links to the website, with the plant's CC list copied. This
+// replaces the former Power Automate flow (GMP_Report_Flow).
+func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string, progress inspection.KawasanProgress, periodStart, periodEnd time.Time) error {
 	responsible, err := n.picRepo.FindResponsibleUsers(kawasanID, "")
 	if err != nil {
 		log.Printf("[EmailNotifier] Error retrieving responsible users for Kawasan %s: %v", kawasanID, err)
@@ -145,17 +163,31 @@ func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string,
 		if plantID == "" && m.PlantID != nil {
 			plantID = *m.PlantID
 		}
-		if m.Email != "" && !emailSet[m.Email] {
-			emailSet[m.Email] = true
+		if m.Email != "" && !emailSet[strings.ToLower(m.Email)] {
+			emailSet[strings.ToLower(m.Email)] = true
 			targetEmails = append(targetEmails, m.Email)
 		}
 		targetUserIDs = append(targetUserIDs, m.UserID)
 	}
 
+	var report KawasanReport
+	if n.reportRepo != nil {
+		rows, errRows := n.reportRepo.FindKawasanReportRows(kawasanID, periodStart, periodEnd)
+		if errRows != nil {
+			log.Printf("[EmailNotifier] Error loading report for Kawasan %s: %v", kawasanID, errRows)
+			return errRows
+		}
+		report = buildKawasanReport(rows, n.decrypt, time.Now(), n.appBaseURL, plantID, formatKawasanPICs(responsible))
+	}
+	kawasanName := report.KawasanName
+	if kawasanName == "" {
+		kawasanName = kawasanID
+	}
+
 	if n.notificationUC != nil {
-		message := fmt.Sprintf("Kawasan %s telah selesai diinspeksi bulan ini (%d/%d detail kawasan).", kawasanID, progress.CompletedDetailKawasan, progress.TotalDetailKawasan)
+		message := fmt.Sprintf("Kawasan %s telah selesai diinspeksi (%d/%d detail kawasan). Laporan skor dan daftar issue dikirim ke email.", kawasanName, progress.CompletedDetailKawasan, progress.TotalDetailKawasan)
 		for _, userID := range targetUserIDs {
-			_ = n.notificationUC.CreateSystemNotification(userID, "success", "Kawasan Selesai Diinspeksi", message, "/inspections")
+			_ = n.notificationUC.CreateSystemNotification(userID, "success", "Kawasan Selesai Diinspeksi", message, "/issues")
 		}
 	}
 
@@ -163,26 +195,51 @@ func (n *InspectionEmailNotifier) SendKawasanInspectionSummary(kawasanID string,
 		log.Printf("[EmailNotifier] No PIC/Manager found or missing emails for Kawasan %s", kawasanID)
 		return nil
 	}
+	if n.reportRepo == nil {
+		log.Printf("[EmailNotifier] Kawasan report not configured; skipping email for Kawasan %s", kawasanID)
+		return nil
+	}
 
-	setting, err := n.settingRepo.FindByKey(master.SettingKeyEmailTemplateKawasanConfirmed, plantID)
+	html, err := RenderKawasanReport(report)
 	if err != nil {
-		log.Printf("[EmailNotifier] Error retrieving Kawasan-confirmed template: %v", err)
 		return err
 	}
 
-	data := map[string]interface{}{
-		"KawasanID":              kawasanID,
-		"TotalDetailKawasan":     progress.TotalDetailKawasan,
-		"CompletedDetailKawasan": progress.CompletedDetailKawasan,
-		"Status":                 string(progress.Status),
+	var cc []string
+	if setting, errCC := n.settingRepo.FindByKey(master.SettingKeyEmailCCKawasanReport, plantID); errCC == nil && setting != nil {
+		for _, addr := range parseEmailList(setting.SettingValue) {
+			if !emailSet[strings.ToLower(addr)] {
+				cc = append(cc, addr)
+			}
+		}
 	}
 
-	subject := "✅ Kawasan Selesai Diinspeksi: " + kawasanID
-	if err := n.mailer.SendTemplateForPlant(plantID, targetEmails, subject, setting.SettingValue, data); err != nil {
-		log.Printf("[EmailNotifier] Failed to send Kawasan-confirmed email to %v: %v", targetEmails, err)
+	msg := mail.HTMLMessage{To: targetEmails, Cc: cc, Subject: report.Subject(), HTML: html, HighImportance: true}
+	if err := n.mailer.SendHTMLForPlant(plantID, msg); err != nil {
+		log.Printf("[EmailNotifier] Failed to send Kawasan report to %v (cc %v): %v", targetEmails, cc, err)
 		return err
 	}
 
-	log.Printf("[EmailNotifier] Successfully sent Kawasan Confirmed email to %v", targetEmails)
+	log.Printf("[EmailNotifier] Sent Kawasan report for %s to %v (cc %v)", kawasanID, targetEmails, cc)
 	return nil
+}
+
+// parseEmailList splits a setting value on ";", "," and whitespace, keeping
+// valid-looking addresses once (case-insensitive) in their original order.
+func parseEmailList(value string) []string {
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ';' || r == ',' || unicode.IsSpace(r)
+	})
+	seen := make(map[string]bool)
+	var out []string
+	for _, f := range fields {
+		f = strings.TrimSpace(f)
+		at := strings.Index(f, "@")
+		if at <= 0 || at == len(f)-1 || seen[strings.ToLower(f)] {
+			continue
+		}
+		seen[strings.ToLower(f)] = true
+		out = append(out, f)
+	}
+	return out
 }

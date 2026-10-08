@@ -80,6 +80,8 @@ type resetTestMailer struct {
 func (m *resetTestMailer) Send([]string, string, string) error                      { return nil }
 func (m *resetTestMailer) SendTemplate([]string, string, string, interface{}) error { return nil }
 func (m *resetTestMailer) SendForPlant(string, []string, string, string) error      { return nil }
+func (m *resetTestMailer) SendHTMLForPlant(string, mail.HTMLMessage) error { return nil }
+
 func (m *resetTestMailer) SendTemplateForPlant(_ string, _ []string, _ string, template string, data interface{}) error {
 	m.data = data.(map[string]string)
 	m.template = template

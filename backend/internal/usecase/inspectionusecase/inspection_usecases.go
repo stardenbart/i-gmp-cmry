@@ -270,9 +270,9 @@ func (uc *inspectionHeaderUseCase) UpdateStatus(id string, actorID string, req *
 			kawasanProgress, _ := CalculateKawasanStatus(h.KawasanID, uc.detailKawasanRepo, uc.repo, period.PeriodStart, period.PeriodEnd)
 			if kawasanProgress.Status == inspection.KawasanStatusConfirmed {
 				if uc.isCompletionNotifyEnabled(master.SettingKeyNotifyOnKawasanComplete) {
-					go func(kawasanID string, p inspection.KawasanProgress) {
-						_ = uc.emailNotifier.SendKawasanInspectionSummary(kawasanID, p)
-					}(h.KawasanID, kawasanProgress)
+					go func(kawasanID string, p inspection.KawasanProgress, start, end time.Time) {
+						_ = uc.emailNotifier.SendKawasanInspectionSummary(kawasanID, p, start, end)
+					}(h.KawasanID, kawasanProgress, period.PeriodStart, period.PeriodEnd)
 				}
 			}
 		}

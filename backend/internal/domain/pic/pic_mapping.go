@@ -25,6 +25,8 @@ type ResponsibleUser struct {
 	FullName string
 	Email    string
 	PlantID  *string
+	// KategoriPIC is the mapping role (Manager, Supervisor, Staff, ...).
+	KategoriPIC string
 }
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────

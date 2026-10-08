@@ -20,6 +20,7 @@ type Mailer interface {
 	SendTemplate(to []string, subject string, tmpl string, data interface{}) error
 	SendForPlant(plantID string, to []string, subject, body string) error
 	SendTemplateForPlant(plantID string, to []string, subject string, tmpl string, data interface{}) error
+	SendHTMLForPlant(plantID string, msg HTMLMessage) error
 }
 
 // SMTPConfig is the effective SMTP configuration used for one send attempt.

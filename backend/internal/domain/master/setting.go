@@ -26,6 +26,9 @@ const (
 	SettingKeyEmailTemplateIssue               = "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT"
 	SettingKeyEmailTemplateInspectionConfirmed = "EMAIL_TEMPLATE_INSPECTION_CONFIRMED"
 	SettingKeyEmailTemplateKawasanConfirmed    = "EMAIL_TEMPLATE_KAWASAN_CONFIRMED"
+	// SettingKeyEmailCCKawasanReport lists the addresses (separated by ";",
+	// "," or new lines) copied on every Kawasan inspection report email.
+	SettingKeyEmailCCKawasanReport = "EMAIL_CC_KAWASAN_REPORT"
 	SettingKeyEmailTemplateDeadlineReminder    = "EMAIL_TEMPLATE_DEADLINE_REMINDER"
 	SettingKeyIssueDeadlineDays                = "ISSUE_DEADLINE_DAYS"
 	SettingKeyIssueAutoApproveDays             = "ISSUE_AUTO_APPROVE_DAYS"

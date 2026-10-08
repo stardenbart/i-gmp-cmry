@@ -2,7 +2,6 @@ export const EMAIL_TEMPLATES = [
   { key: "EMAIL_TEMPLATE_FORGOT_PASSWORD", title: "OTP Lupa Password", description: "Template kode OTP reset password. Dapat dibuat berbeda untuk setiap plant.", variables: ["FullName", "Username", "OTP", "OTPExpiryMinutes"], requiredVariables: ["OTP", "OTPExpiryMinutes"] },
   { key: "EMAIL_TEMPLATE_ISSUE_ASSIGNMENT", title: "Penugasan Temuan (Issue)", description: "Email notifikasi saat user ditugaskan memperbaiki suatu temuan.", variables: ["PICName", "IssueID", "Keterangan", "Status", "DueDate"], requiredVariables: [] },
   { key: "EMAIL_TEMPLATE_INSPECTION_CONFIRMED", title: "Konfirmasi Inspeksi", description: "Email saat inspeksi area telah selesai dan dikonfirmasi.", variables: ["AreaID", "TotalDetailKawasan", "CompletedDetailKawasan", "Status"], requiredVariables: [] },
-  { key: "EMAIL_TEMPLATE_KAWASAN_CONFIRMED", title: "Kawasan Selesai Diinspeksi", description: "Email ke Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini.", variables: ["KawasanID", "TotalDetailKawasan", "CompletedDetailKawasan", "Status"], requiredVariables: [] },
   { key: "EMAIL_TEMPLATE_DEADLINE_REMINDER", title: "Pengingat Tenggat Temuan", description: "Email ke PIC & Manager sebelum tenggat penyelesaian temuan terlewati.", variables: ["PICName", "IssueID", "Keterangan", "DueDate", "DaysRemaining"], requiredVariables: [] },
 ] as const;
 
@@ -24,7 +23,8 @@ export const GENERAL_SETTINGS = [
   ] },
   { group: "Pengingat & Notifikasi", keys: [
     { key: "ISSUE_DEADLINE_REMINDER_DAYS_BEFORE", label: "Pengingat Tenggat (Hari Sebelum)", type: "number", desc: "Berapa hari sebelum tenggat temuan sistem mengirim pengingat ke PIC & Manager. Isi 0 untuk menonaktifkan." },
-    { key: "NOTIFY_ON_KAWASAN_COMPLETE", label: "Notifikasi Kawasan Selesai", type: "boolean", desc: "Kirim email ke PIC & Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi bulan ini." },
+    { key: "NOTIFY_ON_KAWASAN_COMPLETE", label: "Laporan Inspeksi Kawasan", type: "boolean", desc: "Kirim email laporan (skor per detail kawasan, skor kawasan, dan daftar issue) ke PIC & Manager saat seluruh Detail Kawasan di satu Kawasan selesai diinspeksi." },
+    { key: "EMAIL_CC_KAWASAN_REPORT", label: "CC Laporan Inspeksi Kawasan", type: "text", desc: "Alamat email yang selalu di-CC pada laporan inspeksi kawasan, dipisahkan titik koma (;). Berlaku untuk plant yang sedang dipilih." },
     { key: "NOTIFY_ON_AREA_COMPLETE", label: "Notifikasi Area Selesai", type: "boolean", desc: "Kirim email ke PIC & Manager saat seluruh Kawasan di satu Area selesai diinspeksi." },
   ] },
   { group: "Siklus Inspeksi", keys: [
