@@ -3,6 +3,7 @@
 import { AlertTriangle, PenSquare } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { EMAIL_TEMPLATES, type EmailTemplateConfig } from "@/components/settings/settingsConfig";
 import type { SystemSetting } from "@/lib/api/master.api";
 
@@ -12,9 +13,14 @@ interface EmailTemplatesPanelProps {
   plantName?: string;
   settings?: SystemSetting[];
   onEdit: (template: EmailTemplateConfig) => void;
+  /** Called with the template's `<KEY>_ENABLED` setting and its new value. */
+  onToggle?: (settingKey: string, enabled: boolean) => void;
 }
 
-export function EmailTemplatesPanel({ isLoading, plantId, plantName, settings, onEdit }: EmailTemplatesPanelProps) {
+/** On/off switch for a template's email; a missing setting means enabled. */
+export const emailEnabledKey = (templateKey: string) => `${templateKey}_ENABLED`;
+
+export function EmailTemplatesPanel({ isLoading, plantId, plantName, settings, onEdit, onToggle }: EmailTemplatesPanelProps) {
   const isGlobal = plantId === "GLOBAL";
   return (
     <section>
@@ -31,6 +37,9 @@ export function EmailTemplatesPanel({ isLoading, plantId, plantName, settings, o
         <div className="divide-y divide-border">
           {EMAIL_TEMPLATES.map((template) => {
             const existing = settings?.find((setting) => setting.setting_key === template.key);
+            const alwaysOn = "alwaysOn" in template && template.alwaysOn;
+            const enabledKey = emailEnabledKey(template.key);
+            const enabled = settings?.find((setting) => setting.setting_key === enabledKey)?.setting_value?.toLowerCase() !== "false";
             const configured = !!existing?.setting_value;
             const missingRequiredVariables = template.requiredVariables.filter(
               (variable) => !existing?.setting_value?.includes(`{{.${variable}}}`)
@@ -65,10 +74,30 @@ export function EmailTemplatesPanel({ isLoading, plantId, plantName, settings, o
                   )}
                   <code className="mt-2 inline-block rounded bg-muted px-2 py-1 text-xs text-muted-foreground">{template.key}</code>
                 </div>
-                <Button type="button" variant={configured ? "outline" : "default"} onClick={() => onEdit(template)} className="shrink-0">
-                  <PenSquare className="mr-2 h-4 w-4" />
-                  {invalid ? "Perbaiki Template" : globalFallback ? "Buat Override Plant" : configured ? "Edit Template" : "Buat Template"}
-                </Button>
+                <div className="flex shrink-0 flex-wrap items-center gap-3">
+                  {alwaysOn ? (
+                    <span className="text-xs font-medium text-muted-foreground" title="Dibutuhkan untuk reset password">Selalu aktif</span>
+                  ) : (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={enabled}
+                      aria-label={`Kirim email ${template.title}`}
+                      title={enabled ? "Email aktif — klik untuk menonaktifkan" : "Email nonaktif — klik untuk mengaktifkan"}
+                      onClick={() => onToggle?.(enabledKey, !enabled)}
+                      className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground"
+                    >
+                      <span className={cn("relative inline-flex h-5 w-9 items-center rounded-full transition-colors", enabled ? "bg-success" : "bg-muted-foreground/40")}>
+                        <span className={cn("inline-block h-4 w-4 rounded-full bg-white shadow transition-transform", enabled ? "translate-x-4" : "translate-x-0.5")} />
+                      </span>
+                      {enabled ? "Email aktif" : "Email nonaktif"}
+                    </button>
+                  )}
+                  <Button type="button" variant={configured ? "outline" : "default"} onClick={() => onEdit(template)} className="shrink-0">
+                    <PenSquare className="mr-2 h-4 w-4" />
+                    {invalid ? "Perbaiki Template" : globalFallback ? "Buat Override Plant" : configured ? "Edit Template" : "Buat Template"}
+                  </Button>
+                </div>
               </article>
             );
           })}

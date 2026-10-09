@@ -172,7 +172,10 @@ func evaluateIssueForAutoApprove(usecaseImpl *issueUseCase, i issue.Issue, sourc
 			dueDate = issueSnapshot.DueDate.Format("02 January 2006")
 		}
 
-		// Re-use assignment template or fallback
+		// Same template (and on/off switch) as the assignment email.
+		if !masterdomain.IsEmailTemplateEnabled(usecaseImpl.settingRepo, masterdomain.SettingKeyEmailTemplateIssue, plantID) {
+			return
+		}
 		tmpl := mail.TmplIssueAssignment
 		if s, errSet := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, plantID); errSet == nil && s.SettingValue != "" {
 			tmpl = s.SettingValue

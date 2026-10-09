@@ -342,6 +342,11 @@ func (uc *issueUseCase) Create(actorID string, req *issue.CreateIssueRequest) (*
 				if target.PlantID != nil {
 					plantID = *target.PlantID
 				}
+				// Admins can switch this email off (Pengaturan > Template
+				// Email); the in-app notification above is sent regardless.
+				if !masterdomain.IsEmailTemplateEnabled(uc.settingRepo, masterdomain.SettingKeyEmailTemplateIssue, plantID) {
+					continue
+				}
 				tmpl := mail.TmplIssueAssignment
 				if s, err := uc.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateIssue, plantID); err == nil && s.SettingValue != "" {
 					tmpl = s.SettingValue

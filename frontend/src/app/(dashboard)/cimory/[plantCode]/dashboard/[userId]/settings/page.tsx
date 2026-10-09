@@ -413,6 +413,7 @@ export default function SettingsPage() {
                 plantName={plantsList.find((plant) => plant.plant_id === settingsPlantID)?.plant_name}
                 settings={settingsData}
                 onEdit={handleOpenEditor}
+                onToggle={(key, enabled) => saveSettingMutation.mutate({ key, value: enabled ? "true" : "false" })}
               />
             )}
 

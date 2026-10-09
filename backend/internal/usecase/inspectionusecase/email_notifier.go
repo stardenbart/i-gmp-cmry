@@ -114,6 +114,11 @@ func (n *InspectionEmailNotifier) SendInspectionSummary(areaID string, progress 
 		return nil
 	}
 
+	if !master.IsEmailTemplateEnabled(n.settingRepo, master.SettingKeyEmailTemplateInspectionConfirmed, plantID) {
+		log.Printf("[EmailNotifier] Area-confirmed email switched off for plant %q; in-app notification only", plantID)
+		return nil
+	}
+
 	// 2. Load the matching plant template (with global fallback).
 	setting, err := n.settingRepo.FindByKey(master.SettingKeyEmailTemplateInspectionConfirmed, plantID)
 	if err != nil {

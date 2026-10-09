@@ -119,6 +119,14 @@ func (uc *settingUseCase) toResponse(s *master.Setting) master.SettingResponse {
 
 func validateDynamicSetting(key, value string) error {
 	trimmed := strings.TrimSpace(value)
+	for _, templateKey := range master.ToggleableEmailTemplates {
+		if key == master.EmailTemplateEnabledKey(templateKey) {
+			if _, err := strconv.ParseBool(trimmed); err != nil {
+				return fmt.Errorf("%s harus bernilai true atau false", key)
+			}
+			return nil
+		}
+	}
 	switch key {
 	case master.SettingKeySMTPEnabled:
 		if _, err := strconv.ParseBool(trimmed); err != nil {

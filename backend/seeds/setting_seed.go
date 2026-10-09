@@ -62,6 +62,21 @@ func SeedSettings(db *gorm.DB) {
 			Description:  "Berapa hari sebelum tenggat temuan sistem mengirim pengingat ke PIC & Manager (0 = nonaktif)",
 		},
 		{
+			SettingKey:   master.EmailTemplateEnabledKey(master.SettingKeyEmailTemplateIssue),
+			SettingValue: "true",
+			Description:  "Kirim email penugasan temuan (issue) ke PIC. Notifikasi di aplikasi tetap dikirim.",
+		},
+		{
+			SettingKey:   master.EmailTemplateEnabledKey(master.SettingKeyEmailTemplateInspectionConfirmed),
+			SettingValue: "true",
+			Description:  "Kirim email saat inspeksi seluruh area selesai. Notifikasi di aplikasi tetap dikirim.",
+		},
+		{
+			SettingKey:   master.EmailTemplateEnabledKey(master.SettingKeyEmailTemplateDeadlineReminder),
+			SettingValue: "true",
+			Description:  "Kirim email pengingat tenggat temuan. Notifikasi di aplikasi tetap dikirim.",
+		},
+		{
 			SettingKey:   master.SettingKeyEmailCCKawasanReport,
 			SettingValue: "",
 			Description:  "Alamat email yang selalu di-CC pada laporan inspeksi kawasan, dipisahkan titik koma (;)",

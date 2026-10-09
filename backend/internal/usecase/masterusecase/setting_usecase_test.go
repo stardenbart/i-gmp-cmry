@@ -48,3 +48,18 @@ func TestValidateDynamicSettingRequiresPasswordResetOTPVariables(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateDynamicSettingEmailToggles(t *testing.T) {
+	for _, key := range []string{
+		"EMAIL_TEMPLATE_ISSUE_ASSIGNMENT_ENABLED",
+		"EMAIL_TEMPLATE_INSPECTION_CONFIRMED_ENABLED",
+		"EMAIL_TEMPLATE_DEADLINE_REMINDER_ENABLED",
+	} {
+		if err := validateDynamicSetting(key, "false"); err != nil {
+			t.Errorf("%s=false rejected: %v", key, err)
+		}
+		if err := validateDynamicSetting(key, "maybe"); err == nil {
+			t.Errorf("%s=maybe should be rejected", key)
+		}
+	}
+}

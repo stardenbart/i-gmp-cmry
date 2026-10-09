@@ -108,6 +108,9 @@ func evaluateIssueForDeadlineReminder(usecaseImpl *issueUseCase, i issue.Issue) 
 			if target.PlantID != nil {
 				targetPlant = *target.PlantID
 			}
+			if !masterdomain.IsEmailTemplateEnabled(usecaseImpl.settingRepo, masterdomain.SettingKeyEmailTemplateDeadlineReminder, targetPlant) {
+				continue
+			}
 			tmpl := ""
 			if s, errSet := usecaseImpl.settingRepo.FindByKey(masterdomain.SettingKeyEmailTemplateDeadlineReminder, targetPlant); errSet == nil && s.SettingValue != "" {
 				tmpl = s.SettingValue
