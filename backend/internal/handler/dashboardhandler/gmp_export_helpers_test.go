@@ -1,6 +1,9 @@
 package dashboardhandler
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeGMPExportFormat(t *testing.T) {
 	tests := []struct {
@@ -61,5 +64,21 @@ func TestMatchesGMPSearchIncludesFollowUpDescription(t *testing.T) {
 	}
 	if matchesGMPSearch("tidak ada", []string{"INSP-001"}, evidence) {
 		t.Fatal("unexpected match")
+	}
+}
+
+// The GMP data page, its table export and the form all list uraian in
+// checklist order (Aspek, Detail, uraian creation) for every area — not by
+// aspek name, which put e.g. "Area Produksi" before "Lingkungan".
+func TestGMPDataRelationOrderFollowsChecklist(t *testing.T) {
+	order := gmpDataRelationOrder
+	aspek := strings.Index(order, `am."AspekID"`)
+	detail := strings.Index(order, `dm."DetailID"`)
+	uraian := strings.Index(order, `um."UraianCreatedAt"`)
+	if aspek < 0 || detail < 0 || uraian < 0 || !(aspek < detail && detail < uraian) {
+		t.Fatalf("order = %s, want AspekID, DetailID, UraianCreatedAt in that order", order)
+	}
+	if strings.Contains(order, `"AspekName"`) || strings.Contains(order, `"DetailName"`) {
+		t.Fatalf("order must not sort by names: %s", order)
 	}
 }

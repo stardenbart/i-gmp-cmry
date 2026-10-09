@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -162,9 +163,18 @@ func TestGMPFormCountsFindingsPerUraianAndScoresPerAspek(t *testing.T) {
 	if got := cell(t, f, "Hal 00", "I10"); got != "" {
 		t.Errorf("I10 = %q, want empty for a uraian without findings", got)
 	}
-	// Total Nilai per aspek on the aspek's first row, merged over its rows.
-	if got := cell(t, f, "Hal 00", "H10"); got != "4" {
+	// Total Nilai per aspek: a live SUM of the aspek's Nilai on its first
+	// row only (merged cells must not hide extra values that SUM would add).
+	if got, _ := f.GetCellFormula("Hal 00", "H10"); got != "SUM(G10:G12)" {
+		t.Errorf("H10 formula = %q, want SUM(G10:G12)", got)
+	}
+	if got := calc(t, f, "Hal 00", "H10"); got != "4" {
 		t.Errorf("H10 = %q, want 4 (2+2+NA)", got)
+	}
+	for _, axis := range []string{"H11", "H12", "B11", "C12"} {
+		if storesValue(t, f, "Hal 00", axis) {
+			t.Errorf("%s stores a value, want empty (hidden part of a merged group)", axis)
+		}
 	}
 	m := merged(t, f, "Hal 00")
 	if !m["B10:B12"] || !m["H10:H12"] || !m["C11:C12"] {
@@ -197,12 +207,21 @@ func TestGMPFormTotalsUseFormulas(t *testing.T) {
 	}
 	for axis, want := range map[string]string{
 		"G17": "SUM(G10:G16)",
+		"H17": "SUM(H10:H16)",
 		"I17": "SUM(I10:I16)",
 		"M17": `IFERROR(COUNTIF(M10:M16,"*Closed*")/COUNTIF(M10:M16,"<>"),0)`,
 	} {
 		got, err := f.GetCellFormula("Hal 00", axis)
 		if err != nil || got != want {
 			t.Errorf("%s formula = %q (%v), want %q", axis, got, err, want)
+		}
+	}
+	// Excel sums only the top-left cell of a merge, so the totals are right
+	// as long as the merged-away cells are empty. (excelize's own calc
+	// engine counts merged cells once per row, so it is not used here.)
+	for _, axis := range []string{"G15", "G16", "H11", "H12", "H15", "H16", "I15", "I16"} {
+		if storesValue(t, f, "Hal 00", axis) {
+			t.Errorf("%s stores a value, want empty so the totals count each value once", axis)
 		}
 	}
 	if got := cell(t, f, "Hal 00", "A19"); !strings.HasPrefix(got, "Keterangan") {
@@ -297,8 +316,50 @@ func TestGMPFormTotalNilaiPerAspekBlock(t *testing.T) {
 	}
 	f := openForm(t, s)
 	for axis, want := range map[string]string{"H10": "4", "H12": "0", "H13": "2"} {
-		if got := cell(t, f, "Hal 00", axis); got != want {
+		if got := calc(t, f, "Hal 00", axis); got != want {
 			t.Errorf("%s = %q, want %q", axis, got, want)
 		}
 	}
+}
+
+func calc(t *testing.T, f *excelize.File, sheet, axis string) string {
+	t.Helper()
+	v, err := f.CalcCellValue(sheet, axis)
+	if err != nil {
+		t.Fatalf("calc %s: %v", axis, err)
+	}
+	return v
+}
+
+// storesValue reports whether the cell itself holds a value or formula in
+// the sheet XML. (GetCellValue returns a merged range's value for every
+// cell inside it, so it cannot tell.)
+func storesValue(t *testing.T, f *excelize.File, sheet, axis string) bool {
+	t.Helper()
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx, _ := f.GetSheetIndex(sheet)
+	xml := sheetXML(t, buf.Bytes(), idx+1)
+	m := regexp.MustCompile(`<c r="` + axis + `"[^>]*?(/>|>(.*?)</c>)`).FindStringSubmatch(xml)
+	return m != nil && (strings.Contains(m[2], "<v>") || strings.Contains(m[2], "<f>") || strings.Contains(m[2], "<is>"))
+}
+
+func sheetXML(t *testing.T, data []byte, n int) string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range zr.File {
+		if file.Name == "xl/worksheets/sheet"+strconv.Itoa(n)+".xml" {
+			rc, _ := file.Open()
+			b, _ := io.ReadAll(rc)
+			rc.Close()
+			return string(b)
+		}
+	}
+	t.Fatalf("sheet%d.xml not found", n)
+	return ""
 }

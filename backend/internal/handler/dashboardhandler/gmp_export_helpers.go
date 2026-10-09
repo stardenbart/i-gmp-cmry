@@ -12,7 +12,9 @@ import (
 const (
 	gmpExportFormatTemplate = "template"
 	gmpExportFormatTable    = "table"
-	gmpDataRelationOrder    = `ih."InspectionHeaderCreatedAt" DESC, ih."InspectionID" DESC, am."AspekName" ASC, am."AspekID" ASC, dm."DetailName" ASC, dm."DetailID" ASC, um."UraianID" ASC, ir."ResultID" ASC`
+	// Checklist order for every area: master Aspek, then Detail, then the
+	// order the uraian were created in (UraianIDs are random hashes).
+	gmpDataRelationOrder    = `ih."InspectionHeaderCreatedAt" DESC, ih."InspectionID" DESC, am."AspekID" ASC, dm."DetailID" ASC, um."UraianCreatedAt" ASC, um."UraianID" ASC, ir."ResultID" ASC`
 	gmpCompanyName          = "PT CISARUA MOUNTAIN DAIRY TBK"
 )
 

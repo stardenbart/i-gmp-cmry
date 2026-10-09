@@ -18,6 +18,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useDebounce } from "@/hooks/useDebounce";
 import { GmpEvidenceImages, GmpFollowUpDescriptions } from "@/components/gmp/GmpEvidenceImages";
 import { GmpExportMenu } from "@/components/gmp/GmpExportMenu";
+import { GMP_TABLE } from "@/components/gmp/gmpTableLayout";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -390,8 +391,8 @@ export default function GmpDataAdminPage() {
 
       {/* Table Section */}
       <Card className="overflow-hidden border-border/50 shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[2050px] text-sm text-left border-collapse">
+        <div className={GMP_TABLE.scroller}>
+          <table className={GMP_TABLE.table}>
             <thead className="bg-muted/50 text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">ID Inspeksi</th>
@@ -399,15 +400,15 @@ export default function GmpDataAdminPage() {
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Detail Kawasan</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Aspek</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Detail Aspek</th>
-                <th className="px-4 py-3.5 font-semibold whitespace-nowrap">Uraian</th>
+                <th className={cn("px-4 py-3.5 font-semibold", GMP_TABLE.uraian)}>Uraian</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Nilai per Detail Kawasan">Nilai</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai per Kawasan">Total Nilai (Kawasan)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Total Nilai ÷ Total Nilai Maksimal (semua uraian OK) pada Detail Kawasan ini × 100">Persentase Kepatuhan (Detail Kawasan)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="1 jika uraian ini memiliki Issue, 0 jika tidak">Temuan (Uraian)</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti temuan awal pada uraian">Visual Temuan Awal</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Seluruh foto bukti perbaikan dengan tipe FollowUp">Visual Follow-Up</th>
-                <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan pada setiap foto FollowUp">Keterangan Follow-Up</th>
-                <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Keterangan setiap foto bukti temuan awal dari Issue Photo">Keterangan Foto Temuan Awal</th>
+                <th className={cn("px-4 py-3.5 font-semibold", GMP_TABLE.followUpKeterangan)} title="Keterangan pada setiap foto FollowUp">Keterangan Follow-Up</th>
+                <th className={cn("px-4 py-3.5 font-semibold", GMP_TABLE.keterangan)} title="Keterangan setiap foto bukti temuan awal dari Issue Photo">Keterangan Foto Temuan Awal</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Follow Up Datetime per Detail Kawasan">Follow Up Datetime</th>
                 <th className="px-4 py-3.5 font-semibold whitespace-nowrap" title="Due Date per Detail Kawasan">Due Date</th>
                 <th className="px-4 py-3.5 font-semibold text-center whitespace-nowrap" title="Selisih hari kalender: tanggal follow-up dikurangi due date">Gap Follow-Up</th>
@@ -501,7 +502,7 @@ export default function GmpDataAdminPage() {
 
                     {/* Uraian — merged within each Detail Aspek. */}
                     {span.uraian > 0 && (
-                      <td className="max-w-sm px-4 py-3 text-xs leading-relaxed text-muted-foreground whitespace-normal align-middle" rowSpan={span.uraian}>
+                      <td className={cn("px-4 py-3 text-xs leading-relaxed text-muted-foreground align-middle", GMP_TABLE.uraian)} rowSpan={span.uraian}>
                         {row.uraian || "-"}
                       </td>
                     )}
@@ -582,12 +583,12 @@ export default function GmpDataAdminPage() {
                     </td>
 
                     {/* Keterangan per Foto Follow-Up */}
-                    <td className="px-4 py-3 align-middle">
+                    <td className={cn("px-4 py-3 align-middle", GMP_TABLE.followUpKeterangan)}>
                       <GmpFollowUpDescriptions evidence={row.follow_up_evidence} />
                     </td>
 
                     {/* Keterangan Temuan */}
-                    <td className="max-w-sm px-4 py-3 align-middle" title={row.keterangan}>
+                    <td className={cn("px-4 py-3 align-middle", GMP_TABLE.keterangan)} title={row.keterangan}>
                       {row.keterangan ? (
                         <span className="block whitespace-pre-line break-words text-xs leading-relaxed">{row.keterangan}</span>
                       ) : (

@@ -166,21 +166,13 @@ func fillGMPFormSheet(f *excelize.File, name string, sheet GMPFormSheet, page, p
 		return err
 	}
 
-	// Total Nilai per contiguous aspek block (the block H is merged over).
-	blockNilai := make([]int, len(sheet.Uraian))
-	for start := 0; start < len(sheet.Uraian); {
-		end, sum := start, 0
-		for end < len(sheet.Uraian) && sheet.Uraian[end].Aspek == sheet.Uraian[start].Aspek {
-			if sheet.Uraian[end].Nilai != nil {
-				sum += *sheet.Uraian[end].Nilai
-			}
-			end++
-		}
-		for i := start; i < end; i++ {
-			blockNilai[i] = sum
-		}
-		start = end
-	}
+	// Aspek (B, H) and Detail (C) groups: each value is written once, on the
+	// group's first row, because the rest of the group is merged away and
+	// Excel would otherwise still count the hidden values in SUM.
+	aspekEnd := groupEnds(rows, func(r gmpFormRow) string { return sheet.Uraian[r.uraian].Aspek })
+	detailEnd := groupEnds(rows, func(r gmpFormRow) string {
+		return sheet.Uraian[r.uraian].Aspek + "\x00" + sheet.Uraian[r.uraian].Detail
+	})
 
 	for i, r := range rows {
 		row := gmpFormDataStart + i
@@ -201,11 +193,14 @@ func fillGMPFormSheet(f *excelize.File, name string, sheet GMPFormSheet, page, p
 				_ = set(at("I"), len(u.Findings))
 			}
 		}
-		// Aspek / Detail / Total Nilai are written on every row; the merges
-		// below keep only the first value of each group visible.
-		_ = set(at("B"), u.Aspek)
-		_ = set(at("C"), u.Detail)
-		_ = set(at("H"), blockNilai[r.uraian])
+		if end, ok := aspekEnd[i]; ok {
+			_ = set(at("B"), u.Aspek)
+			// Total Nilai stays live: the SUM of this aspek's Nilai.
+			_ = f.SetCellFormula(name, at("H"), fmt.Sprintf("SUM(G%d:G%d)", row, gmpFormDataStart+end))
+		}
+		if _, ok := detailEnd[i]; ok {
+			_ = set(at("C"), u.Detail)
+		}
 
 		if r.finding >= 0 {
 			fd := u.Findings[r.finding]
@@ -233,8 +228,13 @@ func fillGMPFormSheet(f *excelize.File, name string, sheet GMPFormSheet, page, p
 	}
 
 	total := last + 1
+	// The template only styles G, I and M on the total row; H matches G.
+	if style, err := f.GetCellStyle(name, fmt.Sprintf("G%d", total)); err == nil {
+		_ = f.SetCellStyle(name, fmt.Sprintf("H%d", total), fmt.Sprintf("H%d", total), style)
+	}
 	for axis, formula := range map[string]string{
 		fmt.Sprintf("G%d", total): fmt.Sprintf("SUM(G%d:G%d)", gmpFormDataStart, last),
+		fmt.Sprintf("H%d", total): fmt.Sprintf("SUM(H%d:H%d)", gmpFormDataStart, last),
 		fmt.Sprintf("I%d", total): fmt.Sprintf("SUM(I%d:I%d)", gmpFormDataStart, last),
 		fmt.Sprintf("M%d", total): fmt.Sprintf(`IFERROR(COUNTIF(M%d:M%d,"*Closed*")/COUNTIF(M%d:M%d,"<>"),0)`, gmpFormDataStart, last, gmpFormDataStart, last),
 	} {
@@ -350,4 +350,19 @@ func withFontColor(f *excelize.File, styleID int, color string) (int, error) {
 	}
 	style.Font.Color = color
 	return f.NewStyle(style)
+}
+
+// groupEnds maps the first row index of every run of equal keys to the
+// run's last row index.
+func groupEnds(rows []gmpFormRow, key func(gmpFormRow) string) map[int]int {
+	ends := map[int]int{}
+	for start := 0; start < len(rows); {
+		end := start
+		for end+1 < len(rows) && key(rows[end+1]) == key(rows[start]) {
+			end++
+		}
+		ends[start] = end
+		start = end + 1
+	}
+	return ends
 }
