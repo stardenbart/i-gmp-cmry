@@ -90,6 +90,7 @@ const clearDraftPhotosFromStorage = (inspectionId: string): void => {
   } catch {}
 };
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { nextInspectionStep } from "@/lib/inspectionNavigation";
 import {
   setActiveAspekIndex,
   setActiveDetailIndex,
@@ -100,6 +101,8 @@ import {
   setShowScrollTop,
   resetSession,
 } from "@/store/slices/inspectionSessionSlice";
+
+const FINISH_BUTTON_ID = "finish-inspection-button";
 
 export default function InspectionDetailPage() {
   const { hasPermission, isLoading: isGuardLoading } = usePermissions();
@@ -935,6 +938,32 @@ export default function InspectionDetailPage() {
 
   const overallProgress = getOverallProgress();
 
+  const allUraianScored = overallProgress.total > 0 && overallProgress.answered === overallProgress.total;
+
+  // "Berikutnya": next detail, then the next aspek; once every uraian is
+  // scored it brings the "Selesaikan Audit" button into view instead.
+  const goToNextStep = () => {
+    const step = nextInspectionStep({
+      detailsPerAspek: aspeksList.map((aspek) => aspek.details?.length ?? 0),
+      aspekIndex: activeAspekIndex,
+      detailIndex: activeDetailIndex,
+      allScored: allUraianScored,
+      firstIncompleteAspek: Math.max(0, aspeksList.findIndex((aspek) => !getAspekProgress(aspek).isComplete)),
+    });
+    if (step.type === "finish") {
+      const finish = document.getElementById(FINISH_BUTTON_ID);
+      finish?.scrollIntoView({ behavior: "smooth", block: "center" });
+      finish?.focus({ preventScroll: true });
+      return;
+    }
+    if (step.aspekIndex !== activeAspekIndex) {
+      dispatch(setActiveAspekIndex(step.aspekIndex));
+      updateUrlParams(aspeksList[step.aspekIndex]?.aspek_id, null);
+    }
+    dispatch(setActiveDetailIndex(step.detailIndex));
+    scrollToTop();
+  };
+
   // Filter displayed Detail Aspeks based on activeDetailIndex (Level 2 -> Level 3 selection)
   const detailsList = currentAspek?.details || [];
   const displayedDetails =
@@ -1030,6 +1059,7 @@ export default function InspectionDetailPage() {
               )}
 
               <Button
+                id={FINISH_BUTTON_ID}
                 onClick={handleSubmit(onFinalSubmit)}
                 disabled={isSaving || isCanceling}
                 className="w-full sm:w-auto sm:flex-none h-10 sm:h-9 px-2.5 sm:px-3 text-xs bg-green-600 min-w-0 hover:bg-green-700 text-white font-semibold rounded-xl shadow-xs whitespace-nowrap"
@@ -1072,8 +1102,9 @@ export default function InspectionDetailPage() {
           onSelectAspek={(selectedAspekId) => {
             const idx = aspeksList.findIndex((a) => a.aspek_id === selectedAspekId);
             if (idx !== -1) {
-              setActiveAspekIndex(idx);
-              setActiveDetailIndex(0);
+              dispatch(setActiveAspekIndex(idx));
+              dispatch(setActiveDetailIndex(0));
+              updateUrlParams(selectedAspekId, null);
             }
           }}
         />
@@ -1485,7 +1516,7 @@ export default function InspectionDetailPage() {
                       disabled={activeDetailIndex === 0 || activeDetailIndex === "all"}
                       onClick={() => {
                         if (typeof activeDetailIndex === "number" && activeDetailIndex > 0) {
-                          setActiveDetailIndex(activeDetailIndex - 1);
+                          dispatch(setActiveDetailIndex(activeDetailIndex - 1));
                           scrollToTop();
                         }
                       }}
@@ -1499,20 +1530,10 @@ export default function InspectionDetailPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={
-                        activeDetailIndex === "all" ||
-                        typeof activeDetailIndex !== "number" ||
-                        activeDetailIndex >= detailsList.length - 1
-                      }
-                      onClick={() => {
-                        if (typeof activeDetailIndex === "number" && activeDetailIndex < detailsList.length - 1) {
-                          setActiveDetailIndex(activeDetailIndex + 1);
-                          scrollToTop();
-                        }
-                      }}
+                      onClick={goToNextStep}
                       className="w-full text-xs h-10 sm:h-9"
                     >
-                      <span>Berikutnya</span>
+                      <span>{allUraianScored ? "Ke Selesaikan Audit" : "Berikutnya"}</span>
                       <ChevronRight className="w-3.5 h-3.5 ml-1" />
                     </Button>
                   </div>

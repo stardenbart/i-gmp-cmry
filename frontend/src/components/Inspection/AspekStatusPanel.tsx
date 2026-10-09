@@ -69,12 +69,12 @@ export function AspekStatusPanel({
           const isLockedByMe = isLocked && lockedBy === currentUserId;
           const isActiveTab = aspek.aspek_id === activeAspekId;
 
-          let badgeText = "FREE";
+          let badgeText = "Unlocked";
 
           if (isLockedByMe) {
             badgeText = "Aktif Mengedit";
           } else if (isLocked) {
-            badgeText = `Dikunci (${lockedBy ? lockedBy.substring(0, 6) : "Lain"})`;
+            badgeText = `Locked (${lockedBy ? lockedBy.substring(0, 6) : "Lain"})`;
           }
 
           return (
