@@ -408,8 +408,6 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	}
 	qCompleted.Count(&inspectionsCompleted)
 
-	// Issue queries need join with Inspection_Header
-	qIssueBase := inRange(h.db.Table("\"Issue\" i").Joins("JOIN \"Inspection_Result\" ir ON ir.\"ResultID\" = i.\"ResultID\"").Joins("JOIN \"Inspection_Header\" ih ON ih.\"InspectionID\" = ir.\"InspectionID\""), `ih."InspectionHeaderCreatedAt"`)
 	// Dashboard "Total Issue" represents each initial finding photo as one
 	// issue. Follow-up and WO/WR proof photos are deliberately excluded.
 	qIssuePhotoBase := inRange(h.db.Table(`"Issue_Photo" ip`).
@@ -423,19 +421,21 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	}
 	qIssueTotal.Count(&totalIssues)
 
-	qIssueOpen := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue')")
+	// Temuan Terbuka / Closed / Jatuh Tempo count finding photos like Total
+	// Issue does (Terbuka + Closed = Total Issue), not issues per uraian.
+	qIssueOpen := qIssuePhotoBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue')")
 	if allowedAreas != nil {
 		qIssueOpen = qIssueOpen.Where("ih.\"AreaID\" IN ?", allowedAreas)
 	}
 	qIssueOpen.Count(&totalOpenIssues)
 
-	qIssueClosed := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" IN ('Closed', 'Verified', 'ClosedOverdue')")
+	qIssueClosed := qIssuePhotoBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" IN ('Closed', 'Verified', 'ClosedOverdue')")
 	if allowedAreas != nil {
 		qIssueClosed = qIssueClosed.Where("ih.\"AreaID\" IN ?", allowedAreas)
 	}
 	qIssueClosed.Count(&picFollowupCompleted)
 
-	qIssueOverdue := qIssueBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue') AND i.\"DueDate\" < NOW()")
+	qIssueOverdue := qIssuePhotoBase.Session(&gorm.Session{}).Where("i.\"IssueStatus\" NOT IN ('Closed', 'Verified', 'ClosedOverdue') AND i.\"DueDate\" < NOW()")
 	if allowedAreas != nil {
 		qIssueOverdue = qIssueOverdue.Where("ih.\"AreaID\" IN ?", allowedAreas)
 	}
@@ -474,7 +474,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 			am."AreaName" as name,
 			COUNT(DISTINCT ir."ResultID") as total_check,
 			COUNT(DISTINCT CASE WHEN ir."Checking" = 'OK' THEN ir."ResultID" END) as total_ok,
-			COUNT(DISTINCT CASE WHEN i."IssueStatus" != 'Closed' AND i."IssueStatus" != 'Verified' AND i."IssueStatus" IS NOT NULL THEN i."IssueID" END) as open_issues
+			COUNT(DISTINCT CASE WHEN i."IssueStatus" NOT IN ('Closed', 'Verified', 'ClosedOverdue') THEN ip."IssuePhotoID" END) as open_issues
 		FROM "Area_Master" am
 		LEFT JOIN "Inspection_Header" ih ON ih."AreaID" = am."AreaID"`
 	var args []interface{}
@@ -488,6 +488,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	queryStr += `
 		LEFT JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"
 		LEFT JOIN "Issue" i ON i."ResultID" = ir."ResultID"
+		LEFT JOIN "Issue_Photo" ip ON ip."IssueID" = i."IssueID" AND ip."PhotoType" = 'Initial'
 	`
 	if allowedAreas != nil {
 		queryStr += ` WHERE am."AreaID" IN ? `
