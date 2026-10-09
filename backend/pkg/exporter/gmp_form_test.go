@@ -284,3 +284,21 @@ func unzipAll(t *testing.T, data []byte) []byte {
 	}
 	return all.Bytes()
 }
+
+// Total Nilai belongs to each contiguous aspek block, even if an aspek name
+// shows up again further down.
+func TestGMPFormTotalNilaiPerAspekBlock(t *testing.T) {
+	s := formFixture()
+	s.Uraian = []GMPFormUraian{
+		{UraianID: "U1", Aspek: "A", Detail: "d1", Text: "1", Nilai: intp(2)},
+		{UraianID: "U2", Aspek: "A", Detail: "d1", Text: "2", Nilai: intp(2)},
+		{UraianID: "U3", Aspek: "B", Detail: "d2", Text: "3", Nilai: intp(0)},
+		{UraianID: "U4", Aspek: "A", Detail: "d3", Text: "4", Nilai: intp(2)},
+	}
+	f := openForm(t, s)
+	for axis, want := range map[string]string{"H10": "4", "H12": "0", "H13": "2"} {
+		if got := cell(t, f, "Hal 00", axis); got != want {
+			t.Errorf("%s = %q, want %q", axis, got, want)
+		}
+	}
+}

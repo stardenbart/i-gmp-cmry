@@ -120,3 +120,46 @@ func TestGMPFormStatusLabel(t *testing.T) {
 		}
 	}
 }
+
+// Production UraianIDs are random (URN-261005-<hash>), so the form must
+// follow the checklist order instead: Aspek, then Detail (master IDs), then
+// the order the uraian were created in.
+func TestBuildGMPFormSheetsFollowsChecklistOrderNotRandomUraianIDs(t *testing.T) {
+	loc := dashboardLocation()
+	day := time.Date(2026, 10, 9, 8, 0, 0, 0, loc)
+	created := time.Date(2026, 10, 5, 3, 7, 53, 0, loc)
+	mk := func(uraianID, aspekID, aspek, detailID, detail string, createdOffset int) gmpFormSourceRow {
+		return gmpFormSourceRow{
+			InspectionID: "INSP-1", Tanggal: day, Area: "Area Produksi", KawasanID: "KWS-1", Kawasan: "CMD 1", DetailKawasan: "Proses",
+			AspekID: aspekID, Aspek: aspek, DetailID: detailID, Detail: detail,
+			UraianID: uraianID, Uraian: uraianID, UraianCreatedAt: created.Add(time.Duration(createdOffset) * time.Millisecond),
+			Checking: "OK", Nilai: 2,
+		}
+	}
+	rows := []gmpFormSourceRow{
+		mk("URN-261005-fc1825bd", "ASP-001", "Lingkungan Sarana Produksi", "DET-002", "Sarana Jalan", 3),
+		mk("URN-261005-2282384b", "ASP-002", "Konstruksi dan Layout Bangunan", "DET-005", "Dinding", 6),
+		mk("URN-261005-18585069", "ASP-001", "Lingkungan Sarana Produksi", "DET-002", "Sarana Jalan", 1),
+		mk("URN-261005-0d706332", "ASP-001", "Lingkungan Sarana Produksi", "DET-003", "Lingkungan", 4),
+		mk("URN-261005-4169c6cc", "ASP-002", "Konstruksi dan Layout Bangunan", "DET-005", "Dinding", 5),
+		mk("URN-261005-3e16eda1", "ASP-001", "Lingkungan Sarana Produksi", "DET-002", "Sarana Jalan", 2),
+	}
+	sheets := buildGMPFormSheets(rows, nil, nil, nil, "PT", "")
+	var got []string
+	for _, u := range sheets[0].Uraian {
+		got = append(got, u.UraianID)
+	}
+	want := []string{
+		"URN-261005-18585069", "URN-261005-3e16eda1", "URN-261005-fc1825bd", // DET-002 by creation
+		"URN-261005-0d706332",                        // DET-003
+		"URN-261005-4169c6cc", "URN-261005-2282384b", // ASP-002 / DET-005 by creation
+	}
+	if len(got) != len(want) {
+		t.Fatalf("order = %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("order = %v, want %v", got, want)
+		}
+	}
+}

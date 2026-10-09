@@ -916,6 +916,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 		FollowUpEvidence  []gmpFollowUpEvidence `gorm:"-" json:"follow_up_evidence"`
 		FollowUpDate      *time.Time            `gorm:"column:follow_up_date" json:"follow_up_date"`
 		Checking          string                `gorm:"column:checking" json:"-"`
+		AspekID           string                `gorm:"column:aspek_id" json:"-"`
+		DetailID          string                `gorm:"column:detail_id" json:"-"`
+		UraianCreatedAt   time.Time             `gorm:"column:uraian_created_at" json:"-"`
 		IssueStatus       string                `gorm:"column:issue_status" json:"-"`
 		IssueKeterangan   string                `gorm:"-" json:"-"`
 	}
@@ -940,6 +943,9 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 			iss."IssueID" as issue_id, 
 			iss."DueDate" as due_date, 
 			COALESCE(ir."Checking", '') as checking,
+			am."AspekID" as aspek_id,
+			dm."DetailID" as detail_id,
+			um."UraianCreatedAt" as uraian_created_at,
 			COALESCE(iss."IssueStatus", '') as issue_status,
 			(SELECT COALESCE(p2."FollowUpDate", p2."PhotoCreatedAt") FROM "Issue_Photo" p2 WHERE p2."IssueID" = iss."IssueID" AND p2."PhotoType" = 'FollowUp' ORDER BY p2."PhotoCreatedAt" DESC LIMIT 1) as follow_up_date`).
 		Joins(`JOIN "Inspection_Result" ir ON ir."InspectionID" = ih."InspectionID"`).
@@ -1169,22 +1175,25 @@ func (h *DashboardHandler) ExportStats(c *fiber.Ctx) error {
 	seenKawasan := map[string]bool{}
 	for _, res := range results {
 		formRows = append(formRows, gmpFormSourceRow{
-			InspectionID:  res.InspectionID,
-			Tanggal:       res.Tanggal,
-			Area:          res.Area,
-			KawasanID:     res.KawasanID,
-			Kawasan:       res.Kawasan,
-			DetailKawasan: res.DetailKawasan,
-			Aspek:         res.Aspek,
-			Detail:        res.Detail,
-			UraianID:      res.UraianID,
-			Uraian:        res.Uraian,
-			Checking:      res.Checking,
-			Nilai:         res.Nilai,
-			IssueID:       res.IssueID,
-			IssueStatus:   res.IssueStatus,
-			DueDate:       res.DueDate,
-			Keterangan:    res.IssueKeterangan,
+			InspectionID:    res.InspectionID,
+			Tanggal:         res.Tanggal,
+			Area:            res.Area,
+			KawasanID:       res.KawasanID,
+			Kawasan:         res.Kawasan,
+			DetailKawasan:   res.DetailKawasan,
+			AspekID:         res.AspekID,
+			Aspek:           res.Aspek,
+			DetailID:        res.DetailID,
+			Detail:          res.Detail,
+			UraianCreatedAt: res.UraianCreatedAt,
+			UraianID:        res.UraianID,
+			Uraian:          res.Uraian,
+			Checking:        res.Checking,
+			Nilai:           res.Nilai,
+			IssueID:         res.IssueID,
+			IssueStatus:     res.IssueStatus,
+			DueDate:         res.DueDate,
+			Keterangan:      res.IssueKeterangan,
 		})
 		if res.KawasanID != "" && !seenKawasan[res.KawasanID] {
 			seenKawasan[res.KawasanID] = true

@@ -17,20 +17,26 @@ type gmpFormSourceRow struct {
 	KawasanID     string
 	Kawasan       string
 	DetailKawasan string
+	AspekID       string
 	Aspek         string
+	DetailID      string
 	Detail        string
 	UraianID      string
 	Uraian        string
-	Checking      string // OK, NG, NA
-	Nilai         int
-	IssueID       *string
-	IssueStatus   string
-	DueDate       *time.Time
-	Keterangan    string // issue keterangan (decrypted), fallback for photos without one
+	// UraianCreatedAt is the master import order, i.e. the checklist order
+	// (UraianIDs themselves are random, e.g. URN-261005-<hash>).
+	UraianCreatedAt time.Time
+	Checking        string // OK, NG, NA
+	Nilai           int
+	IssueID         *string
+	IssueStatus     string
+	DueDate         *time.Time
+	Keterangan      string // issue keterangan (decrypted), fallback for photos without one
 }
 
 // buildGMPFormSheets turns export rows into one form sheet per inspection,
-// in inspection date order, with uraian in UraianID order and one finding
+// in inspection date order, with uraian in checklist order (Aspek, Detail,
+// then creation order of the uraian) and one finding
 // per initial photo. Follow-ups attach to the photo they reference
 // (RefPhotoID), otherwise to the issue's first finding.
 func buildGMPFormSheets(
@@ -67,7 +73,7 @@ func buildGMPFormSheets(
 	sheets := make([]exporter.GMPFormSheet, 0, len(order))
 	for _, id := range order {
 		g := groups[id]
-		sort.SliceStable(g.rows, func(i, j int) bool { return g.rows[i].UraianID < g.rows[j].UraianID })
+		sort.SliceStable(g.rows, func(i, j int) bool { return gmpChecklistLess(g.rows[i], g.rows[j]) })
 
 		sheet := exporter.GMPFormSheet{
 			Company:  company,
@@ -166,4 +172,18 @@ func gmpFormStatusLabel(status string) string {
 	default:
 		return "Open"
 	}
+}
+
+// gmpChecklistLess orders uraian as the inspection checklist shows them.
+func gmpChecklistLess(a, b gmpFormSourceRow) bool {
+	if a.AspekID != b.AspekID {
+		return a.AspekID < b.AspekID
+	}
+	if a.DetailID != b.DetailID {
+		return a.DetailID < b.DetailID
+	}
+	if !a.UraianCreatedAt.Equal(b.UraianCreatedAt) {
+		return a.UraianCreatedAt.Before(b.UraianCreatedAt)
+	}
+	return a.UraianID < b.UraianID
 }

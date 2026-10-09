@@ -166,11 +166,20 @@ func fillGMPFormSheet(f *excelize.File, name string, sheet GMPFormSheet, page, p
 		return err
 	}
 
-	aspekNilai := map[string]int{}
-	for _, u := range sheet.Uraian {
-		if u.Nilai != nil {
-			aspekNilai[u.Aspek] += *u.Nilai
+	// Total Nilai per contiguous aspek block (the block H is merged over).
+	blockNilai := make([]int, len(sheet.Uraian))
+	for start := 0; start < len(sheet.Uraian); {
+		end, sum := start, 0
+		for end < len(sheet.Uraian) && sheet.Uraian[end].Aspek == sheet.Uraian[start].Aspek {
+			if sheet.Uraian[end].Nilai != nil {
+				sum += *sheet.Uraian[end].Nilai
+			}
+			end++
 		}
+		for i := start; i < end; i++ {
+			blockNilai[i] = sum
+		}
+		start = end
 	}
 
 	for i, r := range rows {
@@ -196,7 +205,7 @@ func fillGMPFormSheet(f *excelize.File, name string, sheet GMPFormSheet, page, p
 		// below keep only the first value of each group visible.
 		_ = set(at("B"), u.Aspek)
 		_ = set(at("C"), u.Detail)
-		_ = set(at("H"), aspekNilai[u.Aspek])
+		_ = set(at("H"), blockNilai[r.uraian])
 
 		if r.finding >= 0 {
 			fd := u.Findings[r.finding]
