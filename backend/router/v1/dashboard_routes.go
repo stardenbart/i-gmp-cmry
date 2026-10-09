@@ -13,11 +13,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterDashboardRoutes(rg fiber.Router, db *gorm.DB, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger) {
+func RegisterDashboardRoutes(rg fiber.Router, db *gorm.DB, cryptoSvc *crypto.Service, jwtManager *jwt.Manager, log *logger.Logger, appBaseURL string) {
 	userRepo := authrepo.NewUserRepository(db)
 	layoutRepo := dashboardrepo.NewDashboardLayoutRepository(db)
 	settingRepo := masterrepo.NewSettingRepository(db)
-	handler := dashboardhandler.NewDashboardHandler(db, log, cryptoSvc, layoutRepo, settingRepo)
+	handler := dashboardhandler.NewDashboardHandler(db, log, cryptoSvc, layoutRepo, settingRepo).WithAppBaseURL(appBaseURL)
 
 	authMW := middleware.AuthMiddleware(jwtManager)
 	plantScopeMW := middleware.PlantScopeMiddleware(userRepo)
