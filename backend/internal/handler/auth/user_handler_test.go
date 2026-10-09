@@ -127,3 +127,61 @@ func TestUpdateAllowsRoleChangeForNonSelfUpdate(t *testing.T) {
 		t.Fatal("an admin updating a DIFFERENT user's id must still be able to set role_id")
 	}
 }
+
+// Self-edit by someone WITHOUT MOD-USR UPDATE must not change their own PIC
+// kawasan scope either.
+func TestUpdateStripsPICScopeOnSelfUpdateWithoutUserPermission(t *testing.T) {
+	uc := &fakeUserUC{}
+	h := NewUserHandler(uc)
+
+	app := fiber.New()
+	app.Put("/users/:id", func(c *fiber.Ctx) error {
+		c.Locals(middleware.ContextKeyUserID, "USR-1")
+		c.Locals(middleware.ContextKeyCanManageUsers, false)
+		return c.Next()
+	}, h.Update)
+
+	body, _ := json.Marshal(map[string]interface{}{"full_name": "X", "pic_kawasan_ids": []string{"KWS-010"}, "pic_kategori": "Manager"})
+	req := httptest.NewRequest("PUT", "/users/USR-1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if resp, err := app.Test(req); err != nil || resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %v, err = %v", resp.StatusCode, err)
+	}
+	if uc.updateReq.PICKawasanIDs != nil || uc.updateReq.PICKategori != nil {
+		t.Fatalf("PIC scope must be stripped, got %v / %v", uc.updateReq.PICKawasanIDs, uc.updateReq.PICKategori)
+	}
+}
+
+// A user manager (Admin / Super Admin, i.e. MOD-USR UPDATE) can already set
+// anyone's PIC kawasan, so editing their OWN PIC kawasan is not an
+// escalation and must be saved — previously it was silently dropped while
+// the UI reported success. Role/status/department stay locked on self-edit.
+func TestUpdateKeepsPICScopeOnSelfUpdateForUserManager(t *testing.T) {
+	uc := &fakeUserUC{}
+	h := NewUserHandler(uc)
+
+	app := fiber.New()
+	app.Put("/users/:id", func(c *fiber.Ctx) error {
+		c.Locals(middleware.ContextKeyUserID, "USR-ADMIN")
+		c.Locals(middleware.ContextKeyCanManageUsers, true)
+		return c.Next()
+	}, h.Update)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"role_id":         "ROLE-000",
+		"pic_kawasan_ids": []string{"KWS-009", "KWS-010"},
+		"pic_kategori":    "Staff",
+	})
+	req := httptest.NewRequest("PUT", "/users/USR-ADMIN", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if resp, err := app.Test(req); err != nil || resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %v, err = %v", resp.StatusCode, err)
+	}
+	got := uc.updateReq
+	if len(got.PICKawasanIDs) != 2 || got.PICKawasanIDs[1] != "KWS-010" || got.PICKategori == nil || *got.PICKategori != "Staff" {
+		t.Fatalf("PIC scope must be kept for a user manager, got %v / %v", got.PICKawasanIDs, got.PICKategori)
+	}
+	if got.RoleID != "" {
+		t.Fatalf("role_id must still be locked on self-edit, got %q", got.RoleID)
+	}
+}

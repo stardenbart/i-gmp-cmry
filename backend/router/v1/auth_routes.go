@@ -81,6 +81,7 @@ func RegisterAuthRoutes(rg fiber.Router, db *gorm.DB, mailer mail.Mailer, jwtMan
 				userID := middleware.GetUserID(c)
 				id := c.Params("id")
 				if userID == id {
+					c.Locals(middleware.ContextKeyCanManageUsers, middleware.HasPermission(c, rolePermUC, userPermUC, "MOD-USR", "UPDATE"))
 					return c.Next()
 				}
 				return middleware.PermissionMiddleware(rolePermUC, userPermUC, "MOD-USR", "UPDATE")(c)

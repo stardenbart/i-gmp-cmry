@@ -3,6 +3,7 @@ package authusecase
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -138,7 +139,9 @@ func (uc *userUseCase) Update(id string, req *authdomain.UpdateUserRequest) (*au
 			if req.PICKategori != nil {
 				kategori = *req.PICKategori
 			}
-			_ = uc.upsertPICMappings(id, req.PICKawasanIDs, kategori)
+			if err := uc.upsertPICMappings(id, req.PICKawasanIDs, kategori); err != nil {
+				return nil, err
+			}
 		case req.PICKategori != nil:
 			// Only kategori changed; update existing rows in-place.
 			if existing, err := uc.picRepo.FindByUserID(id); err == nil {
@@ -184,7 +187,9 @@ func (uc *userUseCase) upsertPICMappings(userID string, kawasanIDs []string, kat
 			UserID:      userID,
 			KategoriPIC: kategori,
 		}
-		_ = uc.picRepo.Create(picMap)
+		if err := uc.picRepo.Create(picMap); err != nil {
+			return fmt.Errorf("gagal menyimpan PIC kawasan %s: %w", kawasanID, err)
+		}
 	}
 	return nil
 }

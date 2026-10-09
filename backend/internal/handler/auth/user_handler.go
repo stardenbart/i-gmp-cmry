@@ -140,8 +140,13 @@ func (h *UserHandler) Update(c *fiber.Ctx) error {
 		req.RoleID = ""
 		req.UserStatus = ""
 		req.DepartmentID = ""
-		req.PICKawasanIDs = nil
-		req.PICKategori = nil
+		// PIC kawasan scope stays editable on one's own account only for a
+		// user manager (MOD-USR UPDATE, set by the route): they can already
+		// assign any account's PIC kawasan, so this is not an escalation.
+		if canManage, _ := c.Locals(middleware.ContextKeyCanManageUsers).(bool); !canManage {
+			req.PICKawasanIDs = nil
+			req.PICKategori = nil
+		}
 	}
 
 	userPlantID, _ := c.Locals("userPlantID").(string)
