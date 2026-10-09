@@ -29,8 +29,8 @@ func TestEmailTemplateEnabledKey(t *testing.T) {
 
 func TestIsEmailTemplateEnabled(t *testing.T) {
 	repo := toggleRepo{
-		"EMAIL_TEMPLATE_ISSUE_ASSIGNMENT_ENABLED|":           "false",
-		"EMAIL_TEMPLATE_DEADLINE_REMINDER_ENABLED|":          "true",
+		"EMAIL_TEMPLATE_ISSUE_ASSIGNMENT_ENABLED|":            "false",
+		"EMAIL_TEMPLATE_DEADLINE_REMINDER_ENABLED|":           "true",
 		"EMAIL_TEMPLATE_DEADLINE_REMINDER_ENABLED|PLT-SENTUL": "FALSE",
 	}
 	cases := []struct {
@@ -38,9 +38,9 @@ func TestIsEmailTemplateEnabled(t *testing.T) {
 		want       bool
 	}{
 		{SettingKeyEmailTemplateIssue, "", false},
-		{SettingKeyEmailTemplateIssue, "PLT-SENTUL", false},           // global applies to the plant
-		{SettingKeyEmailTemplateDeadlineReminder, "PLT-CICURUG", true}, // global true
-		{SettingKeyEmailTemplateDeadlineReminder, "PLT-SENTUL", false}, // plant override, case-insensitive
+		{SettingKeyEmailTemplateIssue, "PLT-SENTUL", false},              // global applies to the plant
+		{SettingKeyEmailTemplateDeadlineReminder, "PLT-CICURUG", true},   // global true
+		{SettingKeyEmailTemplateDeadlineReminder, "PLT-SENTUL", false},   // plant override, case-insensitive
 		{SettingKeyEmailTemplateInspectionConfirmed, "PLT-SENTUL", true}, // missing → enabled
 	}
 	for _, tc := range cases {
