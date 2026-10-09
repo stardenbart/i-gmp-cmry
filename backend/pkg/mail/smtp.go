@@ -33,6 +33,9 @@ type SMTPConfig struct {
 	User        string
 	Password    string
 	SenderEmail string
+	// SenderName is the display name in the From header ("Name" <email>).
+	// Empty sends the bare address.
+	SenderName string
 }
 
 type SMTPConfigProvider func(plantID string) (SMTPConfig, error)
@@ -75,7 +78,7 @@ func (m *smtpMailer) SendForPlant(plantID string, to []string, subject, body str
 	if err := validateSMTPConfig(cfg); err != nil {
 		return err
 	}
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", cfg.SenderEmail, join(to), subject, body)
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", fromHeader(cfg), join(to), subject, body)
 
 	var auth smtp.Auth
 	if cfg.User != "" {
@@ -115,7 +118,7 @@ func (m *smtpMailer) SendTemplateForPlant(plantID string, to []string, subject s
 	}
 
 	mimeHeaders := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s\r\n%s", cfg.SenderEmail, join(to), subject, mimeHeaders, body.String())
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s\r\n%s", fromHeader(cfg), join(to), subject, mimeHeaders, body.String())
 
 	var auth smtp.Auth
 	if cfg.User != "" {

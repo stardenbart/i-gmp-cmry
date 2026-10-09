@@ -146,6 +146,14 @@ func validateDynamicSetting(key, value string) error {
 		if err != nil || day < 1 || day > 28 {
 			return fmt.Errorf("INSPECTION_PERIOD_CUTOFF_DAY harus berada di antara 1 dan 28")
 		}
+	case master.SettingKeySMTPSenderName:
+		// Goes into the From header: no line breaks (header injection).
+		if strings.ContainsAny(value, "\r\n") {
+			return fmt.Errorf("SMTP_SENDER_NAME tidak boleh berisi baris baru")
+		}
+		if len([]rune(trimmed)) > 100 {
+			return fmt.Errorf("SMTP_SENDER_NAME maksimal 100 karakter")
+		}
 	case master.SettingKeySMTPSenderEmail:
 		if _, err := netmail.ParseAddress(trimmed); err != nil {
 			return fmt.Errorf("SMTP_SENDER_EMAIL tidak valid")

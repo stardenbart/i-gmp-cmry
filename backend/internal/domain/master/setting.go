@@ -57,12 +57,13 @@ const (
 	SettingKeySMTPUser                  = "SMTP_USER"
 	SettingKeySMTPPassword              = "SMTP_PASSWORD"
 	SettingKeySMTPSenderEmail           = "SMTP_SENDER_EMAIL"
+	SettingKeySMTPSenderName            = "SMTP_SENDER_NAME"
 )
 
 func IsSMTPSettingKey(key string) bool {
 	switch key {
 	case SettingKeySMTPEnabled, SettingKeySMTPHost, SettingKeySMTPPort,
-		SettingKeySMTPUser, SettingKeySMTPPassword, SettingKeySMTPSenderEmail:
+		SettingKeySMTPUser, SettingKeySMTPPassword, SettingKeySMTPSenderEmail, SettingKeySMTPSenderName:
 		return true
 	default:
 		return false

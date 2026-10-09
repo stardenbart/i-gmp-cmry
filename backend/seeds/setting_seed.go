@@ -137,6 +137,10 @@ func SeedSettings(db *gorm.DB) {
 			SettingKey:  master.SettingKeySMTPSenderEmail,
 			Description: "Alamat email pengirim; kosong menggunakan environment",
 		},
+		{
+			SettingKey:  master.SettingKeySMTPSenderName,
+			Description: "Nama pengirim yang tampil di kotak masuk penerima (mis. I-GMP Notification); kosong hanya menampilkan alamat email",
+		},
 	}
 
 	for _, setting := range settings {

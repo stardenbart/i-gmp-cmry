@@ -169,6 +169,9 @@ func main() {
 		if setting, ok := read(masterdomain.SettingKeySMTPSenderEmail); ok {
 			effective.SenderEmail = setting.SettingValue
 		}
+		if setting, ok := read(masterdomain.SettingKeySMTPSenderName); ok {
+			effective.SenderName = setting.SettingValue
+		}
 		return effective, nil
 	})
 

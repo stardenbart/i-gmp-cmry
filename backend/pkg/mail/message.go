@@ -3,6 +3,7 @@ package mail
 import (
 	"fmt"
 	"mime"
+	netmail "net/mail"
 	"net/smtp"
 	"strings"
 )
@@ -33,6 +34,17 @@ func (m HTMLMessage) recipients() []string {
 		}
 	}
 	return out
+}
+
+// fromHeader is the From header value: "Sender Name" <email> when a sender
+// name is configured (RFC 2047-encoded if needed), else the bare address.
+// The SMTP envelope sender (MAIL FROM) always stays the bare address.
+func fromHeader(cfg SMTPConfig) string {
+	name := strings.TrimSpace(cfg.SenderName)
+	if name == "" {
+		return cfg.SenderEmail
+	}
+	return (&netmail.Address{Name: name, Address: cfg.SenderEmail}).String()
 }
 
 func buildHTMLMessage(from string, m HTMLMessage) []byte {
@@ -67,5 +79,5 @@ func (m *smtpMailer) SendHTMLForPlant(plantID string, msg HTMLMessage) error {
 		auth = smtp.PlainAuth("", cfg.User, cfg.Password, cfg.Host)
 	}
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-	return sendSMTPMail(addr, cfg.Host, auth, cfg.SenderEmail, msg.recipients(), buildHTMLMessage(cfg.SenderEmail, msg), smtpOperationTimeout)
+	return sendSMTPMail(addr, cfg.Host, auth, cfg.SenderEmail, msg.recipients(), buildHTMLMessage(fromHeader(cfg), msg), smtpOperationTimeout)
 }

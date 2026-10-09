@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { SettingsNavigation } from "@/components/settings/SettingsNavigation";
 import { GeneralSettingsPanel } from "@/components/settings/GeneralSettingsPanel";
 import { EmailTemplatesPanel } from "@/components/settings/EmailTemplatesPanel";
-import { EMAIL_TEMPLATES, GENERAL_SETTINGS, SMTP_DEFAULTS, type EmailTemplateConfig } from "@/components/settings/settingsConfig";
+import { EMAIL_TEMPLATES, GENERAL_SETTINGS, SMTP_DEFAULTS, SMTP_SAVE_KEYS, type EmailTemplateConfig } from "@/components/settings/settingsConfig";
 
 import { masterApi, type SystemSetting } from "@/lib/api/master.api";
 import { ChevronDown, Filter } from "lucide-react";
@@ -180,6 +180,10 @@ export default function SettingsPage() {
       toast.error("Host SMTP dan port 1–65535 wajib diisi");
       return;
     }
+    if (smtpValues.SMTP_SENDER_NAME.trim().length > 100) {
+      toast.error("Nama pengirim maksimal 100 karakter");
+      return;
+    }
     if (smtpEnabled && !/^\S+@\S+\.\S+$/.test(smtpValues.SMTP_SENDER_EMAIL.trim())) {
       toast.error("Email pengirim SMTP tidak valid");
       return;
@@ -188,7 +192,7 @@ export default function SettingsPage() {
     setIsSavingSmtp(true);
     try {
       const keys = smtpEnabled
-        ? ["SMTP_ENABLED", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_SENDER_EMAIL"]
+        ? [...SMTP_SAVE_KEYS]
         : ["SMTP_ENABLED"];
       if (smtpEnabled && smtpValues.SMTP_PASSWORD.trim()) keys.push("SMTP_PASSWORD");
       await Promise.all(keys.map(key => api.put(
@@ -378,7 +382,18 @@ export default function SettingsPage() {
                         <p className="text-[11px] text-muted-foreground mt-1.5">Password dienkripsi di database dan tidak pernah ditampilkan kembali.</p>
                       </div>
 
-                      <div className="md:col-span-2">
+                      <div>
+                        <label className="text-sm font-medium mb-1.5 block">Nama Pengirim</label>
+                        <Input
+                          value={smtpValues.SMTP_SENDER_NAME}
+                          onChange={e => setSmtpValues(prev => ({ ...prev, SMTP_SENDER_NAME: e.target.value }))}
+                          placeholder="I-GMP Cimory"
+                          maxLength={100}
+                        />
+                        <p className="text-[11px] text-muted-foreground mt-1.5">Nama yang tampil sebagai pengirim di inbox penerima. Kosongkan untuk hanya menampilkan alamat email.</p>
+                      </div>
+
+                      <div>
                         <label className="text-sm font-medium mb-1.5 block">Email Pengirim</label>
                         <Input
                           type="email"

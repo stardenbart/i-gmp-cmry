@@ -63,3 +63,16 @@ func TestValidateDynamicSettingEmailToggles(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateDynamicSettingSenderName(t *testing.T) {
+	for _, ok := range []string{"", "I-GMP Notification", "I-GMP — Plant Sentul"} {
+		if err := validateDynamicSetting("SMTP_SENDER_NAME", ok); err != nil {
+			t.Errorf("%q rejected: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"I-GMP\r\nBcc: attacker@example.com", "line\nbreak", strings.Repeat("x", 101)} {
+		if err := validateDynamicSetting("SMTP_SENDER_NAME", bad); err == nil {
+			t.Errorf("%q should be rejected", bad)
+		}
+	}
+}
