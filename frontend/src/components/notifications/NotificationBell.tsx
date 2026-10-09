@@ -220,7 +220,7 @@ export function NotificationBell({ triggerClassName }: { triggerClassName?: stri
           notification-panel-mobile fixed left-3 right-3 z-[60] flex flex-col overflow-hidden
           sm:absolute sm:left-auto sm:right-[-10px] sm:top-full sm:mt-2 sm:w-96
           origin-top sm:origin-top-right 
-          rounded-xl bg-card border border-border shadow-2xl 
+          rounded-xl bg-card text-card-foreground border border-border shadow-2xl 
           animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200
         "
         role="dialog"
