@@ -257,14 +257,23 @@ func DefaultCatalog() Catalog {
 		},
 		JoinHEIChain: {
 			ID: JoinHEIChain,
-			// Issue_HEI.IssueID is UNIQUE (issue.go's IssueHEI struct) and
-			// HEI_Master.HEIID is a PK — 1:1, never fans out. Joined
-			// straight off si (not off inspection_chain) since Issue_HEI
-			// references Issue directly.
+			// HEI is chosen per finding photo when an issue is entered
+			// (Issue_Photo.HEIID on the Initial photos); Issue_HEI only holds
+			// older issue-level picks. One HEI per issue keeps the catalog's
+			// 1-row-per-Issue grain: the Issue_HEI pick if there is one,
+			// otherwise the HEI of the issue's first Initial photo.
 			CTE: `hei_chain AS (
-				SELECT ihei."IssueID", h."HEIID", h."CategoryName", h."HEIName"
-				FROM "Issue_HEI" ihei
-				JOIN "HEI_Master" h ON h."HEIID" = ihei."HEIID"
+				SELECT DISTINCT ON (src."IssueID") src."IssueID", h."HEIID", h."CategoryName", h."HEIName"
+				FROM (
+					SELECT ihei."IssueID", ihei."HEIID", 0 AS prio, NULL::timestamp AS picked_at
+					FROM "Issue_HEI" ihei
+					UNION ALL
+					SELECT p."IssueID", p."HEIID", 1 AS prio, p."PhotoCreatedAt" AS picked_at
+					FROM "Issue_Photo" p
+					WHERE p."PhotoType" = 'Initial' AND COALESCE(p."HEIID", '') <> ''
+				) src
+				JOIN "HEI_Master" h ON h."HEIID" = src."HEIID"
+				ORDER BY src."IssueID", src.prio, src.picked_at
 			)`,
 			JoinSQL: `LEFT JOIN hei_chain hc ON hc."IssueID" = si."IssueID"`,
 		},
